@@ -1,10 +1,15 @@
 import { Outlet } from "@tanstack/react-router";
 import * as React from "react";
-import { Status } from "@glaze/core/components";
+import { SplitView, Status } from "@glaze/core/components";
 import { useTheme, useConnection, useEnvironment } from "@glaze/core/hooks";
+
+import { AppSidebar } from "../components/app-sidebar";
+import { CaptureProvider } from "../components/capture-dialog";
+import { useAccountsSync } from "../lib/queries";
 
 export function RootView() {
   useTheme();
+  useAccountsSync();
 
   // IPC connection and environment
   const connectionQuery = useConnection();
@@ -22,7 +27,11 @@ export function RootView() {
     <div className="h-full relative [&:not(:has([data-toolbar]))_.drag-region]:z-50">
       {/* Draggable top bar - fallback for when no toolbar is present */}
       <div className="drag-region fixed top-0 left-0 right-0 h-13" />
-      <Outlet />
+      <CaptureProvider>
+        <SplitView className="h-full" storageKey="productivity-shell" sidebar={<AppSidebar />}>
+          <Outlet />
+        </SplitView>
+      </CaptureProvider>
 
       <div className="flex flex-col items-end gap-1 mt-2 fixed bottom-12 right-2">
         {import.meta.env.DEV ? (

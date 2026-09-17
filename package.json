@@ -3,7 +3,7 @@
   "name": "dashboard",
   "version": "1.0.0",
   "productName": "Dashboard",
-  "description": "Visualize and monitor key metrics",
+  "description": "Your productivity hub for Google Tasks, Apple Reminders, Gmail, and Google Calendar",
   "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
   "private": true,
   "type": "module",
@@ -60,13 +60,28 @@
   "glaze": {
     "appId": "dashboard-local-25d26qqt",
     "variant": "local",
-    "capabilities": {},
+    "capabilities": {
+      "ai": {
+        "grades": [
+          "fast"
+        ],
+        "purpose": "Reads your open tasks, reminders, inbox subjects and previews, and calendar to write a daily briefing, rank what to do next, sort and draft replies to email, and turn typed sentences into tasks, reminders, or events.",
+        "mode": "optional"
+      },
+      "reminders": {
+        "operations": [
+          "read",
+          "write"
+        ],
+        "usage": "Shows your Apple Reminders on the dashboard and lets you complete or add reminders."
+      }
+    },
     "sdkVersion": "0.14.2.0",
     "createdAt": "2026-09-17T01:52:50.026Z",
     "lastMigration": "sdk-projection-paths",
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1789610125221
+    "updatedAt": 1789612143539
   }
 }

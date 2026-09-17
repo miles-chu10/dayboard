@@ -5,6 +5,10 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { HomeView } from "./home-view";
+import { TasksView } from "./tasks-view";
+import { RemindersView } from "./reminders-view";
+import { MailView } from "./mail-view";
+import { CalendarView } from "./calendar-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@glaze/core/components";
@@ -28,14 +32,53 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeView,
-  staticData: {
-    title: "Home",
-  },
+  staticData: { title: "Today" },
 });
 
-const routeTree = rootRoute.addChildren([homeRoute]);
+const tasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: TasksView,
+  staticData: { title: "Google Tasks" },
+});
 
-const queryClient = new QueryClient();
+const remindersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reminders",
+  component: RemindersView,
+  staticData: { title: "Reminders" },
+});
+
+const mailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/mail",
+  component: MailView,
+  staticData: { title: "Mail" },
+});
+
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/calendar",
+  component: CalendarView,
+  staticData: { title: "Calendar" },
+});
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  tasksRoute,
+  remindersRoute,
+  mailRoute,
+  calendarRoute,
+]);
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 60_000,
+    },
+  },
+});
 
 const router = createRouter({
   routeTree,
