@@ -1,0 +1,10 @@
+/*
+ * Glaze framework styles (@import "@glaze/core/..." and @import "tailwindcss")
+ * are automatically injected before this file during build and dev.
+ * Add your custom styles and @source directives below.
+ */
+
+/* Tell Tailwind to scan all local renderer window files for class names */
+@source "./**/*.{ts,tsx}";
+@source not "./preload.ts";
+@source not "./dev/**/*";

@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Paths */
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["./renderer/*"],
+      "@main/*": ["./main/*"],
+      "@shared/*": ["./renderer/shared/*"],
+      "@glaze/core/backend": ["../glaze-core/backend/index", "../../.sdk/@glaze/core/backend/index"],
+      "@glaze/core/oauth": ["../glaze-core/oauth/index", "../../.sdk/@glaze/core/oauth/index"],
+      "@glaze/core/ai": ["../glaze-core/ai/index", "../../.sdk/@glaze/core/ai/index"],
+      "@glaze/core/ipc": ["../glaze-core/ipc/index", "../../.sdk/@glaze/core/ipc/index"],
+      "@glaze/core/preload": ["../glaze-core/preload/index", "../../.sdk/@glaze/core/preload/index"],
+      "@glaze/core/components": ["../glaze-core/components/index", "../../.sdk/@glaze/core/components/index"],
+      "@glaze/core/hooks": ["../glaze-core/hooks/index", "../../.sdk/@glaze/core/hooks/index"],
+      "@glaze/core/utils": ["../glaze-core/utils/index", "../../.sdk/@glaze/core/utils/index"],
+      "@glaze/core/build": ["../glaze-core/build/index", "../../.sdk/@glaze/core/build/index"],
+      "*": ["./node_modules/@types/*", "./node_modules/*"]
+    }
+  },
+  "include": [
+    "renderer",
+    "main",
+    "glaze.ts",
+    "glaze.config.ts",
+    "../glaze-core/global.d.ts",
+    "../../.sdk/@glaze/core/global.d.ts"
+  ]
+}
