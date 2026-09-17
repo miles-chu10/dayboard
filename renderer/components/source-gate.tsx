@@ -43,6 +43,15 @@ function SourceEmptyState({ result, label }: { result: UnavailableResult; label:
   const requestAccess = useRequestRemindersAccess();
 
   switch (result.state) {
+    case "disabled":
+      return (
+        <EmptyState
+          placement="viewport"
+          title="Turned Off"
+          description={`${label} is hidden from your dashboard. Turn it back on in Settings → Sources.`}
+          actions={<Button onClick={() => void openSettings()}>Open Settings</Button>}
+        />
+      );
     case "needs-setup":
       return (
         <EmptyState
@@ -90,7 +99,17 @@ function SourceEmptyState({ result, label }: { result: UnavailableResult; label:
 
 export function sourceHint(result: SourceResult<unknown> | undefined, label: string): string | null {
   if (!result || result.state === "ok") return null;
+  if (result.state === "disabled") return `${label} is turned off in Settings.`;
   if (result.state === "no-access") return `Allow Reminders access to see ${label}.`;
   if (result.state === "needs-setup") return `Set up Google in Settings to see ${label}.`;
   return `Connect Google to see ${label}.`;
+}
+
+/** Short status for summary tiles. */
+export function sourceStatusShort(result: SourceResult<unknown> | undefined): string | null {
+  if (!result || result.state === "ok") return null;
+  if (result.state === "no-access") return "Needs access";
+  if (result.state === "needs-setup") return "Needs setup";
+  if (result.state === "disabled") return "Turned off";
+  return "Not connected";
 }

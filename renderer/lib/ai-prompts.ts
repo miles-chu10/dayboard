@@ -1,7 +1,8 @@
 import type { CalendarEventItem, MailItem, SourceResult } from "@main/shared-types";
 
-import { dayHeading, eventDayKey, formatClock, formatTimeOfDay, todayISO, addDays } from "./dates";
-import { SOURCE_LABEL, type Todo } from "./todos";
+import { addDays, dayHeading, eventDayKey, formatClock, formatTimeOfDay, shortDate, todayISO } from "./dates";
+import { SOURCE_META } from "./sources";
+import type { Todo } from "./todos";
 import type { TriageMap } from "./triage";
 
 const UNTRUSTED =
@@ -23,7 +24,7 @@ function eventLine(event: CalendarEventItem): string {
 function todoLine(todo: Todo, key?: string): string {
   const due = todo.dueDate ? `due ${todo.dueDate}${todo.dueTime ? ` ${formatClock(todo.dueTime)}` : ""}` : "no due date";
   const notes = todo.notes ? ` | notes: ${todo.notes.replace(/\s+/g, " ").slice(0, 80)}` : "";
-  return `- ${key ? `${key} | ` : ""}${todo.title} | ${SOURCE_LABEL[todo.source]} / ${todo.listTitle} | ${due}${notes}`;
+  return `- ${key ? `${key} | ` : ""}${todo.title} | ${SOURCE_META[todo.source].label} / ${todo.listTitle} | ${due}${notes}`;
 }
 
 function mailLine(message: MailItem, key?: string, category?: string): string {
@@ -34,6 +35,7 @@ function mailLine(message: MailItem, key?: string, category?: string): string {
 
 function sectionLines<T>(result: SourceResult<T> | undefined, format: (items: T[]) => string[]): string {
   if (!result) return "(still loading)";
+  if (result.state === "disabled") return "(turned off)";
   if (result.state !== "ok") return "(not connected)";
   const lines = format(result.items);
   return lines.length ? lines.join("\n") : "(none)";
@@ -81,7 +83,7 @@ Write a briefing under 170 words:
 3. **Due** — overdue and due-today items.
 4. **Inbox** — up to 3 emails that likely need attention.
 5. **Focus** — one suggested priority for the day.
-Omit a section only when its source is not connected. Do not add a title heading.`;
+Omit a section only when its source is not connected or turned off. Do not add a title heading.`;
 }
 
 // ── Smart prioritization ─────────────────────────────────────────────────
@@ -171,4 +173,155 @@ Rules:
 Sentence: ${JSON.stringify(sentence)}
 
 Return {"kind":"task","title":"","notes":"","date":"","time":"","endTime":""}`;
+}
+
+// ── Assistant ─────────────────────────────────────────────────────────────────
+
+export function buildAssistantSystem(input: {
+  todos: Todo[];
+  todosAvailable: boolean;
+  calendar: SourceResult<CalendarEventItem> | undefined;
+  mail: SourceResult<MailItem> | undefined;
+  triage: TriageMap;
+  userEmail: string | null;
+  canCreate: { task: boolean; reminder: boolean; event: boolean };
+}): string {
+  const kinds = [
+    input.canCreate.task && '"task" (Google Tasks; date only)',
+    input.canCreate.reminder && '"reminder" (Apple Reminders; optional time)',
+    input.canCreate.event && '"event" (Google Calendar; needs a date, optional 24-hour time and endTime)',
+  ].filter(Boolean);
+  const openTodos = input.todos.filter((todo) => !todo.completed).slice(0, 80);
+
+  return `You are the productivity assistant inside the user's Dashboard app for macOS. Below is a live snapshot of their Google Tasks, Apple Reminders, Gmail inbox, and Google Calendar. Use it to answer questions, plan their time, and suggest next steps. Be concise and use Markdown.
+
+${
+  kinds.length
+    ? `When the user asks you to add something — or proposing an item clearly helps — end your reply with exactly one block like this (a JSON array, no code fence):
+<actions>[{"type":"task","title":"...","date":"YYYY-MM-DD or empty","time":"HH:mm or empty","endTime":"HH:mm or empty","notes":""}]</actions>
+Allowed types: ${kinds.join(", ")}. The user confirms each item before it is created, so never claim you created it.`
+    : "No sources are connected for creating items, so don't propose new tasks, reminders, or events."
+}
+Only use the data you have; don't invent items. ${UNTRUSTED}
+
+# Snapshot
+Now: ${nowContext()}
+User: ${input.userEmail ?? "unknown"}
+
+## Calendar (upcoming)
+${sectionLines(input.calendar, (events) => events.slice(0, 60).map(eventLine))}
+
+## Open tasks and reminders
+${input.todosAvailable ? (openTodos.length ? openTodos.map((todo) => todoLine(todo)).join("\n") : "(none)") : "(not connected)"}
+
+## Inbox
+${sectionLines(input.mail, (messages) =>
+  messages.slice(0, 30).map((message) => mailLine(message, undefined, input.triage[message.id]?.category)),
+)}`;
+}
+
+// ── Meeting prep ─────────────────────────────────────────────────────────────
+
+export const PREP_SYSTEM = `You prepare the user for an upcoming meeting. Write concise Markdown under 200 words using only the data given; say so when context is thin rather than guessing. ${UNTRUSTED}`;
+
+export function buildMeetingPrepPrompt(input: {
+  event: CalendarEventItem;
+  attendees: string[];
+  relatedMail: MailItem[] | null;
+  relatedTodos: Todo[];
+}): string {
+  const { event } = input;
+  const when = event.allDay
+    ? `${dayHeading(eventDayKey(event))}, all day`
+    : `${dayHeading(eventDayKey(event))}, ${formatTimeOfDay(event.start)}–${formatTimeOfDay(event.end)}`;
+  const mail =
+    input.relatedMail === null
+      ? "(mail not available)"
+      : input.relatedMail.length
+        ? input.relatedMail.map((message) => mailLine(message)).join("\n")
+        : "(none found)";
+  const todos = input.relatedTodos.length ? input.relatedTodos.map((todo) => todoLine(todo)).join("\n") : "(none)";
+
+  return `Now: ${nowContext()}
+
+## Meeting
+Title: ${event.title}
+When: ${when}
+Calendar: ${event.calendarName}
+${event.location ? `Location: ${event.location}\n` : ""}Attendees: ${input.attendees.length ? input.attendees.join(", ") : "(none listed)"}
+${event.description ? `Description:\n${event.description}\n` : ""}
+## Recent emails with these people
+${mail}
+
+## Possibly related open to-dos
+${todos}
+
+Write these sections, skipping any without supporting data except Talking points:
+**Purpose** — one sentence, your best read of what this meeting is for.
+**Context** — what recent emails say.
+**Open items** — related to-dos or unanswered threads.
+**Talking points** — 3–5 bullets.
+**Before you join** — a short checklist.`;
+}
+
+// ── Weekly review ────────────────────────────────────────────────────────────
+
+export const REVIEW_SYSTEM =
+  "You are a thoughtful productivity coach writing the user's weekly review in Markdown. Use only the data given. Be specific, honest, and encouraging, and keep it under 250 words.";
+
+export function buildWeeklyReviewPrompt(input: {
+  since: string;
+  completed: Todo[];
+  pastEvents: CalendarEventItem[] | null;
+  overdue: Todo[];
+  upcoming: CalendarEventItem[] | null;
+}): string {
+  const completed = input.completed.length
+    ? input.completed
+        .slice(0, 80)
+        .map(
+          (todo) =>
+            `- ${todo.title} | ${SOURCE_META[todo.source].label} / ${todo.listTitle}${
+              todo.completedAt ? ` | done ${shortDate(todo.completedAt.slice(0, 10))}` : ""
+            }`,
+        )
+        .join("\n")
+    : "(none)";
+  const past =
+    input.pastEvents === null
+      ? "(calendar not available)"
+      : input.pastEvents.length
+        ? input.pastEvents
+            .slice(0, 80)
+            .map((event) => `- ${shortDate(eventDayKey(event))}: ${event.title}${event.allDay ? " (all day)" : ""}`)
+            .join("\n")
+        : "(none)";
+  const upcoming =
+    input.upcoming === null
+      ? "(calendar not available)"
+      : input.upcoming.length
+        ? input.upcoming.slice(0, 40).map(eventLine).join("\n")
+        : "(none)";
+  const overdue = input.overdue.length ? input.overdue.map((todo) => todoLine(todo)).join("\n") : "(none)";
+
+  return `Now: ${nowContext()}
+Review period: since ${shortDate(input.since.slice(0, 10))}
+
+## Completed this week
+${completed}
+
+## Meetings and events this week
+${past}
+
+## Still open and overdue
+${overdue}
+
+## Coming up
+${upcoming}
+
+Write these sections:
+**Wins** — what got done, grouped by theme.
+**Slipped** — what's overdue and why it might matter.
+**Where your time went** — patterns in meetings and work.
+**Focus for next week** — 3 concrete bullets.`;
 }

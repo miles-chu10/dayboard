@@ -2,17 +2,14 @@ import { Badge, Checkbox, EmptyState, Text } from "@glaze/core/components";
 
 import { formatDue } from "../lib/dates";
 import { useToggleTodo } from "../lib/queries";
-import { SOURCE_LABEL, compareByDue, type Todo } from "../lib/todos";
+import { compareByDue, type Todo } from "../lib/todos";
 import { ListCard, SectionCard } from "./section-card";
+import { SourceHeading, SourceLabel } from "./source-dot";
 
 export function TodoRow({ todo, detail, showSource }: { todo: Todo; detail?: string; showSource?: boolean }) {
   const toggle = useToggleTodo();
   const due = todo.dueDate && !todo.completed ? formatDue(todo.dueDate, todo.dueTime) : null;
-  const subtitle =
-    detail ??
-    [showSource ? SOURCE_LABEL[todo.source] : null, showSource ? todo.listTitle : null, todo.notes]
-      .filter(Boolean)
-      .join(" · ");
+  const plainDetail = detail ?? todo.notes;
 
   return (
     <div className="flex items-center gap-3 px-3 py-2 min-h-12 min-w-0">
@@ -21,13 +18,15 @@ export function TodoRow({ todo, detail, showSource }: { todo: Todo; detail?: str
         onCheckedChange={() => toggle.mutate(todo)}
         aria-label={todo.completed ? `Mark “${todo.title}” incomplete` : `Complete “${todo.title}”`}
       />
-      <div className="flex flex-col min-w-0 flex-1">
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
         <Text truncate color={todo.completed ? "tertiary" : "primary"} className={todo.completed ? "line-through" : undefined}>
           {todo.title}
         </Text>
-        {subtitle ? (
+        {showSource ? (
+          <SourceLabel source={todo.source} detail={detail ?? todo.listTitle} />
+        ) : plainDetail ? (
           <Text variant="small" color="tertiary" truncate>
-            {subtitle}
+            {plainDetail}
           </Text>
         ) : null}
       </div>
@@ -63,7 +62,7 @@ export function TodoGroups({
       {[...groups].map(([listTitle, items]) => (
         <SectionCard
           key={listTitle}
-          title={listTitle}
+          title={<SourceHeading source={items[0].source}>{listTitle}</SourceHeading>}
           accessory={
             <Text variant="small" color="tertiary" className="tabular-nums">
               {items.filter((item) => !item.completed).length}

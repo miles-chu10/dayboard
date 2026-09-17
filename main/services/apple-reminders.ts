@@ -22,6 +22,7 @@ function toItem(reminder: NativeReminder, listTitles: Map<string, string>): Remi
     dueTime,
     priority: reminder.priority,
     completed: reminder.isCompleted,
+    completedAt: reminder.completionDate,
   };
 }
 
@@ -38,13 +39,19 @@ export async function openRemindersPrivacySettings(): Promise<void> {
   await systemPreferences.openPrivacySettings("reminders");
 }
 
-export async function listReminders(): Promise<ReminderItem[]> {
-  const [calendars, page] = await Promise.all([
-    reminders.getCalendars(),
-    reminders.getReminders({ completed: false, limit: 200 }),
-  ]);
+async function listWith(options: { completed: boolean; limit: number }): Promise<ReminderItem[]> {
+  const [calendars, page] = await Promise.all([reminders.getCalendars(), reminders.getReminders(options)]);
   const titles = new Map(calendars.map((calendar) => [calendar.id, calendar.title]));
   return page.reminders.map((reminder) => toItem(reminder, titles));
+}
+
+export function listReminders(): Promise<ReminderItem[]> {
+  return listWith({ completed: false, limit: 200 });
+}
+
+export async function listCompletedReminders(since: Date): Promise<ReminderItem[]> {
+  const items = await listWith({ completed: true, limit: 400 });
+  return items.filter((item) => item.completedAt && new Date(item.completedAt) >= since);
 }
 
 export async function setReminderCompleted(ref: string, completed: boolean): Promise<void> {

@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Text, toast } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
 import { Archive, ExternalLink, ListPlus, Reply } from "lucide-react";
 import type { MailItem, SourceResult } from "@main/shared-types";
 
@@ -8,6 +7,7 @@ import { formatMailDate } from "../lib/dates";
 import { errorMessage, invoke, openExternal } from "../lib/ipc";
 import { queryKeys, useAccounts } from "../lib/queries";
 import { TRIAGE_LABEL, type TriageResult } from "../lib/triage";
+import { SourceDot } from "./source-dot";
 
 export function MailRow({
   message,
@@ -49,10 +49,9 @@ export function MailRow({
 
   return (
     <div className="flex items-start gap-3 px-3 py-2.5 min-w-0">
-      <span
-        aria-label={message.unread ? "Unread" : undefined}
-        className={cn("mt-1.5 size-2 rounded-full shrink-0", message.unread ? "bg-support-blue" : "bg-transparent")}
-      />
+      <span className="mt-1.5 flex" title={message.unread ? "Unread" : "Read"}>
+        <SourceDot source="mail" hollow={!message.unread} />
+      </span>
       <div className="flex flex-col min-w-0 flex-1 gap-0.5">
         <div className="flex items-center gap-2 min-w-0">
           <Text variant={message.unread ? "strong" : "regular"} truncate className="min-w-0">
@@ -81,8 +80,8 @@ export function MailRow({
           size="small"
           variant="transparent"
           iconOnly
-          aria-label="Draft reply"
-          title="Draft reply"
+          aria-label="Reply"
+          title="Reply"
           onClick={() => onReply(message)}
         >
           <Reply />

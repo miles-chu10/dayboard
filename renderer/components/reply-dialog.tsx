@@ -7,6 +7,7 @@ import { useAITask } from "../lib/ai";
 import { REPLY_SYSTEM, buildReplyPrompt } from "../lib/ai-prompts";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
+import { featureOn, useSettings } from "../lib/settings";
 
 /** Render with `key={message?.id}` so each message starts with fresh state. */
 export function ReplyDialog({
@@ -17,6 +18,7 @@ export function ReplyDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const accounts = useAccounts();
+  const aiReplies = featureOn(useSettings().data, "replyDrafts");
   const ai = useAITask();
   const [instructions, setInstructions] = useState("");
   const [draft, setDraft] = useState("");
@@ -87,24 +89,26 @@ export function ReplyDialog({
             </Text>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            className="flex-1"
-            value={instructions}
-            onChange={(event) => setInstructions(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) write();
-            }}
-            placeholder="Optional: how to reply (e.g. accept, suggest Thursday)"
-          />
-          {ai.isRunning ? (
-            <Button onClick={ai.stop}>Stop</Button>
-          ) : (
-            <Button onClick={write} disabled={!body.data}>
-              Write with AI
-            </Button>
-          )}
-        </div>
+        {aiReplies ? (
+          <div className="flex items-center gap-2">
+            <Input
+              className="flex-1"
+              value={instructions}
+              onChange={(event) => setInstructions(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) write();
+              }}
+              placeholder="Optional: how to reply (e.g. accept, suggest Thursday)"
+            />
+            {ai.isRunning ? (
+              <Button onClick={ai.stop}>Stop</Button>
+            ) : (
+              <Button onClick={write} disabled={!body.data}>
+                Write with AI
+              </Button>
+            )}
+          </div>
+        ) : null}
         {ai.message ? <Callout color="orange">{ai.message}</Callout> : null}
         <Textarea
           className="min-h-40 max-h-72"

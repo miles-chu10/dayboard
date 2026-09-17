@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Callout, Markdown, Status, Text } from "@glaze/core/components";
 
 import { useAITask } from "../lib/ai";
@@ -21,9 +21,19 @@ function isStoredBriefing(value: unknown): value is StoredBriefing {
   return typeof v.date === "string" && typeof v.generatedAt === "string" && typeof v.markdown === "string";
 }
 
-export function BriefingCard({ ready, buildPrompt }: { ready: boolean; buildPrompt: () => string }) {
+export function BriefingCard({
+  ready,
+  autoGenerate,
+  buildPrompt,
+}: {
+  ready: boolean;
+  /** Generate once per day, the first time the dashboard opens with data loaded. */
+  autoGenerate: boolean;
+  buildPrompt: () => string;
+}) {
   const ai = useAITask();
   const [stored, setStored] = useState(() => readStored(STORAGE_KEY, isStoredBriefing));
+  const autoStarted = useRef(false);
 
   useEffect(() => {
     if (!ai.isDone) return;
@@ -32,6 +42,16 @@ export function BriefingCard({ ready, buildPrompt }: { ready: boolean; buildProm
     setStored(next);
   }, [ai.isDone, ai.output]);
 
+  function generate() {
+    void ai.run({ system: BRIEFING_SYSTEM, prompt: buildPrompt(), maxOutputTokens: 600 });
+  }
+
+  useEffect(() => {
+    if (!autoGenerate || !ready || autoStarted.current || stored?.date === todayISO()) return;
+    autoStarted.current = true;
+    generate();
+  }, [autoGenerate, ready, stored]);
+
   const text = ai.isRunning || ai.isDone ? ai.output : (stored?.markdown ?? "");
   const stamp =
     stored && !ai.isRunning
@@ -39,10 +59,6 @@ export function BriefingCard({ ready, buildPrompt }: { ready: boolean; buildProm
         ? `Updated ${formatTimeOfDay(stored.generatedAt)}`
         : `From ${shortDate(stored.date)}`
       : null;
-
-  function generate() {
-    void ai.run({ system: BRIEFING_SYSTEM, prompt: buildPrompt(), maxOutputTokens: 600 });
-  }
 
   return (
     <SectionCard

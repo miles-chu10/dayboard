@@ -1,7 +1,9 @@
 import type {
   CalendarEventItem,
+  CalendarListResult,
   CreateEventInput,
   CreateTaskInput,
+  GoogleCalendarInfo,
   MailItem,
   TaskItem,
 } from "../shared-types.js";
@@ -9,9 +11,19 @@ import { GoogleAuthError, getGoogleAccessToken } from "./google-auth.js";
 
 const TASKS = "https://tasks.googleapis.com/tasks/v1";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
-const CALENDAR = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const CALENDAR = "https://www.googleapis.com/calendar/v3";
 
 const enc = encodeURIComponent;
+
+export class GoogleApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GoogleApiError";
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,7 +65,7 @@ async function googleFetch<T>(
   }
   if (!response.ok) {
     const detail = describeGoogleError(await response.text());
-    throw new Error(`Google API error ${response.status} (${new URL(url).hostname}): ${detail}`);
+    throw new GoogleApiError(response.status, `Google API error ${response.status} (${new URL(url).hostname}): ${detail}`);
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
@@ -86,14 +98,13 @@ interface GTask {
   notes?: string;
   due?: string;
   status?: "needsAction" | "completed";
+  completed?: string;
 }
 
-export async function listTasks(): Promise<TaskItem[]> {
+async function listTasksWith(query: string): Promise<TaskItem[]> {
   const lists = await googleFetch<{ items?: GTaskList[] }>(`${TASKS}/users/@me/lists?maxResults=20`);
   const perList = await mapWithConcurrency(lists.items ?? [], 4, async (list) => {
-    const data = await googleFetch<{ items?: GTask[] }>(
-      `${TASKS}/lists/${enc(list.id)}/tasks?showCompleted=false&showHidden=false&maxResults=100`,
-    );
+    const data = await googleFetch<{ items?: GTask[] }>(`${TASKS}/lists/${enc(list.id)}/tasks?${query}`);
     return (data.items ?? [])
       .filter((task) => task.title?.trim())
       .map<TaskItem>((task) => ({
@@ -104,9 +115,21 @@ export async function listTasks(): Promise<TaskItem[]> {
         notes: task.notes?.trim() || null,
         due: task.due ? task.due.slice(0, 10) : null,
         completed: task.status === "completed",
+        completedAt: task.completed ?? null,
       }));
   });
   return perList.flat();
+}
+
+export function listTasks(): Promise<TaskItem[]> {
+  return listTasksWith("showCompleted=false&showHidden=false&maxResults=100");
+}
+
+export async function listCompletedTasks(since: Date): Promise<TaskItem[]> {
+  const tasks = await listTasksWith(
+    `showCompleted=true&showHidden=true&completedMin=${enc(since.toISOString())}&maxResults=100`,
+  );
+  return tasks.filter((task) => task.completed);
 }
 
 export async function setTaskCompleted(listId: string, taskId: string, completed: boolean): Promise<void> {
@@ -172,9 +195,9 @@ function parseAddress(value: string): { name: string; email: string } {
   return { name: value.trim(), email: value.trim() };
 }
 
-export async function listInbox(): Promise<MailItem[]> {
+async function listMessages(query: string, max: number): Promise<MailItem[]> {
   const list = await googleFetch<{ messages?: { id: string }[] }>(
-    `${GMAIL}/messages?maxResults=25&q=${enc("in:inbox")}`,
+    `${GMAIL}/messages?maxResults=${max}&q=${enc(query)}`,
   );
   const messages = await mapWithConcurrency(list.messages ?? [], 5, (m) =>
     googleFetch<GMessage>(
@@ -194,6 +217,22 @@ export async function listInbox(): Promise<MailItem[]> {
       unread: message.labelIds?.includes("UNREAD") ?? false,
     };
   });
+}
+
+export function listInbox(max: number): Promise<MailItem[]> {
+  return listMessages("in:inbox", max);
+}
+
+/** Recent mail involving any of the given people, or mentioning the keywords when there are none. */
+export function searchRelatedMail(emails: string[], keywords: string): Promise<MailItem[]> {
+  const people = emails.map((email) => email.replace(/["()\s]/g, "")).filter((email) => email.includes("@"));
+  const terms = keywords.replace(/["()]/g, " ").trim();
+  const query = people.length
+    ? `(${people.map((email) => `from:${email} OR to:${email}`).join(" OR ")}) newer_than:60d`
+    : terms
+      ? `"${terms}" newer_than:60d`
+      : "";
+  return query ? listMessages(query, 8) : Promise.resolve([]);
 }
 
 function findPart(part: GMessagePart | undefined, mimeType: string): GMessagePart | null {
@@ -268,6 +307,15 @@ export async function modifyMessage(id: string, removeLabelIds: string[]): Promi
 
 // ── Google Calendar ─────────────────────────────────────────────────────
 
+interface GCalendarListEntry {
+  id: string;
+  summary?: string;
+  summaryOverride?: string;
+  backgroundColor?: string;
+  primary?: boolean;
+  selected?: boolean;
+}
+
 interface GEventTime {
   date?: string;
   dateTime?: string;
@@ -276,20 +324,62 @@ interface GEventTime {
 interface GEvent {
   id: string;
   summary?: string;
+  description?: string;
   status?: string;
   start?: GEventTime;
   end?: GEventTime;
   location?: string;
   htmlLink?: string;
   hangoutLink?: string;
+  attendees?: { email?: string; resource?: boolean; self?: boolean }[];
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
 }
 
-export async function listEvents(): Promise<CalendarEventItem[]> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
+export async function listCalendars(): Promise<CalendarListResult> {
+  try {
+    const data = await googleFetch<{ items?: GCalendarListEntry[] }>(
+      `${CALENDAR}/users/me/calendarList?maxResults=50`,
+    );
+    const calendars = (data.items ?? []).map<GoogleCalendarInfo>((entry) => ({
+      id: entry.id,
+      name: entry.summaryOverride || entry.summary || entry.id,
+      color: entry.backgroundColor ?? null,
+      primary: Boolean(entry.primary),
+      defaultVisible: Boolean(entry.primary || entry.selected),
+    }));
+    calendars.sort((a, b) => Number(b.primary) - Number(a.primary) || a.name.localeCompare(b.name));
+    return { calendars, limited: false };
+  } catch (error) {
+    // Sign-ins from before calendar-list access was requested can only read the primary calendar.
+    if (error instanceof GoogleApiError && error.status === 403) {
+      return {
+        calendars: [{ id: "primary", name: "Calendar", color: null, primary: true, defaultVisible: true }],
+        limited: true,
+      };
+    }
+    throw error;
+  }
+}
+
+function stripHtml(value: string): string {
+  return decodeEntities(value.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function eventStartMs(event: CalendarEventItem): number {
+  if (!event.allDay) return new Date(event.start).getTime();
+  const [y, m, d] = event.start.split("-").map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+export async function listEventsBetween(
+  start: Date,
+  end: Date,
+  visibility: Record<string, boolean>,
+): Promise<CalendarEventItem[]> {
+  const { calendars } = await listCalendars();
+  const visible = calendars.filter((calendar) => visibility[calendar.id] ?? calendar.defaultVisible).slice(0, 12);
   const params = new URLSearchParams({
     timeMin: start.toISOString(),
     timeMax: end.toISOString(),
@@ -297,22 +387,49 @@ export async function listEvents(): Promise<CalendarEventItem[]> {
     orderBy: "startTime",
     maxResults: "100",
   });
-  const data = await googleFetch<{ items?: GEvent[] }>(`${CALENDAR}?${params}`);
-  return (data.items ?? [])
-    .filter((event) => event.status !== "cancelled" && (event.start?.dateTime || event.start?.date))
-    .map((event) => ({
-      id: event.id,
-      title: event.summary?.trim() || "(No title)",
-      start: event.start?.dateTime ?? event.start?.date ?? "",
-      end: event.end?.dateTime ?? event.end?.date ?? "",
-      allDay: !event.start?.dateTime,
-      location: event.location?.trim() || null,
-      htmlLink: event.htmlLink ?? null,
-      meetLink:
-        event.hangoutLink ??
-        event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri ??
-        null,
-    }));
+
+  const perCalendar = await mapWithConcurrency(visible, 4, async (calendar) => {
+    const data = await googleFetch<{ items?: GEvent[] }>(
+      `${CALENDAR}/calendars/${enc(calendar.id)}/events?${params}`,
+    );
+    return (data.items ?? [])
+      .filter((event) => event.status !== "cancelled" && (event.start?.dateTime || event.start?.date))
+      .map<CalendarEventItem>((event) => ({
+        id: event.id,
+        title: event.summary?.trim() || "(No title)",
+        start: event.start?.dateTime ?? event.start?.date ?? "",
+        end: event.end?.dateTime ?? event.end?.date ?? "",
+        allDay: !event.start?.dateTime,
+        location: event.location?.trim() || null,
+        description: event.description ? stripHtml(event.description).slice(0, 600) || null : null,
+        htmlLink: event.htmlLink ?? null,
+        meetLink:
+          event.hangoutLink ??
+          event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri ??
+          null,
+        calendarId: calendar.id,
+        calendarName: calendar.name,
+        calendarColor: calendar.color,
+        attendees: (event.attendees ?? [])
+          .filter((attendee) => !attendee.resource && !attendee.self && attendee.email)
+          .map((attendee) => attendee.email!)
+          .slice(0, 20),
+      }));
+  });
+
+  const seen = new Set<string>();
+  return perCalendar
+    .flat()
+    .filter((event) => (seen.has(event.id) ? false : (seen.add(event.id), true)))
+    .sort((a, b) => eventStartMs(a) - eventStartMs(b));
+}
+
+export function listEvents(daysAhead: number, visibility: Record<string, boolean>): Promise<CalendarEventItem[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + daysAhead);
+  return listEventsBetween(start, end, visibility);
 }
 
 function addMinutes(time: string, minutes: number): string {
@@ -330,7 +447,7 @@ function nextDate(date: string): string {
 export async function createEvent(input: CreateEventInput): Promise<void> {
   const timed = Boolean(input.startTime);
   const endTime = input.endTime && input.startTime && input.endTime > input.startTime ? input.endTime : null;
-  await googleFetch(CALENDAR, {
+  await googleFetch(`${CALENDAR}/calendars/primary/events`, {
     method: "POST",
     body: {
       summary: input.title,

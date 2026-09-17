@@ -5,10 +5,14 @@ import {
   createReplyDraft,
   createTask,
   getMessageBody,
+  listCalendars,
+  listCompletedTasks,
   listEvents,
+  listEventsBetween,
   listInbox,
   listTasks,
   modifyMessage,
+  searchRelatedMail,
   setTaskCompleted,
 } from "../services/google-api.js";
 import {
@@ -23,17 +27,20 @@ import {
 import {
   createReminder,
   getRemindersAccess,
+  listCompletedReminders,
   listReminders,
   openRemindersPrivacySettings,
   requestRemindersAccess,
   setReminderCompleted,
 } from "../services/apple-reminders.js";
-import type { AccountsStatus, SourceResult } from "../shared-types.js";
+import { getSettings } from "../services/settings-store.js";
+import type { AccountsStatus, CalendarListResult, ReviewData, SourceResult } from "../shared-types.js";
 
 // ── Input validation ────────────────────────────────────────────────────
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
+const WEEK_MS = 7 * 86_400_000;
 
 function asObject(value: unknown, channel: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null) throw new Error(`${channel}: expected an object payload`);
@@ -80,6 +87,12 @@ async function googleList<T>(channel: string, load: () => Promise<T[]>): Promise
     logger.error("productivity", `${channel} failed`, error);
     throw error;
   }
+}
+
+async function remindersList<T>(load: () => Promise<T[]>): Promise<SourceResult<T>> {
+  const access = await getRemindersAccess();
+  if (access !== "full-access") return { state: "no-access", access };
+  return { state: "ok", items: await load() };
 }
 
 async function googleMutation<T>(channel: string, run: () => Promise<T>): Promise<T> {
@@ -153,11 +166,7 @@ export function registerProductivityHandlers(): void {
   });
 
   // Apple Reminders
-  ipcMain.handle("reminders:list", async (): Promise<SourceResult<unknown>> => {
-    const access = await getRemindersAccess();
-    if (access !== "full-access") return { state: "no-access", access };
-    return { state: "ok", items: await listReminders() };
-  });
+  ipcMain.handle("reminders:list", () => remindersList(listReminders));
 
   ipcMain.handle("reminders:requestAccess", async () => {
     await requestRemindersAccess();
@@ -186,7 +195,20 @@ export function registerProductivityHandlers(): void {
   });
 
   // Gmail
-  ipcMain.handle("mail:list", () => googleList("mail:list", listInbox));
+  ipcMain.handle("mail:list", async () => {
+    const settings = await getSettings();
+    return googleList("mail:list", () => listInbox(settings.mail.maxMessages));
+  });
+
+  ipcMain.handle("mail:related", async (_event, payload: unknown) => {
+    const channel = "mail:related";
+    const input = asObject(payload, channel);
+    const emails = Array.isArray(input.emails)
+      ? input.emails.filter((email): email is string => typeof email === "string").slice(0, 10)
+      : [];
+    const keywords = typeof input.keywords === "string" ? input.keywords.slice(0, 120) : "";
+    return googleList(channel, () => searchRelatedMail(emails, keywords));
+  });
 
   ipcMain.handle("mail:getBody", async (_event, payload: unknown) => {
     const channel = "mail:getBody";
@@ -215,7 +237,20 @@ export function registerProductivityHandlers(): void {
   });
 
   // Google Calendar
-  ipcMain.handle("calendar:list", () => googleList("calendar:list", listEvents));
+  ipcMain.handle("calendar:list", async () => {
+    const settings = await getSettings();
+    return googleList("calendar:list", () => listEvents(settings.calendar.daysAhead, settings.calendar.visibility));
+  });
+
+  ipcMain.handle("calendar:listCalendars", async (): Promise<CalendarListResult> => {
+    try {
+      return await listCalendars();
+    } catch (error) {
+      if (error instanceof GoogleAuthError) return { calendars: [], limited: false };
+      logger.error("productivity", "calendar:listCalendars failed", error);
+      throw error;
+    }
+  });
 
   ipcMain.handle("calendar:create", async (_event, payload: unknown) => {
     const channel = "calendar:create";
@@ -230,6 +265,24 @@ export function registerProductivityHandlers(): void {
     };
     if (!event.date) throw new Error("Events need a date.");
     await googleMutation(channel, () => createEvent(event));
+  });
+
+  // Weekly review
+  ipcMain.handle("review:data", async (): Promise<ReviewData> => {
+    const settings = await getSettings();
+    const since = new Date(Date.now() - WEEK_MS);
+    const [tasks, reminders, events] = await Promise.all([
+      settings.sources.tasks.enabled
+        ? googleList("review:tasks", () => listCompletedTasks(since))
+        : Promise.resolve({ state: "disabled" as const }),
+      settings.sources.reminders.enabled
+        ? remindersList(() => listCompletedReminders(since))
+        : Promise.resolve({ state: "disabled" as const }),
+      settings.sources.calendar.enabled
+        ? googleList("review:events", () => listEventsBetween(since, new Date(), settings.calendar.visibility))
+        : Promise.resolve({ state: "disabled" as const }),
+    ]);
+    return { since: since.toISOString(), tasks, reminders, events };
   });
 
   // Links

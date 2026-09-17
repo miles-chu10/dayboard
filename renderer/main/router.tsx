@@ -9,6 +9,8 @@ import { TasksView } from "./tasks-view";
 import { RemindersView } from "./reminders-view";
 import { MailView } from "./mail-view";
 import { CalendarView } from "./calendar-view";
+import { AssistantView } from "./assistant-view";
+import { ReviewView } from "./review-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@glaze/core/components";
@@ -63,12 +65,28 @@ const calendarRoute = createRoute({
   staticData: { title: "Calendar" },
 });
 
+const assistantRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assistant",
+  component: AssistantView,
+  staticData: { title: "Assistant" },
+});
+
+const reviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/review",
+  component: ReviewView,
+  staticData: { title: "Weekly Review" },
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   tasksRoute,
   remindersRoute,
   mailRoute,
   calendarRoute,
+  assistantRoute,
+  reviewRoute,
 ]);
 
 const queryClient = new QueryClient({

@@ -8,6 +8,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { appHandlers } from "./app.js";
+import { registerAIHandlers } from "./ai.js";
 import { registerProductivityHandlers } from "./productivity.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
@@ -40,6 +41,7 @@ export function registerHandlers(): void {
   });
 
   registerProductivityHandlers();
+  registerAIHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 }

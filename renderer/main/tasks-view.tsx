@@ -1,5 +1,6 @@
 import { ScrollArea } from "@glaze/core/components";
 
+import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
 import { ViewActions } from "../components/view-actions";
@@ -8,12 +9,13 @@ import { buildTodos } from "../lib/todos";
 
 export function TasksView() {
   const tasks = useTasks();
-  const open = tasks.data?.state === "ok" ? tasks.data.items.filter((task) => !task.completed).length : null;
+  const open =
+    tasks.data?.state === "ok" ? tasks.data.items.filter((task) => !task.completed).length : null;
 
   return (
     <ScrollArea
       className="h-full"
-      title="Google Tasks"
+      title={<SourceHeading source="tasks" />}
       subtitle={open === null ? undefined : `${open} open`}
       actions={<ViewActions onRefresh={() => void tasks.refetch()} refreshing={tasks.isFetching} />}
     >

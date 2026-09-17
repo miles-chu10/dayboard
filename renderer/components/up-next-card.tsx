@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Callout, Status, Text } from "@glaze/core/components";
 import { Sparkles } from "lucide-react";
-import type { CalendarEventItem } from "@main/shared-types";
+import type { CalendarEventItem, SourceId } from "@main/shared-types";
 
 import { extractJSON, useAITask } from "../lib/ai";
 import { PRIORITY_SYSTEM, buildPriorityPrompt } from "../lib/ai-prompts";
 import { formatTimeOfDay } from "../lib/dates";
 import { readStored, writeStored } from "../lib/storage";
-import { SOURCE_LABEL, compareByDue, type Todo } from "../lib/todos";
+import { compareByDue, type Todo } from "../lib/todos";
 import { InlineHint, ListCard, RowsSkeleton, SectionCard } from "./section-card";
+import { SourceDot } from "./source-dot";
 import { TodoRow } from "./todo-row";
 
 const STORAGE_KEY = "dashboard:priorities:v1";
@@ -27,13 +28,17 @@ function isStoredPriorities(value: unknown): value is StoredPriorities {
 export function UpNextCard({
   todos,
   todayEvents,
+  sources,
   loading,
   hint,
+  canPrioritize,
 }: {
   todos: Todo[];
   todayEvents: CalendarEventItem[];
+  sources: SourceId[];
   loading: boolean;
   hint: string | null;
+  canPrioritize: boolean;
 }) {
   const ai = useAITask();
   const keyMap = useRef(new Map<string, string>());
@@ -64,11 +69,12 @@ export function UpNextCard({
   }, [ai.isDone, ai.output]);
 
   const byKey = new Map(todos.map((todo) => [todo.key, todo]));
-  const ranked =
-    stored?.items.flatMap(({ key, reason }) => {
-      const todo = byKey.get(key);
-      return todo ? [{ todo, reason }] : [];
-    }) ?? [];
+  const ranked = canPrioritize
+    ? (stored?.items.flatMap(({ key, reason }) => {
+        const todo = byKey.get(key);
+        return todo ? [{ todo, reason }] : [];
+      }) ?? [])
+    : [];
   const openTodos = todos.filter((todo) => !todo.completed);
   const showRanked = ranked.some(({ todo }) => !todo.completed);
   const fallback = [...openTodos].sort(compareByDue).slice(0, 6);
@@ -89,27 +95,38 @@ export function UpNextCard({
 
   return (
     <SectionCard
-      title="Up Next"
+      title={
+        <span className="flex items-center gap-2">
+          Up Next
+          <span className="flex items-center gap-1">
+            {sources.map((source) => (
+              <SourceDot key={source} source={source} />
+            ))}
+          </span>
+        </span>
+      }
       accessory={
-        <>
-          {ai.isRunning ? (
-            <Status variant="loading">Ranking…</Status>
-          ) : showRanked && stored ? (
-            <Text variant="small" color="tertiary">
-              Ranked {formatTimeOfDay(stored.generatedAt)}
-            </Text>
-          ) : null}
-          {ai.isRunning ? (
-            <Button size="small" onClick={ai.stop}>
-              Stop
-            </Button>
-          ) : (
-            <Button size="small" onClick={prioritize} disabled={!openTodos.length}>
-              <Sparkles />
-              {showRanked ? "Re-rank" : "Prioritize"}
-            </Button>
-          )}
-        </>
+        canPrioritize ? (
+          <>
+            {ai.isRunning ? (
+              <Status variant="loading">Ranking…</Status>
+            ) : showRanked && stored ? (
+              <Text variant="small" color="tertiary">
+                Ranked {formatTimeOfDay(stored.generatedAt)}
+              </Text>
+            ) : null}
+            {ai.isRunning ? (
+              <Button size="small" onClick={ai.stop}>
+                Stop
+              </Button>
+            ) : (
+              <Button size="small" onClick={prioritize} disabled={!openTodos.length}>
+                <Sparkles />
+                {showRanked ? "Re-rank" : "Prioritize"}
+              </Button>
+            )}
+          </>
+        ) : undefined
       }
     >
       {ai.message ? <Callout color="orange">{ai.message}</Callout> : null}
@@ -119,11 +136,7 @@ export function UpNextCard({
       ) : showRanked ? (
         <ListCard>
           {ranked.map(({ todo, reason }) => (
-            <TodoRow
-              key={todo.key}
-              todo={todo}
-              detail={[SOURCE_LABEL[todo.source], reason].filter(Boolean).join(" · ")}
-            />
+            <TodoRow key={todo.key} todo={todo} showSource detail={reason || todo.listTitle} />
           ))}
         </ListCard>
       ) : fallback.length ? (

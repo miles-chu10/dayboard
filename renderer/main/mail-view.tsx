@@ -14,14 +14,17 @@ import type { MailItem } from "@main/shared-types";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
 import { ListCard } from "../components/section-card";
+import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { useMail } from "../lib/queries";
+import { featureOn, useSettings } from "../lib/settings";
 import { useTriage, type TriageCategory } from "../lib/triage";
 
 type MailFilter = "all" | TriageCategory;
 
 export function MailView() {
   const mail = useMail();
+  const triageOn = featureOn(useSettings().data, "triage");
   const messages = mail.data?.state === "ok" ? mail.data.items : undefined;
   const triage = useTriage(messages);
   const [filter, setFilter] = useState<MailFilter>("all");
@@ -30,24 +33,27 @@ export function MailView() {
   const unread = messages?.filter((message) => message.unread).length ?? 0;
   const countFor = (category: TriageCategory) =>
     messages?.filter((message) => triage.map[message.id]?.category === category).length ?? 0;
+  const activeFilter: MailFilter = triageOn ? filter : "all";
 
   return (
     <>
       <ScrollArea
         className="h-full"
-        title="Mail"
-        subtitle={messages ? `${messages.length} in inbox · ${unread} unread` : "Gmail"}
+        title={<SourceHeading source="mail">Mail</SourceHeading>}
+        subtitle={messages ? `${messages.length} recent · ${unread} unread` : "Gmail"}
         actions={
           <>
-            <Button
-              iconOnly
-              aria-label={triage.isRunning ? "Stop sorting" : "Triage inbox with AI"}
-              title={triage.isRunning ? "Stop sorting" : "Triage inbox with AI"}
-              onClick={triage.isRunning ? triage.stop : triage.run}
-              disabled={!messages?.length}
-            >
-              {triage.isRunning ? <Square /> : <Sparkles />}
-            </Button>
+            {triageOn ? (
+              <Button
+                iconOnly
+                aria-label={triage.isRunning ? "Stop sorting" : "Triage inbox with AI"}
+                title={triage.isRunning ? "Stop sorting" : "Triage inbox with AI"}
+                onClick={triage.isRunning ? triage.stop : triage.run}
+                disabled={!messages?.length}
+              >
+                {triage.isRunning ? <Square /> : <Sparkles />}
+              </Button>
+            ) : null}
             <Button
               iconOnly
               aria-label="Refresh"
@@ -64,46 +70,54 @@ export function MailView() {
           <SourceGate query={mail} label="Gmail inbox">
             {(items) => {
               const filtered =
-                filter === "all"
+                activeFilter === "all"
                   ? items
-                  : items.filter((message) => triage.map[message.id]?.category === filter);
+                  : items.filter((message) => triage.map[message.id]?.category === activeFilter);
               return (
                 <>
-                  <div className="flex items-center gap-3 min-h-8">
-                    <SegmentedControl
-                      size="small"
-                      value={filter}
-                      onValueChange={(value) => setFilter(value as MailFilter)}
-                      aria-label="Filter inbox"
-                    >
-                      <SegmentedControlItem value="all">All</SegmentedControlItem>
-                      <SegmentedControlItem value="needs-reply">
-                        Needs Reply {countFor("needs-reply")}
-                      </SegmentedControlItem>
-                      <SegmentedControlItem value="fyi">FYI {countFor("fyi")}</SegmentedControlItem>
-                      <SegmentedControlItem value="ignore">
-                        Ignorable {countFor("ignore")}
-                      </SegmentedControlItem>
-                    </SegmentedControl>
-                    {triage.isRunning ? <Status variant="loading">Sorting inbox…</Status> : null}
-                  </div>
-                  {triage.message ? <Callout color="orange">{triage.message}</Callout> : null}
-                  {triage.parseFailed ? (
-                    <Callout color="yellow">Couldn't read the AI's sorting. Try again.</Callout>
-                  ) : null}
-                  {!triage.hasResults && !triage.isRunning && items.length ? (
-                    <Callout
-                      color="blue"
-                      icon={<Sparkles />}
-                      actions={
-                        <Button size="small" onClick={triage.run}>
-                          Triage Inbox
-                        </Button>
-                      }
-                    >
-                      Sort your inbox into needs reply, FYI, and ignorable, and spot emails that are
-                      really tasks.
-                    </Callout>
+                  {triageOn ? (
+                    <>
+                      <div className="flex items-center gap-3 min-h-8">
+                        <SegmentedControl
+                          size="small"
+                          value={activeFilter}
+                          onValueChange={(value) => setFilter(value as MailFilter)}
+                          aria-label="Filter inbox"
+                        >
+                          <SegmentedControlItem value="all">All</SegmentedControlItem>
+                          <SegmentedControlItem value="needs-reply">
+                            Needs Reply {countFor("needs-reply")}
+                          </SegmentedControlItem>
+                          <SegmentedControlItem value="fyi">
+                            FYI {countFor("fyi")}
+                          </SegmentedControlItem>
+                          <SegmentedControlItem value="ignore">
+                            Ignorable {countFor("ignore")}
+                          </SegmentedControlItem>
+                        </SegmentedControl>
+                        {triage.isRunning ? (
+                          <Status variant="loading">Sorting inbox…</Status>
+                        ) : null}
+                      </div>
+                      {triage.message ? <Callout color="orange">{triage.message}</Callout> : null}
+                      {triage.parseFailed ? (
+                        <Callout color="yellow">Couldn't read the AI's sorting. Try again.</Callout>
+                      ) : null}
+                      {!triage.hasResults && !triage.isRunning && items.length ? (
+                        <Callout
+                          color="blue"
+                          icon={<Sparkles />}
+                          actions={
+                            <Button size="small" onClick={triage.run}>
+                              Triage Inbox
+                            </Button>
+                          }
+                        >
+                          Sort your inbox into needs reply, FYI, and ignorable, and spot emails that
+                          are really tasks.
+                        </Callout>
+                      ) : null}
+                    </>
                   ) : null}
                   {filtered.length ? (
                     <ListCard>
@@ -111,7 +125,7 @@ export function MailView() {
                         <MailRow
                           key={message.id}
                           message={message}
-                          triage={triage.map[message.id]}
+                          triage={triageOn ? triage.map[message.id] : undefined}
                           onReply={setReplyTo}
                         />
                       ))}

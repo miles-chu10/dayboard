@@ -20,6 +20,7 @@
     "repackage": "sh ./glaze-node.sh repackage --wait --json"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@radix-ui/colors": "^3.0.0",
     "@tanstack/react-query": "^5.87.4",
     "@tanstack/react-router": "^1.131.36",
@@ -27,6 +28,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "lucide-react": "^0.542.0",
+    "node-pty": "^1.1.0",
     "radix-ui": "^1.4.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -65,7 +67,7 @@
         "grades": [
           "fast"
         ],
-        "purpose": "Reads your open tasks, reminders, inbox subjects and previews, and calendar to write a daily briefing, rank what to do next, sort and draft replies to email, and turn typed sentences into tasks, reminders, or events.",
+        "purpose": "Reads your open tasks, reminders, inbox subjects and previews, and calendar to write briefings and weekly reviews, rank what to do next, sort and draft replies to email, prepare for meetings, answer questions in the assistant (optionally using tools from MCP servers you add), and turn typed sentences into tasks, reminders, or events.",
         "mode": "optional"
       },
       "reminders": {
@@ -82,6 +84,6 @@
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1789612143539
+    "updatedAt": 1789615435276
   }
 }

@@ -3,23 +3,43 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { toast } from "@glaze/core/components";
 import type {
   AccountsStatus,
+  AppSettings,
   CalendarEventItem,
+  CalendarListResult,
   MailItem,
+  McpServerConfig,
   ReminderItem,
+  ReviewData,
+  SettingsChangedEvent,
+  SourceId,
   SourceResult,
   TaskItem,
 } from "@main/shared-types";
 
 import { errorMessage, invoke } from "./ipc";
+import { settingsQueryKey, sourceOn, useSettings } from "./settings";
 import type { Todo } from "./todos";
 
 export const queryKeys = {
   accounts: ["accounts"],
+  settings: settingsQueryKey,
   tasks: ["tasks"],
   reminders: ["reminders"],
   mail: ["mail"],
   calendar: ["calendar"],
+  calendars: ["calendars"],
+  review: ["review"],
+  mcpServers: ["mcp-servers"],
 } as const;
+
+const DATA_KEYS = [
+  queryKeys.tasks,
+  queryKeys.reminders,
+  queryKeys.mail,
+  queryKeys.calendar,
+  queryKeys.calendars,
+  queryKeys.review,
+];
 
 const SOURCE_STALE_TIME = 2 * 60_000;
 
@@ -31,48 +51,85 @@ export function useAccounts() {
   });
 }
 
-export function useTasks() {
+function useSourceQuery<T>(key: readonly string[], channel: string, source: SourceId) {
+  const queryClient = useQueryClient();
+  const settings = useSettings();
+  const refreshMinutes = settings.data?.general.refreshMinutes ?? 0;
   return useQuery({
-    queryKey: queryKeys.tasks,
-    queryFn: () => invoke<SourceResult<TaskItem>>("tasks:list"),
+    queryKey: key,
+    // Read settings at fetch time so an invalidation right after a settings change uses the new value.
+    queryFn: () =>
+      sourceOn(queryClient.getQueryData<AppSettings>(settingsQueryKey), source)
+        ? invoke<SourceResult<T>>(channel)
+        : Promise.resolve<SourceResult<T>>({ state: "disabled" }),
+    enabled: settings.isSuccess,
     staleTime: SOURCE_STALE_TIME,
+    refetchInterval: refreshMinutes > 0 ? refreshMinutes * 60_000 : false,
   });
+}
+
+export function useTasks() {
+  return useSourceQuery<TaskItem>(queryKeys.tasks, "tasks:list", "tasks");
 }
 
 export function useReminders() {
-  return useQuery({
-    queryKey: queryKeys.reminders,
-    queryFn: () => invoke<SourceResult<ReminderItem>>("reminders:list"),
-    staleTime: SOURCE_STALE_TIME,
-  });
+  return useSourceQuery<ReminderItem>(queryKeys.reminders, "reminders:list", "reminders");
 }
 
 export function useMail() {
-  return useQuery({
-    queryKey: queryKeys.mail,
-    queryFn: () => invoke<SourceResult<MailItem>>("mail:list"),
-    staleTime: SOURCE_STALE_TIME,
-  });
+  return useSourceQuery<MailItem>(queryKeys.mail, "mail:list", "mail");
 }
 
 export function useCalendar() {
+  return useSourceQuery<CalendarEventItem>(queryKeys.calendar, "calendar:list", "calendar");
+}
+
+export function useCalendars(enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.calendar,
-    queryFn: () => invoke<SourceResult<CalendarEventItem>>("calendar:list"),
-    staleTime: SOURCE_STALE_TIME,
+    queryKey: queryKeys.calendars,
+    queryFn: () => invoke<CalendarListResult>("calendar:listCalendars"),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }
 
-/** Refetch everything when account state changes in any window. */
-export function useAccountsSync() {
+export function useReview() {
+  return useQuery({
+    queryKey: queryKeys.review,
+    queryFn: () => invoke<ReviewData>("review:data"),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useMcpServers() {
+  return useQuery({
+    queryKey: queryKeys.mcpServers,
+    queryFn: () => invoke<McpServerConfig[]>("mcp:list"),
+  });
+}
+
+/** Keeps every window in step with account, settings, and MCP changes made anywhere. */
+export function useBackendSync() {
   const queryClient = useQueryClient();
-  useEffect(
-    () =>
-      window.glazeAPI.glaze.ipc.onNotification("accounts:changed", () => {
+  useEffect(() => {
+    const ipc = window.glazeAPI.glaze.ipc;
+    const unsubscribers = [
+      ipc.onNotification("accounts:changed", () => {
         void queryClient.invalidateQueries();
       }),
-    [queryClient],
-  );
+      ipc.onNotification("settings:changed", (params) => {
+        const event = params as Partial<SettingsChangedEvent> | null;
+        if (event?.settings) queryClient.setQueryData(settingsQueryKey, event.settings);
+        if (event?.dataChanged) {
+          for (const key of DATA_KEYS) void queryClient.invalidateQueries({ queryKey: key });
+        }
+      }),
+      ipc.onNotification("mcp:changed", () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers });
+      }),
+    ];
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+  }, [queryClient]);
 }
 
 function setTodoCompleted(queryClient: QueryClient, todo: Todo, completed: boolean) {

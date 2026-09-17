@@ -2,21 +2,17 @@ import type { ReminderItem, SourceResult, TaskItem } from "@main/shared-types";
 
 export interface Todo {
   key: string;
-  source: "google" | "reminders";
+  source: "tasks" | "reminders";
   title: string;
   notes: string | null;
   dueDate: string | null;
   dueTime: string | null;
   listTitle: string;
   completed: boolean;
+  completedAt: string | null;
   task?: TaskItem;
   reminder?: ReminderItem;
 }
-
-export const SOURCE_LABEL: Record<Todo["source"], string> = {
-  google: "Google Tasks",
-  reminders: "Reminders",
-};
 
 export function buildTodos(
   tasks: SourceResult<TaskItem> | undefined,
@@ -27,13 +23,14 @@ export function buildTodos(
     for (const task of tasks.items) {
       todos.push({
         key: `task:${task.id}`,
-        source: "google",
+        source: "tasks",
         title: task.title,
         notes: task.notes,
         dueDate: task.due,
         dueTime: null,
         listTitle: task.listTitle,
         completed: task.completed,
+        completedAt: task.completedAt,
         task,
       });
     }
@@ -49,6 +46,7 @@ export function buildTodos(
         dueTime: reminder.dueTime,
         listTitle: reminder.listTitle,
         completed: reminder.completed,
+        completedAt: reminder.completedAt,
         reminder,
       });
     }
