@@ -66,6 +66,7 @@
     "lastMigration": "sdk-projection-paths",
     "host": {
       "minVersion": "0.14.2.0"
-    }
+    },
+    "updatedAt": 1789610125221
   }
 }

@@ -1,67 +1,155 @@
-// EXAMPLE VIEW - Replace this entire component
-//
-// This template uses IPC APIs with a secure preload pattern.
-//
-// === SECURITY MODEL ===
-// - Renderer code should NOT import ipcRenderer directly
-// - Use contextBridge in a preload script to expose specific APIs
-// - Channel names follow channel naming convention: "module:method" (e.g., "dialog:showOpenDialog")
-//
-// === PRELOAD SCRIPT (preload.ts) ===
-// ```
-// import { ipcRenderer, contextBridge } from '@glaze/core/preload';
-//
-// contextBridge.exposeInMainWorld('myAppAPI', {
-//   getInfo: () => ipcRenderer.invoke('app:getInfo'),
-//   saveFile: (name: string, data: string) => ipcRenderer.invoke('file:save', { name, data }),
-//   showOpenDialog: (options: any) => ipcRenderer.invoke('dialog:showOpenDialog', options),
-// });
-// ```
-//
-// === RENDERER CODE (your components) ===
-// ```
-// // Only use the exposed API - no direct ipcRenderer access
-// const info = await window.myAppAPI.getInfo();
-// await window.myAppAPI.saveFile('test.txt', 'hello');
-// const result = await window.myAppAPI.showOpenDialog({ properties: ['openFile'] });
-// ```
-//
-// === BACKEND HANDLERS (main/handlers/index.ts) ===
-// ```
-// import { ipcMain, dialog } from '@glaze/core/backend';
-//
-// // Custom handler
-// ipcMain.handle('app:getInfo', async () => {
-//   return { name: 'My App', version: '1.0.0' };
-// });
-//
-// // Built-in modules work directly through the Glaze APIs
-// // The native API handlers are already registered for:
-// //   dialog:showOpenDialog, dialog:showSaveDialog, dialog:showMessageBox
-// //   shell:openPath, shell:openExternal, shell:trashItem, shell:beep
-// //   screen:getPrimaryDisplay, screen:getAllDisplays, etc.
-// //   clipboard:readText, clipboard:writeText
-// //   nativeTheme:getInfo, nativeTheme:setThemeSource
-// //   Menu:setApplicationMenu, Menu:popup
-// ```
+import { useState, useMemo, type ComponentType } from "react";
+import {
+  SplitView,
+  Sidebar,
+  SidebarList,
+  SidebarListItem,
+  SidebarListGroup,
+  SidebarFooter,
+  ScrollArea,
+  SegmentedControl,
+  SegmentedControlItem,
+  Text,
+} from "@glaze/core/components";
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Users,
+  Activity,
+  HeartPulse,
+  Settings,
+} from "lucide-react";
+import { MetricCard } from "../components/metric-card";
+import { AreaChart } from "../components/area-chart";
+import { ActivityTable } from "../components/activity-table";
+import {
+  getMetrics,
+  getChartData,
+  getActivities,
+  sidebarViews,
+  type TimeRange,
+  type SidebarViewId,
+} from "../components/dashboard-data";
 
-import { Toolbar, ToolbarContent, ToolbarTitle } from "@glaze/core/components";
+const iconMap: Record<string, ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  TrendingUp,
+  Users,
+  Activity,
+  HeartPulse,
+};
 
-declare const __APP_DISPLAY_NAME__: string | undefined;
+const viewTitles: Record<SidebarViewId, string> = {
+  overview: "Overview",
+  revenue: "Revenue",
+  users: "Users",
+  engagement: "Engagement",
+  retention: "Retention",
+};
 
 export function HomeView() {
+  const [selectedView, setSelectedView] = useState<SidebarViewId>("overview");
+  const [timeRange, setTimeRange] = useState<TimeRange>("7d");
+
+  const metrics = useMemo(() => getMetrics(timeRange), [timeRange]);
+  const chartData = useMemo(() => getChartData(timeRange), [timeRange]);
+  const activities = useMemo(() => getActivities(timeRange), [timeRange]);
+
   return (
-    <div className="h-full flex flex-col">
-      <Toolbar>
-        <ToolbarContent>
-          <ToolbarTitle>{/* Page title */}</ToolbarTitle>
-        </ToolbarContent>
-      </Toolbar>
-      <div className="h-full flex flex-col gap-2 w-full text-center absolute inset-0 justify-center items-center">
-        <h1 className="text-heading1 font-normal shimmer-text">
-          {__APP_DISPLAY_NAME__ || "Glaze App"}
-        </h1>
-      </div>
-    </div>
+    <SplitView
+      storageKey="dashboard-layout"
+      sidebar={
+        <Sidebar
+          footer={
+            <SidebarFooter>
+              <SidebarList>
+                <SidebarListItem
+                  icon={<Settings className="size-4" />}
+                  title="Settings"
+                  onClick={() => {
+                    /* Settings opened via menu */
+                  }}
+                />
+              </SidebarList>
+            </SidebarFooter>
+          }
+        >
+          <SidebarList>
+            <SidebarListItem
+              icon={(() => {
+                const Icon = iconMap[sidebarViews[0].icon];
+                return <Icon className="size-4" />;
+              })()}
+              title={sidebarViews[0].label}
+              selected={selectedView === sidebarViews[0].id}
+              onClick={() => setSelectedView(sidebarViews[0].id)}
+            />
+            <SidebarListGroup title="Analytics">
+              {sidebarViews.slice(1).map((view) => {
+                const Icon = iconMap[view.icon];
+                return (
+                  <SidebarListItem
+                    key={view.id}
+                    icon={<Icon className="size-4" />}
+                    title={view.label}
+                    selected={selectedView === view.id}
+                    onClick={() => setSelectedView(view.id)}
+                  />
+                );
+              })}
+            </SidebarListGroup>
+          </SidebarList>
+        </Sidebar>
+      }
+    >
+      <ScrollArea
+        title={viewTitles[selectedView]}
+        subtitle={`${metrics.length} metrics · ${activities.length} events`}
+        actions={
+          <SegmentedControl
+            value={timeRange}
+            onValueChange={(v) => setTimeRange(v as TimeRange)}
+            aria-label="Time range"
+            size="small"
+          >
+            <SegmentedControlItem value="24h">24h</SegmentedControlItem>
+            <SegmentedControlItem value="7d">7d</SegmentedControlItem>
+            <SegmentedControlItem value="30d">30d</SegmentedControlItem>
+          </SegmentedControl>
+        }
+        className="h-full"
+        scrollbars="both"
+      >
+        <div className="flex flex-col gap-6 p-6 min-w-0">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.map((metric) => (
+              <MetricCard key={metric.id} metric={metric} />
+            ))}
+          </div>
+
+          {/* Chart */}
+          <div className="rounded-lg bg-well border border-separator p-6 flex flex-col gap-4 min-w-0">
+            <div className="flex items-center justify-between">
+              <Text variant="large-strong" as="h3">
+                Performance Trend
+              </Text>
+              <Text variant="small" color="tertiary">
+                {timeRange === "24h" ? "Hourly" : timeRange === "7d" ? "Daily" : "Daily"} data points
+              </Text>
+            </div>
+            <AreaChart data={chartData} />
+          </div>
+
+          {/* Activity Table */}
+          <div className="rounded-lg bg-well border border-separator p-6 flex flex-col gap-4 min-w-0">
+            <Text variant="large-strong" as="h3">
+              Recent Activity
+            </Text>
+            <ActivityTable activities={activities} />
+          </div>
+        </div>
+      </ScrollArea>
+    </SplitView>
   );
 }
