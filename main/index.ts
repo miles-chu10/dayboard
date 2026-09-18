@@ -13,6 +13,7 @@ import { app, BrowserWindow, Menu, logger, initDevToolsButtonState } from "@glaz
 import { registerHandlers } from "./handlers/index.js";
 import { getPreloadPath, getWindowUrl } from "./windows/window-paths.js";
 import { openSettingsWindow } from "./windows/settings-window.js";
+import { startMcpHttpServer } from "./services/mcp-http-server.js";
 
 // Get directory paths
 const __filename = fileURLToPath(import.meta.url);
@@ -218,6 +219,17 @@ app.whenReady().then(async () => {
   await appAiDevHarness?.runAppAiAutotest();
 
   await setupApplicationMenu();
+
+  // Local MCP endpoint for Claude Code / Codex; port is derived from the project id.
+  try {
+    const packageJson = JSON.parse(
+      await fs.promises.readFile(path.join(__dirname, "..", "..", "package.json"), "utf-8"),
+    ) as { id?: unknown };
+    if (typeof packageJson.id === "string") startMcpHttpServer(packageJson.id);
+    else logger.warn("main", "package.json has no id; MCP server not started");
+  } catch (error) {
+    logger.warn("main", "Could not start MCP server", error);
+  }
 
   createMainWindow()
     .then(() => {

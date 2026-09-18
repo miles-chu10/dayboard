@@ -6,6 +6,7 @@ import type {
   AppSettings,
   CalendarEventItem,
   CalendarListResult,
+  DataChangedEvent,
   MailItem,
   McpServerConfig,
   ReminderItem,
@@ -124,6 +125,12 @@ export function useBackendSync() {
           for (const key of DATA_KEYS) void queryClient.invalidateQueries({ queryKey: key });
         }
       }),
+      ipc.onNotification("data:changed", (params) => {
+        const event = params as Partial<DataChangedEvent> | null;
+        if (event?.source)
+          void queryClient.invalidateQueries({ queryKey: queryKeys[event.source] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.review });
+      }),
       ipc.onNotification("mcp:changed", () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers });
       }),
@@ -137,14 +144,20 @@ function setTodoCompleted(queryClient: QueryClient, todo: Todo, completed: boole
     const id = todo.task.id;
     queryClient.setQueryData<SourceResult<TaskItem>>(queryKeys.tasks, (prev) =>
       prev?.state === "ok"
-        ? { ...prev, items: prev.items.map((item) => (item.id === id ? { ...item, completed } : item)) }
+        ? {
+            ...prev,
+            items: prev.items.map((item) => (item.id === id ? { ...item, completed } : item)),
+          }
         : prev,
     );
   } else if (todo.reminder) {
     const ref = todo.reminder.ref;
     queryClient.setQueryData<SourceResult<ReminderItem>>(queryKeys.reminders, (prev) =>
       prev?.state === "ok"
-        ? { ...prev, items: prev.items.map((item) => (item.ref === ref ? { ...item, completed } : item)) }
+        ? {
+            ...prev,
+            items: prev.items.map((item) => (item.ref === ref ? { ...item, completed } : item)),
+          }
         : prev,
     );
   }
@@ -161,7 +174,10 @@ export function useToggleTodo() {
           completed: !todo.completed,
         });
       } else if (todo.reminder) {
-        await invoke("reminders:setCompleted", { ref: todo.reminder.ref, completed: !todo.completed });
+        await invoke("reminders:setCompleted", {
+          ref: todo.reminder.ref,
+          completed: !todo.completed,
+        });
       }
     },
     onMutate: (todo) => setTodoCompleted(queryClient, todo, !todo.completed),
@@ -179,7 +195,9 @@ export function useConnectGoogle() {
     onSuccess: (status) => {
       queryClient.setQueryData(queryKeys.accounts, status);
       void queryClient.invalidateQueries();
-      toast.success(status.google.email ? `Connected ${status.google.email}` : "Google account connected");
+      toast.success(
+        status.google.email ? `Connected ${status.google.email}` : "Google account connected",
+      );
     },
     onError: (error) => toast.error(`Couldn't connect Google: ${errorMessage(error)}`),
   });

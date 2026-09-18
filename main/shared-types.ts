@@ -1,6 +1,11 @@
 // Types shared by the backend handlers and the renderer (renderer imports these type-only).
 
-export type RemindersAccess = "not-determined" | "denied" | "restricted" | "full-access" | "unknown";
+export type RemindersAccess =
+  | "not-determined"
+  | "denied"
+  | "restricted"
+  | "full-access"
+  | "unknown";
 
 export type SourceId = "tasks" | "reminders" | "mail" | "calendar";
 export type SourceColor = "blue" | "green" | "orange" | "red" | "purple" | "magenta" | "yellow";
@@ -44,6 +49,11 @@ export interface SettingsChangedEvent {
   settings: AppSettings;
   /** True when a change affects which source data is fetched. */
   dataChanged: boolean;
+}
+
+/** Broadcast on `data:changed` when an MCP client changes a source's items. */
+export interface DataChangedEvent {
+  source: SourceId;
 }
 
 export interface McpServerConfig {
