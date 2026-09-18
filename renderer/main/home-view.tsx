@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button, Callout, ScrollArea, Status } from "@glaze/core/components";
 import type { MailItem, SourceId, SourceResult } from "@main/shared-types";
 
+import { AskAssistantCard } from "../components/ask-assistant-card";
 import { BriefingCard } from "../components/briefing-card";
 import { EventRow } from "../components/event-row";
 import { MailRow } from "../components/mail-row";
@@ -202,6 +203,10 @@ export function HomeView() {
 
           {tiles.length ? (
             <div className={`grid gap-3 ${TILE_GRID[tiles.length]}`}>{tiles}</div>
+          ) : null}
+
+          {featureOn(settings, "assistant") ? (
+            <AskAssistantCard provider={settings?.ai.provider ?? "glaze"} />
           ) : null}
 
           {featureOn(settings, "briefing") ? (

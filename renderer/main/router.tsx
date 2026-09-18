@@ -69,6 +69,10 @@ const assistantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assistant",
   component: AssistantView,
+  // `prompt` hands a question over from Today's composer; the Assistant sends it once and clears it.
+  validateSearch: (search: Record<string, unknown>): { prompt?: string } => ({
+    prompt: typeof search.prompt === "string" && search.prompt.trim() ? search.prompt : undefined,
+  }),
   staticData: { title: "Assistant" },
 });
 

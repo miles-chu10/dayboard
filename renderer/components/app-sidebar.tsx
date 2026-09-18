@@ -7,9 +7,10 @@ import {
   SidebarListGroup,
   SidebarListItem,
   Status,
+  Text,
 } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
-import { CalendarCheck2, MessageSquareText, Plus, Settings, Sun } from "lucide-react";
+import { CalendarCheck2, Plus, Settings, Sun } from "lucide-react";
 import type { SourceId } from "@main/shared-types";
 
 import { eventDayKey, isEventPast, todayISO } from "../lib/dates";
@@ -18,6 +19,7 @@ import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../li
 import { PROVIDER_LABEL, featureOn, sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, SOURCE_IDS, SOURCE_META, sourceColor } from "../lib/sources";
 import { useOpenCapture } from "./capture-dialog";
+import { ProviderMark } from "./provider-logo";
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -32,12 +34,17 @@ export function AppSidebar() {
 
   const today = todayISO();
   const counts: Record<SourceId, number> = {
-    tasks: tasks.data?.state === "ok" ? tasks.data.items.filter((item) => !item.completed).length : 0,
-    reminders: reminders.data?.state === "ok" ? reminders.data.items.filter((item) => !item.completed).length : 0,
+    tasks:
+      tasks.data?.state === "ok" ? tasks.data.items.filter((item) => !item.completed).length : 0,
+    reminders:
+      reminders.data?.state === "ok"
+        ? reminders.data.items.filter((item) => !item.completed).length
+        : 0,
     mail: mail.data?.state === "ok" ? mail.data.items.filter((item) => item.unread).length : 0,
     calendar:
       calendar.data?.state === "ok"
-        ? calendar.data.items.filter((event) => eventDayKey(event) === today && !isEventPast(event)).length
+        ? calendar.data.items.filter((event) => eventDayKey(event) === today && !isEventPast(event))
+            .length
         : 0,
   };
 
@@ -48,7 +55,12 @@ export function AppSidebar() {
   return (
     <Sidebar
       actions={
-        <Button iconOnly aria-label="New task, reminder, or event" title="New item" onClick={openCapture}>
+        <Button
+          iconOnly
+          aria-label="New task, reminder, or event"
+          title="New item"
+          onClick={openCapture}
+        >
           <Plus />
         </Button>
       }
@@ -56,13 +68,19 @@ export function AppSidebar() {
         <SidebarFooter>
           <div className="flex items-center gap-2 px-2 py-1 min-w-0">
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <Status variant={google?.connected ? "success" : "neutral"} className="min-w-0 truncate">
+              <Status
+                variant={google?.connected ? "success" : "neutral"}
+                className="min-w-0 truncate"
+              >
                 {google?.connected ? (google.email ?? "Google connected") : "Google not connected"}
               </Status>
               {settings?.ai.enabled ? (
-                <Status variant="neutral" className="min-w-0 truncate">
-                  AI: {PROVIDER_LABEL[settings.ai.provider]}
-                </Status>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ProviderMark provider={settings.ai.provider} className="size-3" />
+                  <Text variant="small" color="secondary" truncate>
+                    {PROVIDER_LABEL[settings.ai.provider]}
+                  </Text>
+                </div>
               ) : null}
             </div>
             <Button
@@ -94,7 +112,9 @@ export function AppSidebar() {
             return (
               <SidebarListItem
                 key={id}
-                icon={<Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />}
+                icon={
+                  <Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />
+                }
                 title={meta.label}
                 accessory={counts[id] || undefined}
                 selected={pathname === meta.route}
@@ -107,7 +127,9 @@ export function AppSidebar() {
           <SidebarListGroup title="AI">
             {showAssistant ? (
               <SidebarListItem
-                icon={<MessageSquareText className="size-4" />}
+                icon={
+                  <ProviderMark provider={settings?.ai.provider ?? "glaze"} className="size-4" />
+                }
                 title="Assistant"
                 selected={pathname === "/assistant"}
                 onClick={() => void navigate({ to: "/assistant" })}

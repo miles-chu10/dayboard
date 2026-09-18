@@ -16,6 +16,7 @@ import {
 import type { AIFeature, AIProvider, AppSettings, ProviderStatus } from "@main/shared-types";
 
 import { errorMessage, invoke } from "../lib/ipc";
+import { ProviderMark } from "../components/provider-logo";
 import { PROVIDER_DETAIL, PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
 import { SettingSelect } from "./setting-select";
 
@@ -196,7 +197,10 @@ export function AITab() {
                   <Label key={provider}>
                     <RadioGroupItem value={provider} />
                     <span className="flex flex-col">
-                      <Text>{PROVIDER_LABEL[provider]}</Text>
+                      <span className="flex items-center gap-1.5">
+                        <ProviderMark provider={provider} className="size-3.5" />
+                        <Text>{PROVIDER_LABEL[provider]}</Text>
+                      </span>
                       <Text variant="small" color="tertiary">
                         {PROVIDER_DETAIL[provider]}
                       </Text>

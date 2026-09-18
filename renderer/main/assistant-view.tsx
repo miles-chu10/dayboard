@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   AIChat,
   Button,
@@ -12,13 +13,15 @@ import {
 } from "@glaze/core/components";
 import { useGlazeAI } from "@glaze/core/hooks";
 import { SquarePen } from "lucide-react";
-import type { AIStreamChunk, AssistantResult } from "@main/shared-types";
+import type { AIProvider, AIStreamChunk, AssistantResult } from "@main/shared-types";
 
+import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { BLOCKED_MESSAGE } from "../lib/ai";
 import { buildAssistantSystem } from "../lib/ai-prompts";
 import {
+  ASSISTANT_SUGGESTIONS,
   loadConversation,
   saveConversation,
   splitActions,
@@ -40,13 +43,6 @@ import { PROVIDER_LABEL, featureOn, sourceOn, useSettings } from "../lib/setting
 import { buildTodos } from "../lib/todos";
 import { readTriageMap } from "../lib/triage";
 
-const SUGGESTIONS = [
-  "What should I focus on for the rest of today?",
-  "Summarize the emails that need a reply",
-  "When am I free tomorrow for an hour of deep work?",
-  "What's overdue, and what could I drop?",
-];
-
 function describeAction(action: AssistantAction): string {
   const time = action.time
     ? `${formatClock(action.time)}${action.endTime ? `–${formatClock(action.endTime)}` : ""}`
@@ -58,11 +54,13 @@ function describeAction(action: AssistantAction): string {
 
 function AssistantMessageView({
   message,
+  provider,
   streaming,
   onAddAction,
   onEnableAI,
 }: {
   message: AssistantMessage;
+  provider: AIProvider;
   streaming: boolean;
   onAddAction: (index: number) => void;
   onEnableAI: () => void;
@@ -77,10 +75,17 @@ function AssistantMessageView({
 
   const { body } = splitActions(message.content);
   const canEnable = message.blocked === "needs-consent" || message.blocked === "host-unavailable";
+  const author = message.provider ?? provider;
 
   return (
     <AIChat.Message.Root from="assistant">
       <AIChat.Message.Content>
+        <div className="flex items-center gap-1.5">
+          <ProviderMark provider={author} className="size-4" />
+          <Text variant="small-strong" color="secondary">
+            {PROVIDER_LABEL[author]}
+          </Text>
+        </div>
         {message.tools.map((tool) => (
           <AIChat.Tool.Root key={tool.id} status={tool.status}>
             <AIChat.Tool.Trigger>
@@ -152,6 +157,9 @@ export function AssistantView() {
   const [input, setInput] = useState("");
   const [runningId, setRunningId] = useState<string | null>(null);
   const cancelRef = useRef<string | null>(null);
+  const navigate = useNavigate();
+  const { prompt: handoffPrompt } = useSearch({ from: "/assistant" });
+  const handledPromptRef = useRef<string | null>(null);
 
   const mcpCount = settings?.ai.useMcpInAssistant
     ? (mcpServers.data ?? []).filter((server) => server.enabled).length
@@ -167,6 +175,20 @@ export function AssistantView() {
     },
     [],
   );
+
+  // Questions typed on Today arrive as ?prompt=…; send each once, then clear it from the URL.
+  useEffect(() => {
+    if (!handoffPrompt) {
+      handledPromptRef.current = null;
+      return;
+    }
+    if (!settings || handledPromptRef.current === handoffPrompt) return;
+    handledPromptRef.current = handoffPrompt;
+    void navigate({ to: "/assistant", search: {}, replace: true });
+    if (!enabled) return;
+    if (runningId) setInput(handoffPrompt);
+    else void send(handoffPrompt);
+  }, [handoffPrompt, settings]);
 
   function patchMessage(id: string, update: (message: AssistantMessage) => AssistantMessage) {
     setMessages((previous) =>
@@ -208,6 +230,7 @@ export function AssistantView() {
         actions: [],
         error: null,
         blocked: null,
+        provider,
       },
     ]);
     setInput("");
@@ -375,7 +398,7 @@ export function AssistantView() {
                     onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
                       setInput(event.target.value)
                     }
-                    placeholder="Ask about your tasks, mail, or schedule…"
+                    placeholder={`Message ${PROVIDER_LABEL[provider]}…`}
                   />
                   <AIChat.Composer.Actions>
                     {runningId ? (
@@ -402,9 +425,10 @@ export function AssistantView() {
         ) : messages.length === 0 ? (
           <EmptyState
             placement="viewport"
+            media={<ProviderTile provider={provider} />}
             title="Ask About Your Day"
             description="The assistant sees your tasks, reminders, inbox, and calendar, and can suggest items for you to add."
-            actions={SUGGESTIONS.map((suggestion) => (
+            actions={ASSISTANT_SUGGESTIONS.map((suggestion) => (
               <Button key={suggestion} size="small" onClick={() => void send(suggestion)}>
                 {suggestion}
               </Button>
@@ -415,6 +439,7 @@ export function AssistantView() {
             <AssistantMessageView
               key={message.id}
               message={message}
+              provider={provider}
               streaming={message.id === runningId}
               onAddAction={(index) => void addAction(message.id, index)}
               onEnableAI={() => void glazeAI.enableInHost()}
