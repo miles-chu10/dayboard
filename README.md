@@ -10,6 +10,7 @@ Dayboard is a native macOS productivity dashboard built with [Glaze](https://gla
 - **Details your way** — open tasks, reminders, and events in a pop-up, inline under the row, or in a side panel.
 - **Inbox** — recent Gmail with AI triage and reply drafts saved to Gmail.
 - **AI** — briefing, prioritization, natural-language capture, meeting prep, weekly review, and an Assistant that can use MCP tools. Every feature can be turned off.
+- **Chat history** — search, reopen, and continue earlier Assistant conversations. Chats are saved locally per account, with separate demo history. New chat keeps the previous conversation. Use **Import Previous Chat** once to preserve the conversation retained by an older version.
 - **MCP** — an optional local server lets Claude Code, Codex, and other MCP clients use Dayboard's sources while the app runs. It's off by default, requires an access key, and stays read-only unless you turn on changes (Settings → MCP Servers).
 - **Settings** — accent color, Default/Compact density, detail view, source colors, relative calendar range, launch view, auto-refresh, AI provider/model/effort/speed, MCP servers, and Start at login.
 
@@ -42,6 +43,8 @@ npm run launch    # open the verified managed app
 ```
 
 Source layout: `main/` is the Node.js backend (Google, Reminders, AI providers, MCP), `renderer/` is the React UI, and `tests/` holds offline backend fixtures. Design notes live in `docs/`.
+
+GitHub runs the offline test suite on pushes and pull requests. Optional Codex PR reviews use a separate API key and explicit activation; see [GitHub workflows](docs/github-workflows.md).
 
 ### Store screenshots
 

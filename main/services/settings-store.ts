@@ -102,6 +102,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     codexEffort: "",
     codexServiceTier: "",
     useMcpInAssistant: true,
+    assistantPermission: "ask",
     features: {
       briefing: true,
       autoBriefing: false,
@@ -205,6 +206,11 @@ export function normalizeSettings(value: unknown): AppSettings {
       codexEffort: token(ai.codexEffort),
       codexServiceTier: token(ai.codexServiceTier),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
+      assistantPermission: oneOf(
+        ai.assistantPermission,
+        ["read-only", "ask", "auto"] as const,
+        defaults.ai.assistantPermission,
+      ),
       features: Object.fromEntries(
         AI_FEATURES.map((feature) => [
           feature,

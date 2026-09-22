@@ -1,4 +1,4 @@
-import type { AppSettings, CodexModelInfo } from "../../shared-types.js";
+import type { AppSettings, AssistantModelInfo, CodexModelInfo } from "../../shared-types.js";
 
 export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
   const args: string[] = [];
@@ -7,7 +7,7 @@ export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
     args.push("--effort", ai.claudeEffort);
   }
   // An explicit false prevents the user's CLI preference from enabling paid Fast mode.
-  const fastMode = ai.claudeFast && ["opus", "opus[1m]"].includes(ai.claudeModel);
+  const fastMode = claudeFastOn(ai);
   args.push("--settings", JSON.stringify({ fastMode }));
   return args;
 }
@@ -41,4 +41,79 @@ export function codexModelArgs(ai: AppSettings["ai"], models: CodexModelInfo[]):
     );
   }
   return args;
+}
+
+const CLAUDE_NAMES: Record<string, string> = {
+  default: "Claude Code default",
+  fable: "Claude Fable",
+  opus: "Claude Opus",
+  sonnet: "Claude Sonnet",
+  haiku: "Claude Haiku",
+  "opus[1m]": "Claude Opus (1M context)",
+  "sonnet[1m]": "Claude Sonnet (1M context)",
+};
+
+// Exact IDs Claude Code resolved each alias to on earlier runs (from its init event).
+const claudeResolved = new Map<string, string>();
+
+export function rememberClaudeModel(alias: string, id: string): void {
+  claudeResolved.set(alias, id);
+}
+
+export function claudeFastOn(ai: AppSettings["ai"]): boolean {
+  return ai.claudeFast && ["opus", "opus[1m]"].includes(ai.claudeModel);
+}
+
+/** What will serve the next request. Codex's default is its first listed model, passed explicitly. */
+export function describeModel(
+  ai: AppSettings["ai"],
+  codexModels: CodexModelInfo[],
+): AssistantModelInfo {
+  if (ai.provider === "claude") {
+    return {
+      provider: "claude",
+      name: CLAUDE_NAMES[ai.claudeModel] ?? ai.claudeModel,
+      id: claudeResolved.get(ai.claudeModel) ?? null,
+      fast: claudeFastOn(ai),
+      effort: ai.claudeEffort === "default" ? null : ai.claudeEffort,
+      contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
+    };
+  }
+  if (ai.provider === "codex") {
+    const model = codexModels.find((entry) => entry.slug === ai.codexModel) ?? codexModels[0];
+    const tier = model?.tiers.find((entry) => entry.id === ai.codexServiceTier);
+    return {
+      provider: "codex",
+      name: model?.name ?? (ai.codexModel || "Codex default"),
+      id: model?.slug ?? (ai.codexModel || null),
+      fast: Boolean(ai.codexServiceTier),
+      effort: ai.codexEffort || model?.defaultEffort || null,
+      contextWindow: model?.contextWindow ?? null,
+      ...(tier ? { name: `${model?.name ?? ai.codexModel} · ${tier.name}` } : {}),
+    };
+  }
+  return {
+    provider: "glaze",
+    name: "Glaze AI (fast)",
+    id: null,
+    fast: false,
+    effort: null,
+    contextWindow: null,
+  };
+}
+
+/** Appended to every Assistant system prompt so the model can state what it is. */
+export function modelSystemNote(info: AssistantModelInfo): string {
+  const via =
+    info.provider === "claude"
+      ? "Claude Code (the user's Claude subscription)"
+      : info.provider === "codex"
+        ? "the Codex CLI (the user's ChatGPT subscription)"
+        : "Glaze AI";
+  const exact = info.id
+    ? `The exact model ID is "${info.id}".`
+    : info.provider === "claude"
+      ? "Claude Code resolves the exact model ID when the request starts; the app shows it under your reply."
+      : "The exact model ID isn't published for this provider.";
+  return `\n\n# Model\nYou are running as ${info.name} through ${via}. ${exact} Fast mode is ${info.fast ? "ON" : "off"}.${info.effort ? ` Reasoning effort: ${info.effort}.` : ""} When asked which model you are, state exactly this rather than guessing.`;
 }

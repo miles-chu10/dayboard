@@ -14,6 +14,7 @@ import type { MailItem } from "@main/shared-types";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
 import { ListCard } from "../components/section-card";
+import { HistoryNav } from "../components/history-nav";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { useMail } from "../lib/queries";
@@ -39,10 +40,11 @@ export function MailView() {
     <>
       <ScrollArea
         className="h-full"
-        title={<SourceHeading source="mail">Mail</SourceHeading>}
+        title={<SourceHeading source="mail">Gmail</SourceHeading>}
         subtitle={messages ? `${messages.length} recent · ${unread} unread` : "Gmail"}
         actions={
           <>
+            <HistoryNav />
             {triageOn ? (
               <Button
                 iconOnly

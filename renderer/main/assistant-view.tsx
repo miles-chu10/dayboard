@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
@@ -12,26 +12,38 @@ import {
   toast,
 } from "@glaze/core/components";
 import { useGlazeAI } from "@glaze/core/hooks";
-import { SquarePen } from "lucide-react";
-import type { AIProvider, AIStreamChunk, AssistantResult } from "@main/shared-types";
+import { History, SquarePen } from "lucide-react";
+import type {
+  AIProvider,
+  AIStreamChunk,
+  AssistantAttachment,
+  AssistantModelInfo,
+  AssistantResult,
+} from "@main/shared-types";
+import type { AssistantHistory } from "../../shared/assistant-history";
 
+import { AssistantComposer, type ContextUsage } from "../components/assistant-composer";
+import { HistoryNav } from "../components/history-nav";
 import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
+import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { BLOCKED_MESSAGE } from "../lib/ai";
+import { selectedModel, useCodexModels } from "../lib/ai-models";
 import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSystem } from "../lib/ai-prompts";
 import {
   ASSISTANT_SUGGESTIONS,
-  loadConversation,
-  saveConversation,
+  loadLegacyConversation,
   splitActions,
   type AssistantAction,
   type AssistantMessage,
 } from "../lib/assistant";
 import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
 import { dayHeading, formatClock } from "../lib/dates";
-import { errorMessage, openSettings } from "../lib/ipc";
+import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { useAssistantHistory } from "../lib/assistant-history";
+import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
   useCalendar,
@@ -53,6 +65,16 @@ function describeAction(action: AssistantAction): string {
     .join(" · ");
 }
 
+function modelLabel(model: AssistantModelInfo): string {
+  return [
+    model.name,
+    model.id && model.id !== model.name ? model.id : null,
+    model.fast ? "Fast" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function AssistantMessageView({
   message,
   provider,
@@ -60,6 +82,7 @@ function AssistantMessageView({
   onAddAction,
   onEnableAI,
   demo,
+  adding,
 }: {
   message: AssistantMessage;
   provider: AIProvider;
@@ -67,6 +90,7 @@ function AssistantMessageView({
   onAddAction: (index: number) => void;
   onEnableAI: () => void;
   demo: boolean;
+  adding: boolean;
 }) {
   if (message.role === "user") {
     return (
@@ -88,6 +112,11 @@ function AssistantMessageView({
           <Text variant="small-strong" color="secondary">
             {PROVIDER_LABEL[author]}
           </Text>
+          {message.modelLabel ? (
+            <Text variant="small" color="tertiary" truncate>
+              {message.modelLabel}
+            </Text>
+          ) : null}
         </div>
         {message.tools.map((tool) => (
           <AIChat.Tool.Root key={tool.id} status={tool.status}>
@@ -120,7 +149,7 @@ function AssistantMessageView({
                 <Button
                   size="small"
                   onClick={() => onAddAction(index)}
-                  disabled={action.added || demo}
+                  disabled={action.added || demo || adding}
                 >
                   {action.added ? "Added" : demo ? "Sample" : "Add"}
                 </Button>
@@ -148,6 +177,58 @@ function AssistantMessageView({
 }
 
 export function AssistantView() {
+  const [state, setState] = useState<{
+    history?: AssistantHistory;
+    error?: string;
+    generation: number;
+  }>({ generation: 0 });
+  const loadVersion = useRef(0);
+  const loadRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    let mounted = true;
+    const load = () => {
+      const generation = ++loadVersion.current;
+      setState({ generation });
+      void drainAssistantOperations()
+        .then(() => invoke<AssistantHistory>("assistant:getHistory"))
+        .then((history) => {
+          if (mounted && loadVersion.current === generation) setState({ history, generation });
+        })
+        .catch((error: unknown) => {
+          if (mounted && loadVersion.current === generation)
+            setState({ error: errorMessage(error), generation });
+        });
+    };
+    loadRef.current = load;
+    load();
+    const unsubscribe = window.glazeAPI.glaze.ipc.onNotification("accounts:changed", load);
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+  if (!state.history)
+    return (
+      <ScrollArea title="Assistant" className="h-full">
+        <EmptyState
+          placement="viewport"
+          title={state.error ? "Chat history unavailable" : "Loading chats…"}
+          description={state.error}
+          actions={
+            state.error ? <Button onClick={() => loadRef.current()}>Try Again</Button> : undefined
+          }
+        />
+      </ScrollArea>
+    );
+  return (
+    <AssistantSession
+      key={`${state.history.scope}:${state.generation}`}
+      initialHistory={state.history}
+    />
+  );
+}
+
+function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory }) {
   const demo = isRendererDemoMode();
   const queryClient = useQueryClient();
   const settings = useSettings().data;
@@ -160,46 +241,20 @@ export function AssistantView() {
   const mail = useMail();
   const calendar = useCalendar();
   const mcpStatus = useAssistantMcpStatus();
+  const model = selectedModel(settings, useCodexModels(provider === "codex").data);
 
-  const [messages, setMessages] = useState<AssistantMessage[]>(() =>
-    demo
-      ? [
-          {
-            id: "demo-assistant-intro",
-            role: "assistant",
-            content:
-              "**Sample conversation**\n\nI’m using fictional DayBoard data for this demo. Ask about Alex Rivera’s launch work, calendar, or inbox.",
-            tools: [],
-            actions: [],
-            error: null,
-            blocked: null,
-            provider: "glaze",
-          },
-          {
-            id: "demo-assistant-question",
-            role: "user",
-            content: "What should I focus on this afternoon?",
-            tools: [],
-            actions: [],
-            error: null,
-            blocked: null,
-          },
-          {
-            id: "demo-assistant-answer",
-            role: "assistant",
-            content:
-              "**Sample answer**\n\nReview the launch announcement before the 3 PM roadmap sync. Priya’s unread email has the final-copy decision, and the onboarding pull request is the next unblocker.",
-            tools: [],
-            actions: [],
-            error: null,
-            blocked: null,
-            provider: "glaze",
-          },
-        ]
-      : loadConversation(),
+  const history = useAssistantHistory(initialHistory, demo);
+  const { messages, setMessages } = history;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [legacyMessages] = useState(() =>
+    demo || initialHistory.legacyImported ? [] : loadLegacyConversation(),
   );
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
+  const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const addingRef = useRef(false);
   const cancelRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const { prompt: handoffPrompt } = useSearch({ from: "/assistant" });
@@ -207,13 +262,10 @@ export function AssistantView() {
 
   const mcpCount = settings?.ai.useMcpInAssistant ? (mcpStatus.data?.serverCount ?? 0) : 0;
 
-  useEffect(() => {
-    saveConversation(messages);
-  }, [messages]);
-
   useEffect(
     () => () => {
       if (cancelRef.current) window.glazeAPI.glaze.ipc.cancelStream(cancelRef.current);
+      cancelRef.current = null;
     },
     [],
   );
@@ -234,13 +286,15 @@ export function AssistantView() {
 
   function patchMessage(id: string, update: (message: AssistantMessage) => AssistantMessage) {
     setMessages((previous) =>
-      previous.map((message) => (message.id === id ? update(message) : message)),
+      previous.some((message) => message.id === id)
+        ? previous.map((message) => (message.id === id ? update(message) : message))
+        : previous,
     );
   }
 
   async function send(text: string) {
     const content = text.trim();
-    if (!content || runningId) return;
+    if (!content || cancelRef.current || history.switching || !enabled) return;
 
     const userMessage: AssistantMessage = {
       id: crypto.randomUUID(),
@@ -252,7 +306,7 @@ export function AssistantView() {
       blocked: null,
     };
     const assistantId = crypto.randomUUID();
-    const history = [...messages, userMessage]
+    const requestMessages = [...messages, userMessage]
       .filter((message) => message.content.trim())
       .slice(-20)
       .map((message) => ({
@@ -276,6 +330,9 @@ export function AssistantView() {
       },
     ]);
     setInput("");
+    const sentAttachments = attachments;
+    setAttachments([]);
+    const permission = settings?.ai.assistantPermission ?? "ask";
 
     const googleConnected = accounts.data?.google.connected ?? false;
     const system = buildAssistantSystem({
@@ -285,6 +342,7 @@ export function AssistantView() {
       mail: mail.data,
       triage: readTriageMap(),
       userEmail: accounts.data?.google.email ?? null,
+      permission,
       canCreate: {
         task: googleConnected && sourceOn(settings, "tasks"),
         reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
@@ -297,11 +355,24 @@ export function AssistantView() {
     setRunningId(assistantId);
 
     try {
+      await history.flush();
+      if (cancelRef.current !== cancellationId) return;
       const result = await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
-        { messages: history, system },
+        { messages: requestMessages, system, attachments: sentAttachments.map((item) => item.id) },
         (chunk) => {
           if (cancelRef.current !== cancellationId) return;
+          if (chunk.type === "meta") {
+            patchMessage(assistantId, (message) => ({
+              ...message,
+              modelLabel: modelLabel(chunk.model),
+            }));
+            return;
+          }
+          if (chunk.type === "usage") {
+            setUsage({ inputTokens: chunk.inputTokens, contextWindow: chunk.contextWindow });
+            return;
+          }
           if (chunk.type === "delta") {
             patchMessage(assistantId, (message) => ({
               ...message,
@@ -336,10 +407,14 @@ export function AssistantView() {
           blocked: result.blocked,
         }));
       } else {
+        let proposed = 0;
         patchMessage(assistantId, (message) => {
           const finalContent = message.content || result.text;
-          return { ...message, content: finalContent, actions: splitActions(finalContent).actions };
+          const actions = permission === "read-only" ? [] : splitActions(finalContent).actions;
+          proposed = actions.length;
+          return { ...message, content: finalContent, actions };
         });
+        if (permission === "auto" && proposed) autoAddRef.current = assistantId;
       }
     } catch (error) {
       if (cancelRef.current !== cancellationId) return;
@@ -354,9 +429,25 @@ export function AssistantView() {
       if (cancelRef.current === cancellationId) {
         cancelRef.current = null;
         setRunningId(null);
+        void history.flush().catch(() => undefined);
       }
     }
   }
+
+  // Auto permission: add every proposed item once the reply has settled.
+  const autoAddRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = autoAddRef.current;
+    if (!id || runningId) return;
+    const message = messages.find((item) => item.id === id);
+    if (!message) return;
+    autoAddRef.current = null;
+    void (async () => {
+      for (let index = 0; index < message.actions.length; index++) {
+        if (!message.actions[index].added) await addAction(id, index);
+      }
+    })();
+  }, [messages, runningId]);
 
   function stop() {
     if (!cancelRef.current) return;
@@ -375,32 +466,64 @@ export function AssistantView() {
     }
   }
 
-  function newChat() {
+  async function newChat() {
+    if (addingRef.current) return;
     stop();
-    setMessages([]);
+    if (await history.selectChat(null)) {
+      setInput("");
+      setAttachments([]);
+      setUsage(null);
+    }
+  }
+
+  async function openChat(id: string) {
+    if (addingRef.current) return;
+    stop();
+    if (await history.selectChat(id)) {
+      setInput("");
+      setUsage(null);
+      setHistoryOpen(false);
+    }
   }
 
   async function addAction(messageId: string, index: number) {
-    if (demo) return;
+    if (demo || addingRef.current || history.switching) return;
     const action = messages.find((message) => message.id === messageId)?.actions[index];
     if (!action) return;
+    addingRef.current = true;
+    setAdding(true);
     try {
-      await createItem(action, queryClient);
-      patchMessage(messageId, (message) => ({
-        ...message,
-        actions: message.actions.map((item, itemIndex) =>
-          itemIndex === index ? { ...item, added: true } : item,
-        ),
-      }));
-      toast.success(`${KIND_LABEL[action.kind]} added: ${action.title}`);
+      await trackAssistantOperation(async () => {
+        await createItem(action, queryClient);
+        patchMessage(messageId, (message) => ({
+          ...message,
+          actions: message.actions.map((item, itemIndex) =>
+            itemIndex === index ? { ...item, added: true } : item,
+          ),
+        }));
+        try {
+          await history.flush();
+        } catch {
+          toast.error(
+            "The item was created, but its chat status couldn’t be saved. Don’t add it again.",
+          );
+          return;
+        }
+        toast.success(`${KIND_LABEL[action.kind]} added: ${action.title}`);
+      });
     } catch (error) {
       toast.error(`Couldn't add ${KIND_LABEL[action.kind].toLowerCase()}: ${errorMessage(error)}`);
+    } finally {
+      addingRef.current = false;
+      setAdding(false);
     }
   }
 
   const subtitle = enabled
     ? [
-        PROVIDER_LABEL[provider],
+        provider === "glaze"
+          ? PROVIDER_LABEL[provider]
+          : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
         demo ? "Sample data" : null,
         mcpCount ? `${mcpCount} MCP ${mcpCount === 1 ? "server" : "servers"}` : null,
       ]
@@ -413,53 +536,98 @@ export function AssistantView() {
       className="h-full"
       autoScrollToBottom
       showScrollToBottomButton
-      title="Assistant"
+      title={messages.length ? history.chat.title : "Assistant"}
       subtitle={subtitle}
       actions={
-        <Button
-          iconOnly
-          aria-label="New chat"
-          title="New chat"
-          onClick={newChat}
-          disabled={!messages.length}
-        >
-          <SquarePen />
-        </Button>
+        <>
+          <HistoryNav />
+          <Button
+            iconOnly
+            aria-label="Chat history"
+            title="Chat history"
+            onClick={() => setHistoryOpen(true)}
+            disabled={history.switching || adding}
+          >
+            <History />
+          </Button>
+          <Button
+            iconOnly
+            aria-label="New chat"
+            title="New chat"
+            onClick={() => void newChat()}
+            disabled={!messages.length || history.switching || adding}
+          >
+            <SquarePen />
+          </Button>
+        </>
       }
       footer={
         enabled ? (
-          <div className="px-2 pb-2">
-            <AIChat.Composer.Root
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send(input);
-              }}
-            >
-              <AIChat.Composer.Surface>
-                <AIChat.Composer.Row>
-                  <AIChat.Composer.Input
-                    value={input}
-                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                      setInput(event.target.value)
-                    }
-                    placeholder={`Message ${PROVIDER_LABEL[provider]}…`}
-                  />
-                  <AIChat.Composer.Actions>
-                    {runningId ? (
-                      <AIChat.Composer.Submit action="stop" type="button" onClick={stop} />
-                    ) : (
-                      <AIChat.Composer.Submit action="send" disabled={!input.trim()} />
-                    )}
-                  </AIChat.Composer.Actions>
-                </AIChat.Composer.Row>
-              </AIChat.Composer.Surface>
-            </AIChat.Composer.Root>
+          <div className="px-2 pb-2 space-y-2">
+            {history.saveError ? (
+              <Callout
+                color="orange"
+                actions={
+                  <Button size="small" onClick={() => void history.flush().catch(() => undefined)}>
+                    Retry Save
+                  </Button>
+                }
+              >
+                {history.saveError}
+              </Callout>
+            ) : null}
+            <div role="status" className="h-4 px-3">
+              <Text variant="small" color="secondary">
+                {history.saveError
+                  ? "Not saved"
+                  : messages.length
+                    ? history.saving
+                      ? "Saving chat…"
+                      : "Saved on this Mac"
+                    : "\u00a0"}
+              </Text>
+            </div>
+            <AssistantComposer
+              input={input}
+              setInput={setInput}
+              attachments={attachments}
+              setAttachments={setAttachments}
+              onSend={() => void send(input)}
+              onStop={stop}
+              running={Boolean(runningId)}
+              disabled={history.switching}
+              usage={usage}
+              demo={demo}
+            />
           </div>
         ) : undefined
       }
     >
+      <ChatHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        chats={history.history.chats}
+        activeId={history.chat.id}
+        busy={history.switching || adding}
+        onSelect={openChat}
+      />
       <AIChat.Conversation.Content>
-        {!enabled ? (
+        {legacyMessages.length && !history.history.legacyImported ? (
+          <Callout
+            actions={
+              <Button
+                size="small"
+                disabled={Boolean(runningId) || history.switching || adding}
+                onClick={() => void history.importLegacy(legacyMessages)}
+              >
+                Import Previous Chat
+              </Button>
+            }
+          >
+            A previous local conversation is available to save in this account’s history.
+          </Callout>
+        ) : null}
+        {!enabled && !messages.length ? (
           <EmptyState
             placement="viewport"
             title="Assistant Is Off"
@@ -490,6 +658,7 @@ export function AssistantView() {
                 if (!demo) void glazeAI.enableInHost();
               }}
               demo={demo}
+              adding={adding}
             />
           ))
         )}

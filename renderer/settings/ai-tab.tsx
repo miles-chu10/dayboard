@@ -22,9 +22,11 @@ import type {
   ProviderStatus,
 } from "@main/shared-types";
 
+import { CLAUDE_MODEL_OPTIONS } from "../lib/ai-models";
 import { errorMessage, invoke } from "../lib/ipc";
 import { ProviderMark } from "../components/provider-logo";
 import { PROVIDER_DETAIL, PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
+import { OpenAIKeySettings } from "./openai-key-settings";
 import { SettingSelect } from "./setting-select";
 
 const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
@@ -80,23 +82,7 @@ type SettingsEdit = (recipe: (draft: AppSettings) => void) => void;
 // Radix Select can't use an empty value, so "use the default" is a sentinel.
 const DEFAULT_OPTION = "__default";
 
-const CLAUDE_MODELS: { value: ClaudeModel; label: string; sublabel: string }[] = [
-  { value: "default", label: "Claude Code default", sublabel: "The model set in Claude Code" },
-  { value: "fable", label: "Fable", sublabel: "Latest Claude Fable" },
-  { value: "opus", label: "Opus", sublabel: "Latest Claude Opus" },
-  { value: "sonnet", label: "Sonnet", sublabel: "Latest Claude Sonnet" },
-  { value: "haiku", label: "Haiku", sublabel: "Latest Claude Haiku" },
-  {
-    value: "opus[1m]",
-    label: "Opus (1M context)",
-    sublabel: "Opus with a 1 million token context window",
-  },
-  {
-    value: "sonnet[1m]",
-    label: "Sonnet (1M context)",
-    sublabel: "Sonnet with a 1 million token context window",
-  },
-];
+const CLAUDE_MODELS = CLAUDE_MODEL_OPTIONS;
 
 const CLAUDE_EFFORTS: { value: ClaudeEffort; label: string; sublabel: string }[] = [
   { value: "default", label: "Default", sublabel: "Use Claude Code's setting" },
@@ -510,6 +496,8 @@ export function AITab() {
               );
             })}
           </FieldSet>
+
+          <OpenAIKeySettings />
         </>
       ) : null}
     </>

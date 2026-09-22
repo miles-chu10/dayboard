@@ -2,6 +2,7 @@ import { Button } from "@glaze/core/components";
 import { Plus, RotateCw } from "lucide-react";
 
 import { useOpenCapture } from "./capture-dialog";
+import { HistoryNav } from "./history-nav";
 
 export function ViewActions({
   onRefresh,
@@ -13,6 +14,7 @@ export function ViewActions({
   const openCapture = useOpenCapture();
   return (
     <>
+      <HistoryNav />
       <Button
         iconOnly
         aria-label="New task, reminder, or event"

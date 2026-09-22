@@ -57,7 +57,7 @@ const mailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/mail",
   component: MailView,
-  staticData: { title: "Mail" },
+  staticData: { title: "Gmail" },
 });
 
 const calendarRoute = createRoute({

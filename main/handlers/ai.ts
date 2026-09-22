@@ -9,6 +9,13 @@ import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data
 import { runAssistant } from "../services/ai/assistant.js";
 import { checkCliProvider, isCancelled, runCliCompletion } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
+import { pickAttachments } from "../services/ai/attachments.js";
+import {
+  clearOpenAIKey,
+  getOpenAIKeyStatus,
+  saveOpenAIKey,
+  transcribe,
+} from "../services/ai/dictation.js";
 import { testMcpServer } from "../services/ai/mcp-client.js";
 import {
   checkAssistantMcpConnection,
@@ -187,6 +194,29 @@ export function registerAIHandlers(): void {
     return listCodexModels(refresh);
   });
 
+  // Assistant composer: attachments and dictation
+  ipcMain.handle("assistant:pickAttachments", () => {
+    assertNotDemo("assistant:pickAttachments");
+    return pickAttachments();
+  });
+
+  ipcMain.handle("openai:keyStatus", () => getOpenAIKeyStatus());
+  ipcMain.handle("openai:saveKey", (_event, payload: unknown) => {
+    assertNotDemo("openai:saveKey");
+    return saveOpenAIKey(
+      requireString(asObject(payload, "openai:saveKey"), "key", "openai:saveKey", 400),
+    );
+  });
+  ipcMain.handle("openai:clearKey", () => clearOpenAIKey());
+  ipcMain.handle("assistant:transcribe", async (_event, payload: unknown) => {
+    const channel = "assistant:transcribe";
+    assertNotDemo(channel);
+    const input = asObject(payload, channel);
+    const audio = requireString(input, "audio", channel, 30 * 1024 * 1024);
+    const mimeType = typeof input.mimeType === "string" ? input.mimeType.slice(0, 80) : "audio/mp4";
+    return { text: await transcribe(audio, mimeType) };
+  });
+
   // One-shot generation through a subscription CLI (Glaze AI runs in the renderer).
   ipcMain.handleStream<unknown, AIStreamChunk, { text: string }>(
     "ai:run",
@@ -232,6 +262,9 @@ export function registerAIHandlers(): void {
         {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
+          attachments: Array.isArray(input.attachments)
+            ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
+            : [],
         },
         sendChunk,
         context.signal,

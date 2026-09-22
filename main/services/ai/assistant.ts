@@ -4,7 +4,10 @@ import { logger } from "@glaze/core/backend";
 import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
 import { demoAssistantReply, isDemoMode } from "../demo-data.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
+import { attachmentContext } from "./attachments.js";
 import { runCliCompletion } from "./cli-providers.js";
+import { listCodexModels } from "./codex-models.js";
+import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
 
@@ -43,7 +46,7 @@ function mcpNote(session: McpSession | null, cliServers: number): string {
 }
 
 export async function runAssistant(
-  params: { messages: AssistantMessageInput[]; system: string },
+  params: { messages: AssistantMessageInput[]; system: string; attachments?: string[] },
   send: (chunk: AIStreamChunk) => void,
   signal: AbortSignal,
 ): Promise<AssistantResult> {
@@ -53,6 +56,21 @@ export async function runAssistant(
     return { text };
   }
   const settings = await getSettings();
+  const codexModels =
+    settings.ai.provider === "codex" ? await listCodexModels().catch(() => []) : [];
+  const model = describeModel(settings.ai, codexModels);
+  send({ type: "meta", model });
+  const attached = params.attachments?.length ? await attachmentContext(params.attachments) : "";
+  if (attached) {
+    const last = params.messages[params.messages.length - 1];
+    params = {
+      ...params,
+      messages: [...params.messages.slice(0, -1), { ...last, content: last.content + attached }],
+    };
+  }
+  const system = params.system + modelSystemNote(model);
+  const reportUsage = (usage: { inputTokens: number; outputTokens: number }) =>
+    send({ type: "usage", ...usage, contextWindow: model.contextWindow });
   const servers = resolveAssistantMcpServers(
     settings.ai.useMcpInAssistant,
     settings.ai.useMcpInAssistant ? await getMcpServers() : [],
@@ -61,7 +79,13 @@ export async function runAssistant(
   if (settings.ai.provider !== "glaze") {
     const text = await runCliCompletion({
       provider: settings.ai.provider,
-      system: params.system + mcpNote(null, servers.length),
+      system: system + mcpNote(null, servers.length),
+      codexModel: settings.ai.provider === "codex" ? (model.id ?? undefined) : undefined,
+      onModel: (id) => {
+        rememberClaudeModel(settings.ai.claudeModel, id);
+        send({ type: "meta", model: { ...model, id } });
+      },
+      onUsage: reportUsage,
       prompt: transcript(params.messages),
       mcpServers: servers,
       signal,
@@ -90,7 +114,7 @@ export async function runAssistant(
 
     const result = streamText({
       model: glaze("fast"),
-      system: params.system + mcpNote(session, 0),
+      system: system + mcpNote(session, 0),
       messages: params.messages,
       tools,
       stopWhen: stepCountIs(8),
@@ -107,6 +131,7 @@ export async function runAssistant(
         toolCallId?: string;
         toolName?: string;
         error?: unknown;
+        totalUsage?: { inputTokens?: number; outputTokens?: number };
       };
       switch (part.type) {
         case "text-delta": {
@@ -134,6 +159,13 @@ export async function runAssistant(
           break;
         case "tool-error":
           send({ type: "tool", id: part.toolCallId ?? "", status: "error" });
+          break;
+        case "finish":
+          if (part.totalUsage)
+            reportUsage({
+              inputTokens: part.totalUsage.inputTokens ?? 0,
+              outputTokens: part.totalUsage.outputTokens ?? 0,
+            });
           break;
         case "error":
           throw part.error instanceof Error ? part.error : new Error(String(part.error));

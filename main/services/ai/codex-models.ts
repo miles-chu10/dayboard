@@ -65,6 +65,10 @@ export function parseCodexCatalog(raw: string): CodexModelInfo[] {
           name: text(tier.name) || text(tier.id),
           description: text(tier.description),
         })),
+      contextWindow:
+        typeof model.context_window === "number" && model.context_window > 0
+          ? model.context_window
+          : null,
     }));
 }
 

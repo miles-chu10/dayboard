@@ -72,6 +72,9 @@
         "purpose": "Reads your open tasks, reminders, inbox subjects and previews, and calendar to write briefings and weekly reviews, rank what to do next, sort and draft replies to email, prepare for meetings, answer questions in the assistant (optionally using tools from MCP servers you add), and turn typed sentences into tasks, reminders, or events.",
         "mode": "optional"
       },
+      "microphone": {
+        "usage": "Dictate messages to the Assistant. Audio is sent to OpenAI for transcription only when you use dictation."
+      },
       "reminders": {
         "operations": [
           "read",
@@ -86,6 +89,6 @@
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1790075152237
+    "updatedAt": 1790075181002
   }
 }

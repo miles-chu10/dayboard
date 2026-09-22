@@ -34,3 +34,13 @@
   --density-page-gap: 0.5rem;
   --density-section-gap: 0.75rem;
 }
+
+/* Calendar grid sizes follow density. */
+:root {
+  --calendar-cell: 6.5rem;
+  --calendar-hour: 3rem;
+}
+:root.density-compact {
+  --calendar-cell: 5rem;
+  --calendar-hour: 2.25rem;
+}

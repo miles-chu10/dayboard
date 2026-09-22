@@ -77,7 +77,7 @@ export function AgendaList({
   const todos = entries.flatMap((entry) => (entry.kind === "todo" ? [entry.todo] : []));
   return (
     <div
-      className="flex flex-col gap-[var(--density-stack-gap)]"
+      className="@container flex flex-col gap-[var(--density-stack-gap)]"
       aria-label="Agenda items"
       onKeyDown={moveFocus}
     >
@@ -162,7 +162,7 @@ function TodoLine({
           aria-label={`Complete “${todo.title}”`}
         />
       </span>
-      <Text truncate className="min-w-0 flex-1">
+      <Text truncate className="min-w-24 flex-1">
         {todo.title}
       </Text>
       {todo.notes ? (
@@ -178,10 +178,13 @@ function TodoLine({
           <Link2 aria-hidden="true" className="size-3.5 text-tertiary" />
         </span>
       ) : null}
-      <ListChip source={todo.source} listTitle={todo.listTitle} />
-      {todo.linked?.map((item) => (
-        <ListChip key={item.key} source={item.source} listTitle={item.listTitle} />
-      ))}
+      {/* List chips give way to the title in narrow panels. */}
+      <span className="hidden @[34rem]:contents">
+        <ListChip source={todo.source} listTitle={todo.listTitle} />
+        {todo.linked?.map((item) => (
+          <ListChip key={item.key} source={item.source} listTitle={item.listTitle} />
+        ))}
+      </span>
       {todo.dueDate ? <DueChip date={todo.dueDate} time={todo.dueTime} now={now} /> : null}
       <span
         className={cn(

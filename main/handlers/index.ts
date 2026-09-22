@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { appHandlers } from "./app.js";
 import { registerAIHandlers } from "./ai.js";
+import { registerAssistantHistoryHandlers } from "./assistant-history.js";
 import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
 import { registerStartupHandlers } from "./startup.js";
@@ -45,6 +46,7 @@ export function registerHandlers(): void {
   registerProductivityHandlers();
   registerItemEditingHandlers();
   registerAIHandlers();
+  registerAssistantHistoryHandlers();
   registerStartupHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");

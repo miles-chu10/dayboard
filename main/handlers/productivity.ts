@@ -717,8 +717,8 @@ export function registerProductivityHandlers(): void {
     const input = asObject(payload, channel);
     const startDate = requireDate(requireString(input, "startDate", channel), channel, "startDate");
     const days = input.days;
-    if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > 31) {
-      throw new Error(`${channel}: "days" must be an integer from 1 through 31`);
+    if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > 42) {
+      throw new Error(`${channel}: "days" must be an integer from 1 through 42`);
     }
     const settings = await getSettings();
     if (!settings.sources.calendar.enabled) return { state: "disabled" as const };
