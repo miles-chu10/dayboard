@@ -560,11 +560,11 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       className="h-full"
       autoScrollToBottom
       showScrollToBottomButton
+      leading={<HistoryNav />}
       title={messages.length ? history.chat.title : "Assistant"}
       subtitle={subtitle}
       actions={
         <>
-          <HistoryNav />
           <Button
             aria-label="MCP servers"
             title="MCP servers the Assistant can use"

@@ -19,6 +19,7 @@ import {
   identifyCalendarEvents,
   selectedCalendarEvent,
 } from "../lib/calendar-identity";
+import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
@@ -219,6 +220,7 @@ function CalendarGrid({
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
+            leading={<HistoryNav />}
             title="Calendar"
             subtitle={title}
             actions={

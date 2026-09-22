@@ -3,6 +3,7 @@ import { ScrollArea } from "@glaze/core/components";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
+import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import { useTasks } from "../lib/queries";
 import { buildTodos } from "../lib/todos";
@@ -15,6 +16,7 @@ export function TasksView() {
   return (
     <ScrollArea
       className="h-full"
+      leading={<HistoryNav />}
       title={<SourceHeading source="tasks" />}
       subtitle={open === null ? undefined : `${open} open`}
       actions={<ViewActions onRefresh={() => void tasks.refetch()} refreshing={tasks.isFetching} />}

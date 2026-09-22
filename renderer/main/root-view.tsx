@@ -63,7 +63,12 @@ export function RootView() {
       <div className="drag-region fixed top-0 left-0 right-0 h-13" />
       <CaptureProvider>
         <MeetingPrepProvider>
-          <SplitView className="h-full" storageKey="productivity-shell" sidebar={<AppSidebar />}>
+          <SplitView
+            className="h-full"
+            storageKey="productivity-shell"
+            sidebar={<AppSidebar />}
+            sidebarSize={{ default: 220, min: 180, max: 400 }}
+          >
             <Outlet />
           </SplitView>
         </MeetingPrepProvider>

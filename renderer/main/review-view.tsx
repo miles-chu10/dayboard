@@ -113,13 +113,13 @@ export function ReviewView() {
   return (
     <ScrollArea
       className="h-full"
+      leading={<HistoryNav />}
       title="Weekly Review"
       subtitle={
         data ? `${shortDate(data.since.slice(0, 10))} – ${shortDate(today)}` : "Past 7 days"
       }
       actions={
         <>
-          <HistoryNav />
           <Button
             iconOnly
             aria-label="Refresh"

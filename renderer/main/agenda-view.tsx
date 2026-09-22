@@ -35,6 +35,7 @@ import { ReplyDialog } from "../components/reply-dialog";
 import { RowsSkeleton, SectionCard, ListCard, InlineHint } from "../components/section-card";
 import { SourceIcon } from "../components/source-dot";
 import { UpNextCard } from "../components/up-next-card";
+import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import { buildAgenda } from "../lib/agenda";
 import {
@@ -369,7 +370,8 @@ export function AgendaView({
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
-            title="Agenda"
+            leading={<HistoryNav />}
+            title={<span className="text-lg font-bold tracking-tight">Agenda</span>}
             subtitle={parseISODate(startDate).toLocaleDateString([], {
               weekday: "long",
               month: "long",

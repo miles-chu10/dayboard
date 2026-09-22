@@ -40,11 +40,11 @@ export function MailView() {
     <>
       <ScrollArea
         className="h-full"
+        leading={<HistoryNav />}
         title={<SourceHeading source="mail">Gmail</SourceHeading>}
         subtitle={messages ? `${messages.length} recent · ${unread} unread` : "Gmail"}
         actions={
           <>
-            <HistoryNav />
             {triageOn ? (
               <Button
                 iconOnly
