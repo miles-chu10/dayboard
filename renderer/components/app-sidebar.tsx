@@ -32,7 +32,7 @@ import {
 import { ProviderMark } from "./provider-logo";
 import { GmailLogo } from "./source-logos";
 
-/** The name from Settings, or one derived from the Google address ("miles.chu" → "Miles Chu"). */
+/** The name from Settings, or one derived from the Google address ("first.last" → "First Last"). */
 export function displayName(settings: AppSettings | undefined, email?: string | null): string {
   const configured = settings?.general.userName.trim();
   if (configured) return configured;
