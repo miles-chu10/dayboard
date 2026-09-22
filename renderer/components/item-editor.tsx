@@ -24,6 +24,7 @@ import type { CalendarEventItem, ReminderItem, SourceResult, TaskItem } from "@m
 import { isRendererDemoMode } from "../lib/demo";
 import {
   changedCalendarDescription,
+  eventTimesChanged,
   dateTimeInputToIso,
   eventEditorFields,
   itemEditorCanSave,
@@ -180,6 +181,19 @@ export function ItemEditButton({
   variant?: "filled" | "transparent";
 }) {
   const [open, setOpen] = useState(false);
+  if (!isCalendarEvent(item) && item.reminder?.recurring) {
+    return (
+      <Button
+        size="small"
+        variant={variant}
+        disabled
+        title="Edit or delete recurring reminders in Apple Reminders."
+      >
+        <Pencil />
+        Edit
+      </Button>
+    );
+  }
   return (
     <>
       <Button size="small" variant={variant} onClick={() => setOpen(true)}>
@@ -323,6 +337,7 @@ function ItemEditor({
           end: fields.allDay ? nextCalendarDate(fields.end) : dateTimeInputToIso(fields.end),
           allDay: fields.allDay,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timesChanged: eventTimesChanged(event, fields),
           expectedScope: scope,
         });
       }
@@ -359,7 +374,10 @@ function ItemEditor({
         });
       } else if (kind === "reminder") {
         const reminder = (item as Todo).reminder!;
-        await invoke("reminders:delete", { ref: reminder.ref, expectedScope: scope });
+        await invoke("reminders:delete", {
+          ref: reminder.ref,
+          expectedScope: scope,
+        });
       } else {
         const event = item as CalendarEventItem;
         const result = await invoke<{ agendaSaveError?: string }>("calendar:delete", {
@@ -406,7 +424,10 @@ function ItemEditor({
         confirmLabel="Save"
         confirmDisabled={saveDisabled}
         onConfirm={save}
-        destructiveAction={{ label: "Delete", onClick: () => setDeleting(true) }}
+        destructiveAction={{
+          label: "Delete",
+          onClick: () => setDeleting(true),
+        }}
         size="large"
       >
         <div className="flex flex-col gap-4">

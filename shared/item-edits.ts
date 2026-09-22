@@ -37,4 +37,6 @@ export interface UpdateEventInput {
   end: string;
   allDay: boolean;
   timeZone: string;
+  /** Only set true when the user changed the times; otherwise the event keeps its own time zone. */
+  timesChanged: boolean;
 }

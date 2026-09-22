@@ -155,6 +155,8 @@ function eventEdit(payload: unknown): UpdateEventInput {
   const input = asObject(payload, channel);
   if (typeof input.allDay !== "boolean") throw new Error(`${channel}: "allDay" must be a boolean`);
   const allDay = input.allDay;
+  if (typeof input.timesChanged !== "boolean")
+    throw new Error(`${channel}: "timesChanged" must be a boolean`);
   const start = requiredText(input, "start", channel, 80);
   const end = requiredText(input, "end", channel, 80);
   if (allDay) {
@@ -180,6 +182,7 @@ function eventEdit(payload: unknown): UpdateEventInput {
     end,
     allDay,
     timeZone: requireTimeZone(requiredText(input, "timeZone", channel, 80), channel),
+    timesChanged: input.timesChanged,
   };
 }
 

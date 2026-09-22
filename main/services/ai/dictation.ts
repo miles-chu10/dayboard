@@ -1,63 +1,14 @@
-import * as path from "node:path";
-
-import { app, safeStorage } from "@glaze/core/backend";
-
-import type { OpenAIKeyStatus } from "../../shared-types.js";
-import { createSerialQueue, readFileIfExists, writeFileAtomic } from "../file-store.js";
-import * as fs from "node:fs/promises";
-
-// The OpenAI API key is used only for dictation, stored encrypted, and never sent to the renderer.
-
-const queue = createSerialQueue();
-let cachedKey: string | null | undefined;
-
-function keyPath(): string {
-  return path.join(app.getPath("userData"), "openai-key.bin");
-}
-
-async function readKey(): Promise<string | null> {
-  if (cachedKey !== undefined) return cachedKey;
-  const stored = await readFileIfExists(keyPath());
-  cachedKey = stored ? await safeStorage.decryptString(stored) : null;
-  return cachedKey;
-}
-
-export function getOpenAIKeyStatus(): Promise<OpenAIKeyStatus> {
-  return queue(async () => {
-    const key = await readKey();
-    return { configured: Boolean(key), hint: key ? key.slice(-4) : null };
-  });
-}
-
-export function saveOpenAIKey(key: string): Promise<OpenAIKeyStatus> {
-  const trimmed = key.trim();
-  if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(trimmed))
-    throw new Error("That doesn't look like an OpenAI API key (it should start with sk-).");
-  return queue(async () => {
-    await writeFileAtomic(keyPath(), await safeStorage.encryptString(trimmed));
-    cachedKey = trimmed;
-    return { configured: true, hint: trimmed.slice(-4) };
-  });
-}
-
-export function clearOpenAIKey(): Promise<OpenAIKeyStatus> {
-  return queue(async () => {
-    await fs.rm(keyPath(), { force: true });
-    cachedKey = null;
-    return { configured: false, hint: null };
-  });
-}
+import { getApiKey } from "./api-keys.js";
 
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const MODELS = ["gpt-4o-mini-transcribe", "whisper-1"];
 
-/** Sends recorded audio to OpenAI's transcription API and returns the text. */
 export async function transcribe(
   audioBase64: string,
   mimeType: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const key = await queue(readKey);
+  const key = await getApiKey("openai");
   if (!key) throw new Error("Add an OpenAI API key in Settings → AI to use dictation.");
   const audio = Buffer.from(audioBase64, "base64");
   if (!audio.length) throw new Error("No audio was recorded.");

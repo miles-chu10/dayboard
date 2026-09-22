@@ -90,6 +90,16 @@ export function reminderDueChanged(
   );
 }
 
+export function eventTimesChanged(
+  original: CalendarEventItem,
+  fields: Pick<ItemEditorFields, "allDay" | "start" | "end">,
+): boolean {
+  const initial = eventEditorFields(original);
+  return (
+    initial.allDay !== fields.allDay || initial.start !== fields.start || initial.end !== fields.end
+  );
+}
+
 export function changedCalendarDescription(
   original: CalendarEventItem,
   fields: Pick<ItemEditorFields, "notes">,

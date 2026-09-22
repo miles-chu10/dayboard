@@ -4,7 +4,30 @@ import type { CreateReminderInput, ReminderItem, RemindersAccess } from "../shar
 import type { UpdateReminderInput } from "../../shared/item-edits.js";
 
 type NativeReminder = Awaited<ReturnType<typeof reminders.getReminders>>["reminders"][number];
-const knownIdentities = new Map<string, string>();
+const knownIdentities = new Map<string, { identity: string; seenAt: number }>();
+const IDENTITY_LIMIT = 2_000;
+const IDENTITY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function knownIdentity(ref: string): string | undefined {
+  const entry = knownIdentities.get(ref);
+  if (entry && Date.now() - entry.seenAt > IDENTITY_TTL_MS) {
+    knownIdentities.delete(ref);
+    return undefined;
+  }
+  return entry?.identity;
+}
+
+function rememberIdentity(ref: string, identity: string): void {
+  knownIdentities.delete(ref);
+  knownIdentities.set(ref, { identity, seenAt: Date.now() });
+  while (knownIdentities.size > IDENTITY_LIMIT) {
+    knownIdentities.delete(knownIdentities.keys().next().value!);
+  }
+}
+
+export function clearReminderIdentities(): void {
+  knownIdentities.clear();
+}
 
 function stableIdentity(reminder: NativeReminder): string {
   // JSON encoding preserves both tuple boundaries, unlike delimiter joining.
@@ -67,14 +90,14 @@ async function listWith(options: { completed: boolean; limit: number }): Promise
   // A provider identity collision is ambiguous. Retain each current opaque ref
   // instead of merging/migrating unrelated reminders.
   return items.map((item) => {
-    const known = knownIdentities.get(item.ref);
+    const known = knownIdentity(item.ref);
     const resolved =
       known && known === item.identity && (identityCounts.get(item.identity) ?? 0) === 1
         ? { ...item, identity: known }
         : !page.truncated && (identityCounts.get(item.identity) ?? 0) === 1
           ? item
           : { ...item, identity: item.ref };
-    knownIdentities.set(resolved.ref, resolved.identity);
+    rememberIdentity(resolved.ref, resolved.identity);
     return resolved;
   });
 }
@@ -92,7 +115,7 @@ export async function setReminderCompleted(ref: string, completed: boolean): Pro
   // Read display metadata before the write. If it fails, no mutation has been
   // attempted; after a successful mutation we always return its canonical ref.
   const calendars = await reminders.getCalendars();
-  const previousIdentity = knownIdentities.get(ref);
+  const previousIdentity = knownIdentity(ref);
   const updated = await reminders.updateReminder({ value: ref }, { isCompleted: completed });
   // Keep a provider identity whose uniqueness was established by the source list.
   // A ref-only identity follows the exact replacement lineage instead.
@@ -100,7 +123,7 @@ export async function setReminderCompleted(ref: string, completed: boolean): Pro
     previousIdentity && previousIdentity !== ref && stableIdentity(updated) === previousIdentity
       ? previousIdentity
       : updated.ref.value;
-  knownIdentities.set(updated.ref.value, identity);
+  rememberIdentity(updated.ref.value, identity);
   return toItem(
     updated,
     new Map(calendars.map((calendar) => [calendar.id, calendar.title])),
@@ -109,12 +132,12 @@ export async function setReminderCompleted(ref: string, completed: boolean): Pro
 }
 
 function mutationIdentity(ref: string, updated: NativeReminder): string {
-  const previousIdentity = knownIdentities.get(ref);
+  const previousIdentity = knownIdentity(ref);
   const identity =
     previousIdentity && previousIdentity !== ref && stableIdentity(updated) === previousIdentity
       ? previousIdentity
       : updated.ref.value;
-  knownIdentities.set(updated.ref.value, identity);
+  rememberIdentity(updated.ref.value, identity);
   return identity;
 }
 

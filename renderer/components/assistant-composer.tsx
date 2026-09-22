@@ -47,9 +47,21 @@ export const PERMISSION_OPTIONS: {
   label: string;
   sublabel: string;
 }[] = [
-  { value: "read-only", label: "Read only", sublabel: "Answers only; never proposes changes" },
-  { value: "ask", label: "Ask first", sublabel: "Proposes items; you confirm each one" },
-  { value: "auto", label: "Auto", sublabel: "Adds proposed tasks, reminders, and events" },
+  {
+    value: "read-only",
+    label: "Read only",
+    sublabel: "Answers only; never proposes changes",
+  },
+  {
+    value: "ask",
+    label: "Ask first",
+    sublabel: "Proposes items; you confirm each one",
+  },
+  {
+    value: "auto",
+    label: "Auto",
+    sublabel: "Adds proposed tasks, reminders, and events",
+  },
 ];
 
 export interface ContextUsage {
@@ -221,7 +233,7 @@ export function AssistantComposer({
                 <button
                   type="button"
                   aria-label={`Remove ${attachment.name}`}
-                  className="flex size-5 items-center justify-center rounded text-tertiary hover:bg-control"
+                  className="flex size-5 items-center justify-center rounded text-tertiary hover:bg-control focus-visible:outline-2 focus-visible:outline-accent"
                   onClick={() =>
                     setAttachments((previous) =>
                       previous.filter((item) => item.id !== attachment.id),
