@@ -8,21 +8,45 @@ function eventBaseKey(event: CalendarEventItem): string {
   return `event:${JSON.stringify([event.calendarId, event.id, event.start, event.end])}`;
 }
 
-/** Assign before filtering so a search cannot change which duplicate a selection identifies. */
+function existingSelectionKey(event: CalendarEventItem): string | undefined {
+  const key = "selectionKey" in event ? event.selectionKey : undefined;
+  const prefix = `${eventBaseKey(event)}:`;
+  return typeof key === "string" &&
+    key.startsWith(prefix) &&
+    /^(0|[1-9]\d*)$/.test(key.slice(prefix.length))
+    ? key
+    : undefined;
+}
+
+/**
+ * Assign before filtering. Existing identities survive subsets and reordering;
+ * reserve them before allocating keys for newly added duplicate entries.
+ */
 export function identifyCalendarEvents(events: CalendarEventItem[]): IdentifiedCalendarEvent[] {
+  const reserved = new Set(events.map(existingSelectionKey).filter((key) => key !== undefined));
+  const used = new Set<string>();
   const occurrences = new Map<string, number>();
   return events.map((event) => {
+    const existing = existingSelectionKey(event);
+    if (existing && !used.has(existing)) {
+      used.add(existing);
+      return { ...event, selectionKey: existing };
+    }
     const base = eventBaseKey(event);
-    const occurrence = occurrences.get(base) ?? 0;
+    let occurrence = occurrences.get(base) ?? 0;
+    let selectionKey = `${base}:${occurrence}`;
+    while (reserved.has(selectionKey) || used.has(selectionKey)) {
+      occurrence += 1;
+      selectionKey = `${base}:${occurrence}`;
+    }
     occurrences.set(base, occurrence + 1);
-    return { ...event, selectionKey: `${base}:${occurrence}` };
+    used.add(selectionKey);
+    return { ...event, selectionKey };
   });
 }
 
 export function calendarEventKey(event: CalendarEventItem): string {
-  return "selectionKey" in event && typeof event.selectionKey === "string"
-    ? event.selectionKey
-    : `${eventBaseKey(event)}:0`;
+  return existingSelectionKey(event) ?? `${eventBaseKey(event)}:0`;
 }
 
 export function selectedCalendarEvent(events: CalendarEventItem[], key: string | undefined) {
