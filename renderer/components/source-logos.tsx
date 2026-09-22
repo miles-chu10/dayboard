@@ -27,6 +27,15 @@ export function GoogleCalendarLogo({ className }: LogoProps) {
   );
 }
 
+/** Gmail's folded M mark, rendered in the source color like the other Google marks. */
+export function GmailLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M3.5 5.25A1.75 1.75 0 0 0 1.75 7v10a1.75 1.75 0 0 0 1.75 1.75H7v-7.2l5 3.75 5-3.75v7.2h3.5A1.75 1.75 0 0 0 22.25 17V7a1.75 1.75 0 0 0-1.75-1.75h-1.58L12 10.43 5.08 5.25H3.5Z" />
+    </svg>
+  );
+}
+
 /** Apple Reminders' list: three bullets with rules, as in the app's icon. */
 export function AppleRemindersLogo({ className }: LogoProps) {
   return (

@@ -1,29 +1,8 @@
-import type { AIProvider, ToolCallStatus } from "@main/shared-types";
+import { isItemKind } from "./create-items";
+import { readStored } from "./storage";
+import type { AssistantAction, AssistantMessage } from "../../shared/assistant-history";
 
-import { isItemKind, type ItemDraft } from "./create-items";
-import { readStored, writeStored } from "./storage";
-
-export interface AssistantToolCall {
-  id: string;
-  name: string;
-  status: ToolCallStatus;
-}
-
-export interface AssistantAction extends ItemDraft {
-  added: boolean;
-}
-
-export interface AssistantMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  tools: AssistantToolCall[];
-  actions: AssistantAction[];
-  error: string | null;
-  blocked: string | null;
-  /** Provider that wrote an assistant reply; older saved replies lack it. */
-  provider?: AIProvider;
-}
+export type { AssistantAction, AssistantMessage } from "../../shared/assistant-history";
 
 export const ASSISTANT_SUGGESTIONS = [
   "What should I focus on for the rest of today?",
@@ -52,7 +31,7 @@ function isConversation(value: unknown): value is AssistantMessage[] {
   return Array.isArray(value) && value.every(isMessage);
 }
 
-export function loadConversation(): AssistantMessage[] {
+export function loadLegacyConversation(): AssistantMessage[] {
   // Tool calls left "running" by a closed window can never finish.
   return (readStored(STORAGE_KEY, isConversation) ?? []).map((message) => ({
     ...message,
@@ -60,10 +39,6 @@ export function loadConversation(): AssistantMessage[] {
       tool.status === "running" ? { ...tool, status: "error" } : tool,
     ),
   }));
-}
-
-export function saveConversation(messages: AssistantMessage[]): void {
-  writeStored(STORAGE_KEY, messages.slice(-60));
 }
 
 /** Separates the visible reply from a trailing <actions>[...]</actions> proposal block. */

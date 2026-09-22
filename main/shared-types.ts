@@ -91,6 +91,7 @@ export interface AppSettings {
     /** Codex catalog service tier id (e.g. "priority" for Fast); empty is standard. */
     codexServiceTier: string;
     useMcpInAssistant: boolean;
+    assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;
   };
 }
@@ -102,6 +103,7 @@ export interface CodexModelInfo {
   defaultEffort: string | null;
   efforts: { effort: string; description: string }[];
   tiers: { id: string; name: string; description: string }[];
+  contextWindow: number | null;
 }
 
 export interface SettingsChangedEvent {
@@ -346,6 +348,36 @@ export type ToolCallStatus = "running" | "success" | "error";
 
 export type AIStreamChunk =
   | { type: "delta"; text: string }
+  /** The exact model serving this reply, as reported by the provider. */
+  | { type: "meta"; model: AssistantModelInfo }
+  /** Tokens for this turn; `contextWindow` is null when the provider doesn't publish it. */
+  | { type: "usage"; inputTokens: number; outputTokens: number; contextWindow: number | null }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
 export type AssistantResult = { text: string } | { blocked: string };
+
+export interface AssistantModelInfo {
+  provider: AIProvider;
+  /** Human name, e.g. "GPT-5.6 Sol" or "Claude Opus". */
+  name: string;
+  /** Exact model ID when known (e.g. "gpt-5.6-sol", "claude-opus-4-..."). */
+  id: string | null;
+  fast: boolean;
+  effort: string | null;
+  contextWindow: number | null;
+}
+
+/** read-only: never propose changes · ask: propose, user confirms · auto: add proposals directly. */
+export type AssistantPermission = "read-only" | "ask" | "auto";
+
+export interface AssistantAttachment {
+  id: string;
+  name: string;
+  kind: "file" | "folder";
+}
+
+export interface OpenAIKeyStatus {
+  configured: boolean;
+  /** Last four characters, for recognition only. */
+  hint: string | null;
+}

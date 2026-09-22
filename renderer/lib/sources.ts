@@ -1,9 +1,9 @@
 import type { ComponentType } from "react";
-import { Mail } from "lucide-react";
 import type { AppSettings, SourceColor, SourceId } from "@main/shared-types";
 
 import {
   AppleRemindersLogo,
+  GmailLogo,
   GoogleCalendarLogo,
   GoogleTasksLogo,
 } from "../components/source-logos";
@@ -21,7 +21,7 @@ export const SOURCE_META: Record<
 > = {
   tasks: { label: "Google Tasks", route: "/tasks", icon: GoogleTasksLogo },
   reminders: { label: "Apple Reminders", route: "/reminders", icon: AppleRemindersLogo },
-  mail: { label: "Gmail", route: "/mail", icon: Mail },
+  mail: { label: "Gmail", route: "/mail", icon: GmailLogo },
   calendar: { label: "Calendar", route: "/calendar", icon: GoogleCalendarLogo },
 };
 

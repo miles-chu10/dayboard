@@ -7,5 +7,7 @@
 - Get more accurate completion feedback and Undo when only some linked items can be updated.
 - Edit or delete individual Google Tasks, Apple Reminders, and Calendar events directly in DayBoard. Preserve calendar formatting when the description is unchanged, and reminder time zones when the deadline is unchanged.
 - Use an isolated sample-data mode to prepare screenshots without showing personal information or contacting AI providers.
+- Reopen and search saved Assistant conversations, continue old chats, and start a new one without losing the previous conversation. History is saved on this Mac per account; demo conversations remain separate.
+- Find Gmail by its logo and name, and see a clearer account avatar and AI provider mark in the sidebar.
 
 Linked completion applies to checkbox actions performed in DayBoard, not external apps or individual MCP writes. It updates available partners that share the original completion state. Undo restores only successful participants and never reopens a partner that was already complete. Editing/deleting affects only the selected source item. Calendar operations affect one occurrence. Recurring Apple Reminder edit/delete is unavailable because the native SDK does not expose a safe occurrence-only operation; Undo is unavailable when completion advances to the next occurrence.

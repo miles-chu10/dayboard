@@ -26,7 +26,7 @@ const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
   { value: "today", label: "Agenda · Today" },
   { value: "tasks", label: "Google Tasks" },
   { value: "reminders", label: "Apple Reminders" },
-  { value: "mail", label: "Mail" },
+  { value: "mail", label: "Gmail" },
   { value: "calendar", label: "Agenda · Calendar range" },
   { value: "assistant", label: "Assistant" },
   { value: "review", label: "Weekly Review" },

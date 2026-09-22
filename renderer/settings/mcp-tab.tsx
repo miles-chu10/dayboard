@@ -265,8 +265,7 @@ function ExternalMcpSettings() {
   });
   const regenerate = useMutation({
     mutationFn: () => invoke("mcp:regenerateExternalKey"),
-    onSuccess: () =>
-      toast.success("New access key created. Copy the setup again for each client."),
+    onSuccess: () => toast.success("New access key created. Copy the setup again for each client."),
     onError: (error) => toast.error(errorMessage(error)),
   });
 

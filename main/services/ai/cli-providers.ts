@@ -38,6 +38,11 @@ export interface CliRunOptions {
   timeoutMs: number;
   onDelta: (text: string) => void;
   onTool: (event: ToolEvent) => void;
+  /** Exact model ID reported by the CLI at the start of a run. */
+  onModel?: (id: string) => void;
+  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void;
+  /** Codex model slug to pass explicitly instead of the saved setting. */
+  codexModel?: string;
 }
 
 const LABEL: Record<CliProvider, string> = { claude: "Claude Code", codex: "Codex" };
@@ -366,6 +371,11 @@ function handleClaudeLine(line: string, state: ParseState, options: CliRunOption
     return;
   }
 
+  if (event.type === "system" && event.subtype === "init" && typeof event.model === "string") {
+    options.onModel?.(event.model);
+    return;
+  }
+
   const message = isRecord(event.message) ? event.message : null;
   const content = Array.isArray(message?.content) ? message.content.filter(isRecord) : [];
 
@@ -389,6 +399,17 @@ function handleClaudeLine(line: string, state: ParseState, options: CliRunOption
       }
     }
   } else if (event.type === "result") {
+    if (isRecord(event.usage)) {
+      const usage = event.usage;
+      const count = (key: string) => (typeof usage[key] === "number" ? (usage[key] as number) : 0);
+      options.onUsage?.({
+        inputTokens:
+          count("input_tokens") +
+          count("cache_read_input_tokens") +
+          count("cache_creation_input_tokens"),
+        outputTokens: count("output_tokens"),
+      });
+    }
     if (typeof event.result === "string") state.final = event.result;
     if (event.is_error)
       state.error =
@@ -526,6 +547,12 @@ function handleCodexLine(line: string, state: ParseState, options: CliRunOptions
       name: `${item.server ?? "mcp"}: ${item.tool ?? "tool"}`,
       status: type === "item.started" ? "running" : failed ? "error" : "success",
     });
+  } else if (type === "turn.completed" && isRecord(msg.usage)) {
+    const usage = msg.usage;
+    options.onUsage?.({
+      inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : 0,
+      outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : 0,
+    });
   } else if (type === "error" || type === "turn.failed" || type === "stream_error") {
     const detail = isRecord(msg.error) ? msg.error.message : msg.message;
     state.error = typeof detail === "string" ? detail : "Codex failed.";
@@ -557,7 +584,8 @@ async function runCodex(options: CliRunOptions): Promise<string> {
     "-c",
     'approval_policy="never"',
   ];
-  args.push(...codexModelArgs(settings.ai, settings.ai.codexModel ? await listCodexModels() : []));
+  const ai = options.codexModel ? { ...settings.ai, codexModel: options.codexModel } : settings.ai;
+  args.push(...codexModelArgs(ai, ai.codexModel ? await listCodexModels() : []));
   for (const server of options.mcpServers) {
     const key = `mcp_servers.${serverKey(server)}`;
     if (server.transport === "stdio") {

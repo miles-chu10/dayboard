@@ -1,4 +1,9 @@
-import type { CalendarEventItem, MailItem, SourceResult } from "@main/shared-types";
+import type {
+  AssistantPermission,
+  CalendarEventItem,
+  MailItem,
+  SourceResult,
+} from "@main/shared-types";
 
 import {
   addDays,
@@ -221,13 +226,18 @@ export function buildAssistantSystem(input: {
   triage: TriageMap;
   userEmail: string | null;
   canCreate: { task: boolean; reminder: boolean; event: boolean };
+  permission?: AssistantPermission;
 }): string {
   const kinds = [
     input.canCreate.task && '"task" (Google Tasks; date only)',
     input.canCreate.reminder && '"reminder" (Apple Reminders; optional time)',
     input.canCreate.event &&
       '"event" (Google Calendar; needs a date, optional 24-hour time and endTime)',
-  ].filter(Boolean);
+  ].filter((kind) => kind && input.permission !== "read-only");
+  const confirmNote =
+    input.permission === "auto"
+      ? "The app adds these items for the user automatically, so describe them as proposed until the app confirms."
+      : "The user confirms each item before it is created, so never claim you created it.";
   const openTodos = input.todos.filter((todo) => !todo.completed).slice(0, 80);
 
   return `You are the productivity assistant inside the user's Dashboard app for macOS. Below is a live snapshot of their Google Tasks, Apple Reminders, Gmail inbox, and Google Calendar. Use it to answer questions, plan their time, and suggest next steps. Be concise and use Markdown.
@@ -236,8 +246,10 @@ ${
   kinds.length
     ? `When the user asks you to add something — or proposing an item clearly helps — end your reply with exactly one block like this (a JSON array, no code fence):
 <actions>[{"type":"task","title":"...","date":"YYYY-MM-DD or empty","time":"HH:mm or empty","endTime":"HH:mm or empty","notes":""}]</actions>
-Allowed types: ${kinds.join(", ")}. The user confirms each item before it is created, so never claim you created it.`
-    : "No sources are connected for creating items, so don't propose new tasks, reminders, or events."
+Allowed types: ${kinds.join(", ")}. ${confirmNote}`
+    : input.permission === "read-only"
+      ? "The user set you to read-only: answer and advise, but never propose new tasks, reminders, or events or an <actions> block."
+      : "No sources are connected for creating items, so don't propose new tasks, reminders, or events."
 }
 Only use the data you have; don't invent items. ${UNTRUSTED}
 

@@ -11,7 +11,11 @@ export interface AgendaSearch {
   q?: string;
   item?: string;
   eventsOnly?: boolean;
+  /** Calendar route only: grid layout. Schedule is the Agenda-style list. */
+  view?: CalendarLayout;
 }
+
+export type CalendarLayout = "month" | "week" | "schedule";
 
 const CALENDAR_SPANS: readonly CalendarRange[] = [
   "today",
@@ -66,5 +70,9 @@ export function validateAgendaSearch(search: Record<string, unknown>): AgendaSea
     q: typeof search.q === "string" ? search.q.slice(0, 200) || undefined : undefined,
     item: typeof search.item === "string" ? search.item : undefined,
     eventsOnly: search.eventsOnly === true || undefined,
+    view:
+      search.view === "month" || search.view === "week" || search.view === "schedule"
+        ? search.view
+        : undefined,
   };
 }

@@ -55,7 +55,7 @@ import { buildTodos, mergeLinkedTodos, type Todo } from "../lib/todos";
 import { useTriage } from "../lib/triage";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 
-type Layers = Record<"tasks" | "reminders" | "calendar", boolean>;
+type Layers = Record<"tasks" | "reminders" | "calendar" | "mail", boolean>;
 const LAYERS_KEY = "dashboard:calendarLayers:v1";
 function isLayers(value: unknown): value is Layers {
   if (!value || typeof value !== "object") return false;
@@ -63,7 +63,32 @@ function isLayers(value: unknown): value is Layers {
   return (
     typeof data.tasks === "boolean" &&
     typeof data.reminders === "boolean" &&
-    (data.calendar === undefined || typeof data.calendar === "boolean")
+    (data.calendar === undefined || typeof data.calendar === "boolean") &&
+    (data.mail === undefined || typeof data.mail === "boolean")
+  );
+}
+
+/** Gmail on the Agenda: the day's received mail collapses into one row, like overdue tasks. */
+function MailDigest({ messages, children }: { messages: MailItem[]; children: ReactNode }) {
+  const unread = messages.filter((message) => message.unread).length;
+  return (
+    <CollapsibleRoot>
+      <CollapsibleTrigger className="w-full rounded-md px-2 min-h-[var(--density-row)] hover:bg-list-hover">
+        <CollapsibleChevron />
+        <SourceIcon source="mail" />
+        <Text variant="strong">
+          {messages.length} {messages.length === 1 ? "email" : "emails"}
+        </Text>
+        {unread ? (
+          <Text variant="small" color="secondary">
+            {unread} unread
+          </Text>
+        ) : null}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pt-1">{children}</div>
+      </CollapsibleContent>
+    </CollapsibleRoot>
   );
 }
 
@@ -110,7 +135,14 @@ function OverdueSummary({ count, children }: { count: number; children: ReactNod
   );
 }
 
-export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean }) {
+export function AgendaView({
+  calendarRoute = false,
+  modeSwitch,
+}: {
+  calendarRoute?: boolean;
+  /** Calendar route: Month / Week / Schedule switcher shown before the range picker. */
+  modeSwitch?: ReactNode;
+}) {
   const now = useAgendaClock();
   const today = toISODate(now);
   const search = useSearch({ strict: false });
@@ -137,6 +169,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
       tasks: stored?.tasks ?? true,
       reminders: stored?.reminders ?? true,
       calendar: stored?.calendar ?? true,
+      mail: stored?.mail ?? true,
     };
   });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -150,7 +183,14 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     tasks: on.tasks && layers.tasks && !search.eventsOnly,
     reminders: on.reminders && layers.reminders && !search.eventsOnly,
     calendar: on.calendar && layers.calendar,
+    mail: on.mail && layers.mail && !search.eventsOnly,
   };
+  const mailByDay = new Map<string, MailItem[]>();
+  if (visible.mail)
+    for (const message of messages) {
+      const day = toISODate(new Date(message.date));
+      mailByDay.set(day, [...(mailByDay.get(day) ?? []), message]);
+    }
   // Keep full link membership while choosing the representative from visible sources.
   const todos = mergeLinkedTodos(allTodos, planning.data?.duplicateLinks, visible);
   const agenda = buildAgenda({
@@ -211,6 +251,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
         q: search.q,
         item: search.item,
         eventsOnly: search.eventsOnly,
+        view: search.view,
         ...patch,
       },
       replace: true,
@@ -345,6 +386,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
           >
             <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto">
               <div className="flex flex-wrap items-center gap-2">
+                {modeSwitch}
                 {calendarRoute ? (
                   <Select
                     value={span === "week" ? "next-7-days" : span}
@@ -422,7 +464,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                {(["tasks", "reminders", "calendar"] as const)
+                {(["tasks", "reminders", "calendar", "mail"] as const)
                   .filter((source) => on[source])
                   .map((source) => (
                     <label key={source} className="flex items-center gap-1.5 text-small">
@@ -436,7 +478,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                           };
                           setLayers(nextLayers);
                           writeStored(LAYERS_KEY, nextLayers);
-                          if (source !== "calendar" && search.eventsOnly)
+                          if (source !== "calendar" && checked === true && search.eventsOnly)
                             updateSearch({ eventsOnly: undefined });
                         }}
                       />
@@ -566,7 +608,26 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                       <SectionCard key={day.date} title={dayHeading(day.date)}>
                         {showOverdue && day.date === overdueDay ? overdueSummary : null}
                         {entries.length ? <AgendaList entries={entries} {...listProps} /> : null}
-                        {empty && allReady ? (
+                        {mailByDay.get(day.date)?.length ? (
+                          <MailDigest messages={mailByDay.get(day.date)!}>
+                            <ListCard>
+                              {mailByDay.get(day.date)!.map((message) => (
+                                <MailRow
+                                  key={message.id}
+                                  message={message}
+                                  triage={
+                                    featureOn(settings, "triage")
+                                      ? triage.map[message.id]
+                                      : undefined
+                                  }
+                                  onReply={setReplyTo}
+                                  compact
+                                />
+                              ))}
+                            </ListCard>
+                          </MailDigest>
+                        ) : null}
+                        {empty && !mailByDay.get(day.date)?.length && allReady ? (
                           <InlineHint>
                             {healthy
                               ? "Nothing scheduled or due in the selected sources."
@@ -590,7 +651,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                   ) : null}
                 </>
               )}
-              {!search.q && on.mail && !calendarRoute ? (
+              {!search.q && visible.mail && !calendarRoute ? (
                 <SectionCard
                   title="Needs attention"
                   accessory={

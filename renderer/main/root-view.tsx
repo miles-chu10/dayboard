@@ -7,6 +7,7 @@ import type { LaunchView } from "@main/shared-types";
 import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
+import { useHistoryShortcuts } from "../components/history-nav";
 import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
@@ -31,6 +32,7 @@ export function RootView() {
   // account scope before those actions, including direct launch into Sources.
   useAgendaState();
   useAppearanceSync();
+  useHistoryShortcuts();
 
   // IPC connection and environment
   const connectionQuery = useConnection();

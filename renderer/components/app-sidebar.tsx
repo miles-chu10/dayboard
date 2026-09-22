@@ -1,16 +1,18 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
   Button,
   Sidebar,
   SidebarFooter,
   SidebarList,
   SidebarListGroup,
   SidebarListItem,
-  Status,
   Text,
 } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
-import { CalendarCheck2, CalendarDays, Inbox, Plus, Settings } from "lucide-react";
+import { CalendarCheck2, CalendarDays, Plus, Settings } from "lucide-react";
 import type { SourceId } from "@main/shared-types";
 
 import { eventDayKey, isEventPast, todayISO } from "../lib/dates";
@@ -20,6 +22,17 @@ import { PROVIDER_LABEL, featureOn, sourceOn, useSettings } from "../lib/setting
 import { COLOR_CLASS, SOURCE_IDS, SOURCE_META, sourceColor } from "../lib/sources";
 import { useOpenCapture } from "./capture-dialog";
 import { ProviderMark } from "./provider-logo";
+import { GmailLogo } from "./source-logos";
+
+function accountInitials(email?: string | null) {
+  const localPart = email?.split("@", 1)[0] ?? "";
+  const words = localPart.split(/[._-]+/).filter(Boolean);
+  const initials = words
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2);
+  return initials.toUpperCase() || "G";
+}
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -66,34 +79,50 @@ export function AppSidebar() {
       }
       footer={
         <SidebarFooter>
-          <div className="flex items-center gap-2 px-2 py-1 min-w-0">
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <Status
-                variant={google?.connected ? "success" : "neutral"}
-                className="min-w-0 truncate"
+          <div className="flex flex-col gap-1 px-2 py-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar size="small" className="shrink-0">
+                <AvatarFallback>{accountInitials(google?.email)}</AvatarFallback>
+                <AvatarBadge color={google?.connected ? "green" : "gray"} />
+              </Avatar>
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <Text variant="small-strong" truncate>
+                  {google?.email ?? (google?.connected ? "Google account" : "No Google account")}
+                </Text>
+                <Text variant="small" color="secondary" truncate>
+                  {google?.connected ? "Gmail connected" : "Gmail not connected"}
+                </Text>
+              </div>
+              <Button
+                iconOnly
+                size="small"
+                variant="transparent"
+                className="shrink-0"
+                aria-label="Settings"
+                title="Settings"
+                onClick={() => void openSettings()}
               >
-                {google?.connected ? (google.email ?? "Google connected") : "Google not connected"}
-              </Status>
-              {settings?.ai.enabled ? (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <ProviderMark provider={settings.ai.provider} className="size-3" />
-                  <Text variant="small" color="secondary" truncate>
-                    {PROVIDER_LABEL[settings.ai.provider]}
-                  </Text>
-                </div>
-              ) : null}
+                <Settings />
+              </Button>
             </div>
-            <Button
-              iconOnly
-              size="small"
-              variant="transparent"
-              className="shrink-0"
-              aria-label="Settings"
-              title="Settings"
-              onClick={() => void openSettings()}
-            >
-              <Settings />
-            </Button>
+            {settings?.ai.enabled ? (
+              <Button
+                variant="transparent"
+                size="small"
+                className="w-full justify-start"
+                aria-label={
+                  showAssistant
+                    ? `Open ${PROVIDER_LABEL[settings.ai.provider]} Assistant`
+                    : "Open AI settings"
+                }
+                onClick={() =>
+                  showAssistant ? void navigate({ to: "/assistant" }) : void openSettings()
+                }
+              >
+                <ProviderMark provider={settings.ai.provider} className="size-4" />
+                {PROVIDER_LABEL[settings.ai.provider]}
+              </Button>
+            ) : null}
           </div>
         </SidebarFooter>
       }
@@ -107,7 +136,11 @@ export function AppSidebar() {
         />
         {sourceOn(settings, "mail") ? (
           <SidebarListItem
-            icon={<Inbox className="size-4" />}
+            icon={
+              <GmailLogo
+                className={cn("size-4", COLOR_CLASS[sourceColor(settings, "mail")].text)}
+              />
+            }
             title="Inbox"
             accessory={counts.mail || undefined}
             selected={pathname === "/mail"}
