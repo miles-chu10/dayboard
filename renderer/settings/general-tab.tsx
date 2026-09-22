@@ -18,6 +18,7 @@ import type { CalendarRange, LaunchView } from "@main/shared-types";
 import { useSettingsEditor } from "../lib/settings";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
 import { useStartAtLogin } from "../lib/use-start-at-login";
+import { AccentPicker } from "./accent-picker";
 import { SettingSelect } from "./setting-select";
 
 const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
@@ -95,6 +96,18 @@ export function GeneralTab() {
             </Label>
           </RadioGroup>
         </Field>
+        {settings ? (
+          <Field label="Accent color" description="Tints buttons, selections, and highlights.">
+            <AccentPicker
+              value={settings.general.accent}
+              onChange={(accent) =>
+                edit((draft) => {
+                  draft.general.accent = accent;
+                })
+              }
+            />
+          </Field>
+        ) : null}
       </FieldSet>
 
       {settings ? (
@@ -106,8 +119,8 @@ export function GeneralTab() {
                 startAtLogin.isError
                   ? undefined
                   : startAtLogin.data?.status === "requires-approval"
-                    ? "Allow Dashboard in System Settings → General → Login Items."
-                    : "Open Dashboard when you sign in to your Mac."
+                    ? "Allow DayBoard in System Settings → General → Login Items."
+                    : "Open DayBoard when you sign in to your Mac."
               }
               error={startAtLogin.isError ? "Could not read the macOS login setting." : undefined}
             >

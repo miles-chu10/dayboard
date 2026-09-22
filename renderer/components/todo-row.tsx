@@ -1,8 +1,8 @@
-import { Badge, Checkbox, EmptyState, Text } from "@glaze/core/components";
+import { Checkbox, EmptyState, Text } from "@glaze/core/components";
 
-import { formatDue } from "../lib/dates";
 import { useToggleTodo } from "../lib/queries";
 import { compareByDue, type Todo } from "../lib/todos";
+import { DueChip } from "./agenda-chips";
 import { ListCard, SectionCard } from "./section-card";
 import { SourceHeading, SourceLabel } from "./source-dot";
 
@@ -16,12 +16,12 @@ export function TodoRow({
   showSource?: boolean;
 }) {
   const toggle = useToggleTodo();
-  const due = todo.dueDate && !todo.completed ? formatDue(todo.dueDate, todo.dueTime) : null;
   const plainDetail = detail ?? todo.notes;
 
   return (
     <div className="flex items-center gap-3 px-3 py-2 min-h-12 min-w-0">
       <Checkbox
+        className="rounded-full"
         checked={todo.completed}
         onCheckedChange={() => toggle.mutate(todo)}
         aria-label={todo.completed ? `Mark “${todo.title}” incomplete` : `Complete “${todo.title}”`}
@@ -42,11 +42,7 @@ export function TodoRow({
           </Text>
         ) : null}
       </div>
-      {due ? (
-        <Badge color={due.color} className="shrink-0">
-          {due.label}
-        </Badge>
-      ) : null}
+      {todo.dueDate && !todo.completed ? <DueChip date={todo.dueDate} time={todo.dueTime} /> : null}
     </div>
   );
 }

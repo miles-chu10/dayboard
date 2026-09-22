@@ -5,6 +5,7 @@ import { app, safeStorage } from "@glaze/core/backend";
 
 import type {
   AIFeature,
+  AccentColor,
   AIProvider,
   AppSettings,
   CalendarRange,
@@ -20,6 +21,18 @@ import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-sto
 
 const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"];
 const COLORS: SourceColor[] = ["blue", "green", "orange", "red", "purple", "magenta", "yellow"];
+const ACCENTS: AccentColor[] = [
+  "system",
+  "blue",
+  "purple",
+  "pink",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "graphite",
+];
 const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex"];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
@@ -58,7 +71,7 @@ const AI_FEATURES: AIFeature[] = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  general: { launchView: "today", refreshMinutes: 15 },
+  general: { launchView: "today", refreshMinutes: 15, accent: "system" },
   sources: {
     tasks: { enabled: true, color: "blue" },
     reminders: { enabled: true, color: "orange" },
@@ -137,6 +150,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         [0, 5, 15, 30],
         defaults.general.refreshMinutes,
       ),
+      accent: oneOf(general.accent, ACCENTS, defaults.general.accent),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {

@@ -1,9 +1,9 @@
 {
   "id": "25d26qqt",
   "name": "dayboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "productName": "DayBoard",
-  "description": "Organize your day in one place",
+  "description": "Organize your day in one place.",
   "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
   "private": true,
   "type": "module",
@@ -86,6 +86,6 @@
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1790073371111
+    "updatedAt": 1790073865867
   }
 }

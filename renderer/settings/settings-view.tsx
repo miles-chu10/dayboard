@@ -11,6 +11,7 @@ import {
   ToolbarTitle,
 } from "@glaze/core/components";
 
+import { useAccentSync } from "../lib/accent";
 import { useBackendSync } from "../lib/queries";
 import { AITab } from "./ai-tab";
 import { GeneralTab } from "./general-tab";
@@ -21,6 +22,7 @@ const TAB_CONTENT_CLASS = "px-4 pb-8 pt-2 flex flex-col gap-8";
 
 export function SettingsView() {
   useBackendSync();
+  useAccentSync();
   const [tab, setTab] = useState("general");
 
   // Close settings window on Escape, unless an interactive element is focused or a popover is open

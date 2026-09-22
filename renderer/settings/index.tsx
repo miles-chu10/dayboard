@@ -3,10 +3,12 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider, Toaster } from "@glaze/core/components";
 import { initLogging } from "@glaze/core/utils";
+import { applyCachedAccent } from "../lib/accent";
 import { SettingsView } from "./settings-view";
 import "../styles.css";
 
 initLogging();
+applyCachedAccent();
 
 const queryClient = new QueryClient({
   defaultOptions: {

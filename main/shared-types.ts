@@ -20,6 +20,17 @@ export type AIFeature =
   | "assistant"
   | "meetingPrep"
   | "weeklyReview";
+export type AccentColor =
+  | "system"
+  | "blue"
+  | "purple"
+  | "pink"
+  | "red"
+  | "orange"
+  | "yellow"
+  | "green"
+  | "teal"
+  | "graphite";
 export type LaunchView = "today" | SourceId | "assistant" | "review";
 export type CalendarRange =
   | "today"
@@ -44,6 +55,8 @@ export interface AppSettings {
     launchView: LaunchView;
     /** 0 = manual refresh only */
     refreshMinutes: number;
+    /** "system" follows the macOS accent color. */
+    accent: AccentColor;
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
   mail: { maxMessages: number };

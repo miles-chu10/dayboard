@@ -62,6 +62,42 @@ export function formatDue(date: string, time: string | null): { label: string; c
   return { label: `${shortDate(date)}${clock}`, color: "secondary" };
 }
 
+export type DueTone = "overdue" | "today" | "later";
+
+/** KiteTasks-style due label: "Today", "Tomorrow 9:00 AM", "5 days ago", "2 weeks ago". */
+export function relativeDue(
+  date: string,
+  time: string | null,
+  now: Date = new Date(),
+): { label: string; tone: DueTone } {
+  const today = toISODate(now);
+  const clock = time ? ` ${formatClock(time)}` : "";
+  if (date < today) {
+    const days = Math.round((parseISODate(today).getTime() - parseISODate(date).getTime()) / 86_400_000);
+    const label =
+      days <= 1
+        ? "Yesterday"
+        : days < 7
+          ? `${days} days ago`
+          : days < 14
+            ? "A week ago"
+            : days < 30
+              ? `${Math.floor(days / 7)} weeks ago`
+              : days < 60
+                ? "A month ago"
+                : days < 365
+                  ? `${Math.floor(days / 30)} months ago`
+                  : "Over a year ago";
+    return { label, tone: "overdue" };
+  }
+  if (date === today) {
+    const nowClock = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    return { label: `Today${clock}`, tone: time && time < nowClock ? "overdue" : "today" };
+  }
+  if (date === addDays(today, 1)) return { label: `Tomorrow${clock}`, tone: "later" };
+  return { label: `${shortDate(date)}${clock}`, tone: "later" };
+}
+
 export function eventDayKey(event: CalendarEventItem): string {
   const key = event.allDay ? event.start.slice(0, 10) : toISODate(new Date(event.start));
   const today = todayISO();

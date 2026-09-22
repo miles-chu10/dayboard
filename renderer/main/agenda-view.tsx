@@ -21,7 +21,7 @@ import {
   Text,
   toast,
 } from "@glaze/core/components";
-import { ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, Search, Sparkles } from "lucide-react";
 import type { MailItem, SourceId } from "@main/shared-types";
 
 import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
@@ -81,6 +81,24 @@ function Disclosure({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-2">{children}</div>
+      </CollapsibleContent>
+    </CollapsibleRoot>
+  );
+}
+
+/** Google Calendar-style summary row: all overdue items collapse into one line above the day. */
+function OverdueSummary({ count, children }: { count: number; children: ReactNode }) {
+  return (
+    <CollapsibleRoot>
+      <CollapsibleTrigger className="w-full rounded-md px-2 min-h-9 hover:bg-list-hover">
+        <CollapsibleChevron />
+        <CircleAlert className="size-4 shrink-0 text-support-red" aria-hidden="true" />
+        <Text variant="strong">
+          {count} overdue {count === 1 ? "task" : "tasks"}
+        </Text>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pt-1">{children}</div>
       </CollapsibleContent>
     </CollapsibleRoot>
   );
@@ -199,6 +217,14 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     onOpen: (todo: Todo) => updateSearch({ item: todo.key }),
     onPin: pin,
   };
+  // Overdue sits at the top of today, or above the list when browsing other dates.
+  const showOverdue = !search.eventsOnly && agenda.overdue.length > 0;
+  const overdueDay = today;
+  const overdueSummary = (
+    <OverdueSummary count={agenda.overdue.length}>
+      <AgendaList entries={agenda.overdue.map(todoEntry)} {...listProps} />
+    </OverdueSummary>
+  );
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if (
@@ -448,6 +474,9 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                   <AgendaList entries={focusTodos.map(todoEntry)} {...listProps} />
                 </SectionCard>
               ) : null}
+              {showOverdue && !agenda.days.some((day) => day.date === overdueDay)
+                ? overdueSummary
+                : null}
               {agenda.days.map((day) => {
                 const earlier = day.timed.filter(
                   (entry) => entry.kind === "event" && new Date(entry.event.end) <= now,
@@ -456,20 +485,15 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                   (entry) => entry.kind !== "event" || new Date(entry.event.end) > now,
                 );
                 const empty = !day.allDay.length && !active.length && !day.anytime.length;
+                const entries = [
+                  ...day.allDay.map(eventEntry),
+                  ...active,
+                  ...day.anytime.map(todoEntry),
+                ];
                 return (
                   <SectionCard key={day.date} title={dayHeading(day.date)}>
-                    {day.allDay.length ? (
-                      <AgendaList entries={day.allDay.map(eventEntry)} {...listProps} />
-                    ) : null}
-                    {active.length ? <AgendaList entries={active} {...listProps} /> : null}
-                    {day.anytime.length ? (
-                      <>
-                        <Text variant="small" color="secondary">
-                          Due {dayHeading(day.date).toLowerCase()} · Anytime
-                        </Text>
-                        <AgendaList entries={day.anytime.map(todoEntry)} {...listProps} />
-                      </>
-                    ) : null}
+                    {showOverdue && day.date === overdueDay ? overdueSummary : null}
+                    {entries.length ? <AgendaList entries={entries} {...listProps} /> : null}
                     {empty && allReady ? (
                       <InlineHint>
                         {healthy
@@ -487,9 +511,6 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
               })}
               {!search.eventsOnly ? (
                 <div className="border-t border-separator pt-2 flex flex-col gap-2">
-                  <Disclosure title="Overdue" count={agenda.overdue.length}>
-                    <AgendaList entries={agenda.overdue.map(todoEntry)} {...listProps} />
-                  </Disclosure>
                   <Disclosure title="No date" count={agenda.undated.length}>
                     <AgendaList entries={agenda.undated.map(todoEntry)} {...listProps} />
                   </Disclosure>

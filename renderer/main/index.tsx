@@ -6,12 +6,14 @@ import "../styles.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider, Toaster } from "@glaze/core/components";
 import { initLogging } from "@glaze/core/utils";
+import { applyCachedAccent } from "../lib/accent";
 import { invoke } from "../lib/ipc";
 import { setStorageNamespace } from "../lib/storage";
 
 declare const __APP_DISPLAY_NAME__: string | undefined;
 
 initLogging();
+applyCachedAccent();
 
 document.title = __APP_DISPLAY_NAME__ || document.title;
 

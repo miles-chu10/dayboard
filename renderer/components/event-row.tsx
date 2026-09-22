@@ -1,12 +1,152 @@
+import type { KeyboardEvent } from "react";
 import { Badge, Button, Text } from "@glaze/core/components";
 import { ExternalLink, Sparkles } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 
-import { eventTimeRange, isEventNow, isEventPast } from "../lib/dates";
+import { formatTimeOfDay } from "../lib/dates";
 import { openExternal } from "../lib/ipc";
 import { featureOn, useSettings } from "../lib/settings";
+import { sourceColor } from "../lib/sources";
 import { useOpenMeetingPrep } from "./meeting-prep-dialog";
-import { SourceDot } from "./source-dot";
+
+const REVEAL =
+  "flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100";
+
+function compactRange(event: CalendarEventItem): string {
+  return event.allDay
+    ? "All day"
+    : `${formatTimeOfDay(event.start)}–${formatTimeOfDay(event.end)}`;
+}
+
+/** KiteTasks-style event: a tinted bar with a calendar-colored edge, time, then title. */
+export function EventBar({
+  event,
+  now = new Date(),
+  calendarColor = true,
+  showCalendar,
+}: {
+  event: CalendarEventItem;
+  now?: Date;
+  /** Tint by the event's Google calendar; otherwise by the Calendar source color. */
+  calendarColor?: boolean;
+  showCalendar?: boolean;
+}) {
+  const settings = useSettings().data;
+  const openPrep = useOpenMeetingPrep();
+  const prepOn = featureOn(settings, "meetingPrep");
+  const past = !event.allDay && new Date(event.end) <= now;
+  const current = !event.allDay && new Date(event.start) <= now && !past;
+  const color =
+    (calendarColor && event.calendarColor) ||
+    `var(--${sourceColor(settings, "calendar")})`;
+  const detail = [event.location, showCalendar ? event.calendarName : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  function activate() {
+    if (prepOn && !past) openPrep(event);
+    else if (event.htmlLink) void openExternal(event.htmlLink);
+  }
+  function keydown(keyEvent: KeyboardEvent<HTMLDivElement>) {
+    if (
+      keyEvent.target === keyEvent.currentTarget &&
+      (keyEvent.key === "Enter" || keyEvent.key === " ") &&
+      !keyEvent.nativeEvent.isComposing
+    ) {
+      keyEvent.preventDefault();
+      activate();
+    }
+  }
+
+  return (
+    <div
+      role="group"
+      tabIndex={0}
+      data-agenda-row
+      aria-label={`${event.title}, ${compactRange(event)}`}
+      onClick={activate}
+      onKeyDown={keydown}
+      className="group relative flex min-h-8 min-w-0 items-center gap-2.5 rounded-md py-1 pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${color} ${past ? 7 : 15}%, transparent)`,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="absolute bottom-1.5 left-1.5 top-1.5 w-[3px] rounded-full"
+        style={{ backgroundColor: color, opacity: past ? 0.5 : 1 }}
+      />
+      <Text
+        variant="small"
+        color={past ? "tertiary" : "secondary"}
+        className="shrink-0 tabular-nums"
+      >
+        {compactRange(event)}
+      </Text>
+      <Text
+        variant="small"
+        truncate
+        color={past ? "tertiary" : "primary"}
+        className="min-w-0 font-medium"
+      >
+        {event.title}
+      </Text>
+      {detail ? (
+        <Text variant="small" color="tertiary" truncate className="min-w-0">
+          {detail}
+        </Text>
+      ) : null}
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        {current ? <Badge color="green">Now</Badge> : null}
+        {prepOn && !past ? (
+          <span className={REVEAL}>
+            <Button
+              size="small"
+              variant="transparent"
+              iconOnly
+              title="Meeting prep"
+              aria-label={`Prepare for ${event.title}`}
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                openPrep(event);
+              }}
+            >
+              <Sparkles />
+            </Button>
+          </span>
+        ) : null}
+        {event.meetLink && !past ? (
+          <Button
+            size="small"
+            onClick={(clickEvent) => {
+              clickEvent.stopPropagation();
+              void openExternal(event.meetLink!);
+            }}
+          >
+            Join
+          </Button>
+        ) : null}
+        {event.htmlLink ? (
+          <span className={REVEAL}>
+            <Button
+              size="small"
+              variant="transparent"
+              iconOnly
+              title="Open in Google Calendar"
+              aria-label={`Open ${event.title} in Google Calendar`}
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                void openExternal(event.htmlLink!);
+              }}
+            >
+              <ExternalLink />
+            </Button>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function EventRow({
   event,
@@ -14,80 +154,17 @@ export function EventRow({
   showCalendar,
 }: {
   event: CalendarEventItem;
-  /** "calendar" colors the dot by the event's Google calendar instead of the Calendar source. */
+  /** "calendar" colors the bar by the event's Google calendar instead of the Calendar source. */
   dot?: "source" | "calendar";
   showCalendar?: boolean;
 }) {
-  const settings = useSettings().data;
-  const openPrep = useOpenMeetingPrep();
-  const past = isEventPast(event);
-  const now = isEventNow(event);
-  const detail = [event.location, showCalendar ? event.calendarName : null]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
-    <div className="flex items-center gap-3 px-3 py-2 min-h-12 min-w-0">
-      {dot === "calendar" && event.calendarColor ? (
-        <span
-          aria-hidden="true"
-          className="inline-block size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: event.calendarColor }}
-        />
-      ) : (
-        <SourceDot source="calendar" />
-      )}
-      <Text
-        variant="small"
-        color={past ? "quaternary" : "secondary"}
-        className="w-32 shrink-0 tabular-nums"
-      >
-        {eventTimeRange(event)}
-      </Text>
-      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-        <Text truncate color={past ? "tertiary" : "primary"}>
-          {event.title}
-        </Text>
-        {detail ? (
-          <Text variant="small" color="tertiary" truncate>
-            {detail}
-          </Text>
-        ) : null}
-      </div>
-      {now ? (
-        <Badge color="green" className="shrink-0">
-          Now
-        </Badge>
-      ) : null}
-      {featureOn(settings, "meetingPrep") && !past ? (
-        <Button
-          size="small"
-          variant="transparent"
-          iconOnly
-          aria-label={`Prepare for ${event.title}`}
-          title="Meeting prep"
-          onClick={() => openPrep(event)}
-        >
-          <Sparkles />
-        </Button>
-      ) : null}
-      {event.meetLink && !past ? (
-        <Button size="small" onClick={() => void openExternal(event.meetLink!)}>
-          Join
-        </Button>
-      ) : null}
-      {event.htmlLink ? (
-        <Button
-          size="small"
-          variant="transparent"
-          iconOnly
-          aria-label="Open in Google Calendar"
-          title="Open in Google Calendar"
-          onClick={() => void openExternal(event.htmlLink!)}
-        >
-          <ExternalLink />
-        </Button>
-      ) : null}
+    <div className="px-2 py-1">
+      <EventBar
+        event={event}
+        calendarColor={dot === "calendar"}
+        showCalendar={showCalendar}
+      />
     </div>
   );
 }
