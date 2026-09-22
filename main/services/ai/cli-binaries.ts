@@ -3,10 +3,13 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import type { AIProvider } from "../../shared-types.js";
+import type { CliProviderId } from "../../shared-types.js";
 import { runLoginShell } from "../shell-env.js";
 
-type CliProvider = Exclude<AIProvider, "glaze">;
+type CliProvider = CliProviderId;
+
+/** Command names; Gemini subscriptions run through Google's Antigravity CLI. */
+const COMMAND: Record<CliProvider, string> = { claude: "claude", codex: "codex", gemini: "agy" };
 
 const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
   claude: [
@@ -24,6 +27,7 @@ const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
     ".npm-global/bin/codex",
     ".bun/bin/codex",
   ],
+  gemini: [".local/bin/agy", ".gemini/bin/agy", "/opt/homebrew/bin/agy", "/usr/local/bin/agy"],
 };
 
 // ── Binary resolution ──────────────────────────────────────────────────────────────
@@ -48,7 +52,8 @@ export async function resolveCli(provider: CliProvider, refresh = false): Promis
       return full;
     }
   }
-  const lookup = await runLoginShell(`whence -p ${provider} 2>/dev/null || command -v ${provider}`);
+  const command = COMMAND[provider];
+  const lookup = await runLoginShell(`whence -p ${command} 2>/dev/null || command -v ${command}`);
   const found = lookup
     .split("\n")
     .map((line) => line.trim())

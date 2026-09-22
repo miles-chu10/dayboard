@@ -109,9 +109,9 @@ function normalizeMessage(value: unknown): AssistantMessage {
   const provider = value.provider;
   if (
     provider !== undefined &&
-    provider !== "glaze" &&
-    provider !== "claude" &&
-    provider !== "codex"
+    !["glaze", "claude", "codex", "gemini", "openai", "anthropic", "google"].includes(
+      provider as string,
+    )
   )
     throw new Error("Assistant history contains an invalid message provider.");
   return {

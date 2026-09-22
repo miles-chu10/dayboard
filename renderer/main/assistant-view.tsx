@@ -12,7 +12,7 @@ import {
   toast,
 } from "@glaze/core/components";
 import { useGlazeAI } from "@glaze/core/hooks";
-import { History, SquarePen } from "lucide-react";
+import { History, Server, SquarePen } from "lucide-react";
 import type {
   AIProvider,
   AIStreamChunk,
@@ -23,13 +23,15 @@ import type {
 import type { AssistantHistory } from "../../shared/assistant-history";
 
 import { AssistantComposer, type ContextUsage } from "../components/assistant-composer";
+import { displayName } from "../components/app-sidebar";
 import { HistoryNav } from "../components/history-nav";
+import { McpServersDialog, useAssistantMcpServers } from "../components/mcp-servers-dialog";
 import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { BLOCKED_MESSAGE } from "../lib/ai";
-import { selectedModel, useCodexModels } from "../lib/ai-models";
+import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
 import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSystem } from "../lib/ai-prompts";
 import {
@@ -233,7 +235,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const queryClient = useQueryClient();
   const settings = useSettings().data;
   const enabled = featureOn(settings, "assistant");
-  const provider = settings?.ai.provider ?? "glaze";
+  const provider = assistantProvider(settings);
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const mcpServers = useAssistantMcpServers();
   const glazeAI = useGlazeAI();
   const accounts = useAccounts();
   const tasks = useTasks();
@@ -241,7 +245,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const mail = useMail();
   const calendar = useCalendar();
   const mcpStatus = useAssistantMcpStatus();
-  const model = selectedModel(settings, useCodexModels(provider === "codex").data);
+  const model = selectedModel(settings, useCodexModels(provider === "codex").data, provider);
 
   const history = useAssistantHistory(initialHistory, demo);
   const { messages, setMessages } = history;
@@ -342,6 +346,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       mail: mail.data,
       triage: readTriageMap(),
       userEmail: accounts.data?.google.email ?? null,
+      userName: displayName(settings, accounts.data?.google.email),
       permission,
       canCreate: {
         task: googleConnected && sourceOn(settings, "tasks"),
@@ -525,7 +530,11 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
           ? PROVIDER_LABEL[provider]
           : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
         demo ? "Sample data" : null,
-        mcpCount ? `${mcpCount} MCP ${mcpCount === 1 ? "server" : "servers"}` : null,
+        provider !== "gemini" && mcpServers.data?.length
+          ? `MCP: ${mcpServers.data.map((server) => server.name).join(", ")}`
+          : provider !== "gemini" && mcpCount
+            ? `${mcpCount} MCP ${mcpCount === 1 ? "server" : "servers"}`
+            : null,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -541,6 +550,14 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       actions={
         <>
           <HistoryNav />
+          <Button
+            aria-label="MCP servers"
+            title="MCP servers the Assistant can use"
+            onClick={() => setMcpOpen(true)}
+          >
+            <Server />
+            {provider === "gemini" ? 0 : (mcpServers.data?.length ?? mcpCount)}
+          </Button>
           <Button
             iconOnly
             aria-label="Chat history"
@@ -603,6 +620,17 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         ) : undefined
       }
     >
+      <McpServersDialog
+        open={mcpOpen}
+        onOpenChange={setMcpOpen}
+        providerNote={
+          provider === "gemini"
+            ? "Gemini through Antigravity can't use MCP servers from DayBoard yet; it answers from your agenda snapshot."
+            : !settings?.ai.useMcpInAssistant
+              ? "MCP servers are turned off for the Assistant in Settings → MCP Servers."
+              : null
+        }
+      />
       <ChatHistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}

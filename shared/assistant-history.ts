@@ -1,6 +1,13 @@
 /** Durable Assistant chat data shared by the renderer and backend. */
 
-export type AssistantProvider = "glaze" | "claude" | "codex";
+export type AssistantProvider =
+  | "glaze"
+  | "claude"
+  | "codex"
+  | "gemini"
+  | "openai"
+  | "anthropic"
+  | "google";
 export type AssistantToolStatus = "running" | "success" | "error";
 export type AssistantItemKind = "task" | "reminder" | "event";
 

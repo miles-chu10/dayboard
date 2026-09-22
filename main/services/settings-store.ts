@@ -38,7 +38,15 @@ const ACCENTS: AccentColor[] = [
 ];
 const DENSITIES: Density[] = ["default", "compact"];
 const DETAIL_VIEWS: DetailView[] = ["dialog", "inline", "sidebar"];
-const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex"];
+const PROVIDERS: AIProvider[] = [
+  "glaze",
+  "claude",
+  "codex",
+  "gemini",
+  "openai",
+  "anthropic",
+  "google",
+];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
   "tasks",
@@ -78,6 +86,7 @@ const AI_FEATURES: AIFeature[] = [
 export const DEFAULT_SETTINGS: AppSettings = {
   general: {
     launchView: "today",
+    userName: "",
     refreshMinutes: 15,
     accent: "system",
     density: "default",
@@ -101,6 +110,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     codexModel: "",
     codexEffort: "",
     codexServiceTier: "",
+    geminiModel: "",
+    apiModels: { openai: "", anthropic: "", google: "" },
+    assistantProvider: "",
     useMcpInAssistant: true,
     assistantPermission: "ask",
     features: {
@@ -130,6 +142,12 @@ function bool(value: unknown, fallback: boolean): boolean {
 }
 
 /** Short lowercase identifier from the Codex catalog, or empty for "use the default". */
+function modelId(value: unknown): string {
+  return typeof value === "string" && /^[A-Za-z0-9._:/@-]{0,120}$/.test(value.trim())
+    ? value.trim()
+    : "";
+}
+
 function token(value: unknown): string {
   return typeof value === "string" && /^[a-z][a-z0-9_-]{0,30}$/.test(value) ? value : "";
 }
@@ -157,6 +175,7 @@ export function normalizeSettings(value: unknown): AppSettings {
   return {
     general: {
       launchView: oneOf(general.launchView, LAUNCH_VIEWS, defaults.general.launchView),
+      userName: typeof general.userName === "string" ? general.userName.trim().slice(0, 80) : "",
       refreshMinutes: oneOf(
         general.refreshMinutes,
         [0, 5, 15, 30],
@@ -205,6 +224,13 @@ export function normalizeSettings(value: unknown): AppSettings {
           : defaults.ai.codexModel,
       codexEffort: token(ai.codexEffort),
       codexServiceTier: token(ai.codexServiceTier),
+      geminiModel: modelId(ai.geminiModel),
+      apiModels: {
+        openai: modelId(record(ai.apiModels).openai),
+        anthropic: modelId(record(ai.apiModels).anthropic),
+        google: modelId(record(ai.apiModels).google),
+      },
+      assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
       assistantPermission: oneOf(
         ai.assistantPermission,

@@ -13,10 +13,21 @@ const OPENAI_PATH =
 const SPARKLE_PATH =
   "M11 3c.55 5.2 3.3 7.95 8.5 8.5-5.2.55-7.95 3.3-8.5 8.5-.55-5.2-3.3-7.95-8.5-8.5C7.7 10.95 10.45 8.2 11 3ZM19.5 1.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5Z";
 
+const ANTHROPIC_PATH =
+  "M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z";
+
+// Gemini's four-point star.
+const GEMINI_PATH =
+  "M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12Z";
+
 const MARK: Record<AIProvider, { path: string; className: string }> = {
   claude: { path: CLAUDE_PATH, className: "text-[#D97757]" },
   codex: { path: OPENAI_PATH, className: "text-primary" },
   glaze: { path: SPARKLE_PATH, className: "text-accent" },
+  gemini: { path: GEMINI_PATH, className: "text-[#4796E3]" },
+  openai: { path: OPENAI_PATH, className: "text-primary" },
+  anthropic: { path: ANTHROPIC_PATH, className: "text-primary" },
+  google: { path: GEMINI_PATH, className: "text-[#4796E3]" },
 };
 
 /** The selected AI provider's logo, sized by the caller (e.g. `size-4`). */

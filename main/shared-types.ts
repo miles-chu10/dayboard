@@ -9,7 +9,20 @@ export type RemindersAccess =
 
 export type SourceId = "tasks" | "reminders" | "mail" | "calendar";
 export type SourceColor = "blue" | "green" | "orange" | "red" | "purple" | "magenta" | "yellow";
-export type AIProvider = "glaze" | "claude" | "codex";
+/**
+ * glaze: Glaze AI · claude/codex/gemini: subscriptions through Claude Code, Codex, and
+ * Antigravity (agy) · openai/anthropic/google: pay-per-use API keys.
+ */
+export type AIProvider =
+  | "glaze"
+  | "claude"
+  | "codex"
+  | "gemini"
+  | "openai"
+  | "anthropic"
+  | "google";
+export type CliProviderId = "claude" | "codex" | "gemini";
+export type ApiProviderId = "openai" | "anthropic" | "google";
 export type AIFeature =
   | "briefing"
   | "autoBriefing"
@@ -55,6 +68,8 @@ export type ClaudeEffort = "default" | "low" | "medium" | "high" | "xhigh" | "ma
 export interface AppSettings {
   general: {
     launchView: LaunchView;
+    /** Shown in the sidebar and given to the Assistant; empty uses the Google account name. */
+    userName: string;
     /** 0 = manual refresh only */
     refreshMinutes: number;
     /** "system" follows the macOS accent color. */
@@ -90,6 +105,12 @@ export interface AppSettings {
     codexEffort: string;
     /** Codex catalog service tier id (e.g. "priority" for Fast); empty is standard. */
     codexServiceTier: string;
+    /** Antigravity model name; empty uses its default. */
+    geminiModel: string;
+    /** Model ID per API-key provider; empty picks the newest listed model. */
+    apiModels: Record<ApiProviderId, string>;
+    /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
+    assistantProvider: AIProvider | "";
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;
@@ -380,4 +401,31 @@ export interface OpenAIKeyStatus {
   configured: boolean;
   /** Last four characters, for recognition only. */
   hint: string | null;
+}
+
+export type ApiKeyStatuses = Record<ApiProviderId, OpenAIKeyStatus>;
+
+export interface ApiModelInfo {
+  id: string;
+  name: string;
+  contextWindow: number | null;
+}
+
+/** Whether each provider can be used right now (CLI installed or API key saved). */
+export type ProviderAvailability = Record<AIProvider, boolean>;
+
+export interface AssistantMcpServerInfo {
+  id: string;
+  name: string;
+  builtIn: boolean;
+  transport: "stdio" | "http";
+  /** Command or URL host, without secrets. */
+  target: string;
+}
+
+export interface AssistantMcpCheck {
+  id: string;
+  ok: boolean;
+  tools: string[];
+  error: string | null;
 }

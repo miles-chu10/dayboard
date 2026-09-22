@@ -2,23 +2,37 @@ import { clipboard, ipcMain, logger } from "@glaze/core/backend";
 
 import type {
   AIStreamChunk,
+  AssistantMcpCheck,
+  AssistantMcpServerInfo,
+  McpServerConfig,
+  ProviderAvailability,
   AssistantMessageInput,
   SettingsChangedEvent,
 } from "../shared-types.js";
 import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data.js";
 import { runAssistant } from "../services/ai/assistant.js";
-import { checkCliProvider, isCancelled, runCliCompletion } from "../services/ai/cli-providers.js";
+import {
+  checkCliProvider,
+  isCancelled,
+  listGeminiModels,
+  resolveCli,
+  runCliCompletion,
+} from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
 import { pickAttachments } from "../services/ai/attachments.js";
+import { transcribe } from "../services/ai/dictation.js";
 import {
-  clearOpenAIKey,
-  getOpenAIKeyStatus,
-  saveOpenAIKey,
-  transcribe,
-} from "../services/ai/dictation.js";
+  clearApiKey,
+  getApiKeyStatuses,
+  isApiProvider,
+  saveApiKey,
+} from "../services/ai/api-keys.js";
+import { apiLanguageModel, listApiModels, resolveApiModel } from "../services/ai/api-providers.js";
+import { streamText } from "@glaze/core/ai";
 import { testMcpServer } from "../services/ai/mcp-client.js";
 import {
   checkAssistantMcpConnection,
+  getActiveAssistantMcpServerConfig,
   getAssistantMcpStatus,
   getExternalMcpUrl,
 } from "../services/mcp-http-server.js";
@@ -52,6 +66,16 @@ function externalMcpSetup(client: McpClientKind, url: string, key: string): stri
     null,
     2,
   );
+}
+
+function describeTarget(server: McpServerConfig): string {
+  if (server.transport === "stdio") return [server.command, ...server.args].join(" ").slice(0, 120);
+  try {
+    const url = new URL(server.url);
+    return `${url.host}${url.pathname}`;
+  } catch {
+    return "HTTP server";
+  }
 }
 
 function asObject(value: unknown, channel: string): Record<string, unknown> {
@@ -172,8 +196,8 @@ export function registerAIHandlers(): void {
   // Providers
   ipcMain.handle("ai:providerStatus", async (_event, payload: unknown) => {
     const input = asObject(payload, "ai:providerStatus");
-    if (input.provider !== "claude" && input.provider !== "codex") {
-      throw new Error("ai:providerStatus: provider must be claude or codex");
+    if (input.provider !== "claude" && input.provider !== "codex" && input.provider !== "gemini") {
+      throw new Error("ai:providerStatus: provider must be claude, codex, or gemini");
     }
     if (isDemoMode()) {
       return {
@@ -200,14 +224,83 @@ export function registerAIHandlers(): void {
     return pickAttachments();
   });
 
-  ipcMain.handle("openai:keyStatus", () => getOpenAIKeyStatus());
-  ipcMain.handle("openai:saveKey", (_event, payload: unknown) => {
-    assertNotDemo("openai:saveKey");
-    return saveOpenAIKey(
-      requireString(asObject(payload, "openai:saveKey"), "key", "openai:saveKey", 400),
+  // API keys (OpenAI, Anthropic, Gemini). Keys are write-only from the renderer.
+  ipcMain.handle("apiKeys:status", () => getApiKeyStatuses());
+  ipcMain.handle("apiKeys:save", (_event, payload: unknown) => {
+    const channel = "apiKeys:save";
+    assertNotDemo(channel);
+    const input = asObject(payload, channel);
+    if (!isApiProvider(input.provider)) throw new Error(`${channel}: unknown provider`);
+    return saveApiKey(input.provider, requireString(input, "key", channel, 400));
+  });
+  ipcMain.handle("apiKeys:clear", (_event, payload: unknown) => {
+    const channel = "apiKeys:clear";
+    assertNotDemo(channel);
+    const provider = asObject(payload, channel).provider;
+    if (!isApiProvider(provider)) throw new Error(`${channel}: unknown provider`);
+    return clearApiKey(provider);
+  });
+  ipcMain.handle("ai:apiModels", (_event, payload: unknown) => {
+    const input = asObject(payload, "ai:apiModels");
+    if (!isApiProvider(input.provider)) throw new Error("ai:apiModels: unknown provider");
+    if (isDemoMode()) return [];
+    return listApiModels(input.provider, input.refresh === true);
+  });
+  ipcMain.handle("ai:geminiModels", () => (isDemoMode() ? [] : listGeminiModels()));
+
+  /** Which providers can run now: installed subscription CLIs and saved API keys. */
+  ipcMain.handle("ai:availability", async (): Promise<ProviderAvailability> => {
+    const [claude, codex, gemini, keys] = await Promise.all([
+      resolveCli("claude"),
+      resolveCli("codex"),
+      resolveCli("gemini"),
+      getApiKeyStatuses(),
+    ]);
+    return {
+      glaze: true,
+      claude: Boolean(claude),
+      codex: Boolean(codex),
+      gemini: Boolean(gemini),
+      openai: keys.openai.configured,
+      anthropic: keys.anthropic.configured,
+      google: keys.google.configured,
+    };
+  });
+
+  // The Assistant's MCP servers, without secrets, and an on-demand connection check.
+  ipcMain.handle("mcp:assistantServers", async (): Promise<AssistantMcpServerInfo[]> => {
+    if (isDemoMode()) return [];
+    const settings = await getSettings();
+    const builtInId = getActiveAssistantMcpServerConfig()?.id;
+    return resolveAssistantMcpServers(settings.ai.useMcpInAssistant, await getMcpServers()).map(
+      (server, index) => ({
+        id: server.id || `server-${index}`,
+        name: server.name,
+        builtIn: server.id === builtInId,
+        transport: server.transport,
+        target: describeTarget(server),
+      }),
     );
   });
-  ipcMain.handle("openai:clearKey", () => clearOpenAIKey());
+  ipcMain.handle("mcp:assistantCheck", async (): Promise<AssistantMcpCheck[]> => {
+    if (isDemoMode()) return [];
+    const settings = await getSettings();
+    const servers = resolveAssistantMcpServers(
+      settings.ai.useMcpInAssistant,
+      await getMcpServers(),
+    );
+    return Promise.all(
+      servers.map(async (server, index) => {
+        const result = await testMcpServer(server).catch((error: unknown) => ({
+          ok: false,
+          tools: [] as string[],
+          error: error instanceof Error ? error.message : String(error),
+        }));
+        return { id: server.id || `server-${index}`, ...result };
+      }),
+    );
+  });
+
   ipcMain.handle("assistant:transcribe", async (_event, payload: unknown) => {
     const channel = "assistant:transcribe";
     assertNotDemo(channel);
@@ -231,11 +324,27 @@ export function registerAIHandlers(): void {
         return { text };
       }
       const settings = await getSettings();
-      if (settings.ai.provider === "glaze")
-        throw new Error("Glaze AI requests run in the app window.");
+      const provider = settings.ai.provider;
+      if (provider === "glaze") throw new Error("Glaze AI requests run in the app window.");
       try {
+        if (isApiProvider(provider)) {
+          const model = await resolveApiModel(provider, settings.ai);
+          const result = streamText({
+            model: await apiLanguageModel(provider, model.id),
+            system,
+            prompt,
+            maxOutputTokens: 4000,
+            abortSignal: context.signal,
+          });
+          let text = "";
+          for await (const delta of result.textStream) {
+            text += delta;
+            sendChunk({ type: "delta", text: delta });
+          }
+          return { text };
+        }
         const text = await runCliCompletion({
-          provider: settings.ai.provider,
+          provider,
           system,
           prompt,
           mcpServers: [],

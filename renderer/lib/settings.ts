@@ -54,10 +54,22 @@ export const PROVIDER_LABEL: Record<AIProvider, string> = {
   glaze: "Glaze AI",
   claude: "Claude",
   codex: "ChatGPT",
+  gemini: "Gemini",
+  openai: "OpenAI API",
+  anthropic: "Anthropic API",
+  google: "Gemini API",
 };
+
+/** Subscription accounts vs. pay-per-use API keys, for grouping in pickers. */
+export const SUBSCRIPTION_PROVIDERS = ["claude", "codex", "gemini"] as const;
+export const API_KEY_PROVIDERS = ["openai", "anthropic", "google"] as const;
 
 export const PROVIDER_DETAIL: Record<AIProvider, string> = {
   glaze: "Uses your Glaze account.",
   claude: "Uses your Claude subscription through Claude Code.",
   codex: "Uses your ChatGPT subscription through the Codex CLI.",
+  gemini: "Uses your Google AI subscription through the Antigravity CLI (agy).",
+  openai: "Pay per use with your OpenAI API key.",
+  anthropic: "Pay per use with your Anthropic API key.",
+  google: "Pay per use with your Gemini API key from Google AI Studio.",
 };

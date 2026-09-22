@@ -1,5 +1,4 @@
 import { useCallback, useRef, type ChangeEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   AIChat,
   Button,
@@ -9,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
@@ -28,19 +28,42 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { AssistantAttachment, AssistantPermission, OpenAIKeyStatus } from "@main/shared-types";
+import type {
+  AIProvider,
+  ApiProviderId,
+  AssistantAttachment,
+  AssistantPermission,
+  ClaudeModel,
+} from "@main/shared-types";
 
 import {
   CLAUDE_MODEL_OPTIONS,
+  assistantProvider,
   claudeSupportsFast,
   formatTokens,
   selectedModel,
   useCodexModels,
+  useProviderAvailability,
 } from "../lib/ai-models";
+import { useApiModels, useGeminiModels } from "../settings/provider-accounts";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
+
+const PICKER_PROVIDERS: AIProvider[] = [
+  "claude",
+  "codex",
+  "gemini",
+  "openai",
+  "anthropic",
+  "google",
+  "glaze",
+];
+
+function isApiKeyProvider(provider: AIProvider): provider is ApiProviderId {
+  return provider === "openai" || provider === "anthropic" || provider === "google";
+}
 
 export const PERMISSION_OPTIONS: {
   value: AssistantPermission;
@@ -147,16 +170,81 @@ export function AssistantComposer({
 }) {
   const { settings, edit } = useSettingsEditor();
   const ai = settings?.ai;
-  const provider = ai?.provider ?? "glaze";
-  const codexModels = useCodexModels(provider === "codex");
-  const current = selectedModel(settings, codexModels.data);
+  const provider = assistantProvider(settings);
+  const available = useProviderAvailability().data;
+  const codexModels = useCodexModels(Boolean(available?.codex));
+  const geminiModels = useGeminiModels(Boolean(available?.gemini));
+  const apiModels = {
+    openai: useApiModels("openai", Boolean(available?.openai)),
+    anthropic: useApiModels("anthropic", Boolean(available?.anthropic)),
+    google: useApiModels("google", Boolean(available?.google)),
+  };
+  const current = selectedModel(
+    settings,
+    codexModels.data,
+    provider,
+    isApiKeyProvider(provider) ? apiModels[provider].data : undefined,
+  );
+
+  type Choice = { value: string; label: string; sublabel?: string; selected: boolean };
+  function modelChoices(option: AIProvider): Choice[] {
+    if (!ai) return [];
+    if (option === "glaze") return [{ value: "", label: "Glaze AI", selected: true }];
+    if (option === "claude")
+      return CLAUDE_MODEL_OPTIONS.map((entry) => ({
+        value: entry.value,
+        label: entry.label,
+        sublabel: entry.sublabel,
+        selected: ai.claudeModel === entry.value,
+      }));
+    if (option === "codex") {
+      const selected =
+        codexModels.data?.find((model) => model.slug === ai.codexModel) ?? codexModels.data?.[0];
+      return (codexModels.data ?? []).map((model) => ({
+        value: model.slug,
+        label: model.name,
+        sublabel: model.slug,
+        selected: selected?.slug === model.slug,
+      }));
+    }
+    if (option === "gemini")
+      return [
+        { value: "", label: "Antigravity default", selected: !ai.geminiModel },
+        ...(geminiModels.data ?? []).map((model) => ({
+          value: model,
+          label: model,
+          selected: ai.geminiModel === model,
+        })),
+      ];
+    const chosen = ai.apiModels[option];
+    return [
+      { value: "", label: "Newest available", selected: !chosen },
+      ...(apiModels[option].data ?? []).slice(0, 25).map((model) => ({
+        value: model.id,
+        label: model.name,
+        sublabel: model.id !== model.name ? model.id : undefined,
+        selected: chosen === model.id,
+      })),
+    ];
+  }
+
+  function choose(option: AIProvider, value: string) {
+    edit((draft) => {
+      draft.ai.assistantProvider = option === draft.ai.provider ? "" : option;
+      if (option === "claude") draft.ai.claudeModel = value as ClaudeModel;
+      else if (option === "codex") {
+        draft.ai.codexModel = value;
+        draft.ai.codexEffort = "";
+        const model = codexModels.data?.find((entry) => entry.slug === value);
+        if (!model?.tiers.some((tier) => tier.id === draft.ai.codexServiceTier))
+          draft.ai.codexServiceTier = "";
+      } else if (option === "gemini") draft.ai.geminiModel = value;
+      else if (isApiKeyProvider(option)) draft.ai.apiModels[option] = value;
+    });
+  }
   const permission = ai?.assistantPermission ?? "ask";
   const permissionLabel = PERMISSION_OPTIONS.find((option) => option.value === permission)?.label;
-  const openAIKey = useQuery({
-    queryKey: ["openai-key"],
-    queryFn: () => invoke<OpenAIKeyStatus>("openai:keyStatus"),
-    staleTime: 60_000,
-  });
+  const openAIKey = { data: { configured: Boolean(available?.openai) } };
   const inputRef = useRef("");
   inputRef.current = input;
 
@@ -334,47 +422,26 @@ export function AssistantComposer({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top">
-                <DropdownMenuLabel>{`${PROVIDER_LABEL[provider]} model`}</DropdownMenuLabel>
-                {provider === "claude"
-                  ? CLAUDE_MODEL_OPTIONS.map((option) => (
+                <DropdownMenuLabel>Model</DropdownMenuLabel>
+                {PICKER_PROVIDERS.filter(
+                  (option) => available?.[option] || option === provider,
+                ).map((option) => (
+                  <DropdownMenuSub
+                    key={option}
+                    label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
+                  >
+                    {modelChoices(option).map((choice) => (
                       <DropdownMenuCheckboxItem
-                        key={option.value}
-                        sublabel={option.sublabel}
-                        checked={ai?.claudeModel === option.value}
-                        onCheckedChange={() =>
-                          edit((draft) => {
-                            draft.ai.claudeModel = option.value;
-                          })
-                        }
+                        key={choice.value}
+                        sublabel={choice.sublabel}
+                        checked={option === provider && choice.selected}
+                        onCheckedChange={() => choose(option, choice.value)}
                       >
-                        {option.label}
+                        {choice.label}
                       </DropdownMenuCheckboxItem>
-                    ))
-                  : provider === "codex"
-                    ? (codexModels.data ?? []).map((model) => (
-                        <DropdownMenuCheckboxItem
-                          key={model.slug}
-                          sublabel={model.slug}
-                          checked={codexSelected?.slug === model.slug}
-                          onCheckedChange={() =>
-                            edit((draft) => {
-                              draft.ai.codexModel = model.slug;
-                              draft.ai.codexEffort = "";
-                              if (
-                                !model.tiers.some((tier) => tier.id === draft.ai.codexServiceTier)
-                              )
-                                draft.ai.codexServiceTier = "";
-                            })
-                          }
-                        >
-                          {model.name}
-                        </DropdownMenuCheckboxItem>
-                      ))
-                    : [
-                        <DropdownMenuItem key="glaze" disabled>
-                          Glaze AI picks the model
-                        </DropdownMenuItem>,
-                      ]}
+                    ))}
+                  </DropdownMenuSub>
+                ))}
                 {fastAvailable ? (
                   <>
                     <DropdownMenuSeparator />
@@ -398,7 +465,7 @@ export function AssistantComposer({
                 ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => void openSettings()}>
-                  AI Settings…
+                  Connect Accounts & AI Settings…
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

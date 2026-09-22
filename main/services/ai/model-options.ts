@@ -1,4 +1,10 @@
-import type { AppSettings, AssistantModelInfo, CodexModelInfo } from "../../shared-types.js";
+import type {
+  AIProvider,
+  ApiModelInfo,
+  AppSettings,
+  AssistantModelInfo,
+  CodexModelInfo,
+} from "../../shared-types.js";
 
 export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
   const args: string[] = [];
@@ -68,8 +74,33 @@ export function claudeFastOn(ai: AppSettings["ai"]): boolean {
 export function describeModel(
   ai: AppSettings["ai"],
   codexModels: CodexModelInfo[],
+  provider: AIProvider = ai.provider,
+  apiModel?: ApiModelInfo,
 ): AssistantModelInfo {
-  if (ai.provider === "claude") {
+  if (provider === "openai" || provider === "anthropic" || provider === "google") {
+    const label = { openai: "OpenAI API", anthropic: "Anthropic API", google: "Gemini API" }[
+      provider
+    ];
+    return {
+      provider,
+      name: apiModel ? `${apiModel.name} (${label})` : label,
+      id: apiModel?.id ?? null,
+      fast: false,
+      effort: null,
+      contextWindow: apiModel?.contextWindow ?? null,
+    };
+  }
+  if (provider === "gemini") {
+    return {
+      provider,
+      name: ai.geminiModel ? `Gemini · ${ai.geminiModel}` : "Gemini (Antigravity default)",
+      id: ai.geminiModel || null,
+      fast: false,
+      effort: null,
+      contextWindow: null,
+    };
+  }
+  if (provider === "claude") {
     return {
       provider: "claude",
       name: CLAUDE_NAMES[ai.claudeModel] ?? ai.claudeModel,
@@ -79,7 +110,7 @@ export function describeModel(
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
     };
   }
-  if (ai.provider === "codex") {
+  if (provider === "codex") {
     const model = codexModels.find((entry) => entry.slug === ai.codexModel) ?? codexModels[0];
     const tier = model?.tiers.find((entry) => entry.id === ai.codexServiceTier);
     return {
@@ -104,16 +135,19 @@ export function describeModel(
 
 /** Appended to every Assistant system prompt so the model can state what it is. */
 export function modelSystemNote(info: AssistantModelInfo): string {
-  const via =
-    info.provider === "claude"
-      ? "Claude Code (the user's Claude subscription)"
-      : info.provider === "codex"
-        ? "the Codex CLI (the user's ChatGPT subscription)"
-        : "Glaze AI";
+  const via = {
+    claude: "Claude Code (the user's Claude subscription)",
+    codex: "the Codex CLI (the user's ChatGPT subscription)",
+    gemini: "Google Antigravity (the user's Gemini subscription)",
+    openai: "the OpenAI API (the user's API key)",
+    anthropic: "the Anthropic API (the user's API key)",
+    google: "the Gemini API (the user's API key)",
+    glaze: "Glaze AI",
+  }[info.provider];
   const exact = info.id
     ? `The exact model ID is "${info.id}".`
-    : info.provider === "claude"
-      ? "Claude Code resolves the exact model ID when the request starts; the app shows it under your reply."
+    : info.provider === "claude" || info.provider === "gemini"
+      ? "The CLI resolves the exact model ID when the request starts; the app shows it under your reply."
       : "The exact model ID isn't published for this provider.";
   return `\n\n# Model\nYou are running as ${info.name} through ${via}. ${exact} Fast mode is ${info.fast ? "ON" : "off"}.${info.effort ? ` Reasoning effort: ${info.effort}.` : ""} When asked which model you are, state exactly this rather than guessing.`;
 }

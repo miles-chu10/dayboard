@@ -26,7 +26,7 @@ import { CLAUDE_MODEL_OPTIONS } from "../lib/ai-models";
 import { errorMessage, invoke } from "../lib/ipc";
 import { ProviderMark } from "../components/provider-logo";
 import { PROVIDER_DETAIL, PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
-import { OpenAIKeySettings } from "./openai-key-settings";
+import { ApiKeysSection, ApiModelField, GeminiModelField } from "./provider-accounts";
 import { SettingSelect } from "./setting-select";
 
 const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
@@ -107,7 +107,9 @@ function effortLabel(effort: string): string {
   return EFFORT_LABEL[effort] ?? effort.charAt(0).toUpperCase() + effort.slice(1);
 }
 
-function ProviderStatusRow({ provider }: { provider: "claude" | "codex" }) {
+const CLI_LABEL = { claude: "Claude Code", codex: "Codex CLI", gemini: "Antigravity CLI" } as const;
+
+function ProviderStatusRow({ provider }: { provider: "claude" | "codex" | "gemini" }) {
   const queryClient = useQueryClient();
   const [verified, setVerified] = useState(false);
   const key = ["provider-status", provider];
@@ -140,7 +142,12 @@ function ProviderStatusRow({ provider }: { provider: "claude" | "codex" }) {
 
   return (
     <Field
-      label={provider === "claude" ? "Claude Code" : "Codex CLI"}
+      label={
+        <span className="flex items-center gap-1.5">
+          <ProviderMark provider={provider} className="size-3.5" />
+          {`${PROVIDER_LABEL[provider]} · ${CLI_LABEL[provider]}`}
+        </span>
+      }
       description={
         current
           ? current.ok
@@ -437,8 +444,8 @@ export function AITab() {
       {ai.enabled ? (
         <>
           <FieldSet
-            title="Provider"
-            description="Choose what powers AI features. Subscriptions run through the official command-line tools on this Mac, so no API keys are needed."
+            title="Default provider"
+            description="Powers briefings, triage, and other AI features, and the Assistant unless you pick another model in its composer."
           >
             <Field orientation="vertical">
               <RadioGroup
@@ -449,7 +456,9 @@ export function AITab() {
                   })
                 }
               >
-                {(["glaze", "claude", "codex"] as const).map((provider) => (
+                {(
+                  ["glaze", "claude", "codex", "gemini", "openai", "anthropic", "google"] as const
+                ).map((provider) => (
                   <Label key={provider}>
                     <RadioGroupItem value={provider} />
                     <span className="flex flex-col">
@@ -465,12 +474,24 @@ export function AITab() {
                 ))}
               </RadioGroup>
             </Field>
-            {ai.provider !== "glaze" ? (
-              <ProviderStatusRow key={ai.provider} provider={ai.provider} />
-            ) : null}
             {ai.provider === "claude" ? <ClaudeOptions settings={settings} edit={edit} /> : null}
             {ai.provider === "codex" ? <CodexOptions settings={settings} edit={edit} /> : null}
+            {ai.provider === "gemini" ? <GeminiModelField settings={settings} edit={edit} /> : null}
+            {ai.provider === "openai" || ai.provider === "anthropic" || ai.provider === "google" ? (
+              <ApiModelField provider={ai.provider} settings={settings} edit={edit} />
+            ) : null}
           </FieldSet>
+
+          <FieldSet
+            title="Subscription accounts"
+            description="Your Claude, ChatGPT, and Google AI plans, through their official command-line tools on this Mac. No API keys needed; sign in once in Terminal."
+          >
+            <ProviderStatusRow provider="claude" />
+            <ProviderStatusRow provider="codex" />
+            <ProviderStatusRow provider="gemini" />
+          </FieldSet>
+
+          <ApiKeysSection />
 
           <FieldSet title="Features" description="Turn individual AI features on or off.">
             {FEATURES.map(({ feature, label, description }) => {
@@ -496,8 +517,6 @@ export function AITab() {
               );
             })}
           </FieldSet>
-
-          <OpenAIKeySettings />
         </>
       ) : null}
     </>

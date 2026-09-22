@@ -205,6 +205,7 @@ export function useBackendSync() {
         const event = params as Partial<SettingsChangedEvent> | null;
         if (event?.settings) queryClient.setQueryData(settingsQueryKey, event.settings);
         void queryClient.invalidateQueries({ queryKey: queryKeys.assistantMcp });
+        void queryClient.invalidateQueries({ queryKey: ["assistant-mcp-servers"] });
         if (event?.dataChanged) {
           for (const key of DATA_KEYS) void queryClient.invalidateQueries({ queryKey: key });
         }
@@ -216,6 +217,8 @@ export function useBackendSync() {
         void queryClient.invalidateQueries({ queryKey: queryKeys.review });
       }),
       ipc.onNotification("mcp:changed", () => {
+        void queryClient.invalidateQueries({ queryKey: ["assistant-mcp-servers"] });
+        void queryClient.invalidateQueries({ queryKey: ["assistant-mcp-check"] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers });
         void queryClient.invalidateQueries({ queryKey: queryKeys.assistantMcp });
       }),

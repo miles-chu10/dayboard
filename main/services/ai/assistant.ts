@@ -4,6 +4,8 @@ import { logger } from "@glaze/core/backend";
 import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
 import { demoAssistantReply, isDemoMode } from "../demo-data.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
+import { isApiProvider } from "./api-keys.js";
+import { apiLanguageModel, resolveApiModel } from "./api-providers.js";
 import { attachmentContext } from "./attachments.js";
 import { runCliCompletion } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
@@ -56,9 +58,12 @@ export async function runAssistant(
     return { text };
   }
   const settings = await getSettings();
-  const codexModels =
-    settings.ai.provider === "codex" ? await listCodexModels().catch(() => []) : [];
-  const model = describeModel(settings.ai, codexModels);
+  const provider = settings.ai.assistantProvider || settings.ai.provider;
+  const codexModels = provider === "codex" ? await listCodexModels().catch(() => []) : [];
+  const apiModel = isApiProvider(provider)
+    ? await resolveApiModel(provider, settings.ai)
+    : undefined;
+  const model = describeModel(settings.ai, codexModels, provider, apiModel);
   send({ type: "meta", model });
   const attached = params.attachments?.length ? await attachmentContext(params.attachments) : "";
   if (attached) {
@@ -71,18 +76,22 @@ export async function runAssistant(
   const system = params.system + modelSystemNote(model);
   const reportUsage = (usage: { inputTokens: number; outputTokens: number }) =>
     send({ type: "usage", ...usage, contextWindow: model.contextWindow });
-  const servers = resolveAssistantMcpServers(
-    settings.ai.useMcpInAssistant,
-    settings.ai.useMcpInAssistant ? await getMcpServers() : [],
-  );
+  // Antigravity has no per-run MCP configuration, so it answers from the snapshot alone.
+  const servers =
+    provider === "gemini"
+      ? []
+      : resolveAssistantMcpServers(
+          settings.ai.useMcpInAssistant,
+          settings.ai.useMcpInAssistant ? await getMcpServers() : [],
+        );
 
-  if (settings.ai.provider !== "glaze") {
+  if (provider === "claude" || provider === "codex" || provider === "gemini") {
     const text = await runCliCompletion({
-      provider: settings.ai.provider,
+      provider,
       system: system + mcpNote(null, servers.length),
-      codexModel: settings.ai.provider === "codex" ? (model.id ?? undefined) : undefined,
+      codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
       onModel: (id) => {
-        rememberClaudeModel(settings.ai.claudeModel, id);
+        if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
         send({ type: "meta", model: { ...model, id } });
       },
       onUsage: reportUsage,
@@ -113,12 +122,15 @@ export async function runAssistant(
     );
 
     const result = streamText({
-      model: glaze("fast"),
+      model:
+        apiModel && isApiProvider(provider)
+          ? await apiLanguageModel(provider, apiModel.id)
+          : glaze("fast"),
       system: system + mcpNote(session, 0),
       messages: params.messages,
       tools,
       stopWhen: stepCountIs(8),
-      maxOutputTokens: 1500,
+      maxOutputTokens: apiModel ? 4000 : 1500,
       abortSignal: signal,
     });
 

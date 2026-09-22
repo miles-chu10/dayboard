@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { app, logger } from "@glaze/core/backend";
 
 import type {
-  AIProvider,
+  CliProviderId,
   McpServerConfig,
   ProviderStatus,
   ToolCallStatus,
@@ -21,7 +21,7 @@ import { claudeModelArgs, codexModelArgs } from "./model-options.js";
 
 export { resolveCli } from "./cli-binaries.js";
 
-export type CliProvider = Exclude<AIProvider, "glaze">;
+export type CliProvider = CliProviderId;
 
 export interface ToolEvent {
   id: string;
@@ -45,13 +45,19 @@ export interface CliRunOptions {
   codexModel?: string;
 }
 
-const LABEL: Record<CliProvider, string> = { claude: "Claude Code", codex: "Codex" };
+const LABEL: Record<CliProvider, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Antigravity",
+};
 
 const MISSING_MESSAGE: Record<CliProvider, string> = {
   claude:
     "Claude Code isn't installed. Install it from claude.com/claude-code, then run `claude` in Terminal to sign in.",
   codex:
     "Codex CLI isn't installed. Install it with `npm i -g @openai/codex`, then run `codex login` in Terminal.",
+  gemini:
+    "Google's Antigravity CLI (agy) isn't installed. Install Antigravity from antigravity.google, then run `agy` in Terminal to sign in with your Google account.",
 };
 
 const LOGIN_MESSAGE: Record<CliProvider, string> = {
@@ -59,6 +65,8 @@ const LOGIN_MESSAGE: Record<CliProvider, string> = {
     "Claude Code isn't signed in. Run `claude` in Terminal and complete login, then try again.",
   codex:
     "Codex isn't signed in. Run `codex login` in Terminal and choose Sign in with ChatGPT, then try again.",
+  gemini:
+    "Antigravity isn't signed in. Run `agy` in Terminal and sign in with your Google account, then try again.",
 };
 
 // Subscription mode: API-key variables would silently override the user's subscription login.
@@ -72,6 +80,7 @@ const STRIPPED_ENV: Record<CliProvider, string[]> = {
     "GOOGLE_APPLICATION_CREDENTIALS",
   ],
   codex: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY"],
+  gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS"],
 };
 
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -632,8 +641,98 @@ async function runCodex(options: CliRunOptions): Promise<string> {
 
 // ── Public API ────────────────────────────────────────────────────────────────────
 
+// ── Antigravity (Gemini subscription) ──────────────────────────────────────────────
+
+/**
+ * agy's print mode mirrors Claude Code's stream-json events; also accept plain text deltas
+ * and a final `result`, since its schema isn't documented.
+ */
+function handleGeminiLine(line: string, state: ParseState, options: CliRunOptions) {
+  const event = parseJsonLine(line);
+  if (!event) return;
+  if (typeof event.model === "string" && (event.type === "system" || event.type === "init")) {
+    options.onModel?.(event.model);
+    return;
+  }
+  if (
+    typeof event.text === "string" &&
+    typeof event.type === "string" &&
+    event.type.includes("delta")
+  ) {
+    state.sawDelta = true;
+    emitText(state, options, event.text);
+    return;
+  }
+  handleClaudeLine(line, state, options);
+}
+
+async function runGemini(options: CliRunOptions): Promise<string> {
+  const bin = await resolveCli("gemini");
+  if (!bin) throw new Error(MISSING_MESSAGE.gemini);
+  const settings = await getSettings();
+  const args = [
+    "--print",
+    "--output-format",
+    "stream-json",
+    "--mode",
+    "plan",
+    "--disable-slash-commands",
+  ];
+  if (settings.ai.geminiModel) args.push("--model", settings.ai.geminiModel);
+  const state = createState();
+  const outcome = await runDirect({
+    label: LABEL.gemini,
+    bin,
+    args,
+    stdin: `${options.system}\n\n---\n\n${options.prompt}`,
+    env: await getToolEnv(STRIPPED_ENV.gemini),
+    cwd: await workDir(),
+    timeoutMs: options.timeoutMs,
+    signal: options.signal,
+    onLine: (line) => handleGeminiLine(line, state, options),
+  });
+  if (!state.text && state.final) emitText(state, options, state.final);
+  const error = state.text
+    ? null
+    : (state.error ?? (outcome.code !== 0 ? outcome.output || "Antigravity failed." : null));
+  if (error)
+    throw new Error(
+      looksLikeLoginError(error) ? LOGIN_MESSAGE.gemini : redact(error).slice(0, 1200),
+    );
+  return state.text;
+}
+
+/** Model names reported by `agy models`, one per line. */
+export async function listGeminiModels(): Promise<string[]> {
+  const bin = await resolveCli("gemini");
+  if (!bin) throw new Error(MISSING_MESSAGE.gemini);
+  const output = await new Promise<string>((resolve, reject) =>
+    execFile(bin, ["models"], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) =>
+      error ? reject(new Error("Couldn't list Antigravity models.")) : resolve(String(stdout)),
+    ),
+  );
+  return [
+    ...new Set(
+      stripAnsi(output)
+        .split("\n")
+        .map(
+          (line) =>
+            line
+              .trim()
+              .replace(/^[-*•]\s*/, "")
+              .split(/\s+/)[0] ?? "",
+        )
+        .filter((token) => /^[a-z][a-z0-9._:/-]*\d[a-z0-9._:/-]*$/i.test(token)),
+    ),
+  ].slice(0, 40);
+}
+
 export function runCliCompletion(options: CliRunOptions): Promise<string> {
-  return options.provider === "claude" ? runClaude(options) : runCodex(options);
+  return options.provider === "claude"
+    ? runClaude(options)
+    : options.provider === "gemini"
+      ? runGemini(options)
+      : runCodex(options);
 }
 
 function runVersion(bin: string): Promise<string> {

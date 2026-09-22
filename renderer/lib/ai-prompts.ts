@@ -225,6 +225,7 @@ export function buildAssistantSystem(input: {
   mail: SourceResult<MailItem> | undefined;
   triage: TriageMap;
   userEmail: string | null;
+  userName?: string;
   canCreate: { task: boolean; reminder: boolean; event: boolean };
   permission?: AssistantPermission;
 }): string {
@@ -255,7 +256,7 @@ Only use the data you have; don't invent items. ${UNTRUSTED}
 
 # Snapshot
 Now: ${nowContext()}
-User: ${input.userEmail ?? "unknown"}
+User: ${input.userName ? `${input.userName} (${input.userEmail ?? "no email"})` : (input.userEmail ?? "unknown")}
 
 ## Calendar (upcoming)
 ${sectionLines(input.calendar, (events) => events.slice(0, 60).map(eventLine))}

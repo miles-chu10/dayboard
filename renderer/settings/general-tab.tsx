@@ -5,6 +5,7 @@ import {
   FieldContent,
   FieldLabel,
   FieldSet,
+  Input,
   Label,
   RadioGroup,
   RadioGroupItem,
@@ -44,6 +45,29 @@ const MAIL_OPTIONS = [
   { value: "25", label: "25 messages" },
   { value: "50", label: "50 messages" },
 ];
+
+function NameInput({ value, onSave }: { value: string; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    const next = draft.trim().slice(0, 80);
+    if (next !== value) onSave(next);
+  };
+  return (
+    <Input
+      aria-label="Your name"
+      placeholder="Your name"
+      value={draft}
+      maxLength={80}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit();
+      }}
+      className="w-56"
+    />
+  );
+}
 
 export function GeneralTab() {
   const { settings, edit } = useSettingsEditor();
@@ -168,6 +192,22 @@ export function GeneralTab() {
 
       {settings ? (
         <>
+          <FieldSet title="Profile">
+            <Field
+              label="Your name"
+              description="Shown in the sidebar and used by the Assistant. Leave empty to use your Google account."
+            >
+              <NameInput
+                value={settings.general.userName}
+                onSave={(userName) =>
+                  edit((draft) => {
+                    draft.general.userName = userName;
+                  })
+                }
+              />
+            </Field>
+          </FieldSet>
+
           <FieldSet title="Startup & Refresh">
             <Field
               label="Start at login"
