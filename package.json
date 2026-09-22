@@ -1,7 +1,7 @@
 {
   "id": "25d26qqt",
   "name": "dayboard-personal-dashboard",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "productName": "DayBoard: Personal Dashboard",
   "description": "See your whole day at a glance",
   "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
@@ -92,6 +92,6 @@
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1790105227774
+    "updatedAt": 1790107209825
   }
 }
