@@ -8,3 +8,29 @@
 @source "./**/*.{ts,tsx}";
 @source not "./preload.ts";
 @source not "./dev/**/*";
+
+/* Density: Default vs Compact (Settings → General → Appearance). */
+:root {
+  --density-row: 2.25rem;
+  --density-bar: 1.875rem;
+  --density-bar-py: 0.1875rem;
+  --density-bar-gap: 0.25rem;
+  --density-list-row: 2.75rem;
+  --density-row-py: 0.375rem;
+  --density-mail-py: 0.5rem;
+  --density-stack-gap: 0.5rem;
+  --density-page-gap: 0.875rem;
+  --density-section-gap: 1.25rem;
+}
+:root.density-compact {
+  --density-row: 1.75rem;
+  --density-bar: 1.5rem;
+  --density-bar-py: 0.0625rem;
+  --density-bar-gap: 0.125rem;
+  --density-list-row: 2.125rem;
+  --density-row-py: 0.1875rem;
+  --density-mail-py: 0.3125rem;
+  --density-stack-gap: 0.25rem;
+  --density-page-gap: 0.5rem;
+  --density-section-gap: 0.75rem;
+}

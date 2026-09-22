@@ -7,7 +7,7 @@ import type { LaunchView } from "@main/shared-types";
 import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
-import { useAccentSync } from "../lib/accent";
+import { useAppearanceSync } from "../lib/appearance";
 import { useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 
@@ -27,7 +27,7 @@ const LAUNCH_ROUTE: Record<
 export function RootView() {
   useTheme();
   useBackendSync();
-  useAccentSync();
+  useAppearanceSync();
 
   // IPC connection and environment
   const connectionQuery = useConnection();

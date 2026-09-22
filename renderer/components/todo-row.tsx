@@ -19,7 +19,7 @@ export function TodoRow({
   const plainDetail = detail ?? todo.notes;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 min-h-12 min-w-0">
+    <div className="flex items-center gap-3 px-3 py-[var(--density-row-py)] min-h-[var(--density-list-row)] min-w-0">
       <Checkbox
         className="rounded-full"
         checked={todo.completed}
@@ -66,7 +66,7 @@ export function TodoGroups({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-[var(--density-section-gap)]">
       {[...groups].map(([listTitle, items]) => (
         <SectionCard
           key={listTitle}

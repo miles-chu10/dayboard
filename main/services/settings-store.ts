@@ -6,6 +6,7 @@ import { app, safeStorage } from "@glaze/core/backend";
 import type {
   AIFeature,
   AccentColor,
+  Density,
   AIProvider,
   AppSettings,
   CalendarRange,
@@ -33,6 +34,7 @@ const ACCENTS: AccentColor[] = [
   "teal",
   "graphite",
 ];
+const DENSITIES: Density[] = ["default", "compact"];
 const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex"];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
@@ -71,7 +73,12 @@ const AI_FEATURES: AIFeature[] = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  general: { launchView: "today", refreshMinutes: 15, accent: "system" },
+  general: {
+    launchView: "today",
+    refreshMinutes: 15,
+    accent: "system",
+    density: "default",
+  },
   sources: {
     tasks: { enabled: true, color: "blue" },
     reminders: { enabled: true, color: "orange" },
@@ -151,6 +158,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         defaults.general.refreshMinutes,
       ),
       accent: oneOf(general.accent, ACCENTS, defaults.general.accent),
+      density: oneOf(general.density, DENSITIES, defaults.general.density),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {
@@ -164,7 +172,9 @@ export function normalizeSettings(value: unknown): AppSettings {
         ];
       }),
     ) as AppSettings["sources"],
-    mail: { maxMessages: oneOf(mail.maxMessages, [10, 25, 50], defaults.mail.maxMessages) },
+    mail: {
+      maxMessages: oneOf(mail.maxMessages, [10, 25, 50], defaults.mail.maxMessages),
+    },
     calendar: {
       range: oneOf(
         calendar.range,

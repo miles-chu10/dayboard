@@ -13,9 +13,7 @@ const REVEAL =
   "flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100";
 
 function compactRange(event: CalendarEventItem): string {
-  return event.allDay
-    ? "All day"
-    : `${formatTimeOfDay(event.start)}–${formatTimeOfDay(event.end)}`;
+  return event.allDay ? "All day" : `${formatTimeOfDay(event.start)}–${formatTimeOfDay(event.end)}`;
 }
 
 /** KiteTasks-style event: a tinted bar with a calendar-colored edge, time, then title. */
@@ -37,8 +35,7 @@ export function EventBar({
   const past = !event.allDay && new Date(event.end) <= now;
   const current = !event.allDay && new Date(event.start) <= now && !past;
   const color =
-    (calendarColor && event.calendarColor) ||
-    `var(--${sourceColor(settings, "calendar")})`;
+    (calendarColor && event.calendarColor) || `var(--${sourceColor(settings, "calendar")})`;
   const detail = [event.location, showCalendar ? event.calendarName : null]
     .filter(Boolean)
     .join(" · ");
@@ -66,7 +63,7 @@ export function EventBar({
       aria-label={`${event.title}, ${compactRange(event)}`}
       onClick={activate}
       onKeyDown={keydown}
-      className="group relative flex min-h-8 min-w-0 items-center gap-2.5 rounded-md py-1 pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group relative flex min-h-[var(--density-bar)] min-w-0 items-center gap-2.5 rounded-md py-[var(--density-bar-py)] pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       style={{
         backgroundColor: `color-mix(in srgb, ${color} ${past ? 7 : 15}%, transparent)`,
       }}
@@ -159,12 +156,8 @@ export function EventRow({
   showCalendar?: boolean;
 }) {
   return (
-    <div className="px-2 py-1">
-      <EventBar
-        event={event}
-        calendarColor={dot === "calendar"}
-        showCalendar={showCalendar}
-      />
+    <div className="px-2 py-[var(--density-bar-py)]">
+      <EventBar event={event} calendarColor={dot === "calendar"} showCalendar={showCalendar} />
     </div>
   );
 }

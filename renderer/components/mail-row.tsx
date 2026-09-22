@@ -29,7 +29,10 @@ export function MailRow({
     onSuccess: () => {
       queryClient.setQueryData<SourceResult<MailItem>>(queryKeys.mail, (prev) =>
         prev?.state === "ok"
-          ? { ...prev, items: prev.items.filter((item) => item.id !== message.id) }
+          ? {
+              ...prev,
+              items: prev.items.filter((item) => item.id !== message.id),
+            }
           : prev,
       );
       toast.success("Archived");
@@ -39,7 +42,10 @@ export function MailRow({
 
   const addTask = useMutation({
     mutationFn: (title: string) =>
-      invoke("tasks:create", { title, notes: `From email: ${message.subject}\n${gmailUrl}` }),
+      invoke("tasks:create", {
+        title,
+        notes: `From email: ${message.subject}\n${gmailUrl}`,
+      }),
     onSuccess: (_data, title) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
       toast.success(`Added “${title}” to Google Tasks`);
@@ -51,7 +57,7 @@ export function MailRow({
   const badge = triage ? TRIAGE_LABEL[triage.category] : null;
 
   return (
-    <div className="flex items-start gap-3 px-3 py-2.5 min-w-0">
+    <div className="flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0">
       <span className="mt-1.5 flex" title={message.unread ? "Unread" : "Read"}>
         <SourceDot source="mail" hollow={!message.unread} />
       </span>

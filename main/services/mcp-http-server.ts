@@ -98,9 +98,7 @@ class SourceUnavailable extends Error {}
 async function ensureSource(source: SourceId): Promise<void> {
   const settings = await getSettings();
   if (!settings.sources[source].enabled) {
-    throw new SourceUnavailable(
-      `${SOURCE_NAMES[source]} is turned off in Dayboard settings.`,
-    );
+    throw new SourceUnavailable(`${SOURCE_NAMES[source]} is turned off in Dayboard settings.`);
   }
   if (source === "reminders") {
     const access = await getRemindersAccess();
@@ -280,11 +278,14 @@ function buildMcpServer(allowWrites: boolean): McpServer {
       description: "Add a task to the default Google Tasks list.",
       inputSchema: { title: z.string().min(1), notes: z.string().optional(), due: date.optional() },
     },
-    runWrite("tasks", async ({ title, notes, due }: { title: string; notes?: string; due?: string }) => {
-      await createTask({ title, notes, due });
-      notifyChanged("tasks");
-      return text(`Created task "${title}".`);
-    }),
+    runWrite(
+      "tasks",
+      async ({ title, notes, due }: { title: string; notes?: string; due?: string }) => {
+        await createTask({ title, notes, due });
+        notifyChanged("tasks");
+        return text(`Created task "${title}".`);
+      },
+    ),
   );
 
   server.registerTool(
@@ -604,7 +605,10 @@ export function createMcpHttpServer() {
       const rejection = await route.authorize(request);
       if (rejection) {
         response
-          .writeHead(rejection.status, rejection.status === 401 ? { "WWW-Authenticate": "Bearer" } : {})
+          .writeHead(
+            rejection.status,
+            rejection.status === 401 ? { "WWW-Authenticate": "Bearer" } : {},
+          )
           .end(rejection.message);
         return;
       }

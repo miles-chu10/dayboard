@@ -90,7 +90,7 @@ function Disclosure({
 function OverdueSummary({ count, children }: { count: number; children: ReactNode }) {
   return (
     <CollapsibleRoot>
-      <CollapsibleTrigger className="w-full rounded-md px-2 min-h-9 hover:bg-list-hover">
+      <CollapsibleTrigger className="w-full rounded-md px-2 min-h-[var(--density-row)] hover:bg-list-hover">
         <CollapsibleChevron />
         <CircleAlert className="size-4 shrink-0 text-support-red" aria-hidden="true" />
         <Text variant="strong">
@@ -168,7 +168,13 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     (!on.reminders || reminders.data?.state === "ok") &&
     (!on.calendar || calendar.data?.state === "ok");
   const dueToday = todos.filter((todo) => !todo.completed && todo.dueDate === today).length;
-  const todayEvents = buildAgenda({ events, todos: [], startDate: today, days: 1, now }).days[0];
+  const todayEvents = buildAgenda({
+    events,
+    todos: [],
+    startDate: today,
+    days: 1,
+    now,
+  }).days[0];
   const remaining = [
     ...todayEvents.allDay,
     ...todayEvents.timed.flatMap((item) =>
@@ -282,7 +288,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
           />
         }
       >
-        <div className="flex flex-col gap-4 px-6 pb-8 pt-2 w-full max-w-5xl mx-auto">
+        <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto">
           <div className="flex flex-wrap items-center gap-2">
             {calendarRoute ? (
               <Select
@@ -310,7 +316,10 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                   span === "today" ? "day" : span === "week" || span === "next-7-days" ? "week" : ""
                 }
                 onValueChange={(value) =>
-                  updateSearch({ span: value === "week" ? "week" : "today", date: undefined })
+                  updateSearch({
+                    span: value === "week" ? "week" : "today",
+                    date: undefined,
+                  })
                 }
                 aria-label="Agenda range"
               >
@@ -362,7 +371,10 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                     checked={visible[source]}
                     aria-label={`Show ${SOURCE_META[source].label}`}
                     onCheckedChange={(checked) => {
-                      const nextLayers = { ...layers, [source]: checked === true };
+                      const nextLayers = {
+                        ...layers,
+                        [source]: checked === true,
+                      };
                       setLayers(nextLayers);
                       writeStored(LAYERS_KEY, nextLayers);
                       if (source !== "calendar" && search.eventsOnly)

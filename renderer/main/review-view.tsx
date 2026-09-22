@@ -128,7 +128,7 @@ export function ReviewView() {
         </Button>
       }
     >
-      <div className="flex flex-col gap-8 px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
+      <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
         {review.isError ? (
           <Callout color="red">Couldn't load the past week. Try refreshing.</Callout>
         ) : null}
@@ -206,7 +206,10 @@ export function ReviewView() {
           ) : completed.length ? (
             <ListCard>
               {completed.slice(0, 50).map((todo) => (
-                <div key={todo.key} className="flex items-center gap-3 px-3 py-2 min-h-11 min-w-0">
+                <div
+                  key={todo.key}
+                  className="flex items-center gap-3 px-3 py-[var(--density-row-py)] min-h-[var(--density-list-row)] min-w-0"
+                >
                   <SourceDot source={todo.source} />
                   <div className="flex flex-col min-w-0 flex-1">
                     <Text truncate>{todo.title}</Text>

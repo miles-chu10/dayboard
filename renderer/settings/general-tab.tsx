@@ -13,7 +13,7 @@ import {
   toast,
 } from "@glaze/core/components";
 import type { NativeThemeInfo } from "@glaze/core/ipc";
-import type { CalendarRange, LaunchView } from "@main/shared-types";
+import type { CalendarRange, Density, LaunchView } from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
@@ -97,16 +97,39 @@ export function GeneralTab() {
           </RadioGroup>
         </Field>
         {settings ? (
-          <Field label="Accent color" description="Tints buttons, selections, and highlights.">
-            <AccentPicker
-              value={settings.general.accent}
-              onChange={(accent) =>
-                edit((draft) => {
-                  draft.general.accent = accent;
-                })
-              }
-            />
-          </Field>
+          <>
+            <Field label="Accent color" description="Tints buttons, selections, and highlights.">
+              <AccentPicker
+                value={settings.general.accent}
+                onChange={(accent) =>
+                  edit((draft) => {
+                    draft.general.accent = accent;
+                  })
+                }
+              />
+            </Field>
+            <Field label="Density" description="Compact fits more items on screen.">
+              <RadioGroup
+                value={settings.general.density}
+                onValueChange={(value) =>
+                  edit((draft) => {
+                    draft.general.density = value as Density;
+                  })
+                }
+                orientation="horizontal"
+                aria-label="Density"
+              >
+                <Label>
+                  <RadioGroupItem value="default" />
+                  Default
+                </Label>
+                <Label>
+                  <RadioGroupItem value="compact" />
+                  Compact
+                </Label>
+              </RadioGroup>
+            </Field>
+          </>
         ) : null}
       </FieldSet>
 

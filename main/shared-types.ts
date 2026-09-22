@@ -31,6 +31,7 @@ export type AccentColor =
   | "green"
   | "teal"
   | "graphite";
+export type Density = "default" | "compact";
 export type LaunchView = "today" | SourceId | "assistant" | "review";
 export type CalendarRange =
   | "today"
@@ -57,6 +58,8 @@ export interface AppSettings {
     refreshMinutes: number;
     /** "system" follows the macOS accent color. */
     accent: AccentColor;
+    /** Row height and spacing across views. */
+    density: Density;
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
   mail: { maxMessages: number };
@@ -129,7 +132,11 @@ export interface McpTestResult {
 
 export type ProviderStatus =
   | { ok: true; version: string }
-  | { ok: false; reason: "missing" | "not-logged-in" | "failed"; message: string };
+  | {
+      ok: false;
+      reason: "missing" | "not-logged-in" | "failed";
+      message: string;
+    };
 
 export interface GoogleAccountStatus {
   hasCredentials: boolean;

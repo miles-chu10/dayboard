@@ -236,7 +236,8 @@ const MAIL: MailItem[] = [
     from: "Priya Shah",
     fromEmail: "priya@example.com",
     subject: "Launch announcement — final copy?",
-    snippet: "Hey Alex, I made a few edits to the headline. Can you take a look before we send it out",
+    snippet:
+      "Hey Alex, I made a few edits to the headline. Can you take a look before we send it out",
     date: hoursAgo(0.5),
     unread: true,
   },

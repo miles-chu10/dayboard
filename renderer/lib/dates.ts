@@ -73,7 +73,9 @@ export function relativeDue(
   const today = toISODate(now);
   const clock = time ? ` ${formatClock(time)}` : "";
   if (date < today) {
-    const days = Math.round((parseISODate(today).getTime() - parseISODate(date).getTime()) / 86_400_000);
+    const days = Math.round(
+      (parseISODate(today).getTime() - parseISODate(date).getTime()) / 86_400_000,
+    );
     const label =
       days <= 1
         ? "Yesterday"

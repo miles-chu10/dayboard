@@ -66,7 +66,7 @@ export function MailView() {
           </>
         }
       >
-        <div className="flex flex-col gap-4 px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
+        <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
           <SourceGate query={mail} label="Gmail inbox">
             {(items) => {
               const filtered =

@@ -23,7 +23,7 @@ export function RemindersView() {
         <ViewActions onRefresh={() => void reminders.refetch()} refreshing={reminders.isFetching} />
       }
     >
-      <div className="flex flex-col gap-6 px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
+      <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
         <SourceGate query={reminders} label="Apple Reminders">
           {(items) => (
             <TodoGroups

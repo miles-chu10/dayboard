@@ -29,9 +29,7 @@ function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
     event.nativeEvent.isComposing
   )
     return;
-  const rows = [
-    ...event.currentTarget.querySelectorAll<HTMLElement>("[data-agenda-row]"),
-  ];
+  const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-agenda-row]")];
   const index = rows.indexOf(target);
   const next =
     event.key === "ArrowDown"
@@ -63,26 +61,18 @@ export function AgendaList({
   onOpen: (todo: Todo) => void;
   onPin: (todo: Todo) => void;
 }) {
-  const events = entries.flatMap((entry) =>
-    entry.kind === "event" ? [entry.event] : [],
-  );
-  const todos = entries.flatMap((entry) =>
-    entry.kind === "todo" ? [entry.todo] : [],
-  );
+  const events = entries.flatMap((entry) => (entry.kind === "event" ? [entry.event] : []));
+  const todos = entries.flatMap((entry) => (entry.kind === "todo" ? [entry.todo] : []));
   return (
     <div
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-[var(--density-stack-gap)]"
       aria-label="Agenda items"
       onKeyDown={moveFocus}
     >
       {events.length ? (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-[var(--density-bar-gap)]">
           {events.map((event) => (
-            <EventBar
-              key={`${event.calendarId}:${event.id}`}
-              event={event}
-              now={now}
-            />
+            <EventBar key={`${event.calendarId}:${event.id}`} event={event} now={now} />
           ))}
         </div>
       ) : null}
@@ -135,12 +125,9 @@ function TodoLine({
           onOpen();
         }
       }}
-      className="group flex min-h-10 min-w-0 items-center gap-3 rounded-md border-b border-separator px-2 last:border-b-0 hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group flex min-h-[var(--density-row)] min-w-0 items-center gap-3 rounded-md border-b border-separator px-2 last:border-b-0 hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
-      <span
-        className="flex"
-        onClick={(clickEvent) => clickEvent.stopPropagation()}
-      >
+      <span className="flex" onClick={(clickEvent) => clickEvent.stopPropagation()}>
         <Checkbox
           className="rounded-full"
           checked={todo.completed}
@@ -153,15 +140,10 @@ function TodoLine({
         {todo.title}
       </Text>
       {todo.notes ? (
-        <AlignLeft
-          aria-label="Has notes"
-          className="size-3.5 shrink-0 text-tertiary"
-        />
+        <AlignLeft aria-label="Has notes" className="size-3.5 shrink-0 text-tertiary" />
       ) : null}
       <ListChip source={todo.source} listTitle={todo.listTitle} />
-      {todo.dueDate ? (
-        <DueChip date={todo.dueDate} time={todo.dueTime} now={now} />
-      ) : null}
+      {todo.dueDate ? <DueChip date={todo.dueDate} time={todo.dueTime} now={now} /> : null}
       <span
         className={cn(
           "flex",
@@ -173,9 +155,7 @@ function TodoLine({
           size="small"
           variant="transparent"
           iconOnly
-          aria-label={
-            focused ? `Unpin ${todo.title}` : `Focus on ${todo.title}`
-          }
+          aria-label={focused ? `Unpin ${todo.title}` : `Focus on ${todo.title}`}
           title={focused ? "Remove from focus" : "Add to focus"}
           aria-pressed={focused}
           onClick={(clickEvent) => {
@@ -186,10 +166,7 @@ function TodoLine({
           <Pin className={focused ? "text-accent" : ""} />
         </Button>
       </span>
-      <ChevronRight
-        aria-hidden="true"
-        className="-ml-2 size-3.5 shrink-0 text-quaternary"
-      />
+      <ChevronRight aria-hidden="true" className="-ml-2 size-3.5 shrink-0 text-quaternary" />
     </div>
   );
 }

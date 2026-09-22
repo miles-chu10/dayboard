@@ -2,7 +2,7 @@ import { Text } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
 import type { AccentColor } from "@main/shared-types";
 
-import { ACCENT_OPTIONS } from "../lib/accent";
+import { ACCENT_OPTIONS } from "../lib/appearance";
 
 const SYSTEM_SWATCH =
   "conic-gradient(#FF453A, #FF9F0A, #FFD60A, #30D158, #40C8E0, #0A84FF, #BF5AF2, #FF4F86, #FF453A)";
@@ -31,7 +31,9 @@ export function AccentPicker({
               "size-5 rounded-full border border-separator outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent",
               option.value === value && "outline-2 outline-accent",
             )}
-            style={{ background: option.value === "system" ? SYSTEM_SWATCH : option.light }}
+            style={{
+              background: option.value === "system" ? SYSTEM_SWATCH : option.light,
+            }}
           />
         ))}
       </div>
