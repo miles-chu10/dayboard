@@ -32,7 +32,7 @@ import { BriefingCard } from "../components/briefing-card";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
 import { RowsSkeleton, SectionCard, ListCard, InlineHint } from "../components/section-card";
-import { SourceDot } from "../components/source-dot";
+import { SourceIcon } from "../components/source-dot";
 import { UpNextCard } from "../components/up-next-card";
 import { ViewActions } from "../components/view-actions";
 import { buildAgenda } from "../lib/agenda";
@@ -343,7 +343,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
                         updateSearch({ eventsOnly: undefined });
                     }}
                   />
-                  <SourceDot source={source} />
+                  <SourceIcon source={source} />
                   {SOURCE_META[source].label}
                 </label>
               ))}

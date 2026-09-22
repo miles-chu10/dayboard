@@ -14,7 +14,7 @@ import { formatTimeOfDay } from "../lib/dates";
 import { openSettings } from "../lib/ipc";
 import { SOURCE_META } from "../lib/sources";
 import { sourceStatusShort } from "./source-gate";
-import { SourceDot } from "./source-dot";
+import { SourceIcon } from "./source-dot";
 
 export function AgendaSourceStatus({
   sources,
@@ -50,7 +50,7 @@ export function AgendaSourceStatus({
               query.isError || Boolean(ok?.refreshError) || ok?.coverage?.complete === false;
             return (
               <div key={source} className="flex flex-wrap items-center gap-2 px-1">
-                <SourceDot source={source} />
+                <SourceIcon source={source} />
                 <Text variant="small">{SOURCE_META[source].label}</Text>
                 <Text variant="small" color={issue ? "orange" : "secondary"}>
                   {query.isPending

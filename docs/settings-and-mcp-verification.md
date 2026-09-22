@@ -1,6 +1,6 @@
 # Settings and local MCP verification
 
-Source: `/Users/mileschu/Glaze/Dashboard/sources`, baseline `fe4242e`. App ID: `dashboard-local-25d26qqt`. Implemented September 22, 2026, preserving the earlier Agenda work and Glaze changes.
+Source: the project root, baseline `fe4242e`. App ID: `dashboard-local-25d26qqt`. Implemented September 22, 2026, preserving the earlier Agenda work and Glaze changes.
 
 ## Delivered
 

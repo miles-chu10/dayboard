@@ -1,6 +1,6 @@
 # Agenda implementation and verification
 
-Baseline: `fe4242e`. Current source is `/Users/mileschu/Glaze/Dashboard/sources`, renamed from Work Dashboard during implementation. App ID remains `dashboard-local-25d26qqt`.
+Baseline: `fe4242e`. Current source is the project root, renamed from Work Dashboard during implementation. App ID remains `dashboard-local-25d26qqt`.
 
 ## Implemented
 

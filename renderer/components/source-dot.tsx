@@ -48,3 +48,10 @@ export function SourceHeading({ source, children }: { source: SourceId; children
     </span>
   );
 }
+
+/** The source's logo, tinted with its color. */
+export function SourceIcon({ source, className }: { source: SourceId; className?: string }) {
+  const color = COLOR_CLASS[useSourceColor(source)];
+  const Icon = SOURCE_META[source].icon;
+  return <Icon className={cn("size-3.5 shrink-0", color.text, className)} />;
+}

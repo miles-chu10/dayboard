@@ -23,7 +23,7 @@ import { SettingSelect } from "./setting-select";
 const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
   { value: "today", label: "Agenda · Today" },
   { value: "tasks", label: "Google Tasks" },
-  { value: "reminders", label: "Reminders" },
+  { value: "reminders", label: "Apple Reminders" },
   { value: "mail", label: "Mail" },
   { value: "calendar", label: "Agenda · Calendar range" },
   { value: "assistant", label: "Assistant" },

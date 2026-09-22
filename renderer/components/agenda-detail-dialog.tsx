@@ -32,6 +32,7 @@ import { useAccounts, useAgendaState, useCalendarRange, useToggleTodo } from "..
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import type { Todo } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
+import { SOURCE_META } from "../lib/sources";
 import { SourceDot } from "./source-dot";
 
 const STOP_WORDS = new Set(["about", "and", "for", "from", "meeting", "the", "this", "with"]);
@@ -362,7 +363,7 @@ export function AgendaDetailDialog({
                 <div className="min-w-0 flex-1 flex flex-col">
                   <Text truncate>{candidate.title}</Text>
                   <Text variant="small" color="secondary">
-                    {candidate.source === "tasks" ? "Google Tasks" : "Reminders"} ·{" "}
+                    {SOURCE_META[candidate.source].label} ·{" "}
                     {candidate.listTitle}
                   </Text>
                 </div>

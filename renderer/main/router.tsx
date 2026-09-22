@@ -50,7 +50,7 @@ const remindersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reminders",
   component: RemindersView,
-  staticData: { title: "Reminders" },
+  staticData: { title: "Apple Reminders" },
 });
 
 const mailRoute = createRoute({

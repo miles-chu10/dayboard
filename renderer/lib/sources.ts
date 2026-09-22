@@ -1,7 +1,12 @@
 import type { ComponentType } from "react";
-import { CalendarDays, ListChecks, ListTodo, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import type { AppSettings, SourceColor, SourceId } from "@main/shared-types";
 
+import {
+  AppleRemindersLogo,
+  GoogleCalendarLogo,
+  GoogleTasksLogo,
+} from "../components/source-logos";
 import { useSettings } from "./settings";
 
 export const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"];
@@ -14,10 +19,10 @@ export const SOURCE_META: Record<
     icon: ComponentType<{ className?: string }>;
   }
 > = {
-  tasks: { label: "Google Tasks", route: "/tasks", icon: ListChecks },
-  reminders: { label: "Reminders", route: "/reminders", icon: ListTodo },
+  tasks: { label: "Google Tasks", route: "/tasks", icon: GoogleTasksLogo },
+  reminders: { label: "Apple Reminders", route: "/reminders", icon: AppleRemindersLogo },
   mail: { label: "Gmail", route: "/mail", icon: Mail },
-  calendar: { label: "Calendar", route: "/calendar", icon: CalendarDays },
+  calendar: { label: "Calendar", route: "/calendar", icon: GoogleCalendarLogo },
 };
 
 const DEFAULT_COLORS: Record<SourceId, SourceColor> = {
