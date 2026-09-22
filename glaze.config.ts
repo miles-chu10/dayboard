@@ -1,5 +1,6 @@
 import { defineConfig, externalizePackage } from "@glaze/core/build";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 // node-pty is a native module: keep it out of the bundle and make its helper executable.
@@ -30,12 +31,30 @@ function chmodSpawnHelpers(root: string) {
   }
 }
 
-// Google Desktop OAuth client: real values come from google-oauth.local.json in the Glaze project
-// folder (the parent of sources), so the file is never part of the published source tree.
-const googleOAuthLocalFile = path.resolve(
-  process.cwd(),
-  "../google-oauth.local.json",
-);
+// Google Desktop OAuth client lives at a fixed per-user path, outside any source tree, so every
+// build (local or Glaze's publish staging copy) finds it. Missing or invalid => the build fails.
+const googleOAuthFile = path.join(os.homedir(), ".config", "dayboard", "google-oauth.json");
+
+function readGoogleOAuthClient(): { clientId: string; clientSecret: string } {
+  if (!fs.existsSync(googleOAuthFile)) {
+    throw new Error(
+      `[google-oauth] ${googleOAuthFile} not found. Add { "clientId", "clientSecret" } for the Desktop OAuth client before building.`,
+    );
+  }
+  const { clientId, clientSecret } = JSON.parse(fs.readFileSync(googleOAuthFile, "utf8")) as {
+    clientId?: unknown;
+    clientSecret?: unknown;
+  };
+  if (
+    typeof clientId !== "string" ||
+    !clientId.endsWith(".apps.googleusercontent.com") ||
+    typeof clientSecret !== "string" ||
+    !clientSecret
+  ) {
+    throw new Error(`[google-oauth] ${googleOAuthFile} is missing a valid clientId/clientSecret.`);
+  }
+  return { clientId, clientSecret };
+}
 
 export default defineConfig({
   build: {
@@ -46,21 +65,13 @@ export default defineConfig({
         name: "inject-google-oauth-client",
         setup(build) {
           build.onLoad({ filter: /google-oauth-app-client\.ts$/ }, () => {
-            if (!fs.existsSync(googleOAuthLocalFile)) {
-              console.warn(
-                "[google-oauth] ../google-oauth.local.json not found; this build ships without Google sign-in.",
-              );
-              return undefined;
-            }
-            const { clientId, clientSecret } = JSON.parse(
-              fs.readFileSync(googleOAuthLocalFile, "utf8"),
-            ) as { clientId?: string; clientSecret?: string };
+            const { clientId, clientSecret } = readGoogleOAuthClient();
             return {
               contents:
-                `export const GOOGLE_APP_CLIENT_ID = ${JSON.stringify(clientId ?? "")};\n` +
-                `export const GOOGLE_APP_CLIENT_SECRET = ${JSON.stringify(clientSecret ?? "")};\n`,
+                `export const GOOGLE_APP_CLIENT_ID = ${JSON.stringify(clientId)};\n` +
+                `export const GOOGLE_APP_CLIENT_SECRET = ${JSON.stringify(clientSecret)};\n`,
               loader: "ts",
-              watchFiles: [googleOAuthLocalFile],
+              watchFiles: [googleOAuthFile],
             };
           });
         },

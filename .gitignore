@@ -7,7 +7,7 @@ node_modules/
 # App icons (binary, auto-generated)
 app-icon.*
 
-# Google OAuth client (belongs in ../google-oauth.local.json; ignored here in case it's misplaced)
+# Google OAuth client (belongs in ~/.config/dayboard/google-oauth.json; ignored here in case it's misplaced)
 google-oauth.local.json
 
 # OS files
