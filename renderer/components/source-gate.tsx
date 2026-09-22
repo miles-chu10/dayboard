@@ -108,7 +108,8 @@ export function sourceHint(
   if (!result || result.state === "ok") return null;
   if (result.state === "disabled") return `${label} is turned off in Settings.`;
   if (result.state === "no-access") return `Allow Reminders access to see ${label}.`;
-  if (result.state === "needs-setup") return `Google sign-in isn't available for ${label} in this build.`;
+  if (result.state === "needs-setup")
+    return `Google sign-in isn't available for ${label} in this build.`;
   return `Sign in with Google to see ${label}.`;
 }
 

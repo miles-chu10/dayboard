@@ -31,7 +31,10 @@ function chmodSpawnHelpers(root: string) {
 }
 
 // Google OAuth client: real values come from the gitignored google-oauth.local.json.
-const googleOAuthLocalFile = path.resolve(process.cwd(), "google-oauth.local.json");
+const googleOAuthLocalFile = path.resolve(
+  process.cwd(),
+  "google-oauth.local.json",
+);
 
 export default defineConfig({
   build: {
@@ -42,7 +45,12 @@ export default defineConfig({
         name: "inject-google-oauth-client",
         setup(build) {
           build.onLoad({ filter: /google-oauth-app-client\.ts$/ }, () => {
-            if (!fs.existsSync(googleOAuthLocalFile)) return undefined;
+            if (!fs.existsSync(googleOAuthLocalFile)) {
+              console.warn(
+                "[google-oauth] google-oauth.local.json not found; this build ships without Google sign-in.",
+              );
+              return undefined;
+            }
             const { clientId, clientSecret } = JSON.parse(
               fs.readFileSync(googleOAuthLocalFile, "utf8"),
             ) as { clientId?: string; clientSecret?: string };
@@ -60,7 +68,9 @@ export default defineConfig({
         name: "fix-node-pty-spawn-helper-exec-bit",
         setup(build) {
           build.onEnd(() => {
-            chmodSpawnHelpers(path.join(getBuildOutDir(), "main", "node_modules", "node-pty"));
+            chmodSpawnHelpers(
+              path.join(getBuildOutDir(), "main", "node_modules", "node-pty"),
+            );
           });
         },
       },

@@ -19,7 +19,9 @@ export function TasksView() {
   const detailView = settings?.general.detailView ?? "dialog";
   const [selectedKey, setSelectedKey] = useState<string | undefined>();
   const todos =
-    tasks.data?.state === "ok" ? buildTodos({ state: "ok", items: tasks.data.items }, undefined) : [];
+    tasks.data?.state === "ok"
+      ? buildTodos({ state: "ok", items: tasks.data.items }, undefined)
+      : [];
   const open = todos.filter((todo) => !todo.completed).length;
   const selected = todos.find((todo) => todo.key === selectedKey);
   const messages = mail.data?.state === "ok" ? mail.data.items : [];

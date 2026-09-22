@@ -10,7 +10,10 @@ const AVATAR_SIZE = 256;
 const queue = createSerialQueue();
 
 function avatarPath(): string {
-  return path.join(app.getPath("userData"), isDemoMode() ? "demo-profile-avatar.jpg" : "profile-avatar.jpg");
+  return path.join(
+    app.getPath("userData"),
+    isDemoMode() ? "demo-profile-avatar.jpg" : "profile-avatar.jpg",
+  );
 }
 
 function toDataUrl(buffer: Buffer): string {

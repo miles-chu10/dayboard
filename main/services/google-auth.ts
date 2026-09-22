@@ -272,10 +272,7 @@ export async function disconnectGoogle(): Promise<void> {
 export async function getGoogleAccessToken(): Promise<string> {
   const client = await resolveClient();
   if (!client) {
-    throw new GoogleAuthError(
-      "needs-setup",
-      "Google sign-in isn't configured in this build.",
-    );
+    throw new GoogleAuthError("needs-setup", "Google sign-in isn't configured in this build.");
   }
   const oauth = getService(client.clientId, client.clientSecret);
   if (!(await oauth.getTokens())) {

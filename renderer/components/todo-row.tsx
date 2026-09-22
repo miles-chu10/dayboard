@@ -77,8 +77,13 @@ export function TodoRow({
             </Text>
           ) : null}
         </div>
-        {todo.dueDate && !todo.completed ? <DueChip date={todo.dueDate} time={todo.dueTime} /> : null}
-        <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+        {todo.dueDate && !todo.completed ? (
+          <DueChip date={todo.dueDate} time={todo.dueTime} />
+        ) : null}
+        <span
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <ItemEditButton item={todo} />
         </span>
       </div>

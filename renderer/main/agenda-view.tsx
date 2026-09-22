@@ -386,7 +386,9 @@ export function AgendaView({
 
   const sidePanel =
     detailView === "sidebar"
-      ? (selectedMail ? renderMailDetail("panel") : renderDetail("panel"))
+      ? selectedMail
+        ? renderMailDetail("panel")
+        : renderDetail("panel")
       : null;
   return (
     <>

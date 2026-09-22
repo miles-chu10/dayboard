@@ -80,7 +80,8 @@ export function MailRow({
       }
       className={cn(
         "flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0",
-        onOpen && "cursor-default hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
+        onOpen &&
+          "cursor-default hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
         selected && "bg-list-selection",
       )}
     >

@@ -276,9 +276,7 @@ export function AppSidebar() {
                     aria-label={`Profile menu for ${name}`}
                   >
                     <Avatar size="small" className="shrink-0">
-                      {avatar.dataUrl ? (
-                        <AvatarImage src={avatar.dataUrl} alt={name} />
-                      ) : null}
+                      {avatar.dataUrl ? <AvatarImage src={avatar.dataUrl} alt={name} /> : null}
                       <AvatarFallback>{initials(name)}</AvatarFallback>
                       <AvatarBadge color={connected ? "green" : "gray"} />
                     </Avatar>

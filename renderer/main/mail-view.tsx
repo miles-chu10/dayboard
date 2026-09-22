@@ -130,7 +130,9 @@ export function MailView() {
                               <Status variant="loading">Sorting inbox…</Status>
                             ) : null}
                           </div>
-                          {triage.message ? <Callout color="orange">{triage.message}</Callout> : null}
+                          {triage.message ? (
+                            <Callout color="orange">{triage.message}</Callout>
+                          ) : null}
                           {triage.parseFailed ? (
                             <Callout color="yellow">
                               Couldn't read the AI's sorting. Try again.
