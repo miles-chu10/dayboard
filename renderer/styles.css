@@ -19,8 +19,8 @@
   --density-row-py: 0.375rem;
   --density-mail-py: 0.5rem;
   --density-stack-gap: 0.5rem;
-  --density-page-gap: 0.875rem;
-  --density-section-gap: 1.25rem;
+  --density-page-gap: 0.75rem;
+  --density-section-gap: 1rem;
 }
 :root.density-compact {
   --density-row: 1.75rem;

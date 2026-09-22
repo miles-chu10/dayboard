@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Text, toast } from "@glaze/core/components";
+import { cn } from "@glaze/core/utils";
 import { Archive, ExternalLink, ListPlus, Reply } from "lucide-react";
 import type { MailItem, SourceResult } from "@main/shared-types";
 
@@ -13,11 +14,15 @@ export function MailRow({
   message,
   triage,
   onReply,
+  onOpen,
+  selected,
   compact,
 }: {
   message: MailItem;
   triage?: TriageResult;
   onReply: (message: MailItem) => void;
+  onOpen?: (message: MailItem) => void;
+  selected?: boolean;
   compact?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -57,7 +62,28 @@ export function MailRow({
   const badge = triage ? TRIAGE_LABEL[triage.category] : null;
 
   return (
-    <div className="flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0">
+    <div
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      aria-expanded={onOpen ? selected : undefined}
+      aria-label={onOpen ? `Open email from ${message.from}` : undefined}
+      onClick={onOpen ? () => onOpen(message) : undefined}
+      onKeyDown={
+        onOpen
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onOpen(message);
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0",
+        onOpen && "cursor-default hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
+        selected && "bg-list-selection",
+      )}
+    >
       <span className="mt-1.5 flex" title={message.unread ? "Unread" : "Read"}>
         <SourceDot source="mail" hollow={!message.unread} />
       </span>
@@ -84,7 +110,11 @@ export function MailRow({
           </Text>
         ) : null}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div
+        className="flex items-center gap-0.5 shrink-0"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <Button
           size="small"
           variant="transparent"

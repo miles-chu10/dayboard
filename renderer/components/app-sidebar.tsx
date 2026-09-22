@@ -3,7 +3,13 @@ import {
   Avatar,
   AvatarBadge,
   AvatarFallback,
+  AvatarImage,
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Sidebar,
   SidebarFooter,
   SidebarList,
@@ -19,11 +25,13 @@ import type { AppSettings, SourceId } from "@main/shared-types";
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, todayISO } from "../lib/dates";
 import { openExternal, openSettings } from "../lib/ipc";
+import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
-import { COLOR_CLASS, SOURCE_IDS, SOURCE_META, sourceColor } from "../lib/sources";
+import { COLOR_CLASS, SOURCE_META, sourceColor } from "../lib/sources";
 import { buildTodos } from "../lib/todos";
 import { useOpenCapture } from "./capture-dialog";
+import { EventDetail } from "./event-detail";
 import {
   McpServersDialog,
   useAssistantMcpCheck,
@@ -57,6 +65,16 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+type MainNavId = "agenda" | SourceId;
+
+const MAIN_NAV: { id: MainNavId; title: string; route: string }[] = [
+  { id: "agenda", title: "Agenda", route: "/" },
+  { id: "calendar", title: "Calendar", route: "/calendar" },
+  { id: "mail", title: "Inbox", route: "/mail" },
+  { id: "tasks", title: "Tasks", route: "/tasks" },
+  { id: "reminders", title: "Reminders", route: "/reminders" },
+];
+
 export function AppSidebar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -69,6 +87,7 @@ export function AppSidebar() {
   const reminders = useReminders();
   const mail = useMail();
   const calendar = useCalendar();
+  const avatar = useProfileAvatar();
   const provider = assistantProvider(settings);
   const codexModels = useCodexModels(provider === "codex");
   const model = selectedModel(settings, codexModels.data, provider);
@@ -120,7 +139,7 @@ export function AppSidebar() {
   const connectionDetail = [
     google?.connected ? `Google: ${google.email ?? "connected"}` : "Google: not connected",
     `Apple Reminders: ${remindersOk ? "allowed" : "not allowed"}`,
-    "Change your name in Settings → General.",
+    "Change your name or picture in Settings → General.",
   ].join("\n");
   const status = !connected
     ? "Not connected"
@@ -130,12 +149,56 @@ export function AppSidebar() {
   const showAssistant = featureOn(settings, "assistant");
   const showReview = featureOn(settings, "weeklyReview");
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [upNextOpen, setUpNextOpen] = useState(false);
   const mcpServers = useAssistantMcpServers();
   const mcpCheck = useAssistantMcpCheck(showAssistant && Boolean(mcpServers.data?.length));
-  const mcpResults = new Map(mcpCheck.data?.map((result) => [result.id, result]));
+  const mcpResults = mcpCheck.data ?? [];
+  const mcpOk = mcpResults.filter((result) => result.ok).length;
+  const mcpError = mcpResults.some((result) => !result.ok);
   const mcpInUse = providerUsesMcp(provider);
   const agendaDue = open.filter((todo) => todo.dueDate === today).length;
   const agendaLate = overdue();
+  const mcpCount = mcpServers.data?.length ?? 0;
+
+  function navVisible(id: MainNavId): boolean {
+    if (id === "agenda") return true;
+    return sourceOn(settings, id);
+  }
+
+  function navIcon(id: MainNavId) {
+    if (id === "agenda") return <CalendarDays className="size-4" />;
+    if (id === "mail") {
+      return (
+        <GmailLogo className={cn("size-4", COLOR_CLASS[sourceColor(settings, "mail")].text)} />
+      );
+    }
+    const Icon = SOURCE_META[id].icon;
+    return <Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />;
+  }
+
+  function navSelected(id: MainNavId, route: string): boolean {
+    if (id === "agenda") return pathname === "/";
+    return pathname === route;
+  }
+
+  function navSubtitle(id: MainNavId): string | undefined {
+    if (id === "agenda") return summary(agendaDue, agendaLate);
+    return subtitles[id];
+  }
+
+  function navAccessory(id: MainNavId) {
+    if (id === "agenda") {
+      return agendaLate ? (
+        <span className="text-support-red tabular-nums" title={plural(agendaLate, "overdue item")}>
+          {agendaLate}
+        </span>
+      ) : agendaDue ? (
+        String(agendaDue)
+      ) : undefined;
+    }
+    const count = counts[id];
+    return count ? String(count) : undefined;
+  }
 
   return (
     <Sidebar
@@ -156,15 +219,15 @@ export function AppSidebar() {
               <div
                 role="button"
                 tabIndex={0}
-                aria-label={`Open Calendar: ${nextEvent.title}`}
-                onClick={() => void navigate({ to: "/calendar" })}
+                aria-label={`Open next event: ${nextEvent.title}`}
+                onClick={() => setUpNextOpen(true)}
                 onKeyDown={(event) => {
                   if (
                     event.target === event.currentTarget &&
                     (event.key === "Enter" || event.key === " ")
                   ) {
                     event.preventDefault();
-                    void navigate({ to: "/calendar" });
+                    setUpNextOpen(true);
                   }
                 }}
                 className="flex cursor-default items-center gap-2 rounded-lg bg-control-subtle px-2 py-1.5 text-left hover:bg-control"
@@ -203,19 +266,56 @@ export function AppSidebar() {
                 ) : null}
               </div>
             ) : null}
-            <div className="flex items-center gap-2 min-w-0" title={connectionDetail}>
-              <Avatar size="small" className="shrink-0">
-                <AvatarFallback>{initials(name)}</AvatarFallback>
-                <AvatarBadge color={connected ? "green" : "gray"} />
-              </Avatar>
-              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <Text variant="small-strong" truncate>
-                  {name}
-                </Text>
-                <Text variant="small" color={connected ? "green" : "secondary"} truncate>
-                  {status}
-                </Text>
-              </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-control-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    title={connectionDetail}
+                    aria-label={`Profile menu for ${name}`}
+                  >
+                    <Avatar size="small" className="shrink-0">
+                      {avatar.dataUrl ? (
+                        <AvatarImage src={avatar.dataUrl} alt={name} />
+                      ) : null}
+                      <AvatarFallback>{initials(name)}</AvatarFallback>
+                      <AvatarBadge color={connected ? "green" : "gray"} />
+                    </Avatar>
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <Text variant="small-strong" truncate>
+                        {name}
+                      </Text>
+                      <Text variant="small" color={connected ? "green" : "secondary"} truncate>
+                        {status}
+                      </Text>
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuItem
+                    icon="photo"
+                    disabled={avatar.busy}
+                    onSelect={() => avatar.pick()}
+                  >
+                    Change picture…
+                  </DropdownMenuItem>
+                  {avatar.hasAvatar ? (
+                    <DropdownMenuItem
+                      icon="trash"
+                      color="red"
+                      disabled={avatar.busy}
+                      onSelect={() => avatar.clear()}
+                    >
+                      Remove picture
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem icon="gear" onSelect={() => void openSettings()}>
+                    Settings…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 iconOnly
                 size="small"
@@ -233,58 +333,17 @@ export function AppSidebar() {
       }
     >
       <SidebarList>
-        <SidebarListItem
-          icon={<CalendarDays className="size-4" />}
-          title="Agenda"
-          subtitle={summary(agendaDue, agendaLate)}
-          accessory={
-            agendaLate ? (
-              <span
-                className="text-support-red tabular-nums"
-                title={plural(agendaLate, "overdue item")}
-              >
-                {agendaLate}
-              </span>
-            ) : agendaDue ? (
-              String(agendaDue)
-            ) : undefined
-          }
-          selected={pathname === "/"}
-          onClick={() => void navigate({ to: "/" })}
-        />
-        {sourceOn(settings, "mail") ? (
+        {MAIN_NAV.filter((item) => navVisible(item.id)).map((item) => (
           <SidebarListItem
-            icon={
-              <GmailLogo
-                className={cn("size-4", COLOR_CLASS[sourceColor(settings, "mail")].text)}
-              />
-            }
-            title="Inbox"
-            subtitle={subtitles.mail}
-            accessory={counts.mail ? String(counts.mail) : undefined}
-            selected={pathname === "/mail"}
-            onClick={() => void navigate({ to: "/mail" })}
+            key={item.id}
+            icon={navIcon(item.id)}
+            title={item.title}
+            subtitle={navSubtitle(item.id)}
+            accessory={navAccessory(item.id)}
+            selected={navSelected(item.id, item.route)}
+            onClick={() => void navigate({ to: item.route })}
           />
-        ) : null}
-        <SidebarListGroup title="Sources" collapsible defaultOpen>
-          {SOURCE_IDS.filter((id) => id !== "mail" && sourceOn(settings, id)).map((id) => {
-            const meta = SOURCE_META[id];
-            const Icon = meta.icon;
-            return (
-              <SidebarListItem
-                key={id}
-                icon={
-                  <Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />
-                }
-                title={meta.label}
-                subtitle={subtitles[id]}
-                accessory={counts[id] ? String(counts[id]) : undefined}
-                selected={pathname === meta.route}
-                onClick={() => void navigate({ to: meta.route })}
-              />
-            );
-          })}
-        </SidebarListGroup>
+        ))}
         {showAssistant || showReview ? (
           <SidebarListGroup title="AI">
             {showAssistant ? (
@@ -308,74 +367,44 @@ export function AppSidebar() {
                 onClick={() => void navigate({ to: "/review" })}
               />
             ) : null}
-          </SidebarListGroup>
-        ) : null}
-        {showAssistant ? (
-          <SidebarListGroup title="MCP Servers" collapsible defaultOpen>
-            {mcpServers.data?.length ? (
-              mcpServers.data.map((server) => {
-                const result = mcpResults.get(server.id);
-                const state = !result
-                  ? mcpCheck.isFetching
-                    ? "checking"
-                    : "unknown"
-                  : result.ok
-                    ? "ok"
-                    : "error";
-                return (
-                  <SidebarListItem
-                    key={server.id}
-                    icon={<Server className="size-4" />}
-                    title={server.name}
-                    subtitle={
-                      !mcpInUse
-                        ? `Not used by ${PROVIDER_LABEL[provider]}`
-                        : state === "ok"
-                          ? plural(result!.tools.length, "tool")
-                          : state === "error"
-                            ? "Unavailable"
-                            : state === "checking"
-                              ? "Checking…"
-                              : server.builtIn
-                                ? "Built in"
-                                : server.target
-                    }
-                    accessory={
-                      <span
-                        role="img"
-                        aria-label={
-                          state === "ok"
-                            ? "Connected"
-                            : state === "error"
-                              ? "Unavailable"
-                              : "Not checked"
-                        }
-                        className={cn(
-                          "inline-block size-2 rounded-full",
-                          state === "ok"
-                            ? "bg-support-green"
-                            : state === "error"
-                              ? "bg-support-red"
-                              : "bg-current text-tertiary",
-                        )}
-                      />
-                    }
-                    onClick={() => setMcpOpen(true)}
-                  />
-                );
-              })
-            ) : (
+            {showAssistant ? (
               <SidebarListItem
                 icon={<Server className="size-4" />}
-                title="Add MCP server…"
+                title="MCP Servers"
                 subtitle={
-                  settings?.ai.useMcpInAssistant === false
-                    ? "Turned off for the Assistant"
-                    : "Give the Assistant more tools"
+                  !mcpCount
+                    ? settings?.ai.useMcpInAssistant === false
+                      ? "Turned off for the Assistant"
+                      : "Add tools for the Assistant"
+                    : !mcpInUse
+                      ? `Not used by ${PROVIDER_LABEL[provider]}`
+                      : mcpCheck.isFetching
+                        ? "Checking…"
+                        : mcpError
+                          ? `${mcpOk}/${mcpCount} available`
+                          : plural(mcpCount, "server")
                 }
-                onClick={() => void openSettings()}
+                accessory={
+                  mcpCount ? (
+                    <span
+                      role="img"
+                      aria-label={
+                        mcpError ? "Some servers unavailable" : mcpOk ? "Connected" : "Not checked"
+                      }
+                      className={cn(
+                        "inline-block size-2 rounded-full",
+                        mcpError
+                          ? "bg-support-red"
+                          : mcpOk
+                            ? "bg-support-green"
+                            : "bg-current text-tertiary",
+                      )}
+                    />
+                  ) : undefined
+                }
+                onClick={() => setMcpOpen(true)}
               />
-            )}
+            ) : null}
           </SidebarListGroup>
         ) : null}
       </SidebarList>
@@ -388,6 +417,14 @@ export function AppSidebar() {
             : `${PROVIDER_LABEL[provider]} can't use MCP servers from DayBoard yet; switch the Assistant to Claude, ChatGPT, or an API model to use them.`
         }
       />
+      {upNextOpen && nextEvent ? (
+        <EventDetail
+          key={nextEvent.id}
+          event={nextEvent}
+          presentation="dialog"
+          onClose={() => setUpNextOpen(false)}
+        />
+      ) : null}
     </Sidebar>
   );
 }

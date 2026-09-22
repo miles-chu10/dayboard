@@ -12,6 +12,7 @@ import { registerAIHandlers } from "./ai.js";
 import { registerAssistantHistoryHandlers } from "./assistant-history.js";
 import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
+import { registerProfileHandlers } from "./profile.js";
 import { registerStartupHandlers } from "./startup.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
@@ -47,6 +48,7 @@ export function registerHandlers(): void {
   registerItemEditingHandlers();
   registerAIHandlers();
   registerAssistantHistoryHandlers();
+  registerProfileHandlers();
   registerStartupHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");

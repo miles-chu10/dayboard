@@ -1,41 +1,99 @@
+import { useState } from "react";
 import { ScrollArea } from "@glaze/core/components";
 
+import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
 import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
-import { useReminders } from "../lib/queries";
-import { buildTodos } from "../lib/todos";
+import { todayISO } from "../lib/dates";
+import { useMail, useReminders } from "../lib/queries";
+import { useSettings } from "../lib/settings";
+import { buildTodos, type Todo } from "../lib/todos";
 
 export function RemindersView() {
   const reminders = useReminders();
-  const open =
+  const mail = useMail();
+  const settings = useSettings().data;
+  const detailView = settings?.general.detailView ?? "dialog";
+  const [selectedKey, setSelectedKey] = useState<string | undefined>();
+  const todos =
     reminders.data?.state === "ok"
-      ? reminders.data.items.filter((reminder) => !reminder.completed).length
-      : null;
+      ? buildTodos(undefined, { state: "ok", items: reminders.data.items })
+      : [];
+  const open = todos.filter((todo) => !todo.completed).length;
+  const selected = todos.find((todo) => todo.key === selectedKey);
+  const messages = mail.data?.state === "ok" ? mail.data.items : [];
+  const today = todayISO();
+
+  function toggleOpen(todo: Todo) {
+    setSelectedKey((current) => (current === todo.key ? undefined : todo.key));
+  }
+
+  function renderDetail(presentation: "dialog" | "panel") {
+    if (!selected) return null;
+    return (
+      <AgendaDetailDialog
+        key={selected.key}
+        todo={selected}
+        todos={todos}
+        events={[]}
+        messages={messages}
+        date={selected.dueDate && selected.dueDate >= today ? selected.dueDate : today}
+        now={new Date()}
+        presentation={presentation}
+        onClose={() => setSelectedKey(undefined)}
+      />
+    );
+  }
+
+  const sidePanel = detailView === "sidebar" ? renderDetail("panel") : null;
 
   return (
-    <ScrollArea
-      className="h-full"
-      leading={<HistoryNav />}
-      title={<SourceHeading source="reminders" />}
-      subtitle={open === null ? undefined : `${open} open`}
-      actions={
-        <ViewActions onRefresh={() => void reminders.refetch()} refreshing={reminders.isFetching} />
-      }
-    >
-      <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
-        <SourceGate query={reminders} label="Apple Reminders">
-          {(items) => (
-            <TodoGroups
-              todos={buildTodos(undefined, { state: "ok", items })}
-              emptyTitle="All Caught Up"
-              emptyDescription="You have no open reminders."
-            />
-          )}
-        </SourceGate>
+    <>
+      <div className="flex h-full min-w-0">
+        <div className="h-full min-w-0 flex-1">
+          <ScrollArea
+            className="h-full"
+            leading={<HistoryNav />}
+            title={<SourceHeading source="reminders" />}
+            subtitle={reminders.data?.state === "ok" ? `${open} open` : undefined}
+            actions={
+              <ViewActions
+                onRefresh={() => void reminders.refetch()}
+                refreshing={reminders.isFetching}
+              />
+            }
+          >
+            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-4xl mx-auto">
+              <SourceGate query={reminders} label="Apple Reminders">
+                {(items) => (
+                  <TodoGroups
+                    todos={buildTodos(undefined, { state: "ok", items })}
+                    emptyTitle="All Caught Up"
+                    emptyDescription="You have no open reminders."
+                    selectedKey={selectedKey}
+                    onOpen={toggleOpen}
+                    renderExpanded={
+                      detailView === "inline" ? () => renderDetail("panel") : undefined
+                    }
+                  />
+                )}
+              </SourceGate>
+            </div>
+          </ScrollArea>
+        </div>
+        {sidePanel ? (
+          <aside
+            aria-label="Reminder details"
+            className="h-full w-[min(380px,40%)] shrink-0 overflow-y-auto border-l border-separator px-3 pb-6 pt-14"
+          >
+            {sidePanel}
+          </aside>
+        ) : null}
       </div>
-    </ScrollArea>
+      {detailView === "dialog" ? renderDetail("dialog") : null}
+    </>
   );
 }

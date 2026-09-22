@@ -29,7 +29,7 @@ Apple Reminders and Google Tasks don't copy data to each other. Instead, when an
 ## Requirements
 
 - macOS with the Glaze app
-- A Google Cloud project with the Tasks, Gmail, and Calendar APIs enabled and an OAuth client of type **Web application** using the redirect URI `https://www.glaze.app/api/oauth/callback`. Enter the client ID and secret in **Settings → Sources**; they are stored encrypted on the Mac, never in this repository.
+- Sign in with Google from **Settings → Sources** (browser OAuth). End users do not create a Google Cloud project. Developers set the app-owned Web application client ID/secret in `main/services/google-oauth-app-client.ts` (redirect URI `https://www.glaze.app/api/oauth/callback`, with Tasks, Gmail, and Calendar APIs enabled).
 - Optional: [Claude Code](https://claude.com/claude-code) and/or the [Codex CLI](https://github.com/openai/codex), signed in from Terminal, to use your subscriptions as the AI provider.
 
 ## Development

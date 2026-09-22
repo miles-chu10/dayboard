@@ -56,8 +56,8 @@ function SourceEmptyState({ result, label }: { result: UnavailableResult; label:
       return (
         <EmptyState
           placement="viewport"
-          title="Set Up Google"
-          description="Add your Google OAuth client in Settings to bring in Tasks, Gmail, and Calendar."
+          title="Google Sign-In Unavailable"
+          description="This build can't open Google sign-in yet. Open Settings → Sources for account status, or try again after an update."
           actions={<Button onClick={() => void openSettings()}>Open Settings</Button>}
         />
       );
@@ -69,7 +69,7 @@ function SourceEmptyState({ result, label }: { result: UnavailableResult; label:
           description={`Sign in with Google to show your ${label}.`}
           actions={
             <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-              {connect.isPending ? "Waiting for Browser…" : "Connect Google"}
+              {connect.isPending ? "Waiting for Browser…" : "Sign in with Google"}
             </Button>
           }
         />
@@ -108,15 +108,15 @@ export function sourceHint(
   if (!result || result.state === "ok") return null;
   if (result.state === "disabled") return `${label} is turned off in Settings.`;
   if (result.state === "no-access") return `Allow Reminders access to see ${label}.`;
-  if (result.state === "needs-setup") return `Set up Google in Settings to see ${label}.`;
-  return `Connect Google to see ${label}.`;
+  if (result.state === "needs-setup") return `Google sign-in isn't available for ${label} in this build.`;
+  return `Sign in with Google to see ${label}.`;
 }
 
 /** Short status for summary tiles. */
 export function sourceStatusShort(result: SourceResult<unknown> | undefined): string | null {
   if (!result || result.state === "ok") return null;
   if (result.state === "no-access") return "Needs access";
-  if (result.state === "needs-setup") return "Needs setup";
+  if (result.state === "needs-setup") return "Sign-in unavailable";
   if (result.state === "disabled") return "Turned off";
-  return "Not connected";
+  return "Not signed in";
 }

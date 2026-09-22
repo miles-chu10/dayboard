@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Button,
   Field,
   FieldContent,
@@ -19,7 +22,10 @@ import type { CalendarRange, Density, DetailView, LaunchView } from "@main/share
 import { useSettingsEditor } from "../lib/settings";
 import { isRendererDemoMode } from "../lib/demo";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
+import { useProfileAvatar } from "../lib/profile-avatar";
+import { useAccounts } from "../lib/queries";
 import { useStartAtLogin } from "../lib/use-start-at-login";
+import { displayName } from "../components/app-sidebar";
 import { AccentPicker } from "./accent-picker";
 import { SettingSelect } from "./setting-select";
 
@@ -69,10 +75,23 @@ function NameInput({ value, onSave }: { value: string; onSave: (value: string) =
   );
 }
 
+function profileInitials(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2);
+  return letters.toUpperCase() || "Y";
+}
+
 export function GeneralTab() {
   const { settings, edit } = useSettingsEditor();
+  const accounts = useAccounts();
+  const avatar = useProfileAvatar();
   const [themeInfo, setThemeInfo] = useState<NativeThemeInfo | null>(null);
   const startAtLogin = useStartAtLogin();
+  const profileName = displayName(settings, accounts.data?.google.email);
 
   const refreshThemeInfo = async () => {
     try {
@@ -103,6 +122,32 @@ export function GeneralTab() {
     <>
       {settings ? (
         <FieldSet title="Profile">
+          <Field
+            label="Profile picture"
+            description="Shown in the sidebar footer. You can also change it by clicking your profile."
+          >
+            <div className="flex items-center gap-3">
+              <Avatar size="large" className="shrink-0">
+                {avatar.dataUrl ? <AvatarImage src={avatar.dataUrl} alt={profileName} /> : null}
+                <AvatarFallback>{profileInitials(profileName)}</AvatarFallback>
+              </Avatar>
+              <div className="flex items-center gap-2">
+                <Button size="small" disabled={avatar.busy} onClick={() => avatar.pick()}>
+                  Choose…
+                </Button>
+                {avatar.hasAvatar ? (
+                  <Button
+                    size="small"
+                    variant="transparent"
+                    disabled={avatar.busy}
+                    onClick={() => avatar.clear()}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </Field>
           <Field
             label="Your name"
             description="Shown in the sidebar with your connection status, and used by the Assistant. Leave empty to use your Google account name."
@@ -178,7 +223,7 @@ export function GeneralTab() {
             </Field>
             <Field
               label="Open details in"
-              description="How tasks, reminders, and events open when you click them."
+              description="How tasks, reminders, events, and emails open when you click them."
             >
               <RadioGroup
                 value={settings.general.detailView}

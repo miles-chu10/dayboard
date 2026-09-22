@@ -611,10 +611,10 @@ export function useConnectGoogle() {
       queryClient.setQueryData(queryKeys.accounts, status);
       void queryClient.invalidateQueries();
       toast.success(
-        status.google.email ? `Connected ${status.google.email}` : "Google account connected",
+        status.google.email ? `Signed in as ${status.google.email}` : "Signed in with Google",
       );
     },
-    onError: (error) => toast.error(`Couldn't connect Google: ${errorMessage(error)}`),
+    onError: (error) => toast.error(`Couldn't sign in with Google: ${errorMessage(error)}`),
   });
 }
 

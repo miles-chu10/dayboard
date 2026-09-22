@@ -30,6 +30,7 @@ import { AgendaSourceStatus } from "../components/agenda-source-status";
 import { AskAssistantCard } from "../components/ask-assistant-card";
 import { EventDetail } from "../components/event-detail";
 import { BriefingCard } from "../components/briefing-card";
+import { MailDetail } from "../components/mail-detail";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
 import { RowsSkeleton, SectionCard, ListCard, InlineHint } from "../components/section-card";
@@ -163,6 +164,7 @@ export function AgendaView({
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const triage = useTriage(messages);
   const [replyTo, setReplyTo] = useState<MailItem | null>(null);
+  const [selectedMailId, setSelectedMailId] = useState<string | undefined>();
   const [prioritize, setPrioritize] = useState(false);
   const [layers, setLayers] = useState<Layers>(() => {
     const stored = readStored(LAYERS_KEY, isLayers);
@@ -210,6 +212,7 @@ export function AgendaView({
   );
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
+  const selectedMail = messages.find((message) => message.id === selectedMailId);
   const detailView = settings?.general.detailView ?? "dialog";
   const allReady =
     (!on.tasks || !tasks.isPending) &&
@@ -282,7 +285,25 @@ export function AgendaView({
     renderExpanded: detailView === "inline" ? () => renderDetail("panel") : undefined,
   };
   function toggleDetail(key: string) {
+    setSelectedMailId(undefined);
     updateSearch({ item: search.item === key ? undefined : key });
+  }
+  function toggleMail(message: MailItem) {
+    updateSearch({ item: undefined });
+    setSelectedMailId((current) => (current === message.id ? undefined : message.id));
+  }
+  function renderMailDetail(presentation: "dialog" | "panel") {
+    if (!selectedMail) return null;
+    return (
+      <MailDetail
+        key={selectedMail.id}
+        message={selectedMail}
+        triage={featureOn(settings, "triage") ? triage.map[selectedMail.id] : undefined}
+        presentation={presentation}
+        onClose={() => setSelectedMailId(undefined)}
+        onReply={setReplyTo}
+      />
+    );
   }
   function renderDetail(presentation: "dialog" | "panel") {
     const close = () => updateSearch({ item: undefined });
@@ -363,7 +384,10 @@ export function AgendaView({
         .includes(search.q?.trim().toLocaleLowerCase() ?? ""),
   );
 
-  const sidePanel = detailView === "sidebar" ? renderDetail("panel") : null;
+  const sidePanel =
+    detailView === "sidebar"
+      ? (selectedMail ? renderMailDetail("panel") : renderDetail("panel"))
+      : null;
   return (
     <>
       <div className="flex h-full min-w-0">
@@ -371,7 +395,7 @@ export function AgendaView({
           <ScrollArea
             className="h-full"
             leading={<HistoryNav />}
-            title={<span className="text-lg font-bold tracking-tight">Agenda</span>}
+            title="Agenda"
             subtitle={parseISODate(startDate).toLocaleDateString([], {
               weekday: "long",
               month: "long",
@@ -386,7 +410,7 @@ export function AgendaView({
               />
             }
           >
-            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto">
+            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
               <div className="flex flex-wrap items-center gap-2">
                 {modeSwitch}
                 {calendarRoute ? (
@@ -614,17 +638,23 @@ export function AgendaView({
                           <MailDigest messages={mailByDay.get(day.date)!}>
                             <ListCard>
                               {mailByDay.get(day.date)!.map((message) => (
-                                <MailRow
-                                  key={message.id}
-                                  message={message}
-                                  triage={
-                                    featureOn(settings, "triage")
-                                      ? triage.map[message.id]
-                                      : undefined
-                                  }
-                                  onReply={setReplyTo}
-                                  compact
-                                />
+                                <div key={message.id}>
+                                  <MailRow
+                                    message={message}
+                                    triage={
+                                      featureOn(settings, "triage")
+                                        ? triage.map[message.id]
+                                        : undefined
+                                    }
+                                    onReply={setReplyTo}
+                                    onOpen={toggleMail}
+                                    selected={selectedMailId === message.id}
+                                    compact
+                                  />
+                                  {detailView === "inline" && selectedMailId === message.id
+                                    ? renderMailDetail("panel")
+                                    : null}
+                                </div>
                               ))}
                             </ListCard>
                           </MailDigest>
@@ -689,13 +719,19 @@ export function AgendaView({
                   {attention.length ? (
                     <ListCard>
                       {attention.map((message) => (
-                        <MailRow
-                          key={message.id}
-                          message={message}
-                          triage={triageOn ? triage.map[message.id] : undefined}
-                          onReply={setReplyTo}
-                          compact
-                        />
+                        <div key={message.id}>
+                          <MailRow
+                            message={message}
+                            triage={triageOn ? triage.map[message.id] : undefined}
+                            onReply={setReplyTo}
+                            onOpen={toggleMail}
+                            selected={selectedMailId === message.id}
+                            compact
+                          />
+                          {detailView === "inline" && selectedMailId === message.id
+                            ? renderMailDetail("panel")
+                            : null}
+                        </div>
                       ))}
                     </ListCard>
                   ) : (
@@ -720,6 +756,7 @@ export function AgendaView({
         ) : null}
       </div>
       {detailView === "dialog" ? renderDetail("dialog") : null}
+      {detailView === "dialog" ? renderMailDetail("dialog") : null}
       <ReplyDialog
         key={replyTo?.id ?? "none"}
         message={replyTo}

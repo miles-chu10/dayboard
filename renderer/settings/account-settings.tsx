@@ -1,34 +1,16 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Field, FieldSet, Input, Status, toast } from "@glaze/core/components";
+import { Button, Field, FieldSet, Status, toast } from "@glaze/core/components";
 import type { AccountsStatus, GoogleAccountStatus, RemindersAccess } from "@main/shared-types";
 
-import { errorMessage, invoke, openExternal } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { queryKeys, useConnectGoogle, useRequestRemindersAccess } from "../lib/queries";
-
-const GOOGLE_REDIRECT_URI = "https://www.glaze.app/api/oauth/callback";
 
 export function GoogleSettings({ status }: { status: GoogleAccountStatus | undefined }) {
   const queryClient = useQueryClient();
   const connect = useConnectGoogle();
-  const [editing, setEditing] = useState(false);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
 
   const onAccountsChanged = (next: AccountsStatus) =>
     queryClient.setQueryData(queryKeys.accounts, next);
-
-  const save = useMutation({
-    mutationFn: () => invoke<AccountsStatus>("google:saveCredentials", { clientId, clientSecret }),
-    onSuccess: (next) => {
-      onAccountsChanged(next);
-      setEditing(false);
-      setClientId("");
-      setClientSecret("");
-      toast.success("Google client saved. Now connect your account.");
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
 
   const disconnect = useMutation({
     mutationFn: () => invoke<AccountsStatus>("google:disconnect"),
@@ -37,12 +19,6 @@ export function GoogleSettings({ status }: { status: GoogleAccountStatus | undef
       toast.success("Google account disconnected");
     },
     onError: (error) => toast.error(`Couldn't disconnect: ${errorMessage(error)}`),
-  });
-
-  const removeClient = useMutation({
-    mutationFn: () => invoke<AccountsStatus>("google:clearCredentials"),
-    onSuccess: onAccountsChanged,
-    onError: (error) => toast.error(`Couldn't remove client: ${errorMessage(error)}`),
   });
 
   if (!status) {
@@ -57,56 +33,19 @@ export function GoogleSettings({ status }: { status: GoogleAccountStatus | undef
 
   if (status.connected) {
     return (
-      <FieldSet title="Google Account" description="Google Tasks, Gmail, and Google Calendar.">
+      <FieldSet
+        title="Google Account"
+        description="Signs in with Google in your browser for Tasks, Gmail, and Calendar."
+      >
         <Field label="Account" description={status.email ?? "Signed in"}>
           <Status variant="success">Connected</Status>
         </Field>
         <Field>
           <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-            {connect.isPending ? "Waiting for Browser…" : "Reconnect"}
+            {connect.isPending ? "Waiting for Browser…" : "Sign in again"}
           </Button>
           <Button onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
-            Disconnect
-          </Button>
-        </Field>
-      </FieldSet>
-    );
-  }
-
-  if (!status.hasCredentials || editing) {
-    return (
-      <FieldSet
-        title="Google Account"
-        description="Paste the OAuth client from your Google Cloud project. It's stored encrypted on this Mac."
-      >
-        <Field label="Client ID">
-          <Input
-            className="w-64"
-            value={clientId}
-            onChange={(event) => setClientId(event.target.value)}
-            placeholder="….apps.googleusercontent.com"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </Field>
-        <Field label="Client Secret">
-          <Input
-            className="w-64"
-            type="password"
-            value={clientSecret}
-            onChange={(event) => setClientSecret(event.target.value)}
-            placeholder="GOCSPX-…"
-            autoComplete="off"
-          />
-        </Field>
-        <Field>
-          {editing ? <Button onClick={() => setEditing(false)}>Cancel</Button> : null}
-          <Button
-            variant="accent"
-            onClick={() => save.mutate()}
-            disabled={!clientId.trim() || !clientSecret.trim() || save.isPending}
-          >
-            Save Client
+            Sign out
           </Button>
         </Field>
       </FieldSet>
@@ -114,92 +53,29 @@ export function GoogleSettings({ status }: { status: GoogleAccountStatus | undef
   }
 
   return (
-    <FieldSet title="Google Account" description="Google Tasks, Gmail, and Google Calendar.">
-      <Field label="OAuth Client" description={`Client ID ${status.clientIdHint ?? "saved"}`}>
-        <Button size="small" onClick={() => setEditing(true)}>
-          Change
-        </Button>
-      </Field>
-      <Field label="Account" description="You'll sign in with Google in your browser.">
-        <Status variant="neutral">Not connected</Status>
+    <FieldSet
+      title="Google Account"
+      description="Connect your Google account in the browser to use Tasks, Gmail, and Calendar."
+    >
+      <Field
+        label="Account"
+        description={
+          status.hasCredentials
+            ? "You'll finish signing in with Google in your browser."
+            : "Google sign-in isn't available in this build yet."
+        }
+      >
+        <Status variant="neutral">Not signed in</Status>
       </Field>
       <Field>
-        <Button onClick={() => removeClient.mutate()} disabled={removeClient.isPending}>
-          Remove Client
-        </Button>
-        <Button variant="accent" onClick={() => connect.mutate()} disabled={connect.isPending}>
-          {connect.isPending ? "Waiting for Browser…" : "Connect Google Account"}
-        </Button>
-      </Field>
-    </FieldSet>
-  );
-}
-
-export function GoogleSetupGuide() {
-  const copyRedirect = async () => {
-    try {
-      await invoke("google:copyRedirectUri");
-      toast.success("Redirect URI copied");
-    } catch (error) {
-      toast.error(`Couldn't copy: ${errorMessage(error)}`);
-    }
-  };
-
-  return (
-    <FieldSet title="Google Cloud Setup" description="One-time setup, about five minutes.">
-      <Field
-        label="1. Create a project"
-        description="Create a new project in Google Cloud Console. Any name works."
-      >
         <Button
-          size="small"
-          onClick={() => void openExternal("https://console.cloud.google.com/projectcreate")}
+          variant="accent"
+          onClick={() => connect.mutate()}
+          disabled={connect.isPending || !status.hasCredentials}
         >
-          Open Console
+          {connect.isPending ? "Waiting for Browser…" : "Sign in with Google"}
         </Button>
       </Field>
-      <Field
-        label="2. Enable APIs"
-        description="Enable the Google Tasks API, Gmail API, and Google Calendar API."
-      >
-        <Button
-          size="small"
-          onClick={() => void openExternal("https://console.cloud.google.com/apis/library")}
-        >
-          API Library
-        </Button>
-      </Field>
-      <Field
-        label="3. Configure consent"
-        description="Set up the OAuth consent screen as External, then add your Google address under Test users."
-      >
-        <Button
-          size="small"
-          onClick={() => void openExternal("https://console.cloud.google.com/auth/overview")}
-        >
-          Consent Screen
-        </Button>
-      </Field>
-      <Field
-        label="4. Create a client"
-        description="Create an OAuth client ID of type Web application and add the redirect URI below."
-      >
-        <Button
-          size="small"
-          onClick={() => void openExternal("https://console.cloud.google.com/auth/clients")}
-        >
-          Clients
-        </Button>
-      </Field>
-      <Field label="Redirect URI" description={GOOGLE_REDIRECT_URI}>
-        <Button size="small" onClick={() => void copyRedirect()}>
-          Copy
-        </Button>
-      </Field>
-      <Field
-        label="5. Paste credentials"
-        description="Copy the Client ID and Client Secret into Google Account above, save, then connect."
-      />
     </FieldSet>
   );
 }

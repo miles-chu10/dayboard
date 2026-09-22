@@ -5,6 +5,7 @@ import { app, logger, safeStorage } from "@glaze/core/backend";
 import { OAuthService } from "@glaze/core/oauth";
 
 import type { GoogleAccountStatus } from "../shared-types.js";
+import { GOOGLE_APP_CLIENT_ID, GOOGLE_APP_CLIENT_SECRET } from "./google-oauth-app-client.js";
 
 export const GOOGLE_REDIRECT_URI = "https://www.glaze.app/api/oauth/callback";
 
@@ -17,9 +18,14 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ];
 
-interface StoredGoogleConfig {
+/** Legacy user-pasted client (pre–public login). */
+interface LegacyGoogleConfig {
   clientId: string;
   clientSecret: string;
+  email: string | null;
+}
+
+interface GoogleAccountProfile {
   email: string | null;
 }
 
@@ -33,15 +39,20 @@ export class GoogleAuthError extends Error {
   }
 }
 
-let cachedConfig: StoredGoogleConfig | null | undefined;
+let cachedLegacy: LegacyGoogleConfig | null | undefined;
+let cachedProfile: GoogleAccountProfile | null | undefined;
 let service: { clientId: string; instance: OAuthService } | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 
-function configPath(): string {
+function legacyConfigPath(): string {
   return path.join(app.getPath("userData"), "google-config.bin");
 }
 
-function isStoredConfig(value: unknown): value is StoredGoogleConfig {
+function profilePath(): string {
+  return path.join(app.getPath("userData"), "google-account.json");
+}
+
+function isLegacyConfig(value: unknown): value is LegacyGoogleConfig {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
@@ -51,51 +62,85 @@ function isStoredConfig(value: unknown): value is StoredGoogleConfig {
   );
 }
 
-async function readConfig(): Promise<StoredGoogleConfig | null> {
-  if (cachedConfig !== undefined) return cachedConfig;
+function appClient(): { clientId: string; clientSecret: string } | null {
+  const clientId = GOOGLE_APP_CLIENT_ID.trim();
+  const clientSecret = GOOGLE_APP_CLIENT_SECRET.trim();
+  if (!clientId || !clientSecret) return null;
+  if (!clientId.endsWith(".apps.googleusercontent.com")) return null;
+  return { clientId, clientSecret };
+}
+
+async function readLegacyConfig(): Promise<LegacyGoogleConfig | null> {
+  if (cachedLegacy !== undefined) return cachedLegacy;
   let encrypted: Buffer;
   try {
-    encrypted = await fs.readFile(configPath());
+    encrypted = await fs.readFile(legacyConfigPath());
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      cachedConfig = null;
+      cachedLegacy = null;
       return null;
     }
     throw error;
   }
-  const parsed: unknown = JSON.parse(await safeStorage.decryptString(encrypted));
-  if (!isStoredConfig(parsed)) {
-    throw new Error(
-      `Google configuration at ${configPath()} is malformed. Re-enter your client in Settings.`,
-    );
+  try {
+    const parsed: unknown = JSON.parse(await safeStorage.decryptString(encrypted));
+    cachedLegacy = isLegacyConfig(parsed) ? parsed : null;
+  } catch (error) {
+    logger.warn("google-auth", "Could not read legacy Google client config", error);
+    cachedLegacy = null;
   }
-  cachedConfig = parsed;
-  return parsed;
+  return cachedLegacy;
 }
 
-function writeConfig(config: StoredGoogleConfig | null): Promise<void> {
-  const run = async () => {
-    const target = configPath();
-    if (config === null) {
-      await fs.rm(target, { force: true });
-    } else {
-      await fs.mkdir(path.dirname(target), { recursive: true });
-      const tmp = `${target}.${process.pid}.tmp`;
-      await fs.writeFile(tmp, await safeStorage.encryptString(JSON.stringify(config)));
-      await fs.rename(tmp, target);
+async function readProfile(): Promise<GoogleAccountProfile> {
+  if (cachedProfile !== undefined) return cachedProfile ?? { email: null };
+  try {
+    const raw = await fs.readFile(profilePath(), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    const email =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "email" in parsed &&
+      (typeof (parsed as GoogleAccountProfile).email === "string" ||
+        (parsed as GoogleAccountProfile).email === null)
+        ? (parsed as GoogleAccountProfile).email
+        : null;
+    cachedProfile = { email };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      logger.warn("google-auth", "Could not read Google account profile", error);
     }
-    cachedConfig = config;
+    cachedProfile = { email: null };
+  }
+  return cachedProfile;
+}
+
+function writeProfile(profile: GoogleAccountProfile): Promise<void> {
+  const run = async () => {
+    await fs.mkdir(path.dirname(profilePath()), { recursive: true });
+    const tmp = `${profilePath()}.${process.pid}.tmp`;
+    await fs.writeFile(tmp, `${JSON.stringify(profile)}\n`, { mode: 0o600 });
+    await fs.rename(tmp, profilePath());
+    cachedProfile = profile;
   };
   writeQueue = writeQueue.then(run, run);
   return writeQueue;
 }
 
-function getService(config: StoredGoogleConfig): OAuthService {
-  if (service?.clientId === config.clientId) return service.instance;
+async function resolveClient(): Promise<{ clientId: string; clientSecret: string } | null> {
+  const baked = appClient();
+  if (baked) return baked;
+  const legacy = await readLegacyConfig();
+  if (legacy) return { clientId: legacy.clientId, clientSecret: legacy.clientSecret };
+  return null;
+}
+
+function getService(clientId: string, clientSecret: string): OAuthService {
+  if (service?.clientId === clientId) return service.instance;
   const instance = new OAuthService({
     providerId: "google",
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
+    clientId,
+    clientSecret,
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
     scopes: SCOPES,
@@ -105,55 +150,71 @@ function getService(config: StoredGoogleConfig): OAuthService {
       include_granted_scopes: "true",
     },
   });
-  service = { clientId: config.clientId, instance };
+  service = { clientId, instance };
   return instance;
 }
 
-function clientIdHint(clientId: string): string {
-  const head = clientId.split(".")[0] ?? clientId;
-  return head.length > 12 ? `${head.slice(0, 6)}…${head.slice(-4)}` : head;
+async function resolveEmailHint(): Promise<string | null> {
+  const profile = await readProfile();
+  if (profile.email) return profile.email;
+  const legacy = await readLegacyConfig();
+  return legacy?.email ?? null;
 }
 
 export async function getGoogleStatus(): Promise<GoogleAccountStatus> {
-  const config = await readConfig();
-  if (!config) return { hasCredentials: false, connected: false, email: null, clientIdHint: null };
-  const tokens = await getService(config).getTokens();
+  const client = await resolveClient();
+  if (!client) {
+    return { hasCredentials: false, connected: false, email: null, clientIdHint: null };
+  }
+  const tokens = await getService(client.clientId, client.clientSecret).getTokens();
   return {
     hasCredentials: true,
     connected: tokens !== null,
-    email: config.email,
-    clientIdHint: clientIdHint(config.clientId),
+    email: await resolveEmailHint(),
+    clientIdHint: null,
   };
 }
 
+/** @deprecated Public apps use the baked-in client; kept for offline tests/migration only. */
 export async function saveGoogleCredentials(clientId: string, clientSecret: string): Promise<void> {
-  const existing = await readConfig();
+  const existing = await readLegacyConfig();
   if (existing && existing.clientId !== clientId) {
-    await getService(existing).removeTokens();
+    await getService(existing.clientId, existing.clientSecret).removeTokens();
   }
-  await writeConfig({
+  const next: LegacyGoogleConfig = {
     clientId,
     clientSecret,
     email: existing?.clientId === clientId ? existing.email : null,
-  });
+  };
+  const target = legacyConfigPath();
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  const tmp = `${target}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, await safeStorage.encryptString(JSON.stringify(next)));
+  await fs.rename(tmp, target);
+  cachedLegacy = next;
+  service = null;
 }
 
+/** Removes a legacy pasted client. Does not remove the app-owned client. */
 export async function clearGoogleCredentials(): Promise<void> {
-  const existing = await readConfig();
-  if (existing) await getService(existing).removeTokens();
-  service = null;
-  await writeConfig(null);
+  const existing = await readLegacyConfig();
+  if (existing && !appClient()) {
+    await getService(existing.clientId, existing.clientSecret).removeTokens();
+  }
+  await fs.rm(legacyConfigPath(), { force: true });
+  cachedLegacy = null;
+  if (!appClient()) service = null;
 }
 
 export async function connectGoogle(): Promise<void> {
-  const config = await readConfig();
-  if (!config) {
+  const client = await resolveClient();
+  if (!client) {
     throw new GoogleAuthError(
       "needs-setup",
-      "Add your Google OAuth Client ID and Secret in Settings first.",
+      "Google sign-in isn't configured in this build. Add the app OAuth client and try again.",
     );
   }
-  const tokens = await getService(config).authorize();
+  const tokens = await getService(client.clientId, client.clientSecret).authorize();
   let email: string | null = null;
   try {
     const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
@@ -166,13 +227,24 @@ export async function connectGoogle(): Promise<void> {
   } catch (error) {
     logger.warn("google-auth", "Could not read Google account email", error);
   }
-  await writeConfig({ ...config, email });
+  await writeProfile({ email });
+  const legacy = await readLegacyConfig();
+  if (legacy && legacy.clientId === client.clientId) {
+    cachedLegacy = { ...legacy, email };
+    const target = legacyConfigPath();
+    const tmp = `${target}.${process.pid}.tmp`;
+    await fs.writeFile(tmp, await safeStorage.encryptString(JSON.stringify(cachedLegacy)));
+    await fs.rename(tmp, target);
+  }
 }
 
 export async function disconnectGoogle(): Promise<void> {
-  const config = await readConfig();
-  if (!config) return;
-  const oauth = getService(config);
+  const client = await resolveClient();
+  if (!client) {
+    await writeProfile({ email: null });
+    return;
+  }
+  const oauth = getService(client.clientId, client.clientSecret);
   const tokens = await oauth.getTokens();
   const revokable = tokens?.refreshToken ?? tokens?.accessToken;
   if (revokable) {
@@ -186,18 +258,26 @@ export async function disconnectGoogle(): Promise<void> {
     }
   }
   await oauth.removeTokens();
-  await writeConfig({ ...config, email: null });
+  await writeProfile({ email: null });
+  const legacy = await readLegacyConfig();
+  if (legacy) {
+    cachedLegacy = { ...legacy, email: null };
+    const target = legacyConfigPath();
+    const tmp = `${target}.${process.pid}.tmp`;
+    await fs.writeFile(tmp, await safeStorage.encryptString(JSON.stringify(cachedLegacy)));
+    await fs.rename(tmp, target);
+  }
 }
 
 export async function getGoogleAccessToken(): Promise<string> {
-  const config = await readConfig();
-  if (!config) {
+  const client = await resolveClient();
+  if (!client) {
     throw new GoogleAuthError(
       "needs-setup",
-      "Google is not set up. Add your OAuth client in Settings.",
+      "Google sign-in isn't configured in this build.",
     );
   }
-  const oauth = getService(config);
+  const oauth = getService(client.clientId, client.clientSecret);
   if (!(await oauth.getTokens())) {
     throw new GoogleAuthError("not-connected", "Google account is not connected.");
   }
@@ -205,6 +285,6 @@ export async function getGoogleAccessToken(): Promise<string> {
     return await oauth.getAccessToken();
   } catch (error) {
     logger.warn("google-auth", "Google token refresh failed", error);
-    throw new GoogleAuthError("not-connected", "Google session expired. Reconnect your account.");
+    throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
   }
 }
