@@ -52,6 +52,12 @@ export interface AppSettings {
     /** Per-calendar override; calendars without an entry use Google's own visibility. */
     visibility: Record<string, boolean>;
   };
+  /** Local MCP server for external clients such as Claude Code and Codex. */
+  mcpServer: {
+    enabled: boolean;
+    /** Expose tools that change tasks, reminders, events, or email. */
+    allowWrites: boolean;
+  };
   ai: {
     enabled: boolean;
     provider: AIProvider;

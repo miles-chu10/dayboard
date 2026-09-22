@@ -1,13 +1,13 @@
-# Dashboard
+# Dayboard
 
-A native macOS productivity dashboard built with [Glaze](https://glaze.app). It brings **Google Tasks**, **Apple Reminders**, **Gmail**, and **Google Calendar** into one Agenda, with optional AI features powered by Glaze AI, your Claude subscription (Claude Code), or your ChatGPT subscription (Codex CLI).
+Dayboard is a native macOS productivity dashboard built with [Glaze](https://glaze.app). It brings **Google Tasks**, **Apple Reminders**, **Gmail**, and **Google Calendar** into one Agenda, with optional AI features powered by Glaze AI, your Claude subscription (Claude Code), or your ChatGPT subscription (Codex CLI).
 
 ## Features
 
 - **Agenda** — today or the next 7 days across Google Tasks, Apple Reminders, and Google Calendar, with search, per-source layers, overdue and undated backlogs, and a compact daily brief.
 - **Inbox** — recent Gmail with AI triage and reply drafts saved to Gmail.
 - **AI** — briefing, prioritization, natural-language capture, meeting prep, weekly review, and an Assistant that can use MCP tools. Every feature can be turned off.
-- **MCP** — a local server exposes dashboard tools to Claude Code, Codex, and other MCP clients while the app runs.
+- **MCP** — an optional local server lets Claude Code, Codex, and other MCP clients use Dayboard's sources while the app runs. It's off by default, requires an access key, and stays read-only unless you turn on changes (Settings → MCP Servers).
 - **Settings** — source colors, relative calendar range, launch view, auto-refresh, AI provider/model/effort/speed, MCP servers, and Start at login.
 
 ### How sources sync

@@ -45,9 +45,15 @@ export async function getSettings() {
     sources: { tasks: { enabled: true }, reminders: { enabled: true }, mail: { enabled: true }, calendar: { enabled: true } },
     mail: { maxMessages: 25 },
     calendar: { range: "next-7-days", visibility: {} },
+    mcpServer: globalThis.__mcpServerSettings ?? { enabled: true, allowWrites: true },
   };
 }
 `;
+const accessKeyStub = `
+export async function getMcpAccessKey() { return "fixture-key"; }
+export async function isValidMcpBearer(header) { return header === "Bearer fixture-key"; }
+`;
+const EXTERNAL_AUTH = { authorization: "Bearer fixture-key" };
 const calendarRangeStub = `export function calendarRangeDays() { return 7; }`;
 
 function mcpPlugin() {
@@ -57,6 +63,7 @@ function mcpPlugin() {
     ["./google-auth.js", authStub],
     ["./apple-reminders.js", remindersStub],
     ["./settings-store.js", settingsStub],
+    ["./mcp-access-key.js", accessKeyStub],
     ["./calendar-range.js", calendarRangeStub],
   ]);
   return {
@@ -141,18 +148,21 @@ function close(server) {
   return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
 
-function rawRequest(port, headers) {
-  return rawMcpRequest(port, headers, { jsonrpc: "2.0", id: 1, method: "initialize", params: {} }).then(
-    ({ status }) => status,
-  );
+function rawRequest(port, headers, requestPath = "/assistant-mcp") {
+  return rawMcpRequest(
+    port,
+    headers,
+    { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+    requestPath,
+  ).then(({ status }) => status);
 }
 
-function rawMcpRequest(port, headers, body) {
+function rawMcpRequest(port, headers, body, requestPath = "/assistant-mcp") {
   return new Promise((resolve, reject) => {
     const client = request({
       hostname: "127.0.0.1",
       port,
-      path: "/assistant-mcp",
+      path: requestPath,
       method: "POST",
       headers: {
         accept: "application/json, text/event-stream",
@@ -201,7 +211,9 @@ test("Assistant MCP exposes exactly six read-only tools and rejects unauthentica
     const externalClient = new Client({ name: "external-mcp-test", version: "1.0.0" });
     try {
       await externalClient.connect(
-        new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)),
+        new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+          requestInit: { headers: EXTERNAL_AUTH },
+        }),
       );
       assert.equal((await externalClient.listTools()).tools.length, 14);
     } finally {
@@ -255,4 +267,52 @@ test("Assistant MCP resolver honors the global switch and replaces same-app writ
     [sameApp.id, savedAssistant.id, external.id],
   );
   assert.deepEqual(saved, before);
+});
+
+test("External MCP is keyed, can be turned off, and hides or blocks writes when changes are off", async () => {
+  const module = await loadMcpHarness();
+  const server = module.createMcpHttpServer();
+  const port = await listen(server);
+  const url = new URL(`http://127.0.0.1:${port}/mcp`);
+  try {
+    globalThis.__mcpServerSettings = { enabled: false, allowWrites: true };
+    assert.equal(await rawRequest(port, EXTERNAL_AUTH, "/mcp"), 403, "off refuses even a valid key");
+
+    globalThis.__mcpServerSettings = { enabled: true, allowWrites: false };
+    assert.equal(await rawRequest(port, {}, "/mcp"), 401, "missing key");
+    assert.equal(await rawRequest(port, { authorization: "Bearer wrong" }, "/mcp"), 401, "wrong key");
+    assert.equal(await rawRequest(port, { ...EXTERNAL_AUTH, host: "example.test" }, "/mcp"), 403);
+
+    const readOnly = new Client({ name: "read-only", version: "1.0.0" });
+    const readOnlyTransport = new StreamableHTTPClientTransport(url, { requestInit: { headers: EXTERNAL_AUTH } });
+    try {
+      await readOnly.connect(readOnlyTransport);
+      assert.deepEqual(
+        (await readOnly.listTools()).tools.map((tool) => tool.name).sort(),
+        ["get_weekly_review", "list_events", "list_inbox", "list_reminders", "list_tasks", "read_email"],
+      );
+    } finally {
+      await readOnlyTransport.terminateSession();
+      await readOnly.close();
+    }
+
+    globalThis.__mcpServerSettings = { enabled: true, allowWrites: true };
+    const writer = new Client({ name: "writer", version: "1.0.0" });
+    const writerTransport = new StreamableHTTPClientTransport(url, { requestInit: { headers: EXTERNAL_AUTH } });
+    try {
+      await writer.connect(writerTransport);
+      assert.equal((await writer.listTools()).tools.length, 14);
+      // Turning changes off applies to sessions that are already open.
+      globalThis.__mcpServerSettings = { enabled: true, allowWrites: false };
+      const blocked = await writer.callTool({ name: "create_task", arguments: { title: "nope" } });
+      assert.equal(blocked.isError, true);
+      assert.match(blocked.content[0].text, /Allow changes/);
+    } finally {
+      await writerTransport.terminateSession().catch(() => undefined);
+      await writer.close();
+    }
+  } finally {
+    delete globalThis.__mcpServerSettings;
+    await close(server);
+  }
 });

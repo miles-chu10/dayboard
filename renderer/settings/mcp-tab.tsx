@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Callout,
@@ -243,6 +243,107 @@ function McpServerDialog({
   );
 }
 
+type McpClientKind = "claude" | "codex" | "json";
+
+const CLIENT_COPIED: Record<McpClientKind, string> = {
+  claude: "Claude Code command copied. Run it in Terminal.",
+  codex: "Codex setup copied. Paste it into ~/.codex/config.toml.",
+  json: "MCP JSON copied. Paste it into your client's MCP settings.",
+};
+
+/** Local endpoint for external MCP clients; off by default and keyed. */
+function ExternalMcpSettings() {
+  const { settings, edit } = useSettingsEditor();
+  const info = useQuery({
+    queryKey: ["mcp-external"],
+    queryFn: () => invoke<{ url: string | null }>("mcp:externalInfo"),
+  });
+  const copy = useMutation({
+    mutationFn: (client: McpClientKind) => invoke("mcp:copyExternalSetup", { client }),
+    onSuccess: (_result, client) => toast.success(CLIENT_COPIED[client]),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const regenerate = useMutation({
+    mutationFn: () => invoke("mcp:regenerateExternalKey"),
+    onSuccess: () =>
+      toast.success("New access key created. Copy the setup again for each client."),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  if (!settings) return null;
+  const { enabled, allowWrites } = settings.mcpServer;
+
+  return (
+    <FieldSet
+      title="Dayboard MCP Server"
+      description="Let Claude Code, Codex, and other MCP clients on this Mac use your Dayboard sources while the app is running. Clients need your access key."
+    >
+      <Field
+        label="Allow MCP clients"
+        description={enabled ? (info.data?.url ?? "Starting…") : "Off. Clients can't connect."}
+      >
+        <Switch
+          checked={enabled}
+          onCheckedChange={(checked) =>
+            edit((draft) => {
+              draft.mcpServer.enabled = checked;
+            })
+          }
+          aria-label="Allow MCP clients"
+        />
+      </Field>
+      <Field
+        label="Allow changes"
+        description="Let clients add and complete tasks and reminders, create events, save reply drafts, and archive email. Off keeps clients read-only."
+        disabled={!enabled}
+      >
+        <Switch
+          checked={allowWrites}
+          disabled={!enabled}
+          onCheckedChange={(checked) =>
+            edit((draft) => {
+              draft.mcpServer.allowWrites = checked;
+            })
+          }
+          aria-label="Allow MCP clients to make changes"
+        />
+      </Field>
+      {enabled ? (
+        <>
+          <Field
+            label="Connect a client"
+            description="Copies setup that includes your access key. Keep it private."
+          >
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="small" onClick={() => copy.mutate("claude")} disabled={copy.isPending}>
+                Claude Code
+              </Button>
+              <Button size="small" onClick={() => copy.mutate("codex")} disabled={copy.isPending}>
+                Codex
+              </Button>
+              <Button size="small" onClick={() => copy.mutate("json")} disabled={copy.isPending}>
+                JSON
+              </Button>
+            </div>
+          </Field>
+          <Field
+            label="Access key"
+            description="A new key disconnects every client until you copy the setup again."
+          >
+            <Button
+              size="small"
+              onClick={() => regenerate.mutate()}
+              disabled={regenerate.isPending}
+            >
+              New Key
+            </Button>
+          </Field>
+        </>
+      ) : null}
+    </FieldSet>
+  );
+}
+
 export function McpTab() {
   const queryClient = useQueryClient();
   const { settings, edit } = useSettingsEditor();
@@ -270,8 +371,8 @@ export function McpTab() {
     try {
       const status = await invoke<BuiltInMcpStatus>("mcp:assistantTest");
       setBuiltInStatus(status);
-      if (status.ok) toast.success("Dashboard MCP connected");
-      else toast.error("Dashboard MCP connection failed");
+      if (status.ok) toast.success("Dayboard MCP connected");
+      else toast.error("Dayboard MCP connection failed");
     } catch (error) {
       setBuiltInStatus({ state: "error", ok: false, toolCount: 0 });
       toast.error(errorMessage(error));
@@ -293,7 +394,7 @@ export function McpTab() {
         description="Connect Model Context Protocol servers so the Assistant can use their tools, with Glaze AI, Claude, or ChatGPT."
       >
         <Field
-          label="Dashboard"
+          label="Dayboard"
           description="Built into the Assistant while this app is running. It can read tasks, reminders, inbox, email, calendar, and weekly review data."
         >
           <div className="flex items-center gap-3">
@@ -326,7 +427,7 @@ export function McpTab() {
             label="Use MCP tools in Assistant"
             description={
               featureOn(settings, "assistant")
-                ? "Let the Assistant use Dashboard tools and your enabled servers."
+                ? "Let the Assistant use Dayboard tools and your enabled servers."
                 : "Turn on the Assistant in the AI tab to use these tools."
             }
           >
@@ -345,6 +446,8 @@ export function McpTab() {
         )}
       </FieldSet>
 
+      <ExternalMcpSettings />
+
       <FieldSet title="Custom servers">
         {servers.isPending ? (
           <Field label="Servers">
@@ -355,7 +458,7 @@ export function McpTab() {
         ) : servers.data.length === 0 ? (
           <Field
             label="No custom servers"
-            description="Dashboard tools are already included. Add other services here."
+            description="Dayboard tools are already included. Add other services here."
           />
         ) : (
           servers.data.map((server) => (

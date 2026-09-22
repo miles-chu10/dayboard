@@ -1,4 +1,4 @@
-import { ipcMain, logger } from "@glaze/core/backend";
+import { clipboard, ipcMain, logger } from "@glaze/core/backend";
 
 import type {
   AIStreamChunk,
@@ -9,7 +9,12 @@ import { runAssistant } from "../services/ai/assistant.js";
 import { checkCliProvider, isCancelled, runCliCompletion } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
 import { testMcpServer } from "../services/ai/mcp-client.js";
-import { checkAssistantMcpConnection, getAssistantMcpStatus } from "../services/mcp-http-server.js";
+import {
+  checkAssistantMcpConnection,
+  getAssistantMcpStatus,
+  getExternalMcpUrl,
+} from "../services/mcp-http-server.js";
+import { getMcpAccessKey, regenerateMcpAccessKey } from "../services/mcp-access-key.js";
 import { resolveAssistantMcpServers } from "../services/ai/assistant-mcp.js";
 import {
   deleteMcpServer,
@@ -22,6 +27,24 @@ import {
 } from "../services/settings-store.js";
 
 const RUN_TIMEOUT_MS = 3 * 60_000;
+
+type McpClientKind = "claude" | "codex" | "json";
+
+/** Client setup including the access key; built here so the key never reaches the renderer. */
+function externalMcpSetup(client: McpClientKind, url: string, key: string): string {
+  const authorization = `Bearer ${key}`;
+  if (client === "claude") {
+    return `claude mcp add --transport http dayboard ${url} --header "Authorization: ${authorization}"`;
+  }
+  if (client === "codex") {
+    return `[mcp_servers.dayboard]\nurl = "${url}"\nhttp_headers = { Authorization = "${authorization}" }\n`;
+  }
+  return JSON.stringify(
+    { mcpServers: { dayboard: { type: "http", url, headers: { Authorization: authorization } } } },
+    null,
+    2,
+  );
+}
 
 function asObject(value: unknown, channel: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null)
@@ -80,6 +103,26 @@ export function registerAIHandlers(): void {
     ).length,
   }));
   ipcMain.handle("mcp:assistantTest", () => checkAssistantMcpConnection());
+
+  // External MCP clients (Claude Code, Codex, …)
+  ipcMain.handle("mcp:externalInfo", () => ({ url: getExternalMcpUrl() }));
+
+  ipcMain.handle("mcp:copyExternalSetup", async (_event, payload: unknown) => {
+    const channel = "mcp:copyExternalSetup";
+    const client = asObject(payload, channel).client;
+    if (client !== "claude" && client !== "codex" && client !== "json") {
+      throw new Error(`${channel}: client must be claude, codex, or json`);
+    }
+    const url = getExternalMcpUrl();
+    if (!url) throw new Error("The MCP server hasn't started yet. Try again in a moment.");
+    clipboard.writeText(externalMcpSetup(client, url, await getMcpAccessKey()));
+    return { copied: true };
+  });
+
+  ipcMain.handle("mcp:regenerateExternalKey", async () => {
+    await regenerateMcpAccessKey();
+    return { regenerated: true };
+  });
 
   ipcMain.handle("mcp:save", async (_event, payload: unknown) => {
     const servers = await saveMcpServer(payload);

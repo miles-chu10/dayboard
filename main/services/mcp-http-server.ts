@@ -31,6 +31,7 @@ import {
   setReminderCompleted,
 } from "./apple-reminders.js";
 import { calendarRangeDays } from "./calendar-range.js";
+import { isValidMcpBearer } from "./mcp-access-key.js";
 import { getSettings } from "./settings-store.js";
 import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
 
@@ -98,14 +99,14 @@ async function ensureSource(source: SourceId): Promise<void> {
   const settings = await getSettings();
   if (!settings.sources[source].enabled) {
     throw new SourceUnavailable(
-      `${SOURCE_NAMES[source]} is turned off in Work Dashboard settings.`,
+      `${SOURCE_NAMES[source]} is turned off in Dayboard settings.`,
     );
   }
   if (source === "reminders") {
     const access = await getRemindersAccess();
     if (access !== "full-access") {
       throw new SourceUnavailable(
-        "Work Dashboard doesn't have Reminders access. Grant it from the app's Settings.",
+        "Dayboard doesn't have Reminders access. Grant it from the app's Settings.",
       );
     }
   }
@@ -127,14 +128,24 @@ function run<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
       if (error instanceof GoogleAuthError) {
         return failure(
           error.reason === "needs-setup"
-            ? "Google isn't set up in Work Dashboard. Add the Google account in the app's Settings."
-            : "Work Dashboard's Google account isn't connected. Reconnect it in the app's Settings.",
+            ? "Google isn't set up in Dayboard. Add the Google account in the app's Settings."
+            : "Dayboard's Google account isn't connected. Reconnect it in the app's Settings.",
         );
       }
       logger.error("mcp", `${source} tool failed`, error);
       return failure(error instanceof Error ? error.message : String(error));
     }
   };
+}
+
+const WRITES_OFF_MESSAGE =
+  'Changes are turned off in Dayboard. Turn on "Allow changes" in Settings → MCP Servers.';
+
+/** Write tools re-check the switch per call, so turning changes off applies to open sessions. */
+function runWrite<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
+  const guarded = run(source, body);
+  return async (args: A): Promise<ToolResult> =>
+    (await getSettings()).mcpServer.allowWrites ? guarded(args) : failure(WRITES_OFF_MESSAGE);
 }
 
 function capped<T>(items: T[], label: string) {
@@ -252,14 +263,15 @@ function registerReadOnlyTools(server: McpServer): void {
 }
 
 function buildAssistantMcpServer(): McpServer {
-  const server = new McpServer({ name: "work-dashboard-assistant", version: "1.0.0" });
+  const server = new McpServer({ name: "dayboard-assistant", version: "1.0.0" });
   registerReadOnlyTools(server);
   return server;
 }
 
-function buildMcpServer(): McpServer {
-  const server = new McpServer({ name: "work-dashboard", version: "1.0.0" });
+function buildMcpServer(allowWrites: boolean): McpServer {
+  const server = new McpServer({ name: "dayboard", version: "1.0.0" });
   registerReadOnlyTools(server);
+  if (!allowWrites) return server;
 
   server.registerTool(
     "create_task",
@@ -268,7 +280,7 @@ function buildMcpServer(): McpServer {
       description: "Add a task to the default Google Tasks list.",
       inputSchema: { title: z.string().min(1), notes: z.string().optional(), due: date.optional() },
     },
-    run("tasks", async ({ title, notes, due }: { title: string; notes?: string; due?: string }) => {
+    runWrite("tasks", async ({ title, notes, due }: { title: string; notes?: string; due?: string }) => {
       await createTask({ title, notes, due });
       notifyChanged("tasks");
       return text(`Created task "${title}".`);
@@ -287,7 +299,7 @@ function buildMcpServer(): McpServer {
         completed: z.boolean().default(true),
       },
     },
-    run(
+    runWrite(
       "tasks",
       async ({
         list_id,
@@ -317,7 +329,7 @@ function buildMcpServer(): McpServer {
         due_time: time.optional(),
       },
     },
-    run(
+    runWrite(
       "reminders",
       async (args: { title: string; notes?: string; due_date?: string; due_time?: string }) => {
         if (args.due_time && !args.due_date) return failure("due_time needs a due_date.");
@@ -341,7 +353,7 @@ function buildMcpServer(): McpServer {
         "Mark an Apple Reminder done (or reopen it with completed=false). The ref comes from list_reminders.",
       inputSchema: { ref: z.string().min(1), completed: z.boolean().default(true) },
     },
-    run("reminders", async ({ ref, completed }: { ref: string; completed: boolean }) => {
+    runWrite("reminders", async ({ ref, completed }: { ref: string; completed: boolean }) => {
       await setReminderCompleted(ref, completed);
       notifyChanged("reminders");
       return text(completed ? "Reminder marked done." : "Reminder reopened.");
@@ -356,7 +368,7 @@ function buildMcpServer(): McpServer {
         "Save a reply to a Gmail message as a draft in the same thread. Nothing is sent.",
       inputSchema: { id: z.string().min(1), body: z.string().min(1) },
     },
-    run("mail", async ({ id, body }: { id: string; body: string }) => {
+    runWrite("mail", async ({ id, body }: { id: string; body: string }) => {
       const { draftId } = await createReplyDraft(id, body);
       return text(`Saved reply draft ${draftId} in Gmail.`);
     }),
@@ -369,7 +381,7 @@ function buildMcpServer(): McpServer {
       description: "Remove a Gmail message from the inbox (it stays in All Mail).",
       inputSchema: { id: z.string().min(1) },
     },
-    run("mail", async ({ id }: { id: string }) => {
+    runWrite("mail", async ({ id }: { id: string }) => {
       await modifyMessage(id, ["INBOX"]);
       notifyChanged("mail");
       return text("Message archived.");
@@ -383,7 +395,7 @@ function buildMcpServer(): McpServer {
       description: "Mark a Gmail message as read.",
       inputSchema: { id: z.string().min(1) },
     },
-    run("mail", async ({ id }: { id: string }) => {
+    runWrite("mail", async ({ id }: { id: string }) => {
       await modifyMessage(id, ["UNREAD"]);
       notifyChanged("mail");
       return text("Message marked read.");
@@ -405,7 +417,7 @@ function buildMcpServer(): McpServer {
         notes: z.string().optional(),
       },
     },
-    run(
+    runWrite(
       "calendar",
       async (args: {
         title: string;
@@ -441,7 +453,7 @@ export function stableMcpPort(projectId: string): number {
 export function getAssistantMcpServerConfig(projectId: string): McpServerConfig {
   return {
     id: ASSISTANT_MCP_ID,
-    name: "Dashboard",
+    name: "Dayboard",
     enabled: true,
     transport: "http",
     command: "",
@@ -450,6 +462,11 @@ export function getAssistantMcpServerConfig(projectId: string): McpServerConfig 
     url: `http://127.0.0.1:${stableMcpPort(projectId)}${ASSISTANT_MCP_PATH}`,
     headers: { Authorization: `Bearer ${assistantMcpToken}` },
   };
+}
+
+/** Address of the external-client endpoint, once the server is listening. */
+export function getExternalMcpUrl(): string | null {
+  return activeProjectId ? `http://127.0.0.1:${stableMcpPort(activeProjectId)}/mcp` : null;
 }
 
 export function getActiveAssistantMcpServerConfig(): McpServerConfig | null {
@@ -525,20 +542,48 @@ function hasAssistantMcpAuthorization(request: {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
+type RequestHeaders = { headers: Record<string, string | string[] | undefined> };
+
 type McpRoute = {
-  buildServer: () => McpServer;
-  requireBearer: boolean;
+  buildServer: () => Promise<McpServer>;
+  /** Returns an HTTP rejection, or null when the request may proceed. Runs on every request. */
+  authorize: (request: RequestHeaders) => Promise<{ status: number; message: string } | null>;
   transports: Map<string, StreamableHTTPServerTransport>;
 };
 
+function authorizationHeader(request: RequestHeaders): string | undefined {
+  const value = request.headers.authorization;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+async function authorizeExternalClient(request: RequestHeaders) {
+  if (!(await getSettings()).mcpServer.enabled) {
+    return {
+      status: 403,
+      message: "Dayboard's MCP server is turned off. Turn it on in Settings → MCP Servers.",
+    };
+  }
+  return (await isValidMcpBearer(authorizationHeader(request)))
+    ? null
+    : { status: 401, message: "Unauthorized" };
+}
+
 export function createMcpHttpServer() {
   const routes = new Map<string, McpRoute>([
-    ["/mcp", { buildServer: buildMcpServer, requireBearer: false, transports: new Map() }],
+    [
+      "/mcp",
+      {
+        buildServer: async () => buildMcpServer((await getSettings()).mcpServer.allowWrites),
+        authorize: authorizeExternalClient,
+        transports: new Map(),
+      },
+    ],
     [
       ASSISTANT_MCP_PATH,
       {
-        buildServer: buildAssistantMcpServer,
-        requireBearer: true,
+        buildServer: async () => buildAssistantMcpServer(),
+        authorize: async (request) =>
+          hasAssistantMcpAuthorization(request) ? null : { status: 401, message: "Unauthorized" },
         transports: new Map(),
       },
     ],
@@ -556,8 +601,11 @@ export function createMcpHttpServer() {
         response.writeHead(403).end("Loopback requests only");
         return;
       }
-      if (route.requireBearer && !hasAssistantMcpAuthorization(request)) {
-        response.writeHead(401, { "WWW-Authenticate": "Bearer" }).end("Unauthorized");
+      const rejection = await route.authorize(request);
+      if (rejection) {
+        response
+          .writeHead(rejection.status, rejection.status === 401 ? { "WWW-Authenticate": "Bearer" } : {})
+          .end(rejection.message);
         return;
       }
 
@@ -588,7 +636,7 @@ export function createMcpHttpServer() {
           newTransport.onclose = () => {
             if (newTransport.sessionId) route.transports.delete(newTransport.sessionId);
           };
-          await route.buildServer().connect(newTransport);
+          await (await route.buildServer()).connect(newTransport);
           transport = newTransport;
         }
         if (!transport) {

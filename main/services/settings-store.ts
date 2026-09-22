@@ -67,6 +67,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   mail: { maxMessages: 25 },
   calendar: { range: "next-7-days", visibility: {} },
+  mcpServer: { enabled: false, allowWrites: false },
   ai: {
     enabled: true,
     provider: "glaze",
@@ -119,6 +120,7 @@ export function normalizeSettings(value: unknown): AppSettings {
   const mail = record(root.mail);
   const calendar = record(root.calendar);
   const ai = record(root.ai);
+  const mcpServer = record(root.mcpServer);
   const features = record(ai.features);
   const defaults = DEFAULT_SETTINGS;
 
@@ -156,6 +158,10 @@ export function normalizeSettings(value: unknown): AppSettings {
         LEGACY_CALENDAR_DAYS[Number(calendar.daysAhead)] ?? defaults.calendar.range,
       ),
       visibility,
+    },
+    mcpServer: {
+      enabled: bool(mcpServer.enabled, defaults.mcpServer.enabled),
+      allowWrites: bool(mcpServer.allowWrites, defaults.mcpServer.allowWrites),
     },
     ai: {
       enabled: bool(ai.enabled, defaults.ai.enabled),
