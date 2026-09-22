@@ -320,6 +320,9 @@ test("demo Assistant replies locally without CLI, Glaze AI, or MCP access", asyn
         ["./cli-providers.js", `export const runCliCompletion = async () => { globalThis.__demoLiveCalls += 1; };`],
         ["./assistant-mcp.js", `export const resolveAssistantMcpServers = () => { globalThis.__demoLiveCalls += 1; };`],
         ["./mcp-client.js", `export const openMcpSession = async () => { globalThis.__demoLiveCalls += 1; };`],
+        ["./api-keys.js", `export const isApiProvider = () => { globalThis.__demoLiveCalls += 1; return false; };`],
+        ["./api-providers.js", `export const apiLanguageModel = () => { globalThis.__demoLiveCalls += 1; }; export const resolveApiModel = () => { globalThis.__demoLiveCalls += 1; }; export const API_LABEL = {};`],
+        ["./attachments.js", `export const attachmentContext = async () => { globalThis.__demoLiveCalls += 1; };`],
       ]);
       api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-assistant" } : undefined);
       api.onLoad({ filter: /.*/, namespace: "demo-assistant" }, (args) => ({ contents: stubs.get(args.path), loader: "js" }));
@@ -363,12 +366,17 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
         ["@glaze/core/backend", `export const ipcMain = globalThis.__aiIpc; export const logger = { error() {} }; export const clipboard = { writeText() {} };`],
         ["../services/demo-data.js", `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": demo mode"); }; export const demoCompletion = () => "fixture completion";`],
         ["../services/ai/assistant.js", `export const runAssistant = async () => { throw new Error("assistant should not run"); };`],
-        ["../services/ai/cli-providers.js", `export const checkCliProvider = async () => { globalThis.__aiCounters.provider += 1; }; export const isCancelled = () => false; export const runCliCompletion = async () => { globalThis.__aiCounters.cli += 1; };`],
+        ["../services/ai/cli-providers.js", `export const checkCliProvider = async () => { globalThis.__aiCounters.provider += 1; }; export const isCancelled = () => false; export const listGeminiModels = async () => { globalThis.__aiCounters.models += 1; }; export const resolveCli = async () => { globalThis.__aiCounters.cli += 1; }; export const runCliCompletion = async () => { globalThis.__aiCounters.cli += 1; };`],
         ["../services/ai/codex-models.js", `export const listCodexModels = async () => { globalThis.__aiCounters.models += 1; };`],
         ["../services/ai/mcp-client.js", `export const testMcpServer = async () => { throw new Error("MCP should not run"); };`],
-        ["../services/mcp-http-server.js", `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null;`],
+        ["../services/mcp-http-server.js", `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getActiveAssistantMcpServerConfig = () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null;`],
         ["../services/mcp-access-key.js", `export const getMcpAccessKey = async () => { throw new Error("key should not load"); }; export const regenerateMcpAccessKey = async () => { throw new Error("key should not write"); };`],
         ["../services/ai/assistant-mcp.js", `export const resolveAssistantMcpServers = () => [];`],
+        ["@glaze/core/ai", `export const streamText = () => { globalThis.__aiCounters.provider += 1; };`],
+        ["../services/ai/attachments.js", `export const pickAttachments = async () => { throw new Error("attachments should not open"); };`],
+        ["../services/ai/dictation.js", `export const transcribe = async () => { throw new Error("dictation should not run"); };`],
+        ["../services/ai/api-keys.js", `export const API_PROVIDERS = []; export const isApiProvider = () => false; export const clearApiKey = async () => { throw new Error("keys should not write"); }; export const getApiKeyStatuses = async () => { throw new Error("keys should not load"); }; export const saveApiKey = async () => { throw new Error("keys should not write"); };`],
+        ["../services/ai/api-providers.js", `export const apiLanguageModel = () => { globalThis.__aiCounters.provider += 1; }; export const listApiModels = async () => { globalThis.__aiCounters.models += 1; }; export const resolveApiModel = () => { globalThis.__aiCounters.provider += 1; };`],
         ["../services/settings-store.js", `export const deleteMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const getMcpServers = async () => { globalThis.__aiCounters.settings += 1; }; export const getSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const normalizeMcpServer = () => ({}); export const saveMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const saveSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const settingsAffectData = () => false;`],
       ]);
       api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-ai-handler" } : undefined);

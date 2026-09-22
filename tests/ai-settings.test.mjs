@@ -11,6 +11,9 @@ async function loadModule(file) {
     plugins: [{ name: "offline-cli", setup(api) {
       api.onResolve({ filter: /(?:shell-env|cli-binaries)\.js$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
       api.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'export const getToolEnv = async () => ({}); export const resolveCli = async () => null;', loader: "js" }));
+      // api-keys.ts reads encrypted keys through the Glaze runtime; model-options only needs isApiProvider.
+      api.onResolve({ filter: /^@glaze\/core\/backend$/ }, (args) => ({ path: args.path, namespace: "glaze" }));
+      api.onLoad({ filter: /.*/, namespace: "glaze" }, () => ({ contents: "export const app = {}; export const safeStorage = {};", loader: "js" }));
     } }],
   });
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
