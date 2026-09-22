@@ -53,6 +53,20 @@ import {
   setAgendaFocus,
 } from "../services/agenda-store.js";
 import { localDateRange } from "../services/agenda-utils.js";
+import {
+  assertNotDemo,
+  demoAccounts,
+  demoCalendars,
+  demoEventsBetween,
+  demoEventsForDays,
+  demoMail,
+  demoMailBody,
+  demoRelatedMail,
+  demoReminders,
+  demoReview,
+  demoTasks,
+  isDemoMode,
+} from "../services/demo-data.js";
 import type {
   AgendaCreateBlockInput,
   AgendaDuplicateLink,
@@ -141,11 +155,13 @@ function requireUUID(value: unknown, channel: string): string {
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 async function getAccountsStatus(): Promise<AccountsStatus> {
+  if (isDemoMode()) return demoAccounts;
   const [google, reminders] = await Promise.all([getGoogleStatus(), getRemindersAccess()]);
   return { google, reminders };
 }
 
 async function agendaScope(): Promise<string> {
+  if (isDemoMode()) return "demo";
   const { email } = await getGoogleStatus();
   if (!email) return "local";
   return `google:${createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 24)}`;
@@ -461,10 +477,13 @@ export function registerProductivityHandlers(): void {
   });
 
   // Google Tasks
-  ipcMain.handle("tasks:list", () => googleBoundedList("tasks:list", listTasksWithCoverage));
+  ipcMain.handle("tasks:list", () =>
+    isDemoMode() ? demoTasks() : googleBoundedList("tasks:list", listTasksWithCoverage),
+  );
 
   ipcMain.handle("tasks:setCompleted", async (_event, payload: unknown) => {
     const channel = "tasks:setCompleted";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const listId = requireString(input, "listId", channel);
     const taskId = requireString(input, "taskId", channel);
@@ -474,6 +493,7 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("tasks:create", async (_event, payload: unknown) => {
     const channel = "tasks:create";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const task = {
       title: requireString(input, "title", channel),
@@ -484,7 +504,9 @@ export function registerProductivityHandlers(): void {
   });
 
   // Apple Reminders
-  ipcMain.handle("reminders:list", () => remindersList(listReminders));
+  ipcMain.handle("reminders:list", () =>
+    isDemoMode() ? demoReminders() : remindersList(listReminders),
+  );
 
   ipcMain.handle("reminders:requestAccess", async () => {
     await requestRemindersAccess();
@@ -495,6 +517,7 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("reminders:setCompleted", async (_event, payload: unknown) => {
     const channel = "reminders:setCompleted";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const ref = requireString(input, "ref", channel);
     const completed = requireBoolean(input, "completed", channel);
@@ -503,6 +526,7 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("reminders:create", async (_event, payload: unknown) => {
     const channel = "reminders:create";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     await createReminder({
       title: requireString(input, "title", channel),
@@ -515,6 +539,7 @@ export function registerProductivityHandlers(): void {
   // Gmail
   ipcMain.handle("mail:list", async () => {
     const settings = await getSettings();
+    if (isDemoMode()) return demoMail(settings.mail.maxMessages);
     return googleList("mail:list", () => listInbox(settings.mail.maxMessages));
   });
 
@@ -525,17 +550,20 @@ export function registerProductivityHandlers(): void {
       ? input.emails.filter((email): email is string => typeof email === "string").slice(0, 10)
       : [];
     const keywords = typeof input.keywords === "string" ? input.keywords.slice(0, 120) : "";
+    if (isDemoMode()) return demoRelatedMail(emails);
     return googleList(channel, () => searchRelatedMail(emails, keywords));
   });
 
   ipcMain.handle("mail:getBody", async (_event, payload: unknown) => {
     const channel = "mail:getBody";
     const id = requireString(asObject(payload, channel), "id", channel);
+    if (isDemoMode()) return { text: demoMailBody(id) };
     return { text: await googleMutation(channel, () => getMessageBody(id)) };
   });
 
   ipcMain.handle("mail:createDraft", async (_event, payload: unknown) => {
     const channel = "mail:createDraft";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const id = requireString(input, "id", channel);
     const body = requireString(input, "body", channel);
@@ -544,12 +572,14 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("mail:archive", async (_event, payload: unknown) => {
     const channel = "mail:archive";
+    assertNotDemo(channel);
     const id = requireString(asObject(payload, channel), "id", channel);
     await googleMutation(channel, () => modifyMessage(id, ["INBOX"]));
   });
 
   ipcMain.handle("mail:markRead", async (_event, payload: unknown) => {
     const channel = "mail:markRead";
+    assertNotDemo(channel);
     const id = requireString(asObject(payload, channel), "id", channel);
     await googleMutation(channel, () => modifyMessage(id, ["UNREAD"]));
   });
@@ -557,6 +587,7 @@ export function registerProductivityHandlers(): void {
   // Google Calendar
   ipcMain.handle("calendar:list", async () => {
     const settings = await getSettings();
+    if (isDemoMode()) return demoEventsForDays(calendarRangeDays(settings.calendar.range));
     return googleBoundedList("calendar:list", () =>
       listEventsWithCoverage(
         calendarRangeDays(settings.calendar.range),
@@ -576,12 +607,14 @@ export function registerProductivityHandlers(): void {
     const settings = await getSettings();
     if (!settings.sources.calendar.enabled) return { state: "disabled" as const };
     const { start, end } = localDateRange(startDate, days as number);
+    if (isDemoMode()) return demoEventsBetween(start, end);
     return googleBoundedList(channel, () =>
       listEventsBetweenWithCoverage(start, end, settings.calendar.visibility),
     );
   });
 
   ipcMain.handle("calendar:listCalendars", async (): Promise<CalendarListResult> => {
+    if (isDemoMode()) return demoCalendars();
     try {
       return await listCalendars();
     } catch (error) {
@@ -593,6 +626,7 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("calendar:create", async (_event, payload: unknown) => {
     const channel = "calendar:create";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const event = {
       title: requireString(input, "title", channel),
@@ -672,6 +706,7 @@ export function registerProductivityHandlers(): void {
   ipcMain.handle(
     "agenda:createBlock",
     async (_event, payload: unknown): Promise<AgendaScheduledBlock> => {
+      assertNotDemo("agenda:createBlock");
       const input = agendaInput(payload);
       const scope = await agendaScope();
       const key = `${scope}:${input.requestId}`;
@@ -685,6 +720,7 @@ export function registerProductivityHandlers(): void {
 
   // Weekly review
   ipcMain.handle("review:data", async (): Promise<ReviewData> => {
+    if (isDemoMode()) return demoReview();
     const settings = await getSettings();
     const since = new Date(Date.now() - WEEK_MS);
     const [tasks, reminders, events] = await Promise.all([
@@ -702,6 +738,8 @@ export function registerProductivityHandlers(): void {
     ]);
     return { since: since.toISOString(), tasks, reminders, events };
   });
+
+  ipcMain.handle("app:isDemo", () => isDemoMode());
 
   // Links
   ipcMain.handle("app:openExternal", async (_event, payload: unknown) => {

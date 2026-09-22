@@ -6,6 +6,8 @@ import "../styles.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider, Toaster } from "@glaze/core/components";
 import { initLogging } from "@glaze/core/utils";
+import { invoke } from "../lib/ipc";
+import { setStorageNamespace } from "../lib/storage";
 
 declare const __APP_DISPLAY_NAME__: string | undefined;
 
@@ -19,8 +21,10 @@ if (!rootElement) {
   throw new Error("Root element not found");
 }
 
-// Create React root and render
+// Create React root and render once the storage namespace is known
 const root = ReactDOM.createRoot(rootElement);
+const demo = await invoke<boolean>("app:isDemo").catch(() => false);
+if (demo) setStorageNamespace("demo:");
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
