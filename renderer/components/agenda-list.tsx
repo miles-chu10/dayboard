@@ -1,13 +1,14 @@
-import type { KeyboardEvent } from "react";
+import { Fragment, type KeyboardEvent, type ReactNode } from "react";
 import { Button, Checkbox, Text } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
-import { AlignLeft, ChevronRight, Pin } from "lucide-react";
+import { AlignLeft, ChevronRight, Link2, Pin } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 
 import type { AgendaEntry } from "../lib/agenda";
 import { useToggleTodo } from "../lib/queries";
 import type { Todo } from "../lib/todos";
 import { DueChip, ListChip } from "./agenda-chips";
+import { eventKey } from "./event-detail";
 import { EventBar } from "./event-row";
 
 export const todoEntry = (todo: Todo): AgendaEntry => ({
@@ -53,14 +54,25 @@ export function AgendaList({
   now,
   focusKeys,
   onOpen,
+  onOpenEvent,
   onPin,
+  expandedKey,
+  renderExpanded,
 }: {
   entries: AgendaEntry[];
   now: Date;
   focusKeys: string[];
   onOpen: (todo: Todo) => void;
+  onOpenEvent?: (event: CalendarEventItem) => void;
   onPin: (todo: Todo) => void;
+  /** Item (todo key or event key) whose details render inline under its row. */
+  expandedKey?: string;
+  renderExpanded?: () => ReactNode;
 }) {
+  const inline = (key: string) =>
+    expandedKey === key && renderExpanded ? (
+      <div className="py-1 pl-6">{renderExpanded()}</div>
+    ) : null;
   const events = entries.flatMap((entry) => (entry.kind === "event" ? [entry.event] : []));
   const todos = entries.flatMap((entry) => (entry.kind === "todo" ? [entry.todo] : []));
   return (
@@ -72,21 +84,32 @@ export function AgendaList({
       {events.length ? (
         <div className="flex flex-col gap-[var(--density-bar-gap)]">
           {events.map((event) => (
-            <EventBar key={`${event.calendarId}:${event.id}`} event={event} now={now} />
+            <Fragment key={eventKey(event)}>
+              <EventBar
+                event={event}
+                now={now}
+                onOpen={onOpenEvent ? () => onOpenEvent(event) : undefined}
+                expanded={renderExpanded ? expandedKey === eventKey(event) : undefined}
+              />
+              {inline(eventKey(event))}
+            </Fragment>
           ))}
         </div>
       ) : null}
       {todos.length ? (
         <div className="flex flex-col">
           {todos.map((todo) => (
-            <TodoLine
-              key={todo.key}
-              todo={todo}
-              now={now}
-              focused={focusKeys.includes(todo.key)}
-              onOpen={() => onOpen(todo)}
-              onPin={() => onPin(todo)}
-            />
+            <Fragment key={todo.key}>
+              <TodoLine
+                todo={todo}
+                now={now}
+                focused={focusKeys.includes(todo.key)}
+                expanded={renderExpanded ? expandedKey === todo.key : undefined}
+                onOpen={() => onOpen(todo)}
+                onPin={() => onPin(todo)}
+              />
+              {inline(todo.key)}
+            </Fragment>
           ))}
         </div>
       ) : null}
@@ -98,12 +121,14 @@ function TodoLine({
   todo,
   now,
   focused,
+  expanded,
   onOpen,
   onPin,
 }: {
   todo: Todo;
   now: Date;
   focused: boolean;
+  expanded?: boolean;
   onOpen: () => void;
   onPin: () => void;
 }) {
@@ -114,6 +139,7 @@ function TodoLine({
       tabIndex={0}
       data-agenda-row
       aria-label={todo.title}
+      aria-expanded={expanded}
       onClick={onOpen}
       onKeyDown={(keyEvent) => {
         if (
@@ -142,7 +168,22 @@ function TodoLine({
       {todo.notes ? (
         <AlignLeft aria-label="Has notes" className="size-3.5 shrink-0 text-tertiary" />
       ) : null}
+      {todo.linked?.length ? (
+        <span
+          role="img"
+          aria-label="Linked items"
+          className="flex shrink-0"
+          title={`Linked with ${todo.linked
+            .map((item) => (item.source === "tasks" ? "Google Tasks" : "Apple Reminders"))
+            .join(" and ")} · completing one completes both`}
+        >
+          <Link2 aria-hidden="true" className="size-3.5 text-tertiary" />
+        </span>
+      ) : null}
       <ListChip source={todo.source} listTitle={todo.listTitle} />
+      {todo.linked?.map((item) => (
+        <ListChip key={item.key} source={item.source} listTitle={item.listTitle} />
+      ))}
       {todo.dueDate ? <DueChip date={todo.dueDate} time={todo.dueTime} now={now} /> : null}
       <span
         className={cn(
@@ -166,7 +207,13 @@ function TodoLine({
           <Pin className={focused ? "text-accent" : ""} />
         </Button>
       </span>
-      <ChevronRight aria-hidden="true" className="-ml-2 size-3.5 shrink-0 text-quaternary" />
+      <ChevronRight
+        aria-hidden="true"
+        className={cn(
+          "-ml-2 size-3.5 shrink-0 text-quaternary transition-transform",
+          expanded && "rotate-90",
+        )}
+      />
     </div>
   );
 }

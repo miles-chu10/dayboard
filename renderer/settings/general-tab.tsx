@@ -13,7 +13,7 @@ import {
   toast,
 } from "@glaze/core/components";
 import type { NativeThemeInfo } from "@glaze/core/ipc";
-import type { CalendarRange, Density, LaunchView } from "@main/shared-types";
+import type { CalendarRange, Density, DetailView, LaunchView } from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
@@ -126,6 +126,34 @@ export function GeneralTab() {
                 <Label>
                   <RadioGroupItem value="compact" />
                   Compact
+                </Label>
+              </RadioGroup>
+            </Field>
+            <Field
+              label="Open details in"
+              description="How tasks, reminders, and events open when you click them."
+            >
+              <RadioGroup
+                value={settings.general.detailView}
+                onValueChange={(value) =>
+                  edit((draft) => {
+                    draft.general.detailView = value as DetailView;
+                  })
+                }
+                orientation="horizontal"
+                aria-label="Open details in"
+              >
+                <Label>
+                  <RadioGroupItem value="dialog" />
+                  Pop-up
+                </Label>
+                <Label>
+                  <RadioGroupItem value="inline" />
+                  Inline
+                </Label>
+                <Label>
+                  <RadioGroupItem value="sidebar" />
+                  Side panel
                 </Label>
               </RadioGroup>
             </Field>

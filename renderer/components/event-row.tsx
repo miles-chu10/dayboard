@@ -22,9 +22,15 @@ export function EventBar({
   now = new Date(),
   calendarColor = true,
   showCalendar,
+  onOpen,
+  expanded,
 }: {
   event: CalendarEventItem;
   now?: Date;
+  /** Opens event details; without it, a click opens meeting prep or Google Calendar. */
+  onOpen?: () => void;
+  /** Set when details are expanded inline under this bar. */
+  expanded?: boolean;
   /** Tint by the event's Google calendar; otherwise by the Calendar source color. */
   calendarColor?: boolean;
   showCalendar?: boolean;
@@ -41,7 +47,8 @@ export function EventBar({
     .join(" · ");
 
   function activate() {
-    if (prepOn && !past) openPrep(event);
+    if (onOpen) onOpen();
+    else if (prepOn && !past) openPrep(event);
     else if (event.htmlLink) void openExternal(event.htmlLink);
   }
   function keydown(keyEvent: KeyboardEvent<HTMLDivElement>) {
@@ -61,6 +68,7 @@ export function EventBar({
       tabIndex={0}
       data-agenda-row
       aria-label={`${event.title}, ${compactRange(event)}`}
+      aria-expanded={expanded}
       onClick={activate}
       onKeyDown={keydown}
       className="group relative flex min-h-[var(--density-bar)] min-w-0 items-center gap-2.5 rounded-md py-[var(--density-bar-py)] pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

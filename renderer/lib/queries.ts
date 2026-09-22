@@ -23,7 +23,7 @@ import type {
 
 import { errorMessage, invoke } from "./ipc";
 import { settingsQueryKey, sourceOn, useSettings } from "./settings";
-import type { Todo } from "./todos";
+import { buildTodos, linkedKeys, type Todo } from "./todos";
 
 export const queryKeys = {
   accounts: ["accounts"],
@@ -266,42 +266,77 @@ function setTodoCompleted(
   }
 }
 
+async function writeCompleted(todo: Todo, completed: boolean): Promise<void> {
+  if (todo.task) {
+    await invoke("tasks:setCompleted", {
+      listId: todo.task.listId,
+      taskId: todo.task.id,
+      completed,
+    });
+  } else if (todo.reminder) {
+    await invoke("reminders:setCompleted", { ref: todo.reminder.ref, completed });
+  }
+}
+
+/** Linked items still in the same state as `todo`, so they flip together. */
+function linkedPartners(queryClient: QueryClient, todo: Todo): Todo[] {
+  const keys = linkedKeys(
+    queryClient.getQueryData<AgendaState>(queryKeys.agenda)?.duplicateLinks,
+    todo.key,
+  );
+  if (!keys.length) return [];
+  return buildTodos(
+    queryClient.getQueryData<SourceResult<TaskItem>>(queryKeys.tasks),
+    queryClient.getQueryData<SourceResult<ReminderItem>>(queryKeys.reminders),
+  ).filter(
+    (other) =>
+      keys.includes(other.key) && other.completed === todo.completed && !todoWrites.has(other.key),
+  );
+}
+
 export function useToggleTodo() {
   const queryClient = useQueryClient();
   const revisions = useRef(new Map<string, number>());
+  const partnersFor = useRef(new Map<string, Todo[]>());
   const mutation = useMutation({
     mutationFn: async (todo: Todo) => {
-      if (todo.task) {
-        await invoke("tasks:setCompleted", {
-          listId: todo.task.listId,
-          taskId: todo.task.id,
-          completed: !todo.completed,
-        });
-      } else if (todo.reminder) {
-        await invoke("reminders:setCompleted", {
-          ref: todo.reminder.ref,
-          completed: !todo.completed,
-        });
-      }
+      const completed = !todo.completed;
+      await writeCompleted(todo, completed);
+      const partners = partnersFor.current.get(todo.key) ?? [];
+      const results = await Promise.allSettled(
+        partners.map((partner) => writeCompleted(partner, completed)),
+      );
+      return partners.filter((_partner, index) => results[index].status === "rejected");
     },
     onMutate: async (todo) => {
       if (todoWrites.has(todo.key)) throw new Error("This item is already being updated.");
+      const partners = linkedPartners(queryClient, todo);
+      partnersFor.current.set(todo.key, partners);
       todoWrites.add(todo.key);
-      const queryKey = todoQueryKey(todo);
-      await queryClient.cancelQueries({ queryKey });
+      for (const partner of partners) todoWrites.add(partner.key);
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks });
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders });
       const revision = (revisions.current.get(todo.key) ?? 0) + 1;
       revisions.current.set(todo.key, revision);
       const targetCompleted = !todo.completed;
-      setTodoCompleted(queryClient, todo, targetCompleted);
-      return { revision, targetCompleted };
+      for (const item of [todo, ...partners]) setTodoCompleted(queryClient, item, targetCompleted);
+      return { revision, targetCompleted, partners };
     },
     onError: (error, todo, context) => {
       if (context && revisions.current.get(todo.key) === context.revision) {
         setTodoCompleted(queryClient, todo, todo.completed, context.targetCompleted);
+        for (const partner of context.partners)
+          setTodoCompleted(queryClient, partner, partner.completed, context.targetCompleted);
         toast.error(`Couldn't update “${todo.title}”: ${errorMessage(error)}`);
       }
     },
-    onSuccess: (_result, todo) => {
+    onSuccess: (failedPartners, todo, context) => {
+      if (failedPartners.length)
+        toast.error(
+          `“${todo.title}” updated, but its linked item in ${failedPartners
+            .map((partner) => (partner.source === "tasks" ? "Google Tasks" : "Apple Reminders"))
+            .join(" and ")} couldn't be updated.`,
+        );
       const plan = queryClient.getQueryData<AgendaState>(queryKeys.agenda);
       if (!todo.completed && plan?.focusKeys.includes(todo.key)) {
         void invoke<AgendaState>("agenda:setFocus", {
@@ -310,19 +345,27 @@ export function useToggleTodo() {
           .then((state) => queryClient.setQueryData(queryKeys.agenda, state))
           .catch(() => toast.error("The item completed, but its focus pin could not be removed."));
       }
-      toast.success(`Updated “${todo.title}”`, {
-        action: {
-          label: "Undo",
-          onClick: () => mutation.mutate({ ...todo, completed: !todo.completed }),
+      const synced = (context?.partners.length ?? 0) - failedPartners.length;
+      toast.success(
+        `Updated “${todo.title}”${synced ? ` and ${synced} linked item${synced === 1 ? "" : "s"}` : ""}`,
+        {
+          action: {
+            label: "Undo",
+            onClick: () => mutation.mutate({ ...todo, completed: !todo.completed }),
+          },
         },
-      });
+      );
     },
     onSettled: (_result, _error, todo, context) => {
       if (!context) return;
       todoWrites.delete(todo.key);
+      for (const partner of context.partners) todoWrites.delete(partner.key);
+      partnersFor.current.delete(todo.key);
       if (context && revisions.current.get(todo.key) === context.revision)
         revisions.current.delete(todo.key);
       void queryClient.invalidateQueries({ queryKey: todoQueryKey(todo) });
+      for (const partner of context.partners)
+        void queryClient.invalidateQueries({ queryKey: todoQueryKey(partner) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.review });
     },
   });

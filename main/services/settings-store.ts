@@ -7,6 +7,7 @@ import type {
   AIFeature,
   AccentColor,
   Density,
+  DetailView,
   AIProvider,
   AppSettings,
   CalendarRange,
@@ -35,6 +36,7 @@ const ACCENTS: AccentColor[] = [
   "graphite",
 ];
 const DENSITIES: Density[] = ["default", "compact"];
+const DETAIL_VIEWS: DetailView[] = ["dialog", "inline", "sidebar"];
 const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex"];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
@@ -78,6 +80,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     refreshMinutes: 15,
     accent: "system",
     density: "default",
+    detailView: "dialog",
   },
   sources: {
     tasks: { enabled: true, color: "blue" },
@@ -159,6 +162,7 @@ export function normalizeSettings(value: unknown): AppSettings {
       ),
       accent: oneOf(general.accent, ACCENTS, defaults.general.accent),
       density: oneOf(general.density, DENSITIES, defaults.general.density),
+      detailView: oneOf(general.detailView, DETAIL_VIEWS, defaults.general.detailView),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {

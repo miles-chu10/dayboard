@@ -198,6 +198,7 @@ export function demoTasks(): SourceResult<TaskItem> {
     task("t7", "Read “Shape Up” chapter 4", null, "Personal"),
     task("t8", "Submit expense report", -5),
     task("t9", "Follow up with design agency", -12, "Work", "Ask for revised timeline"),
+    task("t10", "Call Mom", 0, "Personal"),
   ]);
 }
 

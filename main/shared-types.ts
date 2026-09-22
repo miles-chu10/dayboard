@@ -32,6 +32,7 @@ export type AccentColor =
   | "teal"
   | "graphite";
 export type Density = "default" | "compact";
+export type DetailView = "dialog" | "inline" | "sidebar";
 export type LaunchView = "today" | SourceId | "assistant" | "review";
 export type CalendarRange =
   | "today"
@@ -60,6 +61,8 @@ export interface AppSettings {
     accent: AccentColor;
     /** Row height and spacing across views. */
     density: Density;
+    /** Where item details open: pop-up window, inline under the row, or a right-hand panel. */
+    detailView: DetailView;
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
   mail: { maxMessages: number };

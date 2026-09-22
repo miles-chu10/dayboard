@@ -33,6 +33,7 @@ import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import type { Todo } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import { SOURCE_META } from "../lib/sources";
+import { DetailPanel } from "./detail-panel";
 import { SourceDot } from "./source-dot";
 
 const STOP_WORDS = new Set(["about", "and", "for", "from", "meeting", "the", "this", "with"]);
@@ -89,8 +90,10 @@ export function AgendaDetailDialog({
   messages,
   date: initialDate,
   now,
+  presentation = "dialog",
   onClose,
 }: {
+  presentation?: "dialog" | "panel";
   todo: Todo;
   todos: Todo[];
   events: CalendarEventItem[];
@@ -265,327 +268,356 @@ export function AgendaDetailDialog({
           ? "Calendar availability is incomplete, so scheduling is unavailable."
           : null;
 
+  const subtitle = `${todo.source === "tasks" ? "Google Tasks" : "Apple Reminders"} · ${todo.listTitle}`;
+  const confirmDisabled = Boolean(
+    planning && (!selectedStart || !planningAvailable || range.isFetching),
+  );
+  const body = (
+    <div className="flex flex-col gap-4">
+      {agenda.isError ? (
+        <Callout color="orange">Focus and links are unavailable. Try reopening this item.</Callout>
+      ) : null}
+      <FieldGroup>
+        <Field
+          label="Deadline"
+          description="A deadline, not a booked calendar interval."
+          orientation="vertical"
+        >
+          <Text>
+            {todo.dueDate
+              ? `${shortDate(todo.dueDate)}${todo.dueTime ? ` · ${formatClock(todo.dueTime)}` : " · Anytime"}`
+              : "No deadline"}
+          </Text>
+        </Field>
+        <Field label="Provider" orientation="vertical">
+          <span className="flex items-center gap-2">
+            <SourceDot source={todo.source} />
+            <Text>{todo.source === "tasks" ? "Google Tasks" : "Apple Reminders"}</Text>
+          </span>
+        </Field>
+        <Field label="List" orientation="vertical">
+          <Text>{todo.listTitle}</Text>
+        </Field>
+        {todo.notes ? (
+          <Field label="Notes" orientation="vertical">
+            <Text className="whitespace-pre-wrap">{todo.notes}</Text>
+          </Field>
+        ) : null}
+      </FieldGroup>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="small"
+          onClick={() => toggle.mutate(todo)}
+          disabled={!todoSourceOn || toggle.isPending}
+        >
+          {todo.completed ? "Mark incomplete" : "Complete"}
+        </Button>
+        <label className="flex items-center gap-2 text-secondary text-small">
+          <Checkbox
+            checked={isFocused}
+            disabled={focusLimitReached || !agenda.data || agenda.isPending}
+            onCheckedChange={(checked) =>
+              agenda.setFocus.mutate({
+                focusKeys:
+                  checked === true
+                    ? [...focusKeys, todo.key]
+                    : focusKeys.filter((key) => key !== todo.key),
+              })
+            }
+          />
+          Focus{focusLimitReached ? " (3 focus items selected)" : ""}
+        </label>
+        {gmailUrl && mailOn ? (
+          <Button size="small" variant="transparent" onClick={() => void openExternal(gmailUrl)}>
+            <ExternalLink />
+            Open linked Gmail
+          </Button>
+        ) : null}
+        {assistantOn && (suggestedMail.length || suggestedEvents.length) ? (
+          <Button size="small" variant="transparent" onClick={askAssistant}>
+            <Sparkles />
+            Ask Assistant
+          </Button>
+        ) : null}
+      </div>
+
+      {duplicateSuggestions.length ? (
+        <section className="flex flex-col gap-2">
+          <Text variant="strong">Possible duplicates</Text>
+          <Text variant="small" color="secondary">
+            Linked items show once in your Agenda and complete together in both apps.
+          </Text>
+          {duplicateSuggestions.map(({ candidate, link }) => (
+            <div
+              key={candidate.key}
+              className="flex items-center gap-2 rounded-lg bg-well px-3 py-2"
+            >
+              <Badge color={link?.status === "accepted" ? "green" : "blue"}>
+                {link?.status === "accepted" ? "Linked" : "Suggested"}
+              </Badge>
+              <div className="min-w-0 flex-1 flex flex-col">
+                <Text truncate>{candidate.title}</Text>
+                <Text variant="small" color="secondary">
+                  {SOURCE_META[candidate.source].label} · {candidate.listTitle}
+                </Text>
+              </div>
+              {link?.status === "accepted" ? (
+                <Button
+                  size="small"
+                  variant="transparent"
+                  onClick={() =>
+                    agenda.removeDuplicateLink.mutate({
+                      leftKey: link.leftKey,
+                      rightKey: link.rightKey,
+                    })
+                  }
+                >
+                  <Unlink />
+                  Unlink
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    size="small"
+                    onClick={() =>
+                      agenda.setDuplicateLink.mutate({
+                        leftKey: todo.key,
+                        rightKey: candidate.key,
+                        status: "accepted",
+                      })
+                    }
+                  >
+                    Link
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="transparent"
+                    onClick={() =>
+                      agenda.setDuplicateLink.mutate({
+                        leftKey: todo.key,
+                        rightKey: candidate.key,
+                        status: "dismissed",
+                      })
+                    }
+                  >
+                    Dismiss
+                  </Button>
+                </>
+              )}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {suggestedMail.length || suggestedEvents.length ? (
+        <section className="flex flex-col gap-2">
+          <Text variant="strong">Related context</Text>
+          {suggestedMail.map(({ message }) => (
+            <div key={message.id} className="flex items-center gap-2">
+              <Badge color="blue">Suggested</Badge>
+              <Text truncate className="flex-1">
+                {message.subject}
+              </Text>
+              <Text variant="small" color="tertiary">
+                {formatMailDate(message.date)}
+              </Text>
+              <Button
+                size="small"
+                variant="transparent"
+                iconOnly
+                aria-label={`Open email: ${message.subject}`}
+                onClick={() => void openExternal(mailUrl(message))}
+              >
+                <ExternalLink />
+              </Button>
+            </div>
+          ))}
+          {suggestedEvents.map(({ event }) => (
+            <div
+              key={`${event.calendarId}:${event.id}:${event.start}`}
+              className="flex items-center gap-2"
+            >
+              <Badge color="green">Suggested</Badge>
+              <Text truncate className="flex-1">
+                {event.title}
+              </Text>
+              <Text variant="small" color="tertiary">
+                {event.allDay
+                  ? shortDate(event.start.slice(0, 10))
+                  : formatClock(localTime(new Date(event.start)))}
+              </Text>
+              {event.htmlLink ? (
+                <Button
+                  size="small"
+                  variant="transparent"
+                  iconOnly
+                  aria-label={`Open event: ${event.title}`}
+                  onClick={() => void openExternal(event.htmlLink!)}
+                >
+                  <ExternalLink />
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {scheduledBlocks.length ? (
+        <section className="flex flex-col gap-2">
+          <Text variant="strong">Calendar blocks</Text>
+          <Text variant="small" color="secondary">
+            Unlink keeps the event on your calendar.
+          </Text>
+          {scheduledBlocks.map((block) => (
+            <div key={block.eventId} className="flex items-center gap-2">
+              <Text className="flex-1">
+                {shortDate(block.date)} · {formatClock(block.startTime)}–
+                {formatClock(block.endTime)}
+              </Text>
+              <Button
+                size="small"
+                variant="transparent"
+                onClick={() =>
+                  agenda.removeScheduledBlock.mutate({
+                    taskKey: block.taskKey,
+                    eventId: block.eventId,
+                  })
+                }
+              >
+                Unlink
+              </Button>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Text variant="strong" className="flex-1">
+            Plan on calendar
+          </Text>
+          {!planning ? (
+            <Button size="small" onClick={() => setPlanning(true)} disabled={!planningAvailable}>
+              <CalendarPlus />
+              Plan
+            </Button>
+          ) : null}
+        </div>
+        {!planning && coverageProblem ? (
+          <Text variant="small" color="secondary">
+            {coverageProblem}
+          </Text>
+        ) : null}
+        {planning ? (
+          <>
+            {coverageProblem ? <Callout color="orange">{coverageProblem}</Callout> : null}
+            {!todoRef ? (
+              <Callout color="orange">
+                This task cannot be scheduled because its provider reference is unavailable.
+              </Callout>
+            ) : null}
+            <Field label="Date" orientation="vertical">
+              <Input
+                type="date"
+                aria-label="Calendar block date"
+                value={date}
+                onChange={(event) => {
+                  if (/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) {
+                    setDate(event.target.value);
+                    setSelectedStart(null);
+                    setRequestId(null);
+                    setPlanningError(null);
+                  }
+                }}
+              />
+            </Field>
+            <Field label="Duration" orientation="vertical">
+              <Select
+                value={String(duration)}
+                onValueChange={selectDuration}
+                disabled={!planningAvailable}
+              >
+                <SelectTrigger size="small">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[15, 30, 60, 90].map((minutes) => (
+                    <SelectItem key={minutes} value={String(minutes)}>
+                      {minutes} minutes
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {planningAvailable ? (
+              <div className="flex flex-wrap gap-2">
+                {slots.length ? (
+                  slots.map((slot) => (
+                    <Button
+                      key={slot.start.toISOString()}
+                      size="small"
+                      variant="filled"
+                      aria-pressed={selectedStart?.getTime() === slot.start.getTime()}
+                      onClick={() => selectSlot(slot.start)}
+                    >
+                      {formatClock(localTime(slot.start))}
+                    </Button>
+                  ))
+                ) : (
+                  <Text color="tertiary">No available slots between 9 AM and 6 PM.</Text>
+                )}
+              </div>
+            ) : null}
+            {selectedStart && selectedEnd ? (
+              <Callout color="blue">
+                Preview: creates a new block on primary Google Calendar for {shortDate(date)},{" "}
+                {formatClock(localTime(selectedStart))}–{formatClock(localTime(selectedEnd))} (
+                {timezone}). The original task stays unchanged.
+              </Callout>
+            ) : null}
+            {planningError ? <Callout color="orange">{planningError}</Callout> : null}
+          </>
+        ) : null}
+      </section>
+    </div>
+  );
+
+  if (presentation === "panel") {
+    return (
+      <DetailPanel
+        title={todo.title}
+        subtitle={subtitle}
+        onClose={onClose}
+        footer={
+          selectedStart ? (
+            <Button
+              size="small"
+              variant="accent"
+              disabled={confirmDisabled || agenda.createBlock.isPending}
+              onClick={() => void createBlock().catch(() => undefined)}
+            >
+              Create calendar block
+            </Button>
+          ) : null
+        }
+      >
+        {body}
+      </DetailPanel>
+    );
+  }
   return (
     <Dialog
       open
       onOpenChange={(open) => !open && onClose()}
       size="large"
       title={todo.title}
-      description={`${todo.source === "tasks" ? "Google Tasks" : "Apple Reminders"} · ${todo.listTitle}`}
+      description={subtitle}
       confirmLabel={selectedStart ? "Create calendar block" : "Done"}
-      confirmDisabled={Boolean(
-        planning && (!selectedStart || !planningAvailable || range.isFetching),
-      )}
+      confirmDisabled={confirmDisabled}
       onConfirm={selectedStart ? createBlock : onClose}
     >
-      <div className="flex flex-col gap-4">
-        {agenda.isError ? (
-          <Callout color="orange">
-            Focus and links are unavailable. Try reopening this item.
-          </Callout>
-        ) : null}
-        <FieldGroup>
-          <Field
-            label="Deadline"
-            description="A deadline, not a booked calendar interval."
-            orientation="vertical"
-          >
-            <Text>
-              {todo.dueDate
-                ? `${shortDate(todo.dueDate)}${todo.dueTime ? ` · ${formatClock(todo.dueTime)}` : " · Anytime"}`
-                : "No deadline"}
-            </Text>
-          </Field>
-          <Field label="Provider" orientation="vertical">
-            <span className="flex items-center gap-2">
-              <SourceDot source={todo.source} />
-              <Text>{todo.source === "tasks" ? "Google Tasks" : "Apple Reminders"}</Text>
-            </span>
-          </Field>
-          <Field label="List" orientation="vertical">
-            <Text>{todo.listTitle}</Text>
-          </Field>
-          {todo.notes ? (
-            <Field label="Notes" orientation="vertical">
-              <Text className="whitespace-pre-wrap">{todo.notes}</Text>
-            </Field>
-          ) : null}
-        </FieldGroup>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="small"
-            onClick={() => toggle.mutate(todo)}
-            disabled={!todoSourceOn || toggle.isPending}
-          >
-            {todo.completed ? "Mark incomplete" : "Complete"}
-          </Button>
-          <label className="flex items-center gap-2 text-secondary text-small">
-            <Checkbox
-              checked={isFocused}
-              disabled={focusLimitReached || !agenda.data || agenda.isPending}
-              onCheckedChange={(checked) =>
-                agenda.setFocus.mutate({
-                  focusKeys:
-                    checked === true
-                      ? [...focusKeys, todo.key]
-                      : focusKeys.filter((key) => key !== todo.key),
-                })
-              }
-            />
-            Focus{focusLimitReached ? " (3 focus items selected)" : ""}
-          </label>
-          {gmailUrl && mailOn ? (
-            <Button size="small" variant="transparent" onClick={() => void openExternal(gmailUrl)}>
-              <ExternalLink />
-              Open linked Gmail
-            </Button>
-          ) : null}
-          {assistantOn && (suggestedMail.length || suggestedEvents.length) ? (
-            <Button size="small" variant="transparent" onClick={askAssistant}>
-              <Sparkles />
-              Ask Assistant
-            </Button>
-          ) : null}
-        </div>
-
-        {duplicateSuggestions.length ? (
-          <section className="flex flex-col gap-2">
-            <Text variant="strong">Possible duplicates</Text>
-            {duplicateSuggestions.map(({ candidate, link }) => (
-              <div
-                key={candidate.key}
-                className="flex items-center gap-2 rounded-lg bg-well px-3 py-2"
-              >
-                <Badge color={link?.status === "accepted" ? "green" : "blue"}>
-                  {link?.status === "accepted" ? "Linked" : "Suggested"}
-                </Badge>
-                <div className="min-w-0 flex-1 flex flex-col">
-                  <Text truncate>{candidate.title}</Text>
-                  <Text variant="small" color="secondary">
-                    {SOURCE_META[candidate.source].label} ·{" "}
-                    {candidate.listTitle}
-                  </Text>
-                </div>
-                {link?.status === "accepted" ? (
-                  <Button
-                    size="small"
-                    variant="transparent"
-                    onClick={() =>
-                      agenda.removeDuplicateLink.mutate({
-                        leftKey: link.leftKey,
-                        rightKey: link.rightKey,
-                      })
-                    }
-                  >
-                    <Unlink />
-                    Unlink
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="small"
-                      onClick={() =>
-                        agenda.setDuplicateLink.mutate({
-                          leftKey: todo.key,
-                          rightKey: candidate.key,
-                          status: "accepted",
-                        })
-                      }
-                    >
-                      Link
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="transparent"
-                      onClick={() =>
-                        agenda.setDuplicateLink.mutate({
-                          leftKey: todo.key,
-                          rightKey: candidate.key,
-                          status: "dismissed",
-                        })
-                      }
-                    >
-                      Dismiss
-                    </Button>
-                  </>
-                )}
-              </div>
-            ))}
-          </section>
-        ) : null}
-
-        {suggestedMail.length || suggestedEvents.length ? (
-          <section className="flex flex-col gap-2">
-            <Text variant="strong">Related context</Text>
-            {suggestedMail.map(({ message }) => (
-              <div key={message.id} className="flex items-center gap-2">
-                <Badge color="blue">Suggested</Badge>
-                <Text truncate className="flex-1">
-                  {message.subject}
-                </Text>
-                <Text variant="small" color="tertiary">
-                  {formatMailDate(message.date)}
-                </Text>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  iconOnly
-                  aria-label={`Open email: ${message.subject}`}
-                  onClick={() => void openExternal(mailUrl(message))}
-                >
-                  <ExternalLink />
-                </Button>
-              </div>
-            ))}
-            {suggestedEvents.map(({ event }) => (
-              <div
-                key={`${event.calendarId}:${event.id}:${event.start}`}
-                className="flex items-center gap-2"
-              >
-                <Badge color="green">Suggested</Badge>
-                <Text truncate className="flex-1">
-                  {event.title}
-                </Text>
-                <Text variant="small" color="tertiary">
-                  {event.allDay
-                    ? shortDate(event.start.slice(0, 10))
-                    : formatClock(localTime(new Date(event.start)))}
-                </Text>
-                {event.htmlLink ? (
-                  <Button
-                    size="small"
-                    variant="transparent"
-                    iconOnly
-                    aria-label={`Open event: ${event.title}`}
-                    onClick={() => void openExternal(event.htmlLink!)}
-                  >
-                    <ExternalLink />
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-          </section>
-        ) : null}
-
-        {scheduledBlocks.length ? (
-          <section className="flex flex-col gap-2">
-            <Text variant="strong">Calendar blocks</Text>
-            <Text variant="small" color="secondary">
-              Unlink keeps the event on your calendar.
-            </Text>
-            {scheduledBlocks.map((block) => (
-              <div key={block.eventId} className="flex items-center gap-2">
-                <Text className="flex-1">
-                  {shortDate(block.date)} · {formatClock(block.startTime)}–
-                  {formatClock(block.endTime)}
-                </Text>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  onClick={() =>
-                    agenda.removeScheduledBlock.mutate({
-                      taskKey: block.taskKey,
-                      eventId: block.eventId,
-                    })
-                  }
-                >
-                  Unlink
-                </Button>
-              </div>
-            ))}
-          </section>
-        ) : null}
-
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Text variant="strong" className="flex-1">
-              Plan on calendar
-            </Text>
-            {!planning ? (
-              <Button size="small" onClick={() => setPlanning(true)} disabled={!planningAvailable}>
-                <CalendarPlus />
-                Plan
-              </Button>
-            ) : null}
-          </div>
-          {!planning && coverageProblem ? (
-            <Text variant="small" color="secondary">
-              {coverageProblem}
-            </Text>
-          ) : null}
-          {planning ? (
-            <>
-              {coverageProblem ? <Callout color="orange">{coverageProblem}</Callout> : null}
-              {!todoRef ? (
-                <Callout color="orange">
-                  This task cannot be scheduled because its provider reference is unavailable.
-                </Callout>
-              ) : null}
-              <Field label="Date" orientation="vertical">
-                <Input
-                  type="date"
-                  aria-label="Calendar block date"
-                  value={date}
-                  onChange={(event) => {
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) {
-                      setDate(event.target.value);
-                      setSelectedStart(null);
-                      setRequestId(null);
-                      setPlanningError(null);
-                    }
-                  }}
-                />
-              </Field>
-              <Field label="Duration" orientation="vertical">
-                <Select
-                  value={String(duration)}
-                  onValueChange={selectDuration}
-                  disabled={!planningAvailable}
-                >
-                  <SelectTrigger size="small">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[15, 30, 60, 90].map((minutes) => (
-                      <SelectItem key={minutes} value={String(minutes)}>
-                        {minutes} minutes
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              {planningAvailable ? (
-                <div className="flex flex-wrap gap-2">
-                  {slots.length ? (
-                    slots.map((slot) => (
-                      <Button
-                        key={slot.start.toISOString()}
-                        size="small"
-                        variant="filled"
-                        aria-pressed={selectedStart?.getTime() === slot.start.getTime()}
-                        onClick={() => selectSlot(slot.start)}
-                      >
-                        {formatClock(localTime(slot.start))}
-                      </Button>
-                    ))
-                  ) : (
-                    <Text color="tertiary">No available slots between 9 AM and 6 PM.</Text>
-                  )}
-                </div>
-              ) : null}
-              {selectedStart && selectedEnd ? (
-                <Callout color="blue">
-                  Preview: creates a new block on primary Google Calendar for {shortDate(date)},{" "}
-                  {formatClock(localTime(selectedStart))}–{formatClock(localTime(selectedEnd))} (
-                  {timezone}). The original task stays unchanged.
-                </Callout>
-              ) : null}
-              {planningError ? <Callout color="orange">{planningError}</Callout> : null}
-            </>
-          ) : null}
-        </section>
-      </div>
+      {body}
     </Dialog>
   );
 }
