@@ -30,11 +30,32 @@ function chmodSpawnHelpers(root: string) {
   }
 }
 
+// Google OAuth client: real values come from the gitignored google-oauth.local.json.
+const googleOAuthLocalFile = path.resolve(process.cwd(), "google-oauth.local.json");
+
 export default defineConfig({
   build: {
     external: [...nodePty.externals],
     plugins: [
       nodePty.plugin,
+      {
+        name: "inject-google-oauth-client",
+        setup(build) {
+          build.onLoad({ filter: /google-oauth-app-client\.ts$/ }, () => {
+            if (!fs.existsSync(googleOAuthLocalFile)) return undefined;
+            const { clientId, clientSecret } = JSON.parse(
+              fs.readFileSync(googleOAuthLocalFile, "utf8"),
+            ) as { clientId?: string; clientSecret?: string };
+            return {
+              contents:
+                `export const GOOGLE_APP_CLIENT_ID = ${JSON.stringify(clientId ?? "")};\n` +
+                `export const GOOGLE_APP_CLIENT_SECRET = ${JSON.stringify(clientSecret ?? "")};\n`,
+              loader: "ts",
+              watchFiles: [googleOAuthLocalFile],
+            };
+          });
+        },
+      },
       {
         name: "fix-node-pty-spawn-helper-exec-bit",
         setup(build) {
