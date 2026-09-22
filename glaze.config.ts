@@ -31,14 +31,21 @@ function chmodSpawnHelpers(root: string) {
   }
 }
 
-// Google Desktop OAuth client lives at a fixed per-user path, outside any source tree, so every
-// build (local or Glaze's publish staging copy) finds it. Missing or invalid => the build fails.
-const googleOAuthFile = path.join(os.homedir(), ".config", "dayboard", "google-oauth.json");
+// Google Desktop OAuth client (Google treats a Desktop client's secret as non-confidential).
+// Glaze builds Store releases on a remote runner from an uploaded copy of sources/, so the
+// gitignored sources/google-oauth.local.json is what reaches publish builds; the per-user
+// ~/.config/dayboard file is a local fallback. Neither present => the build fails.
+const googleOAuthCandidates = [
+  path.resolve(process.cwd(), "google-oauth.local.json"),
+  path.join(os.homedir(), ".config", "dayboard", "google-oauth.json"),
+];
+const googleOAuthFile =
+  googleOAuthCandidates.find((file) => fs.existsSync(file)) ?? googleOAuthCandidates[0];
 
 function readGoogleOAuthClient(): { clientId: string; clientSecret: string } {
   if (!fs.existsSync(googleOAuthFile)) {
     throw new Error(
-      `[google-oauth] ${googleOAuthFile} not found. Add { "clientId", "clientSecret" } for the Desktop OAuth client before building.`,
+      `[google-oauth] Google Desktop OAuth client not found. Add { "clientId", "clientSecret" } to ${googleOAuthCandidates.join(" or ")} before building.`,
     );
   }
   const { clientId, clientSecret } = JSON.parse(fs.readFileSync(googleOAuthFile, "utf8")) as {

@@ -7,7 +7,7 @@ node_modules/
 # App icons (binary, auto-generated)
 app-icon.*
 
-# Google OAuth client (belongs in ~/.config/dayboard/google-oauth.json; ignored here in case it's misplaced)
+# Google Desktop OAuth client: kept here for Glaze's remote publish builds, never in git
 google-oauth.local.json
 
 # OS files
