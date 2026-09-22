@@ -30,10 +30,11 @@ function chmodSpawnHelpers(root: string) {
   }
 }
 
-// Google OAuth client: real values come from the gitignored google-oauth.local.json.
+// Google Desktop OAuth client: real values come from google-oauth.local.json in the Glaze project
+// folder (the parent of sources), so the file is never part of the published source tree.
 const googleOAuthLocalFile = path.resolve(
   process.cwd(),
-  "google-oauth.local.json",
+  "../google-oauth.local.json",
 );
 
 export default defineConfig({
@@ -47,7 +48,7 @@ export default defineConfig({
           build.onLoad({ filter: /google-oauth-app-client\.ts$/ }, () => {
             if (!fs.existsSync(googleOAuthLocalFile)) {
               console.warn(
-                "[google-oauth] google-oauth.local.json not found; this build ships without Google sign-in.",
+                "[google-oauth] ../google-oauth.local.json not found; this build ships without Google sign-in.",
               );
               return undefined;
             }

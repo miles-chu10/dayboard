@@ -7,7 +7,7 @@ node_modules/
 # App icons (binary, auto-generated)
 app-icon.*
 
-# Google OAuth client secret (injected at build time; see main/services/google-oauth-app-client.ts)
+# Google OAuth client (belongs in ../google-oauth.local.json; ignored here in case it's misplaced)
 google-oauth.local.json
 
 # OS files

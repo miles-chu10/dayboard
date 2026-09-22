@@ -6,8 +6,15 @@ import { OAuthService } from "@glaze/core/oauth";
 
 import type { GoogleAccountStatus } from "../shared-types.js";
 import { GOOGLE_APP_CLIENT_ID, GOOGLE_APP_CLIENT_SECRET } from "./google-oauth-app-client.js";
+import { authorizeGoogleWithLoopback } from "./google-loopback-oauth.js";
 
 export const GOOGLE_REDIRECT_URI = "https://www.glaze.app/api/oauth/callback";
+
+const AUTHORIZATION_PARAMETERS = {
+  access_type: "offline",
+  prompt: "consent",
+  include_granted_scopes: "true",
+};
 
 const SCOPES = [
   "openid",
@@ -23,6 +30,13 @@ interface LegacyGoogleConfig {
   clientId: string;
   clientSecret: string;
   email: string | null;
+}
+
+/** "app" = built-in Desktop client (loopback sign-in); "legacy" = pasted Web client (Glaze relay). */
+interface GoogleClient {
+  kind: "app" | "legacy";
+  clientId: string;
+  clientSecret: string;
 }
 
 interface GoogleAccountProfile {
@@ -41,7 +55,7 @@ export class GoogleAuthError extends Error {
 
 let cachedLegacy: LegacyGoogleConfig | null | undefined;
 let cachedProfile: GoogleAccountProfile | null | undefined;
-let service: { clientId: string; instance: OAuthService } | null = null;
+let service: { key: string; instance: OAuthService } | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 
 function legacyConfigPath(): string {
@@ -62,12 +76,12 @@ function isLegacyConfig(value: unknown): value is LegacyGoogleConfig {
   );
 }
 
-function appClient(): { clientId: string; clientSecret: string } | null {
+function appClient(): GoogleClient | null {
   const clientId = GOOGLE_APP_CLIENT_ID.trim();
   const clientSecret = GOOGLE_APP_CLIENT_SECRET.trim();
   if (!clientId || !clientSecret) return null;
   if (!clientId.endsWith(".apps.googleusercontent.com")) return null;
-  return { clientId, clientSecret };
+  return { kind: "app", clientId, clientSecret };
 }
 
 async function readLegacyConfig(): Promise<LegacyGoogleConfig | null> {
@@ -127,30 +141,34 @@ function writeProfile(profile: GoogleAccountProfile): Promise<void> {
   return writeQueue;
 }
 
-async function resolveClient(): Promise<{ clientId: string; clientSecret: string } | null> {
+async function resolveClient(): Promise<GoogleClient | null> {
   const baked = appClient();
   if (baked) return baked;
   const legacy = await readLegacyConfig();
-  if (legacy) return { clientId: legacy.clientId, clientSecret: legacy.clientSecret };
+  if (legacy) {
+    return { kind: "legacy", clientId: legacy.clientId, clientSecret: legacy.clientSecret };
+  }
   return null;
 }
 
-function getService(clientId: string, clientSecret: string): OAuthService {
-  if (service?.clientId === clientId) return service.instance;
+function legacyClient(config: LegacyGoogleConfig): GoogleClient {
+  return { kind: "legacy", clientId: config.clientId, clientSecret: config.clientSecret };
+}
+
+function getService(client: GoogleClient): OAuthService {
+  const key = `${client.kind}:${client.clientId}`;
+  if (service?.key === key) return service.instance;
   const instance = new OAuthService({
-    providerId: "google",
-    clientId,
-    clientSecret,
+    // Desktop-client tokens live apart from tokens issued to the legacy Web client.
+    providerId: client.kind === "app" ? "google-desktop" : "google",
+    clientId: client.clientId,
+    clientSecret: client.clientSecret,
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
     scopes: SCOPES,
-    extraAuthorizationParameters: {
-      access_type: "offline",
-      prompt: "consent",
-      include_granted_scopes: "true",
-    },
+    extraAuthorizationParameters: AUTHORIZATION_PARAMETERS,
   });
-  service = { clientId, instance };
+  service = { key, instance };
   return instance;
 }
 
@@ -166,7 +184,7 @@ export async function getGoogleStatus(): Promise<GoogleAccountStatus> {
   if (!client) {
     return { hasCredentials: false, connected: false, email: null, clientIdHint: null };
   }
-  const tokens = await getService(client.clientId, client.clientSecret).getTokens();
+  const tokens = await getService(client).getTokens();
   return {
     hasCredentials: true,
     connected: tokens !== null,
@@ -179,7 +197,7 @@ export async function getGoogleStatus(): Promise<GoogleAccountStatus> {
 export async function saveGoogleCredentials(clientId: string, clientSecret: string): Promise<void> {
   const existing = await readLegacyConfig();
   if (existing && existing.clientId !== clientId) {
-    await getService(existing.clientId, existing.clientSecret).removeTokens();
+    await getService(legacyClient(existing)).removeTokens();
   }
   const next: LegacyGoogleConfig = {
     clientId,
@@ -199,7 +217,7 @@ export async function saveGoogleCredentials(clientId: string, clientSecret: stri
 export async function clearGoogleCredentials(): Promise<void> {
   const existing = await readLegacyConfig();
   if (existing && !appClient()) {
-    await getService(existing.clientId, existing.clientSecret).removeTokens();
+    await getService(legacyClient(existing)).removeTokens();
   }
   await fs.rm(legacyConfigPath(), { force: true });
   cachedLegacy = null;
@@ -214,11 +232,24 @@ export async function connectGoogle(): Promise<void> {
       "Google sign-in isn't configured in this build. Add the app OAuth client and try again.",
     );
   }
-  const tokens = await getService(client.clientId, client.clientSecret).authorize();
+  const oauth = getService(client);
+  let accessToken: string;
+  if (client.kind === "app") {
+    const tokens = await authorizeGoogleWithLoopback({
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      scopes: SCOPES,
+      extraParameters: AUTHORIZATION_PARAMETERS,
+    });
+    await oauth.setTokens(tokens);
+    accessToken = tokens.accessToken;
+  } else {
+    accessToken = (await oauth.authorize()).accessToken;
+  }
   let email: string | null = null;
   try {
     const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (response.ok) {
       const info = (await response.json()) as { email?: unknown };
@@ -244,7 +275,7 @@ export async function disconnectGoogle(): Promise<void> {
     await writeProfile({ email: null });
     return;
   }
-  const oauth = getService(client.clientId, client.clientSecret);
+  const oauth = getService(client);
   const tokens = await oauth.getTokens();
   const revokable = tokens?.refreshToken ?? tokens?.accessToken;
   if (revokable) {
@@ -274,7 +305,7 @@ export async function getGoogleAccessToken(): Promise<string> {
   if (!client) {
     throw new GoogleAuthError("needs-setup", "Google sign-in isn't configured in this build.");
   }
-  const oauth = getService(client.clientId, client.clientSecret);
+  const oauth = getService(client);
   if (!(await oauth.getTokens())) {
     throw new GoogleAuthError("not-connected", "Google account is not connected.");
   }
