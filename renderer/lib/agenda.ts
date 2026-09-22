@@ -219,6 +219,8 @@ function clipTimedEvent(
 /**
  * Returns every future 15-minute-aligned start on `date` where a meeting of the
  * requested duration fits inside local work hours and avoids all events.
+ * Invalid dates, clocks, durations, or work hours return no suggestions. Work
+ * hours are whole local hours; 24 is allowed only as the exclusive end.
  */
 export function getAvailableSlots(
   events: CalendarEventItem[],
@@ -229,13 +231,22 @@ export function getAvailableSlots(
   workdayEndHour = 18,
 ): AvailableSlot[] {
   if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !Number.isFinite(now.getTime()) ||
     !Number.isFinite(durationMinutes) ||
     durationMinutes <= 0 ||
+    !Number.isInteger(workdayStartHour) ||
+    !Number.isInteger(workdayEndHour) ||
+    workdayStartHour < 0 ||
+    workdayEndHour > 24 ||
     workdayEndHour <= workdayStartHour
   )
     return [];
 
   const dayStart = startOfDay(date);
+  // Date normalizes impossible days (for example, February 30) into another
+  // month. Never suggest a slot on a different day from the one requested.
+  if (toISODate(dayStart) !== date) return [];
   const dayEnd = endOfDay(date);
   const workStart = new Date(dayStart);
   workStart.setHours(workdayStartHour, 0, 0, 0);
