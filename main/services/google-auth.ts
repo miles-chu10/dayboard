@@ -65,7 +65,9 @@ async function readConfig(): Promise<StoredGoogleConfig | null> {
   }
   const parsed: unknown = JSON.parse(await safeStorage.decryptString(encrypted));
   if (!isStoredConfig(parsed)) {
-    throw new Error(`Google configuration at ${configPath()} is malformed. Re-enter your client in Settings.`);
+    throw new Error(
+      `Google configuration at ${configPath()} is malformed. Re-enter your client in Settings.`,
+    );
   }
   cachedConfig = parsed;
   return parsed;
@@ -146,7 +148,10 @@ export async function clearGoogleCredentials(): Promise<void> {
 export async function connectGoogle(): Promise<void> {
   const config = await readConfig();
   if (!config) {
-    throw new GoogleAuthError("needs-setup", "Add your Google OAuth Client ID and Secret in Settings first.");
+    throw new GoogleAuthError(
+      "needs-setup",
+      "Add your Google OAuth Client ID and Secret in Settings first.",
+    );
   }
   const tokens = await getService(config).authorize();
   let email: string | null = null;
@@ -187,7 +192,10 @@ export async function disconnectGoogle(): Promise<void> {
 export async function getGoogleAccessToken(): Promise<string> {
   const config = await readConfig();
   if (!config) {
-    throw new GoogleAuthError("needs-setup", "Google is not set up. Add your OAuth client in Settings.");
+    throw new GoogleAuthError(
+      "needs-setup",
+      "Google is not set up. Add your OAuth client in Settings.",
+    );
   }
   const oauth = getService(config);
   if (!(await oauth.getTokens())) {

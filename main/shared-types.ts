@@ -21,6 +21,23 @@ export type AIFeature =
   | "meetingPrep"
   | "weeklyReview";
 export type LaunchView = "today" | SourceId | "assistant" | "review";
+export type CalendarRange =
+  | "today"
+  | "today-tomorrow"
+  | "next-3-days"
+  | "this-week"
+  | "next-7-days"
+  | "next-14-days"
+  | "this-month";
+export type ClaudeModel =
+  | "default"
+  | "fable"
+  | "opus"
+  | "sonnet"
+  | "haiku"
+  | "opus[1m]"
+  | "sonnet[1m]";
+export type ClaudeEffort = "default" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface AppSettings {
   general: {
@@ -31,18 +48,35 @@ export interface AppSettings {
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
   mail: { maxMessages: number };
   calendar: {
-    daysAhead: number;
+    range: CalendarRange;
     /** Per-calendar override; calendars without an entry use Google's own visibility. */
     visibility: Record<string, boolean>;
   };
   ai: {
     enabled: boolean;
     provider: AIProvider;
-    claudeModel: "default" | "sonnet" | "opus" | "haiku";
+    claudeModel: ClaudeModel;
+    claudeEffort: ClaudeEffort;
+    /** Claude Code fast mode (faster output on supported models). */
+    claudeFast: boolean;
+    /** Codex model slug; empty uses Codex's recommended default. */
     codexModel: string;
+    /** Codex reasoning effort; empty uses the model default. */
+    codexEffort: string;
+    /** Codex catalog service tier id (e.g. "priority" for Fast); empty is standard. */
+    codexServiceTier: string;
     useMcpInAssistant: boolean;
     features: Record<AIFeature, boolean>;
   };
+}
+
+export interface CodexModelInfo {
+  slug: string;
+  name: string;
+  description: string;
+  defaultEffort: string | null;
+  efforts: { effort: string; description: string }[];
+  tiers: { id: string; name: string; description: string }[];
 }
 
 export interface SettingsChangedEvent {
@@ -90,8 +124,26 @@ export interface AccountsStatus {
   reminders: RemindersAccess;
 }
 
+export interface SourceCoverage {
+  /** False only when the bounded fetch reached a documented cap. */
+  complete: boolean;
+  /** What prevented a complete result when `complete` is false. */
+  reason?: "item-cap" | "list-cap" | "calendar-cap";
+  /** Number of returned items. */
+  loaded: number;
+}
+
 export type SourceResult<T> =
-  | { state: "ok"; items: T[] }
+  | {
+      state: "ok";
+      items: T[];
+      /** Present for bounded remote-source listings. */
+      coverage?: SourceCoverage;
+      /** ISO timestamp of the most recent successful renderer fetch. */
+      refreshedAt?: string;
+      /** A refresh failed after the items above were successfully loaded. */
+      refreshError?: string;
+    }
   | { state: "needs-setup" }
   | { state: "not-connected" }
   | { state: "no-access"; access: RemindersAccess }
@@ -190,6 +242,55 @@ export interface CreateEventInput {
   date: string;
   startTime?: string;
   endTime?: string;
+  timeZone: string;
+  notes?: string;
+}
+
+export type AgendaTodoRef =
+  | {
+      /** Stable Google Task identity: `task:${listId}:${taskId}`. */
+      key: string;
+      source: "tasks";
+      listId: string;
+      taskId: string;
+    }
+  | {
+      /** Stable Apple Reminder identity: `reminder:${ref}`. */
+      key: string;
+      source: "reminders";
+      ref: string;
+    };
+
+export interface AgendaDuplicateLink {
+  leftKey: string;
+  rightKey: string;
+  status: "accepted" | "dismissed";
+}
+
+export interface AgendaScheduledBlock {
+  taskKey: string;
+  eventId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  /** Used only to make a repeated confirmation safe. */
+  requestId?: string;
+}
+
+export interface AgendaState {
+  focusKeys: string[];
+  duplicateLinks: AgendaDuplicateLink[];
+  scheduledBlocks: AgendaScheduledBlock[];
+}
+
+export interface AgendaCreateBlockInput {
+  /** UUID generated once when the user confirms the preview. */
+  requestId: string;
+  task: AgendaTodoRef;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
   timeZone: string;
   notes?: string;
 }

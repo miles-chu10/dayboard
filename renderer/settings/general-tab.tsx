@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Button,
   Field,
   FieldContent,
   FieldLabel,
@@ -8,20 +9,23 @@ import {
   RadioGroup,
   RadioGroupItem,
   Status,
+  Switch,
   toast,
 } from "@glaze/core/components";
 import type { NativeThemeInfo } from "@glaze/core/ipc";
-import type { LaunchView } from "@main/shared-types";
+import type { CalendarRange, LaunchView } from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
+import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
+import { useStartAtLogin } from "../lib/use-start-at-login";
 import { SettingSelect } from "./setting-select";
 
 const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
-  { value: "today", label: "Today" },
+  { value: "today", label: "Agenda · Today" },
   { value: "tasks", label: "Google Tasks" },
   { value: "reminders", label: "Reminders" },
   { value: "mail", label: "Mail" },
-  { value: "calendar", label: "Calendar" },
+  { value: "calendar", label: "Agenda · Calendar range" },
   { value: "assistant", label: "Assistant" },
   { value: "review", label: "Weekly Review" },
 ];
@@ -39,15 +43,10 @@ const MAIL_OPTIONS = [
   { value: "50", label: "50 messages" },
 ];
 
-const CALENDAR_OPTIONS = [
-  { value: "3", label: "3 days" },
-  { value: "7", label: "7 days" },
-  { value: "14", label: "14 days" },
-];
-
 export function GeneralTab() {
   const { settings, edit } = useSettingsEditor();
   const [themeInfo, setThemeInfo] = useState<NativeThemeInfo | null>(null);
+  const startAtLogin = useStartAtLogin();
 
   const refreshThemeInfo = async () => {
     try {
@@ -101,6 +100,34 @@ export function GeneralTab() {
       {settings ? (
         <>
           <FieldSet title="Startup & Refresh">
+            <Field
+              label="Start at login"
+              description={
+                startAtLogin.isError
+                  ? undefined
+                  : startAtLogin.data?.status === "requires-approval"
+                    ? "Allow Dashboard in System Settings → General → Login Items."
+                    : "Open Dashboard when you sign in to your Mac."
+              }
+              error={startAtLogin.isError ? "Could not read the macOS login setting." : undefined}
+            >
+              {startAtLogin.isError ? (
+                <Button size="small" onClick={() => void startAtLogin.refetch()}>
+                  Retry
+                </Button>
+              ) : null}
+              <Switch
+                id="start-at-login"
+                aria-label="Start at login"
+                checked={startAtLogin.data?.openAtLogin ?? false}
+                disabled={
+                  startAtLogin.isPending ||
+                  startAtLogin.isError ||
+                  startAtLogin.setOpenAtLogin.isPending
+                }
+                onCheckedChange={(openAtLogin) => startAtLogin.setOpenAtLogin.mutate(openAtLogin)}
+              />
+            </Field>
             <Field label="Open at launch" description="The view shown when the dashboard opens.">
               <SettingSelect
                 label="Open at launch"
@@ -143,14 +170,17 @@ export function GeneralTab() {
                 }
               />
             </Field>
-            <Field label="Calendar range" description="How far ahead the calendar looks.">
+            <Field
+              label="Calendar range"
+              description="The default date range for Calendar and the calendar context used by Assistant."
+            >
               <SettingSelect
                 label="Calendar range"
-                value={String(settings.calendar.daysAhead)}
+                value={settings.calendar.range}
                 options={CALENDAR_OPTIONS}
                 onChange={(value) =>
                   edit((draft) => {
-                    draft.calendar.daysAhead = Number(value);
+                    draft.calendar.range = value as CalendarRange;
                   })
                 }
               />

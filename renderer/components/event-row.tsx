@@ -22,7 +22,9 @@ export function EventRow({
   const openPrep = useOpenMeetingPrep();
   const past = isEventPast(event);
   const now = isEventNow(event);
-  const detail = [event.location, showCalendar ? event.calendarName : null].filter(Boolean).join(" · ");
+  const detail = [event.location, showCalendar ? event.calendarName : null]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="flex items-center gap-3 px-3 py-2 min-h-12 min-w-0">
@@ -35,7 +37,11 @@ export function EventRow({
       ) : (
         <SourceDot source="calendar" />
       )}
-      <Text variant="small" color={past ? "quaternary" : "secondary"} className="w-32 shrink-0 tabular-nums">
+      <Text
+        variant="small"
+        color={past ? "quaternary" : "secondary"}
+        className="w-32 shrink-0 tabular-nums"
+      >
         {eventTimeRange(event)}
       </Text>
       <div className="flex flex-col gap-0.5 min-w-0 flex-1">

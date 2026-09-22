@@ -1,8 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "@glaze/core/components";
 import type {
   AccountsStatus,
+  AgendaCreateBlockInput,
+  AgendaDuplicateLink,
+  AgendaScheduledBlock,
+  AgendaState,
   AppSettings,
   CalendarEventItem,
   CalendarListResult,
@@ -28,9 +32,13 @@ export const queryKeys = {
   reminders: ["reminders"],
   mail: ["mail"],
   calendar: ["calendar"],
+  calendarRange: (startDate: string, days: number) =>
+    ["calendar", "range", startDate, days] as const,
   calendars: ["calendars"],
   review: ["review"],
   mcpServers: ["mcp-servers"],
+  assistantMcp: ["assistant-mcp"],
+  agenda: ["agenda"],
 } as const;
 
 const DATA_KEYS = [
@@ -43,6 +51,7 @@ const DATA_KEYS = [
 ];
 
 const SOURCE_STALE_TIME = 2 * 60_000;
+const todoWrites = new Set<string>();
 
 export function useAccounts() {
   return useQuery({
@@ -59,10 +68,28 @@ function useSourceQuery<T>(key: readonly string[], channel: string, source: Sour
   return useQuery({
     queryKey: key,
     // Read settings at fetch time so an invalidation right after a settings change uses the new value.
-    queryFn: () =>
-      sourceOn(queryClient.getQueryData<AppSettings>(settingsQueryKey), source)
-        ? invoke<SourceResult<T>>(channel)
-        : Promise.resolve<SourceResult<T>>({ state: "disabled" }),
+    queryFn: async ({ signal }) => {
+      if (!sourceOn(queryClient.getQueryData<AppSettings>(settingsQueryKey), source)) {
+        return { state: "disabled" } as SourceResult<T>;
+      }
+      try {
+        const result = await invoke<SourceResult<T>>(channel);
+        if (signal.aborted) throw new DOMException("Source fetch was cancelled", "AbortError");
+        return result.state === "ok"
+          ? { ...result, refreshedAt: new Date().toISOString(), refreshError: undefined }
+          : result;
+      } catch (error) {
+        if (signal.aborted) throw error;
+        const previous = queryClient.getQueryData<SourceResult<T>>(key);
+        if (previous?.state === "ok") {
+          return {
+            ...previous,
+            refreshError: errorMessage(error).slice(0, 240),
+          };
+        }
+        throw error;
+      }
+    },
     enabled: settings.isSuccess,
     staleTime: SOURCE_STALE_TIME,
     refetchInterval: refreshMinutes > 0 ? refreshMinutes * 60_000 : false,
@@ -83,6 +110,42 @@ export function useMail() {
 
 export function useCalendar() {
   return useSourceQuery<CalendarEventItem>(queryKeys.calendar, "calendar:list", "calendar");
+}
+
+/** A bounded date range for Calendar navigation, independent of the Settings default. */
+export function useCalendarRange(startDate: string, days: number) {
+  const settings = useSettings();
+  const queryClient = useQueryClient();
+  const key = queryKeys.calendarRange(startDate, days);
+  return useQuery({
+    queryKey: key,
+    queryFn: async ({ signal }) => {
+      if (!sourceOn(queryClient.getQueryData<AppSettings>(settingsQueryKey), "calendar"))
+        return { state: "disabled" } as SourceResult<CalendarEventItem>;
+      try {
+        const result = await invoke<SourceResult<CalendarEventItem>>("calendar:listRange", {
+          startDate,
+          days,
+        });
+        if (signal.aborted)
+          throw new DOMException("Calendar range fetch was cancelled", "AbortError");
+        return result.state === "ok"
+          ? { ...result, refreshedAt: new Date().toISOString(), refreshError: undefined }
+          : result;
+      } catch (error) {
+        if (signal.aborted) throw error;
+        const previous = queryClient.getQueryData<SourceResult<CalendarEventItem>>(key);
+        if (previous?.state === "ok")
+          return { ...previous, refreshError: errorMessage(error).slice(0, 240) };
+        throw error;
+      }
+    },
+    enabled: settings.isSuccess,
+    staleTime: SOURCE_STALE_TIME,
+    refetchInterval: settings.data?.general.refreshMinutes
+      ? settings.data.general.refreshMinutes * 60_000
+      : false,
+  });
 }
 
 export function useCalendars(enabled: boolean) {
@@ -109,6 +172,17 @@ export function useMcpServers() {
   });
 }
 
+export function useAssistantMcpStatus() {
+  return useQuery({
+    queryKey: queryKeys.assistantMcp,
+    queryFn: () =>
+      invoke<{ serverCount: number; state: "unavailable" | "checking" | "ready" | "error" }>(
+        "mcp:assistantStatus",
+      ),
+    staleTime: 30_000,
+  });
+}
+
 /** Keeps every window in step with account, settings, and MCP changes made anywhere. */
 export function useBackendSync() {
   const queryClient = useQueryClient();
@@ -116,11 +190,15 @@ export function useBackendSync() {
     const ipc = window.glazeAPI.glaze.ipc;
     const unsubscribers = [
       ipc.onNotification("accounts:changed", () => {
-        void queryClient.invalidateQueries();
+        // Never show a prior account's cached data during a reconnect or switch.
+        for (const queryKey of [...DATA_KEYS, queryKeys.agenda])
+          void queryClient.resetQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       }),
       ipc.onNotification("settings:changed", (params) => {
         const event = params as Partial<SettingsChangedEvent> | null;
         if (event?.settings) queryClient.setQueryData(settingsQueryKey, event.settings);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.assistantMcp });
         if (event?.dataChanged) {
           for (const key of DATA_KEYS) void queryClient.invalidateQueries({ queryKey: key });
         }
@@ -133,20 +211,41 @@ export function useBackendSync() {
       }),
       ipc.onNotification("mcp:changed", () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.assistantMcp });
+      }),
+      ipc.onNotification("agenda:changed", (params) => {
+        const state = params as AgendaState | null;
+        if (state) queryClient.setQueryData(queryKeys.agenda, state);
+        else void queryClient.invalidateQueries({ queryKey: queryKeys.agenda });
       }),
     ];
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [queryClient]);
 }
 
-function setTodoCompleted(queryClient: QueryClient, todo: Todo, completed: boolean) {
+function todoQueryKey(todo: Todo) {
+  return todo.task ? queryKeys.tasks : queryKeys.reminders;
+}
+
+function setTodoCompleted(
+  queryClient: QueryClient,
+  todo: Todo,
+  completed: boolean,
+  onlyIf?: boolean,
+) {
   if (todo.task) {
     const id = todo.task.id;
     queryClient.setQueryData<SourceResult<TaskItem>>(queryKeys.tasks, (prev) =>
       prev?.state === "ok"
         ? {
             ...prev,
-            items: prev.items.map((item) => (item.id === id ? { ...item, completed } : item)),
+            items: prev.items.map((item) =>
+              item.id === id &&
+              item.listId === todo.task!.listId &&
+              (onlyIf === undefined || item.completed === onlyIf)
+                ? { ...item, completed }
+                : item,
+            ),
           }
         : prev,
     );
@@ -156,7 +255,11 @@ function setTodoCompleted(queryClient: QueryClient, todo: Todo, completed: boole
       prev?.state === "ok"
         ? {
             ...prev,
-            items: prev.items.map((item) => (item.ref === ref ? { ...item, completed } : item)),
+            items: prev.items.map((item) =>
+              item.ref === ref && (onlyIf === undefined || item.completed === onlyIf)
+                ? { ...item, completed }
+                : item,
+            ),
           }
         : prev,
     );
@@ -165,7 +268,8 @@ function setTodoCompleted(queryClient: QueryClient, todo: Todo, completed: boole
 
 export function useToggleTodo() {
   const queryClient = useQueryClient();
-  return useMutation({
+  const revisions = useRef(new Map<string, number>());
+  const mutation = useMutation({
     mutationFn: async (todo: Todo) => {
       if (todo.task) {
         await invoke("tasks:setCompleted", {
@@ -180,12 +284,105 @@ export function useToggleTodo() {
         });
       }
     },
-    onMutate: (todo) => setTodoCompleted(queryClient, todo, !todo.completed),
-    onError: (error, todo) => {
-      setTodoCompleted(queryClient, todo, todo.completed);
-      toast.error(`Couldn't update “${todo.title}”: ${errorMessage(error)}`);
+    onMutate: async (todo) => {
+      if (todoWrites.has(todo.key)) throw new Error("This item is already being updated.");
+      todoWrites.add(todo.key);
+      const queryKey = todoQueryKey(todo);
+      await queryClient.cancelQueries({ queryKey });
+      const revision = (revisions.current.get(todo.key) ?? 0) + 1;
+      revisions.current.set(todo.key, revision);
+      const targetCompleted = !todo.completed;
+      setTodoCompleted(queryClient, todo, targetCompleted);
+      return { revision, targetCompleted };
+    },
+    onError: (error, todo, context) => {
+      if (context && revisions.current.get(todo.key) === context.revision) {
+        setTodoCompleted(queryClient, todo, todo.completed, context.targetCompleted);
+        toast.error(`Couldn't update “${todo.title}”: ${errorMessage(error)}`);
+      }
+    },
+    onSuccess: (_result, todo) => {
+      const plan = queryClient.getQueryData<AgendaState>(queryKeys.agenda);
+      if (!todo.completed && plan?.focusKeys.includes(todo.key)) {
+        void invoke<AgendaState>("agenda:setFocus", {
+          focusKeys: plan.focusKeys.filter((key) => key !== todo.key),
+        })
+          .then((state) => queryClient.setQueryData(queryKeys.agenda, state))
+          .catch(() => toast.error("The item completed, but its focus pin could not be removed."));
+      }
+      toast.success(`Updated “${todo.title}”`, {
+        action: {
+          label: "Undo",
+          onClick: () => mutation.mutate({ ...todo, completed: !todo.completed }),
+        },
+      });
+    },
+    onSettled: (_result, _error, todo, context) => {
+      if (!context) return;
+      todoWrites.delete(todo.key);
+      if (context && revisions.current.get(todo.key) === context.revision)
+        revisions.current.delete(todo.key);
+      void queryClient.invalidateQueries({ queryKey: todoQueryKey(todo) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.review });
     },
   });
+  return mutation;
+}
+
+export function useAgendaState() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: queryKeys.agenda,
+    queryFn: () => invoke<AgendaState>("agenda:getState"),
+    staleTime: 5 * 60_000,
+  });
+  const setFocus = useMutation({
+    mutationFn: (input: { focusKeys: string[] }) => invoke<AgendaState>("agenda:setFocus", input),
+    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+    onError: (error) => toast.error(`Couldn't save focus: ${errorMessage(error)}`),
+  });
+  const setDuplicateLink = useMutation({
+    mutationFn: (input: AgendaDuplicateLink) =>
+      invoke<AgendaState>("agenda:setDuplicateLink", input),
+    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+    onError: (error) => toast.error(`Couldn't save item link: ${errorMessage(error)}`),
+  });
+  const removeDuplicateLink = useMutation({
+    mutationFn: (input: Pick<AgendaDuplicateLink, "leftKey" | "rightKey">) =>
+      invoke<AgendaState>("agenda:removeDuplicateLink", input),
+    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+    onError: (error) => toast.error(`Couldn't unlink items: ${errorMessage(error)}`),
+  });
+  const removeScheduledBlock = useMutation({
+    mutationFn: (input: Pick<AgendaScheduledBlock, "taskKey" | "eventId">) =>
+      invoke<AgendaState>("agenda:removeScheduledBlock", input),
+    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+    onError: (error) => toast.error(`Couldn't unlink calendar block: ${errorMessage(error)}`),
+  });
+  const createBlock = useMutation({
+    mutationFn: (input: AgendaCreateBlockInput) =>
+      invoke<AgendaScheduledBlock>("agenda:createBlock", input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.agenda });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.calendar });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.review });
+    },
+  });
+  return {
+    ...query,
+    isPending:
+      query.isPending ||
+      setFocus.isPending ||
+      setDuplicateLink.isPending ||
+      removeDuplicateLink.isPending ||
+      removeScheduledBlock.isPending ||
+      createBlock.isPending,
+    setFocus,
+    setDuplicateLink,
+    removeDuplicateLink,
+    removeScheduledBlock,
+    createBlock,
+  };
 }
 
 export function useConnectGoogle() {

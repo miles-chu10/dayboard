@@ -22,7 +22,7 @@ export function buildTodos(
   if (tasks?.state === "ok") {
     for (const task of tasks.items) {
       todos.push({
-        key: `task:${task.id}`,
+        key: `task:${task.listId}:${task.id}`,
         source: "tasks",
         title: task.title,
         notes: task.notes,

@@ -44,7 +44,11 @@ export function dayHeading(iso: string): string {
   const today = todayISO();
   if (iso === today) return "Today";
   if (iso === addDays(today, 1)) return "Tomorrow";
-  return parseISODate(iso).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+  return parseISODate(iso).toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export type DueColor = "red" | "orange" | "blue" | "secondary";
@@ -65,7 +69,9 @@ export function eventDayKey(event: CalendarEventItem): string {
 }
 
 export function eventTimeRange(event: CalendarEventItem): string {
-  return event.allDay ? "All day" : `${formatTimeOfDay(event.start)} – ${formatTimeOfDay(event.end)}`;
+  return event.allDay
+    ? "All day"
+    : `${formatTimeOfDay(event.start)} – ${formatTimeOfDay(event.end)}`;
 }
 
 export function isEventNow(event: CalendarEventItem): boolean {

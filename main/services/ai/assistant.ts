@@ -4,6 +4,7 @@ import { logger } from "@glaze/core/backend";
 import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
 import { runCliCompletion } from "./cli-providers.js";
+import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
 
 const ASSISTANT_TIMEOUT_MS = 5 * 60_000;
@@ -26,13 +27,17 @@ function jsonSchemaInput(schema: Record<string, unknown>) {
 function transcript(messages: AssistantMessageInput[]): string {
   const history = messages.slice(0, -1);
   const latest = messages[messages.length - 1];
-  const lines = history.map((message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`);
+  const lines = history.map(
+    (message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`,
+  );
   return `${lines.length ? `Conversation so far:\n${lines.join("\n\n")}\n\n` : ""}User's latest message:\n${latest?.content ?? ""}`;
 }
 
 function mcpNote(session: McpSession | null, cliServers: number): string {
-  if (session?.errors.length) return `\n\nSome MCP servers could not be reached: ${session.errors.join("; ")}`;
-  if (session?.tools.length || cliServers) return "\n\nExternal MCP tools are connected; use them when they help.";
+  if (session?.errors.length)
+    return `\n\nSome MCP servers could not be reached: ${session.errors.join("; ")}`;
+  if (session?.tools.length || cliServers)
+    return "\n\nMCP tools are connected; use them when they help.";
   return "";
 }
 
@@ -42,7 +47,10 @@ export async function runAssistant(
   signal: AbortSignal,
 ): Promise<AssistantResult> {
   const settings = await getSettings();
-  const servers = settings.ai.useMcpInAssistant ? (await getMcpServers()).filter((server) => server.enabled) : [];
+  const servers = resolveAssistantMcpServers(
+    settings.ai.useMcpInAssistant,
+    settings.ai.useMcpInAssistant ? await getMcpServers() : [],
+  );
 
   if (settings.ai.provider !== "glaze") {
     const text = await runCliCompletion({
@@ -60,7 +68,9 @@ export async function runAssistant(
 
   const session = servers.length ? await openMcpSession(servers) : null;
   try {
-    const displayNames = new Map(session?.tools.map((handle) => [handle.qualifiedName, `${handle.server}: ${handle.tool}`]));
+    const displayNames = new Map(
+      session?.tools.map((handle) => [handle.qualifiedName, `${handle.server}: ${handle.tool}`]),
+    );
     const tools = Object.fromEntries(
       (session?.tools ?? []).map((handle) => [
         handle.qualifiedName,

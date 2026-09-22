@@ -20,7 +20,13 @@ const MARK: Record<AIProvider, { path: string; className: string }> = {
 };
 
 /** The selected AI provider's logo, sized by the caller (e.g. `size-4`). */
-export function ProviderMark({ provider, className }: { provider: AIProvider; className?: string }) {
+export function ProviderMark({
+  provider,
+  className,
+}: {
+  provider: AIProvider;
+  className?: string;
+}) {
   const mark = MARK[provider];
   return (
     <svg

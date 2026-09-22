@@ -1,8 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 
 import { ipcMain, logger } from "@glaze/core/backend";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -28,8 +30,9 @@ import {
   listReminders,
   setReminderCompleted,
 } from "./apple-reminders.js";
+import { calendarRangeDays } from "./calendar-range.js";
 import { getSettings } from "./settings-store.js";
-import type { DataChangedEvent, SourceId } from "../shared-types.js";
+import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
 
 // Local MCP endpoint so MCP clients (Claude Code, Codex, …) can use the dashboard's
 // sources through the app's own Google sign-in and Reminders access. Works only while
@@ -38,6 +41,26 @@ import type { DataChangedEvent, SourceId } from "../shared-types.js";
 const MAX_LIST = 100;
 const MAX_BODY_CHARS = 20_000;
 const WEEK_MS = 7 * 86_400_000;
+const ASSISTANT_MCP_PATH = "/assistant-mcp";
+const ASSISTANT_MCP_ID = "dashboard-assistant-readonly";
+const ASSISTANT_MCP_TOOLS = [
+  "get_weekly_review",
+  "list_events",
+  "list_inbox",
+  "list_reminders",
+  "list_tasks",
+  "read_email",
+] as const;
+const assistantMcpToken = randomBytes(32).toString("base64url");
+let activeProjectId: string | null = null;
+let assistantMcpStatus: AssistantMcpStatus = { state: "unavailable", ok: false, toolCount: 0 };
+let assistantMcpCheck: Promise<AssistantMcpStatus> | null = null;
+
+export interface AssistantMcpStatus {
+  state: "unavailable" | "checking" | "ready" | "error";
+  ok: boolean;
+  toolCount: number;
+}
 
 const SOURCE_NAMES: Record<SourceId, string> = {
   tasks: "Google Tasks",
@@ -118,10 +141,7 @@ function capped<T>(items: T[], label: string) {
   return { total: items.length, [label]: items.slice(0, MAX_LIST) };
 }
 
-function buildMcpServer(): McpServer {
-  const server = new McpServer({ name: "work-dashboard", version: "1.0.0" });
-
-  // ── Google Tasks ──────────────────────────────────────────────────────
+function registerReadOnlyTools(server: McpServer): void {
   server.registerTool(
     "list_tasks",
     {
@@ -131,6 +151,115 @@ function buildMcpServer(): McpServer {
     },
     run("tasks", async () => text(capped(await listTasks(), "tasks"))),
   );
+  server.registerTool(
+    "list_reminders",
+    {
+      title: "List reminders",
+      description: `List open Apple Reminders (up to ${MAX_LIST}) with list, due date/time, and priority.`,
+      inputSchema: {},
+    },
+    run("reminders", async () => text(capped(await listReminders(), "reminders"))),
+  );
+  server.registerTool(
+    "list_inbox",
+    {
+      title: "List inbox",
+      description:
+        "List the newest Gmail inbox messages with sender, subject, snippet, and unread state.",
+      inputSchema: {
+        max: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_LIST)
+          .optional()
+          .describe("Defaults to the app's inbox size"),
+      },
+    },
+    run("mail", async ({ max }: { max?: number }) => {
+      const limit = max ?? (await getSettings()).mail.maxMessages;
+      return text({ messages: await listInbox(Math.min(limit, MAX_LIST)) });
+    }),
+  );
+
+  server.registerTool(
+    "read_email",
+    {
+      title: "Read email",
+      description: "Get the plain-text body of a Gmail message. The id comes from list_inbox.",
+      inputSchema: { id: z.string().min(1) },
+    },
+    run("mail", async ({ id }: { id: string }) => {
+      const body = await getMessageBody(id);
+      return text(
+        body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}\n\n[truncated]` : body,
+      );
+    }),
+  );
+  server.registerTool(
+    "list_events",
+    {
+      title: "List events",
+      description: `List upcoming Google Calendar events from the calendars shown in the app (up to ${MAX_LIST}).`,
+      inputSchema: {
+        days_ahead: z
+          .number()
+          .int()
+          .min(1)
+          .max(60)
+          .optional()
+          .describe("Defaults to the app's calendar range"),
+      },
+    },
+    run("calendar", async ({ days_ahead }: { days_ahead?: number }) => {
+      const settings = await getSettings();
+      const events = await listEvents(
+        days_ahead ?? calendarRangeDays(settings.calendar.range),
+        settings.calendar.visibility,
+      );
+      return text(capped(events, "events"));
+    }),
+  );
+  server.registerTool(
+    "get_weekly_review",
+    {
+      title: "Weekly review",
+      description: `Everything finished in the past 7 days: completed tasks, completed reminders, and past events (up to ${MAX_LIST} each). Turned-off or disconnected sources are noted.`,
+      inputSchema: {},
+    },
+    async () => {
+      const since = new Date(Date.now() - WEEK_MS);
+      const section = async <T>(source: SourceId, load: () => Promise<T[]>) => {
+        const result = await run(source, async () => text(capped(await load(), "items")))({});
+        return result.isError
+          ? { unavailable: result.content[0]?.text }
+          : JSON.parse(result.content[0]?.text ?? "{}");
+      };
+      const visibility = (await getSettings()).calendar.visibility;
+      const [tasks, reminders, events] = await Promise.all([
+        section("tasks", () => listCompletedTasks(since)),
+        section("reminders", () => listCompletedReminders(since)),
+        section("calendar", () => listEventsBetween(since, new Date(), visibility)),
+      ]);
+      return text({
+        since: since.toISOString(),
+        completedTasks: tasks,
+        completedReminders: reminders,
+        events,
+      });
+    },
+  );
+}
+
+function buildAssistantMcpServer(): McpServer {
+  const server = new McpServer({ name: "work-dashboard-assistant", version: "1.0.0" });
+  registerReadOnlyTools(server);
+  return server;
+}
+
+function buildMcpServer(): McpServer {
+  const server = new McpServer({ name: "work-dashboard", version: "1.0.0" });
+  registerReadOnlyTools(server);
 
   server.registerTool(
     "create_task",
@@ -176,17 +305,6 @@ function buildMcpServer(): McpServer {
     ),
   );
 
-  // ── Apple Reminders ───────────────────────────────────────────────────
-  server.registerTool(
-    "list_reminders",
-    {
-      title: "List reminders",
-      description: `List open Apple Reminders (up to ${MAX_LIST}) with list, due date/time, and priority.`,
-      inputSchema: {},
-    },
-    run("reminders", async () => text(capped(await listReminders(), "reminders"))),
-  );
-
   server.registerTool(
     "create_reminder",
     {
@@ -227,44 +345,6 @@ function buildMcpServer(): McpServer {
       await setReminderCompleted(ref, completed);
       notifyChanged("reminders");
       return text(completed ? "Reminder marked done." : "Reminder reopened.");
-    }),
-  );
-
-  // ── Gmail ─────────────────────────────────────────────────────────────
-  server.registerTool(
-    "list_inbox",
-    {
-      title: "List inbox",
-      description:
-        "List the newest Gmail inbox messages with sender, subject, snippet, and unread state.",
-      inputSchema: {
-        max: z
-          .number()
-          .int()
-          .min(1)
-          .max(MAX_LIST)
-          .optional()
-          .describe("Defaults to the app's inbox size"),
-      },
-    },
-    run("mail", async ({ max }: { max?: number }) => {
-      const limit = max ?? (await getSettings()).mail.maxMessages;
-      return text({ messages: await listInbox(Math.min(limit, MAX_LIST)) });
-    }),
-  );
-
-  server.registerTool(
-    "read_email",
-    {
-      title: "Read email",
-      description: "Get the plain-text body of a Gmail message. The id comes from list_inbox.",
-      inputSchema: { id: z.string().min(1) },
-    },
-    run("mail", async ({ id }: { id: string }) => {
-      const body = await getMessageBody(id);
-      return text(
-        body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}\n\n[truncated]` : body,
-      );
     }),
   );
 
@@ -310,32 +390,6 @@ function buildMcpServer(): McpServer {
     }),
   );
 
-  // ── Google Calendar ───────────────────────────────────────────────────
-  server.registerTool(
-    "list_events",
-    {
-      title: "List events",
-      description: `List upcoming Google Calendar events from the calendars shown in the app (up to ${MAX_LIST}).`,
-      inputSchema: {
-        days_ahead: z
-          .number()
-          .int()
-          .min(1)
-          .max(60)
-          .optional()
-          .describe("Defaults to the app's calendar range"),
-      },
-    },
-    run("calendar", async ({ days_ahead }: { days_ahead?: number }) => {
-      const settings = await getSettings();
-      const events = await listEvents(
-        days_ahead ?? settings.calendar.daysAhead,
-        settings.calendar.visibility,
-      );
-      return text(capped(events, "events"));
-    }),
-  );
-
   server.registerTool(
     "create_event",
     {
@@ -375,37 +429,6 @@ function buildMcpServer(): McpServer {
     ),
   );
 
-  // ── Weekly review ─────────────────────────────────────────────────────
-  server.registerTool(
-    "get_weekly_review",
-    {
-      title: "Weekly review",
-      description: `Everything finished in the past 7 days: completed tasks, completed reminders, and past events (up to ${MAX_LIST} each). Turned-off or disconnected sources are noted.`,
-      inputSchema: {},
-    },
-    async () => {
-      const since = new Date(Date.now() - WEEK_MS);
-      const section = async <T>(source: SourceId, load: () => Promise<T[]>) => {
-        const result = await run(source, async () => text(capped(await load(), "items")))({});
-        return result.isError
-          ? { unavailable: result.content[0]?.text }
-          : JSON.parse(result.content[0]?.text ?? "{}");
-      };
-      const visibility = (await getSettings()).calendar.visibility;
-      const [tasks, reminders, events] = await Promise.all([
-        section("tasks", () => listCompletedTasks(since)),
-        section("reminders", () => listCompletedReminders(since)),
-        section("calendar", () => listEventsBetween(since, new Date(), visibility)),
-      ]);
-      return text({
-        since: since.toISOString(),
-        completedTasks: tasks,
-        completedReminders: reminders,
-        events,
-      });
-    },
-  );
-
   return server;
 }
 
@@ -415,38 +438,157 @@ export function stableMcpPort(projectId: string): number {
   return 49152 + (hash % 16000);
 }
 
-export function startMcpHttpServer(projectId: string): void {
-  const transports = new Map<string, StreamableHTTPServerTransport>();
-  const port = stableMcpPort(projectId);
+export function getAssistantMcpServerConfig(projectId: string): McpServerConfig {
+  return {
+    id: ASSISTANT_MCP_ID,
+    name: "Dashboard",
+    enabled: true,
+    transport: "http",
+    command: "",
+    args: [],
+    env: {},
+    url: `http://127.0.0.1:${stableMcpPort(projectId)}${ASSISTANT_MCP_PATH}`,
+    headers: { Authorization: `Bearer ${assistantMcpToken}` },
+  };
+}
 
-  const httpServer = createServer(async (request, response) => {
+export function getActiveAssistantMcpServerConfig(): McpServerConfig | null {
+  return activeProjectId ? getAssistantMcpServerConfig(activeProjectId) : null;
+}
+
+export function getAssistantMcpStatus(): AssistantMcpStatus {
+  return assistantMcpStatus;
+}
+
+/** Verifies only MCP protocol setup and the read-only allowlist; it never reads user data. */
+export async function checkAssistantMcpConnection(): Promise<AssistantMcpStatus> {
+  if (assistantMcpCheck) return assistantMcpCheck;
+  const config = getActiveAssistantMcpServerConfig();
+  if (!config) return assistantMcpStatus;
+
+  assistantMcpStatus = { state: "checking", ok: false, toolCount: 0 };
+  assistantMcpCheck = (async () => {
+    const client = new Client({ name: "dashboard-self-check", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(new URL(config.url), {
+      requestInit: { headers: config.headers },
+    });
+    try {
+      await client.connect(transport);
+      const tools = (await client.listTools()).tools.map((tool) => tool.name).sort();
+      const expected = [...ASSISTANT_MCP_TOOLS].sort();
+      const ok =
+        tools.length === expected.length && tools.every((tool, index) => tool === expected[index]);
+      assistantMcpStatus = { state: ok ? "ready" : "error", ok, toolCount: tools.length };
+    } catch {
+      assistantMcpStatus = { state: "error", ok: false, toolCount: 0 };
+    } finally {
+      await transport.terminateSession().catch(() => undefined);
+      await client.close().catch(() => undefined);
+      assistantMcpCheck = null;
+    }
+    return assistantMcpStatus;
+  })();
+  return assistantMcpCheck;
+}
+
+function isLoopbackHost(value: string): boolean {
+  const host = value.trim().toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+}
+
+function hasSafeLoopbackOrigin(value: string): boolean {
+  try {
+    return isLoopbackHost(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function hasSafeLoopbackRequest(request: {
+  headers: Record<string, string | string[] | undefined>;
+}): boolean {
+  const host = request.headers.host;
+  const origin = request.headers.origin;
+  const hostValue = Array.isArray(host) ? host[0] : host;
+  const originValue = Array.isArray(origin) ? origin[0] : origin;
+  if (!hostValue || !isLoopbackHost(hostValue.replace(/:\d+$/, ""))) return false;
+  return !originValue || hasSafeLoopbackOrigin(originValue);
+}
+
+function hasAssistantMcpAuthorization(request: {
+  headers: Record<string, string | string[] | undefined>;
+}): boolean {
+  const authorization = request.headers.authorization;
+  const value = Array.isArray(authorization) ? authorization[0] : authorization;
+  const expected = Buffer.from(`Bearer ${assistantMcpToken}`);
+  const supplied = Buffer.from(value ?? "");
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
+type McpRoute = {
+  buildServer: () => McpServer;
+  requireBearer: boolean;
+  transports: Map<string, StreamableHTTPServerTransport>;
+};
+
+export function createMcpHttpServer() {
+  const routes = new Map<string, McpRoute>([
+    ["/mcp", { buildServer: buildMcpServer, requireBearer: false, transports: new Map() }],
+    [
+      ASSISTANT_MCP_PATH,
+      {
+        buildServer: buildAssistantMcpServer,
+        requireBearer: true,
+        transports: new Map(),
+      },
+    ],
+  ]);
+
+  return createServer(async (request, response) => {
     try {
       const { pathname } = new URL(request.url ?? "", "http://127.0.0.1");
-      if (pathname !== "/mcp") {
+      const route = routes.get(pathname);
+      if (!route) {
         response.writeHead(404).end();
+        return;
+      }
+      if (!hasSafeLoopbackRequest(request)) {
+        response.writeHead(403).end("Loopback requests only");
+        return;
+      }
+      if (route.requireBearer && !hasAssistantMcpAuthorization(request)) {
+        response.writeHead(401, { "WWW-Authenticate": "Bearer" }).end("Unauthorized");
         return;
       }
 
       const sessionHeader = request.headers["mcp-session-id"];
       const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
-      let transport = sessionId ? transports.get(sessionId) : undefined;
+      let transport = sessionId ? route.transports.get(sessionId) : undefined;
 
       if (request.method === "POST") {
         let body = "";
-        for await (const chunk of request) body += chunk;
+        let bytes = 0;
+        for await (const chunk of request) {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > 1024 * 1024) {
+            response.writeHead(413).end("MCP request too large");
+            return;
+          }
+          body += chunk;
+        }
         const parsedBody: unknown = JSON.parse(body);
 
         if (!transport && isInitializeRequest(parsedBody)) {
           const newTransport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             onsessioninitialized: (newSessionId: string): void => {
-              transports.set(newSessionId, newTransport);
+              route.transports.set(newSessionId, newTransport);
             },
           });
           newTransport.onclose = () => {
-            if (newTransport.sessionId) transports.delete(newTransport.sessionId);
+            if (newTransport.sessionId) route.transports.delete(newTransport.sessionId);
           };
-          await buildMcpServer().connect(newTransport);
+          await route.buildServer().connect(newTransport);
           transport = newTransport;
         }
         if (!transport) {
@@ -468,15 +610,29 @@ export function startMcpHttpServer(projectId: string): void {
 
       response.writeHead(405, { Allow: "GET, POST, DELETE" }).end();
     } catch (error) {
-      logger.error("mcp", "MCP request failed", { error: String(error) });
+      logger.error("mcp", "MCP request failed", {
+        errorType: error instanceof Error ? error.name : "Unknown",
+      });
       if (!response.headersSent) response.writeHead(500).end();
     }
   });
+}
+
+export function startMcpHttpServer(projectId: string): void {
+  const port = stableMcpPort(projectId);
+  const httpServer = createMcpHttpServer();
 
   httpServer.once("error", (error) => {
     logger.warn("mcp", "MCP HTTP server failed to start", { port, error: String(error) });
   });
   httpServer.listen(port, "127.0.0.1", () => {
-    logger.info("mcp", "MCP server listening", { url: `http://127.0.0.1:${port}/mcp` });
+    activeProjectId = projectId;
+    logger.info("mcp", "MCP server listening", {
+      url: `http://127.0.0.1:${port}/mcp`,
+      assistantUrl: `http://127.0.0.1:${port}${ASSISTANT_MCP_PATH}`,
+    });
+    void checkAssistantMcpConnection().then(({ ok, toolCount }) => {
+      logger.info("mcp", "Assistant MCP self-check", { ok, toolCount });
+    });
   });
 }

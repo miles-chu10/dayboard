@@ -40,7 +40,10 @@ export async function openRemindersPrivacySettings(): Promise<void> {
 }
 
 async function listWith(options: { completed: boolean; limit: number }): Promise<ReminderItem[]> {
-  const [calendars, page] = await Promise.all([reminders.getCalendars(), reminders.getReminders(options)]);
+  const [calendars, page] = await Promise.all([
+    reminders.getCalendars(),
+    reminders.getReminders(options),
+  ]);
   const titles = new Map(calendars.map((calendar) => [calendar.id, calendar.title]));
   return page.reminders.map((reminder) => toItem(reminder, titles));
 }
@@ -56,6 +59,11 @@ export async function listCompletedReminders(since: Date): Promise<ReminderItem[
 
 export async function setReminderCompleted(ref: string, completed: boolean): Promise<void> {
   await reminders.updateReminder({ value: ref }, { isCompleted: completed });
+}
+
+/** Confirms a reminder reference still resolves before linking it to a calendar block. */
+export async function getReminder(ref: string): Promise<void> {
+  await reminders.getReminder({ value: ref });
 }
 
 export async function createReminder(input: CreateReminderInput): Promise<void> {

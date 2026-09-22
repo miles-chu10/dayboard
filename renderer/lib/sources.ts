@@ -8,7 +8,11 @@ export const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"]
 
 export const SOURCE_META: Record<
   SourceId,
-  { label: string; route: "/tasks" | "/reminders" | "/mail" | "/calendar"; icon: ComponentType<{ className?: string }> }
+  {
+    label: string;
+    route: "/tasks" | "/reminders" | "/mail" | "/calendar";
+    icon: ComponentType<{ className?: string }>;
+  }
 > = {
   tasks: { label: "Google Tasks", route: "/tasks", icon: ListChecks },
   reminders: { label: "Reminders", route: "/reminders", icon: ListTodo },
@@ -40,7 +44,11 @@ export const COLOR_CLASS: Record<SourceColor, { bg: string; text: string; border
   orange: { bg: "bg-support-orange", text: "text-support-orange", border: "border-support-orange" },
   red: { bg: "bg-support-red", text: "text-support-red", border: "border-support-red" },
   purple: { bg: "bg-support-purple", text: "text-support-purple", border: "border-support-purple" },
-  magenta: { bg: "bg-support-magenta", text: "text-support-magenta", border: "border-support-magenta" },
+  magenta: {
+    bg: "bg-support-magenta",
+    text: "text-support-magenta",
+    border: "border-support-magenta",
+  },
   yellow: { bg: "bg-support-yellow", text: "text-support-yellow", border: "border-support-yellow" },
 };
 

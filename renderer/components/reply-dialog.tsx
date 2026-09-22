@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Callout, Dialog, Input, Status, Text, Textarea, toast } from "@glaze/core/components";
+import {
+  Button,
+  Callout,
+  Dialog,
+  Input,
+  Status,
+  Text,
+  Textarea,
+  toast,
+} from "@glaze/core/components";
 import type { MailItem } from "@main/shared-types";
 
 import { useAITask } from "../lib/ai";

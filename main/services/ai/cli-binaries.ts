@@ -1,0 +1,61 @@
+import { constants } from "node:fs";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+
+import type { AIProvider } from "../../shared-types.js";
+import { runLoginShell } from "../shell-env.js";
+
+type CliProvider = Exclude<AIProvider, "glaze">;
+
+const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
+  claude: [
+    ".claude/local/claude",
+    ".local/bin/claude",
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+    ".npm-global/bin/claude",
+    ".bun/bin/claude",
+  ],
+  codex: [
+    "/opt/homebrew/bin/codex",
+    "/usr/local/bin/codex",
+    ".local/bin/codex",
+    ".npm-global/bin/codex",
+    ".bun/bin/codex",
+  ],
+};
+
+// ── Binary resolution ──────────────────────────────────────────────────────────────
+
+async function isExecutable(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const resolvedBinaries = new Map<CliProvider, string>();
+
+export async function resolveCli(provider: CliProvider, refresh = false): Promise<string | null> {
+  if (!refresh && resolvedBinaries.has(provider)) return resolvedBinaries.get(provider)!;
+  for (const candidate of BINARY_CANDIDATES[provider]) {
+    const full = path.isAbsolute(candidate) ? candidate : path.join(os.homedir(), candidate);
+    if (await isExecutable(full)) {
+      resolvedBinaries.set(provider, full);
+      return full;
+    }
+  }
+  const lookup = await runLoginShell(`whence -p ${provider} 2>/dev/null || command -v ${provider}`);
+  const found = lookup
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("/"));
+  if (found && (await isExecutable(found))) {
+    resolvedBinaries.set(provider, found);
+    return found;
+  }
+  return null;
+}

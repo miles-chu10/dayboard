@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Callout, Status, Text } from "@glaze/core/components";
 import { Sparkles } from "lucide-react";
-import type { CalendarEventItem, SourceId } from "@main/shared-types";
+import type { CalendarEventItem, MailItem, SourceId } from "@main/shared-types";
 
 import { extractJSON, useAITask } from "../lib/ai";
 import { PRIORITY_SYSTEM, buildPriorityPrompt } from "../lib/ai-prompts";
-import { formatTimeOfDay } from "../lib/dates";
+import { formatTimeOfDay, todayISO } from "../lib/dates";
 import { readStored, writeStored } from "../lib/storage";
 import { compareByDue, type Todo } from "../lib/todos";
 import { InlineHint, ListCard, RowsSkeleton, SectionCard } from "./section-card";
@@ -16,6 +16,7 @@ const STORAGE_KEY = "dashboard:priorities:v1";
 
 interface StoredPriorities {
   generatedAt: string;
+  signature?: string;
   items: { key: string; reason: string }[];
 }
 
@@ -32,6 +33,8 @@ export function UpNextCard({
   loading,
   hint,
   canPrioritize,
+  messages = [],
+  onChoose,
 }: {
   todos: Todo[];
   todayEvents: CalendarEventItem[];
@@ -39,17 +42,45 @@ export function UpNextCard({
   loading: boolean;
   hint: string | null;
   canPrioritize: boolean;
+  messages?: MailItem[];
+  onChoose?: (todo: Todo) => void;
 }) {
   const ai = useAITask();
   const keyMap = useRef(new Map<string, string>());
   const [stored, setStored] = useState(() => readStored(STORAGE_KEY, isStoredPriorities));
   const [parseFailed, setParseFailed] = useState(false);
+  const inputSignature = JSON.stringify([
+    todayISO(),
+    todos.map((todo) => [
+      todo.key,
+      todo.completed,
+      todo.dueDate,
+      todo.dueTime,
+      todo.title,
+      todo.notes,
+      todo.listTitle,
+    ]),
+    todayEvents.map((event) => [event.id, event.start, event.end, event.title, event.location]),
+    messages.map((message) => [
+      message.id,
+      message.subject,
+      message.snippet,
+      message.from,
+      message.date,
+    ]),
+  ]);
+  const signature = String(
+    [...inputSignature].reduce((hash, char) => (Math.imul(31, hash) + char.charCodeAt(0)) | 0, 0),
+  );
+  const runSignature = useRef(signature);
 
   useEffect(() => {
     if (!ai.isDone) return;
     const value = extractJSON(ai.output);
     const raw =
-      typeof value === "object" && value !== null && Array.isArray((value as { items?: unknown }).items)
+      typeof value === "object" &&
+      value !== null &&
+      Array.isArray((value as { items?: unknown }).items)
         ? (value as { items: unknown[] }).items
         : [];
     const items = raw.flatMap((entry) => {
@@ -62,24 +93,26 @@ export function UpNextCard({
       setParseFailed(true);
       return;
     }
-    const next = { generatedAt: new Date().toISOString(), items };
+    const next = { generatedAt: new Date().toISOString(), items, signature: runSignature.current };
     writeStored(STORAGE_KEY, next);
     setStored(next);
     setParseFailed(false);
   }, [ai.isDone, ai.output]);
 
   const byKey = new Map(todos.map((todo) => [todo.key, todo]));
-  const ranked = canPrioritize
-    ? (stored?.items.flatMap(({ key, reason }) => {
-        const todo = byKey.get(key);
-        return todo ? [{ todo, reason }] : [];
-      }) ?? [])
-    : [];
+  const ranked =
+    canPrioritize && stored?.signature === signature
+      ? (stored?.items.flatMap(({ key, reason }) => {
+          const todo = byKey.get(key);
+          return todo && !todo.completed ? [{ todo, reason }] : [];
+        }) ?? [])
+      : [];
   const openTodos = todos.filter((todo) => !todo.completed);
   const showRanked = ranked.some(({ todo }) => !todo.completed);
   const fallback = [...openTodos].sort(compareByDue).slice(0, 6);
 
   function prioritize() {
+    runSignature.current = signature;
     const candidates = [...openTodos]
       .sort(compareByDue)
       .slice(0, 60)
@@ -88,7 +121,7 @@ export function UpNextCard({
     setParseFailed(false);
     void ai.run({
       system: PRIORITY_SYSTEM,
-      prompt: buildPriorityPrompt(candidates, todayEvents),
+      prompt: buildPriorityPrompt(candidates, todayEvents, messages),
       maxOutputTokens: 700,
     });
   }
@@ -97,7 +130,7 @@ export function UpNextCard({
     <SectionCard
       title={
         <span className="flex items-center gap-2">
-          Up Next
+          Priorities
           <span className="flex items-center gap-1">
             {sources.map((source) => (
               <SourceDot key={source} source={source} />
@@ -112,7 +145,7 @@ export function UpNextCard({
               <Status variant="loading">Ranking…</Status>
             ) : showRanked && stored ? (
               <Text variant="small" color="tertiary">
-                Ranked {formatTimeOfDay(stored.generatedAt)}
+                Suggested {formatTimeOfDay(stored.generatedAt)}
               </Text>
             ) : null}
             {ai.isRunning ? (
@@ -131,18 +164,37 @@ export function UpNextCard({
     >
       {ai.message ? <Callout color="orange">{ai.message}</Callout> : null}
       {parseFailed ? <Callout color="yellow">Couldn't read the ranking. Try again.</Callout> : null}
+      {stored && stored.signature !== signature ? (
+        <Text variant="small" color="secondary">
+          Your sources changed. Generate fresh suggestions.
+        </Text>
+      ) : null}
       {loading ? (
         <RowsSkeleton rows={4} />
       ) : showRanked ? (
         <ListCard>
           {ranked.map(({ todo, reason }) => (
-            <TodoRow key={todo.key} todo={todo} showSource detail={reason || todo.listTitle} />
+            <div key={todo.key}>
+              <TodoRow todo={todo} showSource detail={reason || todo.listTitle} />
+              {onChoose ? (
+                <Button size="small" variant="transparent" onClick={() => onChoose(todo)}>
+                  Details and focus
+                </Button>
+              ) : null}
+            </div>
           ))}
         </ListCard>
       ) : fallback.length ? (
         <ListCard>
           {fallback.map((todo) => (
-            <TodoRow key={todo.key} todo={todo} showSource />
+            <div key={todo.key}>
+              <TodoRow todo={todo} showSource />
+              {onChoose ? (
+                <Button size="small" variant="transparent" onClick={() => onChoose(todo)}>
+                  Details and focus
+                </Button>
+              ) : null}
+            </div>
           ))}
         </ListCard>
       ) : (

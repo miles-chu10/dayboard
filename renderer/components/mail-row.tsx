@@ -28,7 +28,9 @@ export function MailRow({
     mutationFn: () => invoke("mail:archive", { id: message.id }),
     onSuccess: () => {
       queryClient.setQueryData<SourceResult<MailItem>>(queryKeys.mail, (prev) =>
-        prev?.state === "ok" ? { ...prev, items: prev.items.filter((item) => item.id !== message.id) } : prev,
+        prev?.state === "ok"
+          ? { ...prev, items: prev.items.filter((item) => item.id !== message.id) }
+          : prev,
       );
       toast.success("Archived");
     },
@@ -36,7 +38,8 @@ export function MailRow({
   });
 
   const addTask = useMutation({
-    mutationFn: (title: string) => invoke("tasks:create", { title, notes: `From email: ${message.subject}` }),
+    mutationFn: (title: string) =>
+      invoke("tasks:create", { title, notes: `From email: ${message.subject}\n${gmailUrl}` }),
     onSuccess: (_data, title) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
       toast.success(`Added “${title}” to Google Tasks`);
@@ -93,7 +96,7 @@ export function MailRow({
             iconOnly
             aria-label={`Add task: ${triage.task}`}
             title={`Add task: ${triage.task}`}
-            disabled={addTask.isPending}
+            disabled={addTask.isPending || addTask.isSuccess}
             onClick={() => addTask.mutate(triage.task)}
           >
             <ListPlus />

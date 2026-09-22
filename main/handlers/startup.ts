@@ -1,0 +1,20 @@
+import { ipcMain } from "@glaze/core/backend";
+
+import { getStartAtLogin, setStartAtLogin } from "../services/startup-settings.js";
+
+function requireBoolean(payload: unknown): boolean {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    typeof (payload as { openAtLogin?: unknown }).openAtLogin !== "boolean"
+  )
+    throw new Error("startup:setLoginItem: openAtLogin must be a boolean");
+  return (payload as { openAtLogin: boolean }).openAtLogin;
+}
+
+export function registerStartupHandlers(): void {
+  ipcMain.handle("startup:getLoginItem", () => getStartAtLogin());
+  ipcMain.handle("startup:setLoginItem", (_event, payload: unknown) =>
+    setStartAtLogin(requireBoolean(payload)),
+  );
+}

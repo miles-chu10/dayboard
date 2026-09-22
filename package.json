@@ -1,8 +1,8 @@
 {
   "id": "25d26qqt",
-  "name": "work-dashboard",
+  "name": "dashboard",
   "version": "1.0.0",
-  "productName": "Work Dashboard",
+  "productName": "Dashboard",
   "description": "Your productivity hub for Google Tasks, Apple Reminders, Gmail, and Google Calendar",
   "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
   "private": true,
@@ -13,6 +13,7 @@
     "dev:renderer": "sh ./glaze-node.sh dev:renderer",
     "lint": "sh ./glaze-node.sh lint",
     "type-check": "sh ./glaze-node.sh type-check",
+    "test": "tsx --test renderer/lib/agenda.test.ts && node --test tests/*.test.mjs",
     "format": "sh ./glaze-node.sh format",
     "verify": "sh ./glaze-node.sh verify --json",
     "launch": "sh ./glaze-node.sh launch --wait --json",
@@ -85,6 +86,6 @@
     "host": {
       "minVersion": "0.14.2.0"
     },
-    "updatedAt": 1789699534455
+    "updatedAt": 1790071720072
   }
 }

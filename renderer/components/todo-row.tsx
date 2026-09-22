@@ -6,7 +6,15 @@ import { compareByDue, type Todo } from "../lib/todos";
 import { ListCard, SectionCard } from "./section-card";
 import { SourceHeading, SourceLabel } from "./source-dot";
 
-export function TodoRow({ todo, detail, showSource }: { todo: Todo; detail?: string; showSource?: boolean }) {
+export function TodoRow({
+  todo,
+  detail,
+  showSource,
+}: {
+  todo: Todo;
+  detail?: string;
+  showSource?: boolean;
+}) {
   const toggle = useToggleTodo();
   const due = todo.dueDate && !todo.completed ? formatDue(todo.dueDate, todo.dueTime) : null;
   const plainDetail = detail ?? todo.notes;
@@ -19,7 +27,11 @@ export function TodoRow({ todo, detail, showSource }: { todo: Todo; detail?: str
         aria-label={todo.completed ? `Mark “${todo.title}” incomplete` : `Complete “${todo.title}”`}
       />
       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-        <Text truncate color={todo.completed ? "tertiary" : "primary"} className={todo.completed ? "line-through" : undefined}>
+        <Text
+          truncate
+          color={todo.completed ? "tertiary" : "primary"}
+          className={todo.completed ? "line-through" : undefined}
+        >
           {todo.title}
         </Text>
         {showSource ? (

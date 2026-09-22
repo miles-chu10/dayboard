@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -43,6 +43,12 @@ function parsePairs(text: string, separator: string): Record<string, string> {
   }
   return result;
 }
+
+type BuiltInMcpStatus = {
+  state: "unavailable" | "checking" | "ready" | "error";
+  ok: boolean;
+  toolCount: number;
+};
 
 function McpServerDialog({
   server,
@@ -242,6 +248,37 @@ export function McpTab() {
   const { settings, edit } = useSettingsEditor();
   const servers = useMcpServers();
   const [editing, setEditing] = useState<McpServerConfig | "new" | null>(null);
+  const [builtInStatus, setBuiltInStatus] = useState<BuiltInMcpStatus | null>(null);
+  const [testingBuiltIn, setTestingBuiltIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void invoke<BuiltInMcpStatus>("mcp:assistantStatus")
+      .then((status) => {
+        if (active) setBuiltInStatus(status);
+      })
+      .catch(() => {
+        if (active) setBuiltInStatus({ state: "error", ok: false, toolCount: 0 });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function testBuiltIn() {
+    setTestingBuiltIn(true);
+    try {
+      const status = await invoke<BuiltInMcpStatus>("mcp:assistantTest");
+      setBuiltInStatus(status);
+      if (status.ok) toast.success("Dashboard MCP connected");
+      else toast.error("Dashboard MCP connection failed");
+    } catch (error) {
+      setBuiltInStatus({ state: "error", ok: false, toolCount: 0 });
+      toast.error(errorMessage(error));
+    } finally {
+      setTestingBuiltIn(false);
+    }
+  }
 
   const toggle = useMutation({
     mutationFn: (server: McpServerConfig) => invoke<McpServerConfig[]>("mcp:save", server),
@@ -255,12 +292,41 @@ export function McpTab() {
         title="MCP Servers"
         description="Connect Model Context Protocol servers so the Assistant can use their tools, with Glaze AI, Claude, or ChatGPT."
       >
+        <Field
+          label="Dashboard"
+          description="Built into the Assistant while this app is running. It can read tasks, reminders, inbox, email, calendar, and weekly review data."
+        >
+          <div className="flex items-center gap-3">
+            <Status
+              variant={
+                builtInStatus?.state === "checking"
+                  ? "loading"
+                  : builtInStatus?.ok
+                    ? "success"
+                    : builtInStatus?.state === "error"
+                      ? "error"
+                      : "neutral"
+              }
+            >
+              {builtInStatus?.state === "checking"
+                ? "Checking…"
+                : builtInStatus?.ok
+                  ? `${builtInStatus.toolCount} read-only tools`
+                  : builtInStatus?.state === "error"
+                    ? "Unavailable"
+                    : "Starting…"}
+            </Status>
+            <Button size="small" onClick={() => void testBuiltIn()} disabled={testingBuiltIn}>
+              Test Connection
+            </Button>
+          </div>
+        </Field>
         {settings ? (
           <Field
             label="Use MCP tools in Assistant"
             description={
               featureOn(settings, "assistant")
-                ? "Servers are started only while the Assistant answers."
+                ? "Let the Assistant use Dashboard tools and your enabled servers."
                 : "Turn on the Assistant in the AI tab to use these tools."
             }
           >
@@ -279,7 +345,7 @@ export function McpTab() {
         )}
       </FieldSet>
 
-      <FieldSet title="Servers">
+      <FieldSet title="Custom servers">
         {servers.isPending ? (
           <Field label="Servers">
             <Status variant="loading">Loading…</Status>
@@ -288,8 +354,8 @@ export function McpTab() {
           <Field label="Servers" description={errorMessage(servers.error)} />
         ) : servers.data.length === 0 ? (
           <Field
-            label="No servers yet"
-            description="Add a local command like npx, or a remote server URL."
+            label="No custom servers"
+            description="Dashboard tools are already included. Add other services here."
           />
         ) : (
           servers.data.map((server) => (

@@ -27,7 +27,9 @@ export function SectionCard({
 }
 
 export function ListCard({ children }: { children: ReactNode }) {
-  return <div className="rounded-xl bg-well divide-y divide-separator overflow-hidden">{children}</div>;
+  return (
+    <div className="rounded-xl bg-well divide-y divide-separator overflow-hidden">{children}</div>
+  );
 }
 
 export function RowsSkeleton({ rows = 4 }: { rows?: number }) {

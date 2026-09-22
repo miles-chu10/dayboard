@@ -1,6 +1,5 @@
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { constants } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -14,7 +13,13 @@ import type {
   ToolCallStatus,
 } from "../../shared-types.js";
 import { getSettings } from "../settings-store.js";
-import { getToolEnv, runLoginShell, toStringEnv } from "../shell-env.js";
+import { getToolEnv, toStringEnv } from "../shell-env.js";
+
+import { resolveCli } from "./cli-binaries.js";
+import { listCodexModels } from "./codex-models.js";
+import { claudeModelArgs, codexModelArgs } from "./model-options.js";
+
+export { resolveCli } from "./cli-binaries.js";
 
 export type CliProvider = Exclude<AIProvider, "glaze">;
 
@@ -51,24 +56,6 @@ const LOGIN_MESSAGE: Record<CliProvider, string> = {
     "Codex isn't signed in. Run `codex login` in Terminal and choose Sign in with ChatGPT, then try again.",
 };
 
-const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
-  claude: [
-    ".claude/local/claude",
-    ".local/bin/claude",
-    "/opt/homebrew/bin/claude",
-    "/usr/local/bin/claude",
-    ".npm-global/bin/claude",
-    ".bun/bin/claude",
-  ],
-  codex: [
-    "/opt/homebrew/bin/codex",
-    "/usr/local/bin/codex",
-    ".local/bin/codex",
-    ".npm-global/bin/codex",
-    ".bun/bin/codex",
-  ],
-};
-
 // Subscription mode: API-key variables would silently override the user's subscription login.
 const STRIPPED_ENV: Record<CliProvider, string[]> = {
   claude: [
@@ -83,40 +70,6 @@ const STRIPPED_ENV: Record<CliProvider, string[]> = {
 };
 
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-
-// ── Binary resolution ──────────────────────────────────────────────────────────────
-
-async function isExecutable(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const resolvedBinaries = new Map<CliProvider, string>();
-
-export async function resolveCli(provider: CliProvider, refresh = false): Promise<string | null> {
-  if (!refresh && resolvedBinaries.has(provider)) return resolvedBinaries.get(provider)!;
-  for (const candidate of BINARY_CANDIDATES[provider]) {
-    const full = path.isAbsolute(candidate) ? candidate : path.join(os.homedir(), candidate);
-    if (await isExecutable(full)) {
-      resolvedBinaries.set(provider, full);
-      return full;
-    }
-  }
-  const lookup = await runLoginShell(`whence -p ${provider} 2>/dev/null || command -v ${provider}`);
-  const found = lookup
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("/"));
-  if (found && (await isExecutable(found))) {
-    resolvedBinaries.set(provider, found);
-    return found;
-  }
-  return null;
-}
 
 // ── Output helpers ─────────────────────────────────────────────────────────────────
 
@@ -455,7 +408,7 @@ async function claudeArgs(options: CliRunOptions): Promise<string[]> {
     "--system-prompt",
     options.system,
   ];
-  if (settings.ai.claudeModel !== "default") args.push("--model", settings.ai.claudeModel);
+  args.push(...claudeModelArgs(settings.ai));
   if (options.mcpServers.length) {
     const mcpServers = Object.fromEntries(
       options.mcpServers.map((server) => [
@@ -591,6 +544,8 @@ async function runCodex(options: CliRunOptions): Promise<string> {
     "--json",
     "--skip-git-repo-check",
     "--ephemeral",
+    // Dashboard owns these settings and MCP connections; keep CLI preferences separate.
+    "--ignore-user-config",
     "--sandbox",
     "read-only",
     "--color",
@@ -602,7 +557,7 @@ async function runCodex(options: CliRunOptions): Promise<string> {
     "-c",
     'approval_policy="never"',
   ];
-  if (settings.ai.codexModel) args.push("-m", settings.ai.codexModel);
+  args.push(...codexModelArgs(settings.ai, settings.ai.codexModel ? await listCodexModels() : []));
   for (const server of options.mcpServers) {
     const key = `mcp_servers.${serverKey(server)}`;
     if (server.transport === "stdio") {

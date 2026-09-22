@@ -14,6 +14,7 @@ import { ReviewView } from "./review-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@glaze/core/components";
+import { validateAgendaSearch } from "../lib/agenda-search";
 
 const rootRoute = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -34,7 +35,8 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeView,
-  staticData: { title: "Today" },
+  validateSearch: validateAgendaSearch,
+  staticData: { title: "Agenda" },
 });
 
 const tasksRoute = createRoute({
@@ -62,6 +64,7 @@ const calendarRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/calendar",
   component: CalendarView,
+  validateSearch: validateAgendaSearch,
   staticData: { title: "Calendar" },
 });
 

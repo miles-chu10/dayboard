@@ -15,7 +15,10 @@ export interface TriageResult {
 
 export type TriageMap = Record<string, TriageResult>;
 
-export const TRIAGE_LABEL: Record<TriageCategory, { label: string; color: "orange" | "blue" | "secondary" }> = {
+export const TRIAGE_LABEL: Record<
+  TriageCategory,
+  { label: string; color: "orange" | "blue" | "secondary" }
+> = {
   "needs-reply": { label: "Needs Reply", color: "orange" },
   fyi: { label: "FYI", color: "blue" },
   ignore: { label: "Ignorable", color: "secondary" },
@@ -33,7 +36,8 @@ function isTriageMap(value: unknown): value is TriageMap {
     typeof value === "object" &&
     value !== null &&
     Object.values(value).every(
-      (entry) => typeof entry === "object" && entry !== null && isCategory((entry as TriageResult).category),
+      (entry) =>
+        typeof entry === "object" && entry !== null && isCategory((entry as TriageResult).category),
     )
   );
 }
@@ -52,7 +56,9 @@ export function useTriage(messages: MailItem[] | undefined) {
     if (!ai.isDone) return;
     const value = extractJSON(ai.output);
     const emails =
-      typeof value === "object" && value !== null && Array.isArray((value as { emails?: unknown }).emails)
+      typeof value === "object" &&
+      value !== null &&
+      Array.isArray((value as { emails?: unknown }).emails)
         ? (value as { emails: unknown[] }).emails
         : [];
     const results: TriageMap = {};

@@ -6,7 +6,15 @@ import type { SourceId } from "@main/shared-types";
 import { SOURCE_META } from "../lib/sources";
 import { SourceDot } from "./source-dot";
 
-export function SourceTile({ source, value, caption }: { source: SourceId; value: number | null; caption: string }) {
+export function SourceTile({
+  source,
+  value,
+  caption,
+}: {
+  source: SourceId;
+  value: number | null;
+  caption: string;
+}) {
   const navigate = useNavigate();
   const meta = SOURCE_META[source];
 

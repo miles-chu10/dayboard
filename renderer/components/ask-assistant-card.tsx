@@ -6,12 +6,12 @@ import type { AIProvider } from "@main/shared-types";
 import { ASSISTANT_SUGGESTIONS } from "../lib/assistant";
 import { PROVIDER_LABEL } from "../lib/settings";
 import { ProviderMark } from "./provider-logo";
-import { SectionCard } from "./section-card";
 
 /** Today's composer: sends the question to the Assistant, which runs it with full context. */
 export function AskAssistantCard({ provider }: { provider: AIProvider }) {
   const navigate = useNavigate();
   const [input, setInput] = useState("");
+  const [focused, setFocused] = useState(false);
 
   function ask(text: string) {
     const prompt = text.trim();
@@ -21,22 +21,12 @@ export function AskAssistantCard({ provider }: { provider: AIProvider }) {
   }
 
   return (
-    <SectionCard
-      title={
-        <span className="flex items-center gap-2 min-w-0">
-          <ProviderMark provider={provider} className="size-4" />
-          <span className="truncate">Ask {PROVIDER_LABEL[provider]}</span>
-        </span>
-      }
-      accessory={
-        <Button
-          size="small"
-          variant="transparent"
-          onClick={() => void navigate({ to: "/assistant" })}
-        >
-          Assistant
-        </Button>
-      }
+    <div
+      className="flex flex-col gap-2"
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
     >
       <AIChat.Composer.Root
         onSubmit={(event) => {
@@ -46,10 +36,14 @@ export function AskAssistantCard({ provider }: { provider: AIProvider }) {
       >
         <AIChat.Composer.Surface>
           <AIChat.Composer.Row>
+            {/* Composer rows bottom-align children; stretch this slot so the mark centers on the text line. */}
+            <span className="flex shrink-0 items-center self-stretch pl-1">
+              <ProviderMark provider={provider} className="size-4" />
+            </span>
             <AIChat.Composer.Input
               value={input}
               onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setInput(event.target.value)}
-              placeholder="Ask about your tasks, mail, or schedule…"
+              placeholder={`Ask ${PROVIDER_LABEL[provider]} about your day…`}
               aria-label={`Ask ${PROVIDER_LABEL[provider]}`}
             />
             <AIChat.Composer.Actions>
@@ -58,13 +52,15 @@ export function AskAssistantCard({ provider }: { provider: AIProvider }) {
           </AIChat.Composer.Row>
         </AIChat.Composer.Surface>
       </AIChat.Composer.Root>
-      <div className="flex flex-wrap gap-2 px-1">
-        {ASSISTANT_SUGGESTIONS.map((suggestion) => (
-          <Button key={suggestion} size="small" onClick={() => ask(suggestion)}>
-            {suggestion}
-          </Button>
-        ))}
-      </div>
-    </SectionCard>
+      {focused ? (
+        <div className="flex flex-wrap gap-2 px-1">
+          {ASSISTANT_SUGGESTIONS.map((suggestion) => (
+            <Button key={suggestion} size="small" onClick={() => ask(suggestion)}>
+              {suggestion}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

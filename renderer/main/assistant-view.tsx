@@ -35,7 +35,7 @@ import {
   useAccounts,
   useCalendar,
   useMail,
-  useMcpServers,
+  useAssistantMcpStatus,
   useReminders,
   useTasks,
 } from "../lib/queries";
@@ -151,7 +151,7 @@ export function AssistantView() {
   const reminders = useReminders();
   const mail = useMail();
   const calendar = useCalendar();
-  const mcpServers = useMcpServers();
+  const mcpStatus = useAssistantMcpStatus();
 
   const [messages, setMessages] = useState<AssistantMessage[]>(loadConversation);
   const [input, setInput] = useState("");
@@ -161,9 +161,7 @@ export function AssistantView() {
   const { prompt: handoffPrompt } = useSearch({ from: "/assistant" });
   const handledPromptRef = useRef<string | null>(null);
 
-  const mcpCount = settings?.ai.useMcpInAssistant
-    ? (mcpServers.data ?? []).filter((server) => server.enabled).length
-    : 0;
+  const mcpCount = settings?.ai.useMcpInAssistant ? (mcpStatus.data?.serverCount ?? 0) : 0;
 
   useEffect(() => {
     saveConversation(messages);

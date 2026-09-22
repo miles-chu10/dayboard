@@ -91,13 +91,20 @@ function SourceEmptyState({ result, label }: { result: UnavailableResult; label:
           placement="viewport"
           title="Reminders Access Is Off"
           description="Turn on access for Dashboard in System Settings → Privacy & Security → Reminders."
-          actions={<Button onClick={() => void invoke("reminders:openSettings")}>Open Privacy Settings</Button>}
+          actions={
+            <Button onClick={() => void invoke("reminders:openSettings")}>
+              Open Privacy Settings
+            </Button>
+          }
         />
       );
   }
 }
 
-export function sourceHint(result: SourceResult<unknown> | undefined, label: string): string | null {
+export function sourceHint(
+  result: SourceResult<unknown> | undefined,
+  label: string,
+): string | null {
   if (!result || result.state === "ok") return null;
   if (result.state === "disabled") return `${label} is turned off in Settings.`;
   if (result.state === "no-access") return `Allow Reminders access to see ${label}.`;

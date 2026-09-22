@@ -74,7 +74,8 @@ export function useAITask() {
         "ai:run",
         { system: options.system, prompt: options.prompt },
         (chunk) => {
-          if (streamRef.current === id && chunk.type === "delta") setOutput((current) => current + chunk.text);
+          if (streamRef.current === id && chunk.type === "delta")
+            setOutput((current) => current + chunk.text);
         },
         { cancellationId: id },
       );
@@ -116,7 +117,9 @@ export function useAITask() {
   const glazeAborted = glazeAI.error?.name === "AbortError";
   const message = usingGlaze
     ? (BLOCKED_MESSAGE[glazeAI.state] ??
-      (glazeAI.error && !glazeAborted && glazeAI.state !== "loading" ? "The AI request failed. Try again." : null))
+      (glazeAI.error && !glazeAborted && glazeAI.state !== "loading"
+        ? "The AI request failed. Try again."
+        : null))
     : cli.error;
 
   return {

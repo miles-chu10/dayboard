@@ -15,7 +15,18 @@ import { buildTodos } from "../lib/todos";
 
 const STORAGE_KEY = "dashboard:prep:v1";
 const MAX_STORED = 40;
-const STOP_WORDS = new Set(["with", "sync", "meeting", "call", "weekly", "daily", "team", "chat", "review", "about"]);
+const STOP_WORDS = new Set([
+  "with",
+  "sync",
+  "meeting",
+  "call",
+  "weekly",
+  "daily",
+  "team",
+  "chat",
+  "review",
+  "about",
+]);
 
 interface StoredPrep {
   generatedAt: string;
@@ -29,7 +40,10 @@ function isPrepMap(value: unknown): value is PrepMap {
     typeof value === "object" &&
     value !== null &&
     Object.values(value).every(
-      (entry) => typeof entry === "object" && entry !== null && typeof (entry as StoredPrep).markdown === "string",
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as StoredPrep).markdown === "string",
     )
   );
 }
@@ -45,7 +59,9 @@ export function MeetingPrepProvider({ children }: { children: ReactNode }) {
   return (
     <PrepContext.Provider value={setEvent}>
       {children}
-      {event ? <MeetingPrepDialog key={event.id} event={event} onClose={() => setEvent(null)} /> : null}
+      {event ? (
+        <MeetingPrepDialog key={event.id} event={event} onClose={() => setEvent(null)} />
+      ) : null}
     </PrepContext.Provider>
   );
 }
@@ -77,7 +93,9 @@ function MeetingPrepDialog({ event, onClose }: { event: CalendarEventItem; onClo
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length >= 4 && !STOP_WORDS.has(word));
   const relatedTodos = buildTodos(tasks.data, reminders.data)
-    .filter((todo) => !todo.completed && keywords.some((word) => todo.title.toLowerCase().includes(word)))
+    .filter(
+      (todo) => !todo.completed && keywords.some((word) => todo.title.toLowerCase().includes(word)),
+    )
     .slice(0, 10);
   const relatedMail = related.data?.state === "ok" ? related.data.items : null;
   const relatedReady = !mailOn || !related.isPending;
@@ -100,7 +118,11 @@ function MeetingPrepDialog({ event, onClose }: { event: CalendarEventItem; onClo
 
   const text = ai.isRunning || ai.isDone ? ai.output : (stored?.markdown ?? "");
   const contextSummary = [
-    mailOn ? (related.isPending ? "Finding related emails…" : `${relatedMail?.length ?? 0} related emails`) : null,
+    mailOn
+      ? related.isPending
+        ? "Finding related emails…"
+        : `${relatedMail?.length ?? 0} related emails`
+      : null,
     `${relatedTodos.length} related to-dos`,
     stored && !ai.isRunning ? `prepared ${formatTimeOfDay(stored.generatedAt)}` : null,
   ]
@@ -119,7 +141,9 @@ function MeetingPrepDialog({ event, onClose }: { event: CalendarEventItem; onClo
       size="large"
       title={event.title}
       description={`${dayHeading(eventDayKey(event))} · ${eventTimeRange(event)}${
-        attendees.length ? ` · ${attendees.length} ${attendees.length === 1 ? "attendee" : "attendees"}` : ""
+        attendees.length
+          ? ` · ${attendees.length} ${attendees.length === 1 ? "attendee" : "attendees"}`
+          : ""
       }`}
     >
       <div className="flex flex-col gap-3">
@@ -146,7 +170,8 @@ function MeetingPrepDialog({ event, onClose }: { event: CalendarEventItem; onClo
             <Status variant="loading">Preparing your notes…</Status>
           ) : (
             <Text color="tertiary" as="p">
-              Get the purpose, context from recent emails, open items, and talking points for this meeting.
+              Get the purpose, context from recent emails, open items, and talking points for this
+              meeting.
             </Text>
           )}
         </div>

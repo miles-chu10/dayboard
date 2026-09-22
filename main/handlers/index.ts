@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { appHandlers } from "./app.js";
 import { registerAIHandlers } from "./ai.js";
 import { registerProductivityHandlers } from "./productivity.js";
+import { registerStartupHandlers } from "./startup.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
 import { ipcMain, logger } from "@glaze/core/backend";
@@ -42,6 +43,7 @@ export function registerHandlers(): void {
 
   registerProductivityHandlers();
   registerAIHandlers();
+  registerStartupHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 }

@@ -5,12 +5,24 @@ import type { SourceId } from "@main/shared-types";
 
 import { COLOR_CLASS, SOURCE_META, useSourceColor } from "../lib/sources";
 
-export function SourceDot({ source, hollow, className }: { source: SourceId; hollow?: boolean; className?: string }) {
+export function SourceDot({
+  source,
+  hollow,
+  className,
+}: {
+  source: SourceId;
+  hollow?: boolean;
+  className?: string;
+}) {
   const color = COLOR_CLASS[useSourceColor(source)];
   return (
     <span
       aria-hidden="true"
-      className={cn("inline-block size-2 shrink-0 rounded-full", hollow ? cn("border-[1.5px]", color.border) : color.bg, className)}
+      className={cn(
+        "inline-block size-2 shrink-0 rounded-full",
+        hollow ? cn("border-[1.5px]", color.border) : color.bg,
+        className,
+      )}
     />
   );
 }

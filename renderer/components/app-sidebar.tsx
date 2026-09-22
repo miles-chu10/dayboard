@@ -10,7 +10,7 @@ import {
   Text,
 } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
-import { CalendarCheck2, Plus, Settings, Sun } from "lucide-react";
+import { CalendarCheck2, CalendarDays, Inbox, Plus, Settings } from "lucide-react";
 import type { SourceId } from "@main/shared-types";
 
 import { eventDayKey, isEventPast, todayISO } from "../lib/dates";
@@ -100,13 +100,22 @@ export function AppSidebar() {
     >
       <SidebarList>
         <SidebarListItem
-          icon={<Sun className="size-4" />}
-          title="Today"
-          selected={pathname === "/"}
+          icon={<CalendarDays className="size-4" />}
+          title="Agenda"
+          selected={pathname === "/" || pathname === "/calendar"}
           onClick={() => void navigate({ to: "/" })}
         />
-        <SidebarListGroup title="Sources">
-          {SOURCE_IDS.filter((id) => sourceOn(settings, id)).map((id) => {
+        {sourceOn(settings, "mail") ? (
+          <SidebarListItem
+            icon={<Inbox className="size-4" />}
+            title="Inbox"
+            accessory={counts.mail || undefined}
+            selected={pathname === "/mail"}
+            onClick={() => void navigate({ to: "/mail" })}
+          />
+        ) : null}
+        <SidebarListGroup title="Sources" collapsible defaultOpen>
+          {SOURCE_IDS.filter((id) => id !== "mail" && sourceOn(settings, id)).map((id) => {
             const meta = SOURCE_META[id];
             const Icon = meta.icon;
             return (
@@ -118,7 +127,11 @@ export function AppSidebar() {
                 title={meta.label}
                 accessory={counts[id] || undefined}
                 selected={pathname === meta.route}
-                onClick={() => void navigate({ to: meta.route })}
+                onClick={() =>
+                  id === "calendar"
+                    ? void navigate({ to: "/calendar" })
+                    : void navigate({ to: meta.route })
+                }
               />
             );
           })}

@@ -15,7 +15,14 @@ import {
 
 import { extractJSON, useAITask } from "../lib/ai";
 import { CAPTURE_SYSTEM, buildCapturePrompt } from "../lib/ai-prompts";
-import { KIND_LABEL, KIND_SOURCE, createItem, isItemKind, type ItemDraft, type ItemKind } from "../lib/create-items";
+import {
+  KIND_LABEL,
+  KIND_SOURCE,
+  createItem,
+  isItemKind,
+  type ItemDraft,
+  type ItemKind,
+} from "../lib/create-items";
 import { errorMessage, openSettings } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
@@ -30,13 +37,16 @@ function parseDraft(text: string, available: Record<ItemKind, boolean>): ItemDra
   const record = value as Record<string, unknown>;
   const read = (key: string, pattern?: RegExp) => {
     const field = record[key];
-    return typeof field === "string" && (!pattern || pattern.test(field.trim())) ? field.trim() : "";
+    return typeof field === "string" && (!pattern || pattern.test(field.trim()))
+      ? field.trim()
+      : "";
   };
   const title = read("title");
   if (!title) return null;
   let kind: ItemKind = isItemKind(record.kind) ? record.kind : "task";
   if (!available[kind]) {
-    kind = (["reminder", "task", "event"] as const).find((candidate) => available[candidate]) ?? kind;
+    kind =
+      (["reminder", "task", "event"] as const).find((candidate) => available[candidate]) ?? kind;
   }
   return {
     kind,
@@ -64,7 +74,13 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function CaptureDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const settings = useSettings().data;
   const accounts = useAccounts();
@@ -78,9 +94,11 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
     event: googleConnected && sourceOn(settings, "calendar"),
   };
-  const nothingAvailable = accounts.data !== undefined && !available.task && !available.reminder && !available.event;
+  const nothingAvailable =
+    accounts.data !== undefined && !available.task && !available.reminder && !available.event;
   const aiCapture = featureOn(settings, "capture");
-  const firstAvailable = (["task", "reminder", "event"] as const).find((kind) => available[kind]) ?? "task";
+  const firstAvailable =
+    (["task", "reminder", "event"] as const).find((kind) => available[kind]) ?? "task";
 
   useEffect(() => {
     if (!ai.isDone) return;
@@ -109,11 +127,22 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   function parse() {
     if (!sentence.trim() || ai.isRunning) return;
     setDraft(null);
-    void ai.run({ system: CAPTURE_SYSTEM, prompt: buildCapturePrompt(sentence, available), maxOutputTokens: 300 });
+    void ai.run({
+      system: CAPTURE_SYSTEM,
+      prompt: buildCapturePrompt(sentence, available),
+      maxOutputTokens: 300,
+    });
   }
 
   function fillManually() {
-    setDraft({ kind: firstAvailable, title: sentence.trim(), notes: "", date: "", time: "", endTime: "" });
+    setDraft({
+      kind: firstAvailable,
+      title: sentence.trim(),
+      notes: "",
+      date: "",
+      time: "",
+      endTime: "",
+    });
   }
 
   function update(patch: Partial<ItemDraft>) {
@@ -133,7 +162,9 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   }
 
   const canCreate =
-    Boolean(draft?.title.trim()) && Boolean(draft && available[draft.kind]) && (draft?.kind !== "event" || Boolean(draft?.date));
+    Boolean(draft?.title.trim()) &&
+    Boolean(draft && available[draft.kind]) &&
+    (draft?.kind !== "event" || Boolean(draft?.date));
 
   return (
     <Dialog
@@ -142,7 +173,9 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       size="large"
       title="New Item"
       description={
-        aiCapture ? "Describe it in plain language and AI will fill in the details." : "Add a task, reminder, or event."
+        aiCapture
+          ? "Describe it in plain language and AI will fill in the details."
+          : "Add a task, reminder, or event."
       }
       confirmLabel={draft ? `Add ${KIND_LABEL[draft.kind]}` : "Add"}
       confirmDisabled={!canCreate}
@@ -188,7 +221,9 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
             {ai.isRunning ? <Status variant="loading">Reading your request…</Status> : null}
             {ai.message ? <Callout color="orange">{ai.message}</Callout> : null}
             {parseFailed ? (
-              <Callout color="yellow">Couldn't understand that. Rephrase it or fill in the details yourself.</Callout>
+              <Callout color="yellow">
+                Couldn't understand that. Rephrase it or fill in the details yourself.
+              </Callout>
             ) : null}
             {!draft && !ai.isRunning && sentence.trim() ? (
               <div>
@@ -228,7 +263,9 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
             </Field>
             <Field
               label={draft.kind === "event" ? "Date" : "Due"}
-              description={draft.kind === "event" && !draft.date ? "Events need a date." : undefined}
+              description={
+                draft.kind === "event" && !draft.date ? "Events need a date." : undefined
+              }
             >
               <Input
                 type="date"
@@ -240,7 +277,9 @@ function CaptureDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
             {draft.kind !== "task" ? (
               <Field
                 label={draft.kind === "event" ? "Starts" : "Time"}
-                description={draft.kind === "event" ? "Leave empty for an all-day event." : undefined}
+                description={
+                  draft.kind === "event" ? "Leave empty for an all-day event." : undefined
+                }
               >
                 <Input
                   type="time"

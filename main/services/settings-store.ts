@@ -7,18 +7,44 @@ import type {
   AIFeature,
   AIProvider,
   AppSettings,
+  CalendarRange,
+  ClaudeEffort,
+  ClaudeModel,
   LaunchView,
   McpServerConfig,
   SourceColor,
   SourceId,
 } from "../shared-types.js";
+import { CALENDAR_RANGES } from "./calendar-range.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
 
 const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"];
 const COLORS: SourceColor[] = ["blue", "green", "orange", "red", "purple", "magenta", "yellow"];
 const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex"];
-const LAUNCH_VIEWS: LaunchView[] = ["today", "tasks", "reminders", "mail", "calendar", "assistant", "review"];
-const CLAUDE_MODELS = ["default", "sonnet", "opus", "haiku"] as const;
+const LAUNCH_VIEWS: LaunchView[] = [
+  "today",
+  "tasks",
+  "reminders",
+  "mail",
+  "calendar",
+  "assistant",
+  "review",
+];
+const CLAUDE_MODELS: ClaudeModel[] = [
+  "default",
+  "fable",
+  "opus",
+  "sonnet",
+  "haiku",
+  "opus[1m]",
+  "sonnet[1m]",
+];
+const CLAUDE_EFFORTS: ClaudeEffort[] = ["default", "low", "medium", "high", "xhigh", "max"];
+const LEGACY_CALENDAR_DAYS: Record<number, CalendarRange> = {
+  3: "next-3-days",
+  7: "next-7-days",
+  14: "next-14-days",
+};
 const AI_FEATURES: AIFeature[] = [
   "briefing",
   "autoBriefing",
@@ -40,12 +66,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
     calendar: { enabled: true, color: "green" },
   },
   mail: { maxMessages: 25 },
-  calendar: { daysAhead: 7, visibility: {} },
+  calendar: { range: "next-7-days", visibility: {} },
   ai: {
     enabled: true,
     provider: "glaze",
     claudeModel: "default",
+    claudeEffort: "default",
+    claudeFast: false,
     codexModel: "",
+    codexEffort: "",
+    codexServiceTier: "",
     useMcpInAssistant: true,
     features: {
       briefing: true,
@@ -73,6 +103,11 @@ function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/** Short lowercase identifier from the Codex catalog, or empty for "use the default". */
+function token(value: unknown): string {
+  return typeof value === "string" && /^[a-z][a-z0-9_-]{0,30}$/.test(value) ? value : "";
+}
+
 function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
@@ -95,7 +130,11 @@ export function normalizeSettings(value: unknown): AppSettings {
   return {
     general: {
       launchView: oneOf(general.launchView, LAUNCH_VIEWS, defaults.general.launchView),
-      refreshMinutes: oneOf(general.refreshMinutes, [0, 5, 15, 30], defaults.general.refreshMinutes),
+      refreshMinutes: oneOf(
+        general.refreshMinutes,
+        [0, 5, 15, 30],
+        defaults.general.refreshMinutes,
+      ),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {
@@ -111,17 +150,31 @@ export function normalizeSettings(value: unknown): AppSettings {
     ) as AppSettings["sources"],
     mail: { maxMessages: oneOf(mail.maxMessages, [10, 25, 50], defaults.mail.maxMessages) },
     calendar: {
-      daysAhead: oneOf(calendar.daysAhead, [3, 7, 14], defaults.calendar.daysAhead),
+      range: oneOf(
+        calendar.range,
+        CALENDAR_RANGES,
+        LEGACY_CALENDAR_DAYS[Number(calendar.daysAhead)] ?? defaults.calendar.range,
+      ),
       visibility,
     },
     ai: {
       enabled: bool(ai.enabled, defaults.ai.enabled),
       provider: oneOf(ai.provider, PROVIDERS, defaults.ai.provider),
       claudeModel: oneOf(ai.claudeModel, CLAUDE_MODELS, defaults.ai.claudeModel),
-      codexModel: typeof ai.codexModel === "string" ? ai.codexModel.trim().slice(0, 80) : defaults.ai.codexModel,
+      claudeEffort: oneOf(ai.claudeEffort, CLAUDE_EFFORTS, defaults.ai.claudeEffort),
+      claudeFast: bool(ai.claudeFast, defaults.ai.claudeFast),
+      codexModel:
+        typeof ai.codexModel === "string" && /^[A-Za-z0-9._:-]{0,80}$/.test(ai.codexModel.trim())
+          ? ai.codexModel.trim()
+          : defaults.ai.codexModel,
+      codexEffort: token(ai.codexEffort),
+      codexServiceTier: token(ai.codexServiceTier),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
       features: Object.fromEntries(
-        AI_FEATURES.map((feature) => [feature, bool(features[feature], defaults.ai.features[feature])]),
+        AI_FEATURES.map((feature) => [
+          feature,
+          bool(features[feature], defaults.ai.features[feature]),
+        ]),
       ) as AppSettings["ai"]["features"],
     },
   };
@@ -161,7 +214,9 @@ export async function getSettings(): Promise<AppSettings> {
   return cachedSettings;
 }
 
-export function saveSettings(next: unknown): Promise<{ previous: AppSettings; settings: AppSettings }> {
+export function saveSettings(
+  next: unknown,
+): Promise<{ previous: AppSettings; settings: AppSettings }> {
   return settingsQueue(async () => {
     const previous = await getSettings();
     const settings = normalizeSettings(next);
@@ -205,7 +260,8 @@ export function normalizeMcpServer(value: unknown): McpServerConfig {
     } catch {
       // handled below
     }
-    if (protocol !== "https:" && protocol !== "http:") throw new Error("Enter a valid http(s) server URL.");
+    if (protocol !== "https:" && protocol !== "http:")
+      throw new Error("Enter a valid http(s) server URL.");
   }
   return {
     id: typeof value.id === "string" && value.id ? value.id : randomUUID(),
@@ -213,7 +269,9 @@ export function normalizeMcpServer(value: unknown): McpServerConfig {
     enabled: bool(value.enabled, true),
     transport,
     command,
-    args: Array.isArray(value.args) ? value.args.filter((arg): arg is string => typeof arg === "string") : [],
+    args: Array.isArray(value.args)
+      ? value.args.filter((arg): arg is string => typeof arg === "string")
+      : [],
     env: stringRecord(value.env),
     url,
     headers: stringRecord(value.headers),
@@ -243,16 +301,21 @@ export function saveMcpServer(value: unknown): Promise<McpServerConfig[]> {
     const server = normalizeMcpServer(value);
     const servers = await getMcpServers();
     const clash = servers.find(
-      (existing) => existing.id !== server.id && existing.name.toLowerCase() === server.name.toLowerCase(),
+      (existing) =>
+        existing.id !== server.id && existing.name.toLowerCase() === server.name.toLowerCase(),
     );
     if (clash) throw new Error(`A server named “${server.name}” already exists.`);
     const exists = servers.some((existing) => existing.id === server.id);
     return writeMcpServers(
-      exists ? servers.map((existing) => (existing.id === server.id ? server : existing)) : [...servers, server],
+      exists
+        ? servers.map((existing) => (existing.id === server.id ? server : existing))
+        : [...servers, server],
     );
   });
 }
 
 export function deleteMcpServer(id: string): Promise<McpServerConfig[]> {
-  return mcpQueue(async () => writeMcpServers((await getMcpServers()).filter((server) => server.id !== id)));
+  return mcpQueue(async () =>
+    writeMcpServers((await getMcpServers()).filter((server) => server.id !== id)),
+  );
 }
