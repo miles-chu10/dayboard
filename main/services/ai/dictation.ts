@@ -1,7 +1,20 @@
-import { getApiKey } from "./api-keys.js";
+import type { OpenAIKeyStatus } from "../../shared-types.js";
+import { clearApiKey, getApiKey, getApiKeyStatus, saveApiKey } from "./api-keys.js";
 
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const MODELS = ["gpt-4o-mini-transcribe", "whisper-1"];
+
+export function getOpenAIKeyStatus(): Promise<OpenAIKeyStatus> {
+  return getApiKeyStatus("openai");
+}
+
+export function saveOpenAIKey(key: string): Promise<OpenAIKeyStatus> {
+  return saveApiKey("openai", key);
+}
+
+export function clearOpenAIKey(): Promise<OpenAIKeyStatus> {
+  return clearApiKey("openai");
+}
 
 export async function transcribe(
   audioBase64: string,

@@ -314,7 +314,7 @@ test("demo Assistant replies locally without CLI, Glaze AI, or MCP access", asyn
     setup(api) {
       const stubs = new Map([
         ["@glaze/core/ai", `export class GlazeAIError extends Error {}; export const glaze = () => { globalThis.__demoLiveCalls += 1; }; export const stepCountIs = () => { globalThis.__demoLiveCalls += 1; }; export const streamText = () => { globalThis.__demoLiveCalls += 1; }; export const tool = () => { globalThis.__demoLiveCalls += 1; };`],
-        ["@glaze/core/backend", `export const logger = { error() {} };`],
+        ["@glaze/core/backend", `export const logger = { error() {} }; export const dialog = { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) };`],
         ["../demo-data.js", `export const isDemoMode = () => true; export const demoAssistantReply = () => "local sample";`],
         ["../settings-store.js", `export const getSettings = async () => { globalThis.__demoLiveCalls += 1; }; export const getMcpServers = async () => { globalThis.__demoLiveCalls += 1; };`],
         ["./cli-providers.js", `export const runCliCompletion = async () => { globalThis.__demoLiveCalls += 1; };`],
@@ -360,11 +360,13 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
     name: "demo-ai-handler-boundary",
     setup(api) {
       const stubs = new Map([
-        ["@glaze/core/backend", `export const ipcMain = globalThis.__aiIpc; export const logger = { error() {} }; export const clipboard = { writeText() {} };`],
+        ["@glaze/core/backend", `export const ipcMain = globalThis.__aiIpc; export const logger = { error() {} }; export const clipboard = { writeText() {} }; export const dialog = { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) }; export const app = { getPath: () => "/tmp/dayboard-demo-tests" }; export const safeStorage = { encryptString: async (text) => Buffer.from(text), decryptString: async (value) => Buffer.from(value).toString("utf8") };`],
         ["../services/demo-data.js", `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": demo mode"); }; export const demoCompletion = () => "fixture completion";`],
         ["../services/ai/assistant.js", `export const runAssistant = async () => { throw new Error("assistant should not run"); };`],
         ["../services/ai/cli-providers.js", `export const checkCliProvider = async () => { globalThis.__aiCounters.provider += 1; }; export const isCancelled = () => false; export const runCliCompletion = async () => { globalThis.__aiCounters.cli += 1; };`],
         ["../services/ai/codex-models.js", `export const listCodexModels = async () => { globalThis.__aiCounters.models += 1; };`],
+        ["../services/ai/api-keys.js", `export const getApiKey = async () => null; export const getApiKeyStatus = async () => ({ configured: false, hint: null }); export const saveApiKey = async () => ({ configured: true, hint: "test" }); export const clearApiKey = async () => ({ configured: false, hint: null });`],
+        ["./api-keys.js", `export const getApiKey = async () => null; export const getApiKeyStatus = async () => ({ configured: false, hint: null }); export const saveApiKey = async () => ({ configured: true, hint: "test" }); export const clearApiKey = async () => ({ configured: false, hint: null });`],
         ["../services/ai/mcp-client.js", `export const testMcpServer = async () => { throw new Error("MCP should not run"); };`],
         ["../services/mcp-http-server.js", `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null;`],
         ["../services/mcp-access-key.js", `export const getMcpAccessKey = async () => { throw new Error("key should not load"); }; export const regenerateMcpAccessKey = async () => { throw new Error("key should not write"); };`],

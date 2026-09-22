@@ -320,7 +320,7 @@ test("agenda and range handlers reject malformed input before any synthetic writ
   await withFixture(async (state) => {
     const invoke = await loadHarness(state);
     await assert.rejects(invoke("calendar:listRange", { startDate: "2026-02-30", days: 1 }), /real date/);
-    await assert.rejects(invoke("calendar:listRange", { startDate: "2026-03-08", days: 32 }), /1 through 31/);
+    await assert.rejects(invoke("calendar:listRange", { startDate: "2026-03-08", days: 43 }), /1 through 42/);
     await assert.rejects(invoke("agenda:createBlock", blockInput({ endTime: "09:00" })), /after/);
     await assert.rejects(invoke("agenda:createBlock", blockInput({ task: { key: "task:list-1:task-1", source: "tasks", listId: "list-1", taskId: "wrong" } })), /does not match/);
     assert.equal(state.calls.creates, 0);
