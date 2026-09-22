@@ -8,12 +8,24 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { app, BrowserWindow, Menu, logger, initDevToolsButtonState } from "@glaze/core/backend";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  dialog,
+  logger,
+  initDevToolsButtonState,
+} from "@glaze/core/backend";
 
 import { registerHandlers } from "./handlers/index.js";
 import { getPreloadPath, getWindowUrl } from "./windows/window-paths.js";
 import { openSettingsWindow } from "./windows/settings-window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
+import { drainAgendaStore } from "./services/agenda-store.js";
+import { drainProductivityWrites } from "./handlers/productivity.js";
+import { createSaveQuitGuard } from "./services/quit-guard.js";
+import { drainPendingWrites } from "./services/pending-writes.js";
+import { drainSettingsStores } from "./services/settings-store.js";
 
 // Get directory paths
 const __filename = fileURLToPath(import.meta.url);
@@ -198,8 +210,32 @@ app.on("activate", (hasVisibleWindows) => {
   }
 });
 
-app.on("before-quit", () => {
-  logger.info("main", "App before-quit, cleaning up...");
+const saveBeforeQuit = createSaveQuitGuard({
+  drain: async () => {
+    await drainProductivityWrites();
+    await drainPendingWrites();
+    await drainSettingsStores();
+    await drainAgendaStore();
+  },
+  confirmUnfinished: async () => {
+    const result = await dialog.showMessageBox({
+      type: "warning",
+      title: "Changes are still saving",
+      message: "Some changes have not finished saving.",
+      detail:
+        "Keep DayBoard open to let them finish. Quitting now may leave those changes unfinished.",
+      buttons: ["Keep Open", "Quit Without Waiting"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    return result.response === 1;
+  },
+  resumeQuit: () => app.quit(),
+});
+app.on("before-quit", (event) => {
+  void saveBeforeQuit(event).catch(() => {
+    logger.warn("main", "Quit cancelled because pending changes could not be checked.");
+  });
 });
 
 // ── App ready ─────────────────────────────────────────────────────────

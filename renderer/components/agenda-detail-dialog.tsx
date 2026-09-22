@@ -30,10 +30,11 @@ import { formatClock, formatMailDate, shortDate } from "../lib/dates";
 import { errorMessage, openExternal } from "../lib/ipc";
 import { useAccounts, useAgendaState, useCalendarRange, useToggleTodo } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
-import type { Todo } from "../lib/todos";
+import { linkedGroupKeys, type Todo } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import { SOURCE_META } from "../lib/sources";
 import { DetailPanel } from "./detail-panel";
+import { ItemEditButton } from "./item-editor";
 import { SourceDot } from "./source-dot";
 
 const STOP_WORDS = new Set(["about", "and", "for", "from", "meeting", "the", "this", "with"]);
@@ -57,7 +58,13 @@ function matchScore(subject: string, subjectTokens: Set<string>): number {
 function agendaRef(todo: Todo): AgendaTodoRef | null {
   if (todo.task)
     return { key: todo.key, source: "tasks", listId: todo.task.listId, taskId: todo.task.id };
-  if (todo.reminder) return { key: todo.key, source: "reminders", ref: todo.reminder.ref };
+  if (todo.reminder)
+    return {
+      key: todo.key,
+      source: "reminders",
+      identity: todo.reminder.identity,
+      ref: todo.reminder.ref,
+    };
   return null;
 }
 
@@ -123,7 +130,8 @@ export function AgendaDetailDialog({
   const calendarOn = sourceOn(settings, "calendar");
   const assistantOn = featureOn(settings, "assistant");
   const focusKeys = agenda.data?.focusKeys ?? [];
-  const isFocused = focusKeys.includes(todo.key);
+  const groupKeys = linkedGroupKeys(agenda.data?.duplicateLinks, todo.key);
+  const isFocused = groupKeys.some((key) => focusKeys.includes(key));
   const focusLimitReached = !isFocused && focusKeys.length >= 3;
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const gmailUrl = gmailUrlFromNotes(todo.notes);
@@ -165,16 +173,28 @@ export function AgendaDetailDialog({
         : [],
     [calendarOn, events, topicTokens],
   );
-  const duplicateSuggestions = useMemo(
-    () =>
-      findRelatedTodos(todo, todos)
-        .map((candidate) => ({
-          candidate,
-          link: agenda.data?.duplicateLinks.find((item) => sameLink(item, todo.key, candidate.key)),
-        }))
-        .filter(({ link }) => link?.status !== "dismissed"),
-    [agenda.data?.duplicateLinks, todo, todos],
-  );
+  const duplicateSuggestions = useMemo(() => {
+    const links = agenda.data?.duplicateLinks ?? [];
+    const accepted = linkedGroupKeys(links, todo.key)
+      .filter((key) => key !== todo.key)
+      .map((key) => ({
+        key,
+        candidate: todos.find((item) => item.key === key),
+        accepted: true,
+        link: links.find((link) => link.status === "accepted" && sameLink(link, todo.key, key)),
+      }));
+    const acceptedKeys = new Set(accepted.map((item) => item.key));
+    const suggestions = findRelatedTodos(todo, todos)
+      .filter((candidate) => !acceptedKeys.has(candidate.key))
+      .map((candidate) => ({
+        key: candidate.key,
+        candidate,
+        accepted: false,
+        link: links.find((item) => sameLink(item, todo.key, candidate.key)),
+      }))
+      .filter(({ link }) => link?.status !== "dismissed");
+    return [...accepted, ...suggestions];
+  }, [agenda.data?.duplicateLinks, todo, todos]);
   const plannerEvents = range.data?.state === "ok" ? range.data.items : [];
   const slots = useMemo(
     () => getAvailableSlots(plannerEvents, date, duration, plannerNow),
@@ -306,6 +326,7 @@ export function AgendaDetailDialog({
       </FieldGroup>
 
       <div className="flex flex-wrap gap-2">
+        <ItemEditButton item={todo} onSaved={onClose} />
         <Button
           size="small"
           onClick={() => toggle.mutate(todo)}
@@ -322,7 +343,7 @@ export function AgendaDetailDialog({
                 focusKeys:
                   checked === true
                     ? [...focusKeys, todo.key]
-                    : focusKeys.filter((key) => key !== todo.key),
+                    : focusKeys.filter((key) => !groupKeys.includes(key)),
               })
             }
           />
@@ -344,28 +365,30 @@ export function AgendaDetailDialog({
 
       {duplicateSuggestions.length ? (
         <section className="flex flex-col gap-2">
-          <Text variant="strong">Possible duplicates</Text>
+          <Text variant="strong">Linked items and suggestions</Text>
           <Text variant="small" color="secondary">
             Linked items show once in your Agenda and complete together in both apps.
           </Text>
-          {duplicateSuggestions.map(({ candidate, link }) => (
-            <div
-              key={candidate.key}
-              className="flex items-center gap-2 rounded-lg bg-well px-3 py-2"
-            >
-              <Badge color={link?.status === "accepted" ? "green" : "blue"}>
-                {link?.status === "accepted" ? "Linked" : "Suggested"}
-              </Badge>
+          {duplicateSuggestions.map(({ key, candidate, link, accepted }) => (
+            <div key={key} className="flex items-center gap-2 rounded-lg bg-well px-3 py-2">
+              <Badge color={accepted ? "green" : "blue"}>{accepted ? "Linked" : "Suggested"}</Badge>
               <div className="min-w-0 flex-1 flex flex-col">
-                <Text truncate>{candidate.title}</Text>
+                <Text truncate>{candidate?.title ?? "Linked item unavailable"}</Text>
                 <Text variant="small" color="secondary">
-                  {SOURCE_META[candidate.source].label} · {candidate.listTitle}
+                  {candidate
+                    ? `${SOURCE_META[candidate.source].label} · ${candidate.listTitle}`
+                    : "It may be completed, unavailable, or no longer accessible."}
                 </Text>
               </div>
-              {link?.status === "accepted" ? (
+              {accepted && !link ? (
+                <Text variant="small" color="secondary">
+                  Linked through this group
+                </Text>
+              ) : link?.status === "accepted" ? (
                 <Button
                   size="small"
                   variant="transparent"
+                  disabled={agenda.isPending}
                   onClick={() =>
                     agenda.removeDuplicateLink.mutate({
                       leftKey: link.leftKey,
@@ -380,10 +403,11 @@ export function AgendaDetailDialog({
                 <>
                   <Button
                     size="small"
+                    disabled={agenda.isPending}
                     onClick={() =>
                       agenda.setDuplicateLink.mutate({
                         leftKey: todo.key,
-                        rightKey: candidate.key,
+                        rightKey: key,
                         status: "accepted",
                       })
                     }
@@ -393,10 +417,11 @@ export function AgendaDetailDialog({
                   <Button
                     size="small"
                     variant="transparent"
+                    disabled={agenda.isPending}
                     onClick={() =>
                       agenda.setDuplicateLink.mutate({
                         leftKey: todo.key,
-                        rightKey: candidate.key,
+                        rightKey: key,
                         status: "dismissed",
                       })
                     }

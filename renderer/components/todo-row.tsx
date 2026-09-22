@@ -5,6 +5,7 @@ import { compareByDue, type Todo } from "../lib/todos";
 import { DueChip } from "./agenda-chips";
 import { ListCard, SectionCard } from "./section-card";
 import { SourceHeading, SourceLabel } from "./source-dot";
+import { ItemEditButton } from "./item-editor";
 
 export function TodoRow({
   todo,
@@ -43,6 +44,7 @@ export function TodoRow({
         ) : null}
       </div>
       {todo.dueDate && !todo.completed ? <DueChip date={todo.dueDate} time={todo.dueTime} /> : null}
+      <ItemEditButton item={todo} />
     </div>
   );
 }

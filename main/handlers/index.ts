@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { appHandlers } from "./app.js";
 import { registerAIHandlers } from "./ai.js";
+import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
 import { registerStartupHandlers } from "./startup.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
@@ -42,6 +43,7 @@ export function registerHandlers(): void {
   });
 
   registerProductivityHandlers();
+  registerItemEditingHandlers();
   registerAIHandlers();
   registerStartupHandlers();
 

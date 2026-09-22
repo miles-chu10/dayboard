@@ -19,6 +19,7 @@ import type {
   SourceId,
 } from "../shared-types.js";
 import { CALENDAR_RANGES } from "./calendar-range.js";
+import { assertNotDemo, isDemoMode } from "./demo-data.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
 
 const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"];
@@ -228,14 +229,30 @@ const settingsQueue = createSerialQueue();
 let cachedSettings: AppSettings | null = null;
 
 function settingsPath(): string {
-  return path.join(app.getPath("userData"), "settings.json");
+  return path.join(app.getPath("userData"), isDemoMode() ? "demo-settings.json" : "settings.json");
+}
+
+/** Demo settings never inherit a real account's choices or integration configuration. */
+function safeDemoSettings(value: unknown): AppSettings {
+  const settings = normalizeSettings(value);
+  return {
+    ...settings,
+    sources: {
+      tasks: { ...settings.sources.tasks, enabled: true },
+      reminders: { ...settings.sources.reminders, enabled: true },
+      mail: { ...settings.sources.mail, enabled: true },
+      calendar: { ...settings.sources.calendar, enabled: true },
+    },
+    mcpServer: { enabled: false, allowWrites: false },
+    ai: { ...settings.ai, useMcpInAssistant: false },
+  };
 }
 
 export async function getSettings(): Promise<AppSettings> {
   if (cachedSettings) return cachedSettings;
   const raw = await readFileIfExists(settingsPath());
   if (!raw) {
-    cachedSettings = DEFAULT_SETTINGS;
+    cachedSettings = isDemoMode() ? safeDemoSettings(DEFAULT_SETTINGS) : DEFAULT_SETTINGS;
     return cachedSettings;
   }
   let parsed: unknown;
@@ -244,7 +261,7 @@ export async function getSettings(): Promise<AppSettings> {
   } catch {
     throw new Error(`Settings file at ${settingsPath()} is not valid JSON.`);
   }
-  cachedSettings = normalizeSettings(parsed);
+  cachedSettings = isDemoMode() ? safeDemoSettings(parsed) : normalizeSettings(parsed);
   return cachedSettings;
 }
 
@@ -253,7 +270,7 @@ export function saveSettings(
 ): Promise<{ previous: AppSettings; settings: AppSettings }> {
   return settingsQueue(async () => {
     const previous = await getSettings();
-    const settings = normalizeSettings(next);
+    const settings = isDemoMode() ? safeDemoSettings(next) : normalizeSettings(next);
     await writeFileAtomic(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`);
     cachedSettings = settings;
     return { previous, settings };
@@ -313,6 +330,7 @@ export function normalizeMcpServer(value: unknown): McpServerConfig {
 }
 
 export async function getMcpServers(): Promise<McpServerConfig[]> {
+  if (isDemoMode()) return [];
   if (cachedServers) return cachedServers;
   const raw = await readFileIfExists(mcpPath());
   if (!raw) {
@@ -331,6 +349,7 @@ async function writeMcpServers(servers: McpServerConfig[]): Promise<McpServerCon
 }
 
 export function saveMcpServer(value: unknown): Promise<McpServerConfig[]> {
+  assertNotDemo("mcp:save");
   return mcpQueue(async () => {
     const server = normalizeMcpServer(value);
     const servers = await getMcpServers();
@@ -349,7 +368,13 @@ export function saveMcpServer(value: unknown): Promise<McpServerConfig[]> {
 }
 
 export function deleteMcpServer(id: string): Promise<McpServerConfig[]> {
+  assertNotDemo("mcp:delete");
   return mcpQueue(async () =>
     writeMcpServers((await getMcpServers()).filter((server) => server.id !== id)),
   );
+}
+
+/** Flushes the two local settings stores before a normal application quit. */
+export async function drainSettingsStores(): Promise<void> {
+  await Promise.all([settingsQueue.drain(), mcpQueue.drain()]);
 }

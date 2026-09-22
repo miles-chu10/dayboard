@@ -1,6 +1,6 @@
-// Demo mode: fictional data for store screenshots. Enabled only while a `demo-mode` file exists in
-// userData, so shipped builds never show it unless someone creates that file by hand.
-import { existsSync } from "node:fs";
+// Demo mode is intentionally latched for a backend session. Switching the marker while the app is
+// running must never move a renderer from the sample scope into a real-data scope.
+import { statSync } from "node:fs";
 import * as path from "node:path";
 
 import { app } from "@glaze/core/backend";
@@ -16,12 +16,99 @@ import type {
   TaskItem,
 } from "../shared-types.js";
 
+let demoMode: boolean | undefined;
+
+function readDemoMarker(): boolean {
+  try {
+    return statSync(path.join(app.getPath("userData"), "demo-mode")).isFile();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw new Error(
+      `Couldn't determine whether DayBoard is in demo mode: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/** The marker is read once, before any data boundary makes a decision. */
 export function isDemoMode(): boolean {
-  return existsSync(path.join(app.getPath("userData"), "demo-mode"));
+  if (demoMode === undefined) demoMode = readDemoMarker();
+  return demoMode;
 }
 
 export function assertNotDemo(channel: string): void {
   if (isDemoMode()) throw new Error(`${channel}: changes are turned off in demo mode.`);
+}
+
+/** Deterministic local output for every renderer AI entry point in demo mode. */
+export function demoCompletion(system: string, prompt: string): string {
+  if (system.includes("productivity coach")) {
+    const keys = [...prompt.matchAll(/^- ([^|\n]+) \|/gm)].map((match) => match[1].trim());
+    return JSON.stringify({
+      items: keys.slice(0, 3).map((key, index) => ({
+        key,
+        reason: [
+          "Due today before the afternoon roadmap sync.",
+          "Overdue and ready for a short focused pass.",
+          "Keeps this week's launch work moving.",
+        ][index],
+      })),
+    });
+  }
+  if (system.includes("sort a user's email inbox")) {
+    const keys = [...prompt.matchAll(/^- (m\d+) \|/gm)].map((match) => match[1]);
+    const categories: Record<string, { category: string; reason: string; task?: string }> = {
+      m1: {
+        category: "needs-reply",
+        reason: "Final-copy decision requested",
+        task: "Review launch copy",
+      },
+      m2: { category: "fyi", reason: "Agenda for your next one-on-one" },
+      m3: { category: "fyi", reason: "Budget due Friday", task: "Submit the Q4 budget" },
+      m4: { category: "fyi", reason: "Notes for the roadmap sync" },
+      m5: { category: "fyi", reason: "Upcoming travel details" },
+      m6: { category: "needs-reply", reason: "Confirm lunch plans" },
+      m7: { category: "ignore", reason: "Optional newsletter" },
+    };
+    return JSON.stringify({
+      emails: keys.map((key) => ({
+        key,
+        task: "",
+        ...(categories[key] ?? { category: "fyi", reason: "Sample message" }),
+      })),
+    });
+  }
+  if (system.includes("turn one short sentence")) {
+    const encoded = prompt.match(/Sentence: (.+)$/m)?.[1] ?? '"New task"';
+    let title = "New task";
+    try {
+      const parsed: unknown = JSON.parse(encoded);
+      if (typeof parsed === "string" && parsed.trim()) title = parsed.trim().slice(0, 120);
+    } catch {
+      // The deterministic fallback is still useful for the demo capture surface.
+    }
+    return JSON.stringify({ kind: "task", title, notes: "", date: "", time: "", endTime: "" });
+  }
+  if (system.includes("draft email replies")) {
+    return "Hi Priya,\n\nThanks for the edits. I’ll review the final copy this morning and send any notes before 3 PM.\n\nBest,\nAlex";
+  }
+  if (system.includes("prepare the user for an upcoming meeting")) {
+    return "**Sample meeting prep**\n\n- Confirm the onboarding decision and owner.\n- Review the launch-copy feedback from Priya.\n- Leave with a clear next milestone.";
+  }
+  if (system.includes("weekly review")) {
+    return "**Sample weekly review**\n\nYou closed several launch tasks and kept customer work moving. Pick one planning block for the Q4 budget next week.";
+  }
+  if (system.includes("daily briefing")) {
+    return "Your sample day has a focused morning and a roadmap sync this afternoon.\n\n**Schedule** — Team standup at 9:30 AM; design review at 11 AM.\n\n**Due** — Finalize the launch announcement.\n\n**Inbox** — Priya needs a decision on final copy.\n\n**Focus** — Review the announcement before the afternoon sync.";
+  }
+  return "**Sample response**\n\nStart with the launch announcement, then use the design review to unblock the onboarding flow. This response uses DayBoard’s fictional demo data only.";
+}
+
+export function demoAssistantReply(question: string): string {
+  const normalized = question.toLowerCase();
+  if (normalized.includes("free") || normalized.includes("deep work")) {
+    return '**Sample answer**\n\nTomorrow has an open hour after the 11 AM 1:1 and before the 2 PM dentist appointment. That is a good demo focus block.\n\n<actions>[{"type":"task","title":"Protect a focus hour","date":"","time":"","endTime":"","notes":"Sample only"}]</actions>';
+  }
+  return '**Sample answer**\n\nPrioritize the launch announcement before the afternoon roadmap sync. Priya’s unread email has the final-copy decision, and the onboarding review is your next concrete unblocker.\n\n<actions>[{"type":"task","title":"Review launch announcement","date":"","time":"","endTime":"","notes":"Sample only"}]</actions>';
 }
 
 function ok<T>(items: T[]): SourceResult<T> {
@@ -212,6 +299,8 @@ export function demoReminders(): SourceResult<ReminderItem> {
     priority = 0,
   ): ReminderItem => ({
     ref,
+    identity: `demo-${ref}`,
+    recurring: false,
     listTitle,
     title,
     notes: null,
@@ -334,6 +423,8 @@ export function demoReview(): ReviewData {
   });
   const doneReminder = (ref: string, title: string, offset: number): ReminderItem => ({
     ref,
+    identity: `demo-${ref}`,
+    recurring: false,
     listTitle: "Reminders",
     title,
     notes: null,

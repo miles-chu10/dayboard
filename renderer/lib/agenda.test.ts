@@ -6,8 +6,63 @@ import type { CalendarEventItem, SourceResult, TaskItem } from "@main/shared-typ
 import { buildAgenda, findRelatedTodos, getAvailableSlots } from "./agenda";
 import { agendaSpanDays, validateAgendaSearch } from "./agenda-search";
 import { buildTodos, type Todo } from "./todos";
+import {
+  calendarEventKey,
+  identifyCalendarEvents,
+  selectedCalendarEvent,
+} from "./calendar-identity";
 
 const now = new Date("2026-09-22T10:07:00");
+
+test("event selection distinguishes duplicate entries and remains stable when searching", () => {
+  const events = identifyCalendarEvents([
+    event({ title: "First appointment" }),
+    event({ title: "Second appointment" }),
+    event({
+      id: "all-day",
+      title: "First holiday",
+      allDay: true,
+      start: "2026-09-22",
+      end: "2026-09-23",
+    }),
+    event({
+      id: "all-day",
+      title: "Second holiday",
+      allDay: true,
+      start: "2026-09-22",
+      end: "2026-09-23",
+    }),
+  ]);
+  const keys = events.map(calendarEventKey);
+  assert.equal(new Set(keys).size, 4);
+  assert.equal(selectedCalendarEvent(events, keys[1])?.title, "Second appointment");
+  assert.equal(selectedCalendarEvent(events, keys[3])?.title, "Second holiday");
+  assert.equal(selectedCalendarEvent(events, "event:primary:event-1"), undefined);
+  const filtered = buildAgenda({
+    events,
+    todos: [],
+    startDate: "2026-09-22",
+    days: 1,
+    now,
+    search: "Second",
+  });
+  assert.equal(filtered.days[0].timed[0].key, keys[1]);
+  assert.equal(calendarEventKey(filtered.days[0].allDay[0]), keys[3]);
+});
+
+test("event identity qualifies provider IDs and safely handles legacy selections", () => {
+  const events = identifyCalendarEvents([
+    event({ calendarId: "one:two", id: "three" }),
+    event({ calendarId: "one", id: "two:three" }),
+    event({ id: "distinct", title: "Unique legacy event" }),
+  ]);
+  assert.notEqual(calendarEventKey(events[0]), calendarEventKey(events[1]));
+  assert.equal(
+    selectedCalendarEvent(events, "event:primary:distinct")?.title,
+    "Unique legacy event",
+  );
+  assert.equal(selectedCalendarEvent(events, "missing"), undefined);
+});
 
 test("Agenda route spans include saved relative ranges and retain the week alias", () => {
   assert.equal(agendaSpanDays("today", "2026-09-22"), 1);
@@ -151,8 +206,8 @@ test("buildAgenda orders offset calendar instants and local deadlines across the
   });
 
   assert.deepEqual(
-    agenda.days[0].timed.map((entry) => entry.key),
-    ["todo:early", "event:primary:dst:2026-03-08T09:30:00Z:2026-03-08T10:00:00Z:0"],
+    agenda.days[0].timed.map((entry) => (entry.kind === "todo" ? entry.todo.key : entry.event.id)),
+    ["early", "dst"],
   );
   assert.deepEqual(
     agenda.overdue.map((item) => item.key),

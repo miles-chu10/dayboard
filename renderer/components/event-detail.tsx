@@ -7,9 +7,8 @@ import { openExternal } from "../lib/ipc";
 import { featureOn, useSettings } from "../lib/settings";
 import { sourceColor } from "../lib/sources";
 import { DetailPanel } from "./detail-panel";
+import { ItemEditButton } from "./item-editor";
 import { useOpenMeetingPrep } from "./meeting-prep-dialog";
-
-export const eventKey = (event: CalendarEventItem) => `event:${event.calendarId}:${event.id}`;
 
 /** Google descriptions are HTML; show them as plain text. DOMParser never runs scripts. */
 function plainText(html: string): string {
@@ -71,6 +70,7 @@ export function EventDetail({
         ) : null}
       </FieldGroup>
       <div className="flex flex-wrap gap-2">
+        <ItemEditButton item={event} onSaved={onClose} />
         {event.meetLink ? (
           <Button size="small" onClick={() => void openExternal(event.meetLink!)}>
             <Video />

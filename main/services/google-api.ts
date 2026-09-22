@@ -8,6 +8,7 @@ import type {
   SourceCoverage,
   TaskItem,
 } from "../shared-types.js";
+import type { UpdateEventInput, UpdateTaskInput } from "../../shared/item-edits.js";
 import { GoogleAuthError, getGoogleAccessToken } from "./google-auth.js";
 import { agendaEventId } from "./agenda-utils.js";
 
@@ -142,6 +143,20 @@ interface GTask {
   completed?: string;
 }
 
+function taskToItem(task: GTask, list: GTaskList): TaskItem {
+  if (!task.id) throw new GoogleApiError(500, "Google Tasks returned an item without an ID.");
+  return {
+    id: task.id,
+    listId: list.id,
+    listTitle: list.title,
+    title: task.title?.trim() || "(Untitled)",
+    notes: task.notes?.trim() || null,
+    due: task.due ? task.due.slice(0, 10) : null,
+    completed: task.status === "completed",
+    completedAt: task.completed ?? null,
+  };
+}
+
 const TASK_LIST_CAP = 30;
 const TASKS_PER_LIST_CAP = 200;
 const GOOGLE_TASK_PAGE_SIZE = 100;
@@ -159,16 +174,7 @@ async function listTasksWith(query: URLSearchParams): Promise<BoundedList<TaskIt
     return {
       items: data.items
         .filter((task) => task.title?.trim())
-        .map<TaskItem>((task) => ({
-          id: task.id,
-          listId: list.id,
-          listTitle: list.title,
-          title: task.title!.trim(),
-          notes: task.notes?.trim() || null,
-          due: task.due ? task.due.slice(0, 10) : null,
-          completed: task.status === "completed",
-          completedAt: task.completed ?? null,
-        })),
+        .map<TaskItem>((task) => taskToItem(task, list)),
       truncated: data.truncated,
     };
   });
@@ -235,6 +241,31 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
       due: input.due ? `${input.due}T00:00:00.000Z` : undefined,
     },
   });
+}
+
+/** Updates only the editable fields on one Google Task and returns Google's canonical item. */
+export async function updateTask(input: UpdateTaskInput): Promise<TaskItem> {
+  // Resolve presentation metadata first: a post-write lookup failure must not
+  // make a successful provider write look like it was never acknowledged.
+  const list = await googleFetch<GTaskList>(`${TASKS}/users/@me/lists/${enc(input.listId)}`);
+  const task = await googleFetch<GTask>(
+    `${TASKS}/lists/${enc(input.listId)}/tasks/${enc(input.taskId)}`,
+    {
+      method: "PATCH",
+      body: {
+        title: input.title,
+        notes: input.notes || null,
+        // Google Tasks stores a date-only due value as RFC 3339. `null` clears it.
+        due: input.due ? `${input.due}T00:00:00.000Z` : null,
+      },
+    },
+  );
+  return taskToItem(task, list);
+}
+
+/** Deletes exactly the selected Google Task; linked DayBoard relationships remain as unavailable history. */
+export async function deleteTask(listId: string, taskId: string): Promise<void> {
+  await googleFetch(`${TASKS}/lists/${enc(listId)}/tasks/${enc(taskId)}`, { method: "DELETE" });
 }
 
 // ── Gmail ───────────────────────────────────────────────────────────────
@@ -416,6 +447,7 @@ interface GCalendarListEntry {
 interface GEventTime {
   date?: string;
   dateTime?: string;
+  timeZone?: string;
 }
 
 interface GEvent {
@@ -431,6 +463,8 @@ interface GEvent {
   attendees?: { email?: string; resource?: boolean; self?: boolean }[];
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   extendedProperties?: { private?: Record<string, string> };
+  recurrence?: string[];
+  recurringEventId?: string;
 }
 
 const CALENDAR_LIST_CAP = 50;
@@ -489,6 +523,40 @@ function eventStartMs(event: CalendarEventItem): number {
   return new Date(y, m - 1, d).getTime();
 }
 
+function eventToItem(
+  event: GEvent,
+  calendar: GoogleCalendarInfo,
+  fullDescription = false,
+): CalendarEventItem {
+  if (!event.id || (!event.start?.dateTime && !event.start?.date))
+    throw new GoogleApiError(500, "Google Calendar returned an event without an ID or start time.");
+  return {
+    id: event.id,
+    title: event.summary?.trim() || "(No title)",
+    start: event.start.dateTime ?? event.start.date ?? "",
+    end: event.end?.dateTime ?? event.end?.date ?? "",
+    allDay: !event.start.dateTime,
+    location: event.location?.trim() || null,
+    description: event.description
+      ? fullDescription
+        ? event.description
+        : stripHtml(event.description).slice(0, 600) || null
+      : null,
+    htmlLink: event.htmlLink ?? null,
+    meetLink:
+      event.hangoutLink ??
+      event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri ??
+      null,
+    calendarId: calendar.id,
+    calendarName: calendar.name,
+    calendarColor: calendar.color,
+    attendees: (event.attendees ?? [])
+      .filter((attendee) => !attendee.resource && !attendee.self && attendee.email)
+      .map((attendee) => attendee.email!)
+      .slice(0, 20),
+  };
+}
+
 export async function listEventsBetweenWithCoverage(
   start: Date,
   end: Date,
@@ -519,30 +587,7 @@ export async function listEventsBetweenWithCoverage(
           .filter(
             (event) => event.status !== "cancelled" && (event.start?.dateTime || event.start?.date),
           )
-          .map<CalendarEventItem>((event) => ({
-            id: event.id,
-            title: event.summary?.trim() || "(No title)",
-            start: event.start?.dateTime ?? event.start?.date ?? "",
-            end: event.end?.dateTime ?? event.end?.date ?? "",
-            allDay: !event.start?.dateTime,
-            location: event.location?.trim() || null,
-            description: event.description
-              ? stripHtml(event.description).slice(0, 600) || null
-              : null,
-            htmlLink: event.htmlLink ?? null,
-            meetLink:
-              event.hangoutLink ??
-              event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")
-                ?.uri ??
-              null,
-            calendarId: calendar.id,
-            calendarName: calendar.name,
-            calendarColor: calendar.color,
-            attendees: (event.attendees ?? [])
-              .filter((attendee) => !attendee.resource && !attendee.self && attendee.email)
-              .map((attendee) => attendee.email!)
-              .slice(0, 20),
-          })),
+          .map<CalendarEventItem>((event) => eventToItem(event, calendar)),
         truncated: data.truncated,
       };
     },
@@ -639,6 +684,71 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
   await googleFetch(`${CALENDAR}/calendars/primary/events`, {
     method: "POST",
     body: calendarEventBody(input),
+  });
+}
+
+async function editableCalendar(calendarId: string): Promise<GoogleCalendarInfo> {
+  const lookup = await listCalendarsWithCoverage();
+  const calendar = lookup.calendars.find((candidate) => candidate.id === calendarId);
+  if (calendar) return calendar;
+  throw new GoogleApiError(404, "The selected calendar is no longer available.");
+}
+
+function calendarEditBody(input: UpdateEventInput): Record<string, unknown> {
+  return {
+    summary: input.title,
+    ...(input.description === undefined ? {} : { description: input.description || null }),
+    location: input.location || null,
+    start: input.allDay
+      ? { date: input.start }
+      : { dateTime: input.start, timeZone: input.timeZone },
+    end: input.allDay ? { date: input.end } : { dateTime: input.end, timeZone: input.timeZone },
+  };
+}
+
+async function requireEditableEvent(calendarId: string, eventId: string): Promise<GEvent> {
+  const event = await googleFetch<GEvent>(
+    `${CALENDAR}/calendars/${enc(calendarId)}/events/${enc(eventId)}`,
+  );
+  // A master recurring event edits the entire series. DayBoard only accepts an expanded instance ID.
+  if (event.recurrence?.length) {
+    throw new Error(
+      "This is a recurring series. Select one occurrence from the agenda to edit or delete that occurrence.",
+    );
+  }
+  return event;
+}
+
+/** Patches one ordinary event or one expanded recurring instance without altering attendees or recurrence. */
+export async function updateEvent(input: UpdateEventInput): Promise<CalendarEventItem> {
+  const [calendar] = await Promise.all([
+    editableCalendar(input.calendarId),
+    requireEditableEvent(input.calendarId, input.eventId),
+  ]);
+  const event = await googleFetch<GEvent>(
+    `${CALENDAR}/calendars/${enc(input.calendarId)}/events/${enc(input.eventId)}`,
+    { method: "PATCH", body: calendarEditBody(input) },
+  );
+  return eventToItem(event, calendar);
+}
+
+/** Loads the exact editable event before a save, retaining its untruncated provider description. */
+export async function getEventForEditing(
+  calendarId: string,
+  eventId: string,
+): Promise<CalendarEventItem> {
+  const [calendar, event] = await Promise.all([
+    editableCalendar(calendarId),
+    requireEditableEvent(calendarId, eventId),
+  ]);
+  return eventToItem(event, calendar, true);
+}
+
+/** Deletes one ordinary event or exact recurring occurrence, never a recurring series master. */
+export async function deleteEvent(calendarId: string, eventId: string): Promise<void> {
+  await requireEditableEvent(calendarId, eventId);
+  await googleFetch(`${CALENDAR}/calendars/${enc(calendarId)}/events/${enc(eventId)}`, {
+    method: "DELETE",
   });
 }
 

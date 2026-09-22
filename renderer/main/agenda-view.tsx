@@ -28,7 +28,7 @@ import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
 import { AgendaList, todoEntry, eventEntry } from "../components/agenda-list";
 import { AgendaSourceStatus } from "../components/agenda-source-status";
 import { AskAssistantCard } from "../components/ask-assistant-card";
-import { EventDetail, eventKey } from "../components/event-detail";
+import { EventDetail } from "../components/event-detail";
 import { BriefingCard } from "../components/briefing-card";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
@@ -37,6 +37,11 @@ import { SourceIcon } from "../components/source-dot";
 import { UpNextCard } from "../components/up-next-card";
 import { ViewActions } from "../components/view-actions";
 import { buildAgenda } from "../lib/agenda";
+import {
+  calendarEventKey,
+  identifyCalendarEvents,
+  selectedCalendarEvent,
+} from "../lib/calendar-identity";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
 import { agendaSpanDays, type AgendaSearch, type AgendaSpan } from "../lib/agenda-search";
 import { buildBriefingPrompt } from "../lib/ai-prompts";
@@ -121,9 +126,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
   const mail = useMail();
   const planning = useAgendaState();
   const allTodos = buildTodos(tasks.data, reminders.data);
-  // Linked duplicates show as one row (see mergeLinkedTodos); details still see every item.
-  const todos = mergeLinkedTodos(allTodos, planning.data?.duplicateLinks);
-  const events = calendar.data?.state === "ok" ? calendar.data.items : [];
+  const events = identifyCalendarEvents(calendar.data?.state === "ok" ? calendar.data.items : []);
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const triage = useTriage(messages);
   const [replyTo, setReplyTo] = useState<MailItem | null>(null);
@@ -148,6 +151,8 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     reminders: on.reminders && layers.reminders && !search.eventsOnly,
     calendar: on.calendar && layers.calendar,
   };
+  // Keep full link membership while choosing the representative from visible sources.
+  const todos = mergeLinkedTodos(allTodos, planning.data?.duplicateLinks, visible);
   const agenda = buildAgenda({
     events,
     todos,
@@ -159,12 +164,11 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
   });
   const focusKeys = planning.data?.focusKeys ?? [];
   const focusTodos = todos.filter(
-    (todo) => !todo.completed && focusKeys.includes(todo.key) && visible[todo.source],
+    (todo) =>
+      !todo.completed && (todo.linkedKeys ?? [todo.key]).some((key) => focusKeys.includes(key)),
   );
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
-  const selectedEvent = selectedTodo
-    ? undefined
-    : events.find((event) => eventKey(event) === search.item);
+  const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
   const detailView = settings?.general.detailView ?? "dialog";
   const allReady =
     (!on.tasks || !tasks.isPending) &&
@@ -214,13 +218,15 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
   }
   function pin(todo: Todo) {
     if (!planning.data || planning.setFocus.isPending) return;
-    if (!focusKeys.includes(todo.key) && focusKeys.length >= 3) {
+    const members = todo.linkedKeys ?? [todo.key];
+    const focused = members.some((key) => focusKeys.includes(key));
+    if (!focused && focusKeys.length >= 3) {
       toast.info("Choose up to three focus items. Unpin one first.");
       return;
     }
     planning.setFocus.mutate({
-      focusKeys: focusKeys.includes(todo.key)
-        ? focusKeys.filter((key) => key !== todo.key)
+      focusKeys: focused
+        ? focusKeys.filter((key) => !members.includes(key))
         : [...focusKeys, todo.key],
     });
   }
@@ -228,7 +234,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     now,
     focusKeys,
     onOpen: (todo: Todo) => toggleDetail(todo.key),
-    onOpenEvent: (event: CalendarEventItem) => toggleDetail(eventKey(event)),
+    onOpenEvent: (_event: CalendarEventItem, key: string) => toggleDetail(key),
     onPin: pin,
     expandedKey: detailView === "inline" ? search.item : undefined,
     renderExpanded: detailView === "inline" ? () => renderDetail("panel") : undefined,
@@ -261,7 +267,7 @@ export function AgendaView({ calendarRoute = false }: { calendarRoute?: boolean 
     if (selectedEvent)
       return (
         <EventDetail
-          key={eventKey(selectedEvent)}
+          key={calendarEventKey(selectedEvent)}
           event={selectedEvent}
           presentation={presentation}
           onClose={close}

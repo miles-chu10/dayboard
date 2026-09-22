@@ -5,6 +5,7 @@ import type {
   AssistantMessageInput,
   SettingsChangedEvent,
 } from "../shared-types.js";
+import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data.js";
 import { runAssistant } from "../services/ai/assistant.js";
 import { checkCliProvider, isCancelled, runCliCompletion } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
@@ -95,20 +96,28 @@ export function registerAIHandlers(): void {
   // MCP servers
   ipcMain.handle("mcp:list", () => getMcpServers());
 
-  ipcMain.handle("mcp:assistantStatus", async () => ({
-    ...getAssistantMcpStatus(),
-    serverCount: resolveAssistantMcpServers(
-      (await getSettings()).ai.useMcpInAssistant,
-      await getMcpServers(),
-    ).length,
-  }));
-  ipcMain.handle("mcp:assistantTest", () => checkAssistantMcpConnection());
+  ipcMain.handle("mcp:assistantStatus", async () => {
+    if (isDemoMode())
+      return { state: "unavailable" as const, ok: false, toolCount: 0, serverCount: 0 };
+    return {
+      ...getAssistantMcpStatus(),
+      serverCount: resolveAssistantMcpServers(
+        (await getSettings()).ai.useMcpInAssistant,
+        await getMcpServers(),
+      ).length,
+    };
+  });
+  ipcMain.handle("mcp:assistantTest", () => {
+    if (isDemoMode()) return { state: "unavailable" as const, ok: false, toolCount: 0 };
+    return checkAssistantMcpConnection();
+  });
 
   // External MCP clients (Claude Code, Codex, …)
-  ipcMain.handle("mcp:externalInfo", () => ({ url: getExternalMcpUrl() }));
+  ipcMain.handle("mcp:externalInfo", () => ({ url: isDemoMode() ? null : getExternalMcpUrl() }));
 
   ipcMain.handle("mcp:copyExternalSetup", async (_event, payload: unknown) => {
     const channel = "mcp:copyExternalSetup";
+    assertNotDemo(channel);
     const client = asObject(payload, channel).client;
     if (client !== "claude" && client !== "codex" && client !== "json") {
       throw new Error(`${channel}: client must be claude, codex, or json`);
@@ -120,17 +129,20 @@ export function registerAIHandlers(): void {
   });
 
   ipcMain.handle("mcp:regenerateExternalKey", async () => {
+    assertNotDemo("mcp:regenerateExternalKey");
     await regenerateMcpAccessKey();
     return { regenerated: true };
   });
 
   ipcMain.handle("mcp:save", async (_event, payload: unknown) => {
+    assertNotDemo("mcp:save");
     const servers = await saveMcpServer(payload);
     ipcMain.broadcast("mcp:changed", {});
     return servers;
   });
 
   ipcMain.handle("mcp:delete", async (_event, payload: unknown) => {
+    assertNotDemo("mcp:delete");
     const id = requireString(asObject(payload, "mcp:delete"), "id", "mcp:delete");
     const servers = await deleteMcpServer(id);
     ipcMain.broadcast("mcp:changed", {});
@@ -138,6 +150,7 @@ export function registerAIHandlers(): void {
   });
 
   ipcMain.handle("mcp:test", async (_event, payload: unknown) => {
+    assertNotDemo("mcp:test");
     try {
       return await testMcpServer(normalizeMcpServer(payload));
     } catch (error) {
@@ -155,10 +168,18 @@ export function registerAIHandlers(): void {
     if (input.provider !== "claude" && input.provider !== "codex") {
       throw new Error("ai:providerStatus: provider must be claude or codex");
     }
+    if (isDemoMode()) {
+      return {
+        ok: false as const,
+        reason: "failed" as const,
+        message: "Sample responses are used in demo mode.",
+      };
+    }
     return checkCliProvider(input.provider, input.verify === true);
   });
 
   ipcMain.handle("ai:codexModels", async (_event, payload: unknown) => {
+    if (isDemoMode()) return [];
     const refresh =
       typeof payload === "object" &&
       payload !== null &&
@@ -172,14 +193,21 @@ export function registerAIHandlers(): void {
     async (payload, sendChunk, context) => {
       const channel = "ai:run";
       const input = asObject(payload, channel);
+      const system = requireString(input, "system", channel);
+      const prompt = requireString(input, "prompt", channel);
+      if (isDemoMode()) {
+        const text = demoCompletion(system, prompt);
+        if (!context.signal.aborted) sendChunk({ type: "delta", text });
+        return { text };
+      }
       const settings = await getSettings();
       if (settings.ai.provider === "glaze")
         throw new Error("Glaze AI requests run in the app window.");
       try {
         const text = await runCliCompletion({
           provider: settings.ai.provider,
-          system: requireString(input, "system", channel),
-          prompt: requireString(input, "prompt", channel),
+          system,
+          prompt,
           mcpServers: [],
           signal: context.signal,
           timeoutMs: RUN_TIMEOUT_MS,

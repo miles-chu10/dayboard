@@ -1,6 +1,7 @@
 import type { CalendarEventItem } from "@main/shared-types";
 
 import { addDays, parseISODate, toISODate } from "./dates";
+import { calendarEventKey, identifyCalendarEvents } from "./calendar-identity";
 import type { Todo } from "./todos";
 
 export interface AgendaSources {
@@ -98,10 +99,6 @@ function overlapsDay(event: CalendarEventItem, date: string): boolean {
   return bounds.start < endOfDay(date) && bounds.end > startOfDay(date);
 }
 
-function keyForEvent(event: CalendarEventItem, occurrence: number): string {
-  return `event:${event.calendarId}:${event.id}:${event.start}:${event.end}:${occurrence}`;
-}
-
 function compareEvents(a: CalendarEventItem, b: CalendarEventItem): number {
   return (
     a.start.localeCompare(b.start) ||
@@ -152,18 +149,13 @@ export function buildAgenda({
     anytime: [],
   }));
   const dayByDate = new Map(agendaDays.map((day) => [day.date, day]));
-  const occurrenceCounts = new Map<string, number>();
-
   if (sourceEnabled("calendar", sources)) {
-    for (const event of events) {
+    for (const event of identifyCalendarEvents(events)) {
       if (
         !matchesSearch(search, event.title, event.location, event.description, event.calendarName)
       )
         continue;
-      const baseKey = `${event.calendarId}:${event.id}:${event.start}:${event.end}`;
-      const occurrence = occurrenceCounts.get(baseKey) ?? 0;
-      occurrenceCounts.set(baseKey, occurrence + 1);
-      const key = keyForEvent(event, occurrence);
+      const key = calendarEventKey(event);
       for (const date of displayedDates) {
         const day = dayByDate.get(date);
         if (!day || !overlapsDay(event, date)) continue;

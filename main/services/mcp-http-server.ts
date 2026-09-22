@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 
 import { ipcMain, logger } from "@glaze/core/backend";
@@ -22,7 +22,7 @@ import {
   modifyMessage,
   setTaskCompleted,
 } from "./google-api.js";
-import { GoogleAuthError } from "./google-auth.js";
+import { GoogleAuthError, getGoogleStatus } from "./google-auth.js";
 import {
   createReminder,
   getRemindersAccess,
@@ -31,9 +31,13 @@ import {
   setReminderCompleted,
 } from "./apple-reminders.js";
 import { calendarRangeDays } from "./calendar-range.js";
+import { reconcileAgendaKeys } from "./agenda-store.js";
+import { isDemoMode } from "./demo-data.js";
 import { isValidMcpBearer } from "./mcp-access-key.js";
 import { getSettings } from "./settings-store.js";
+import { trackPendingWrite } from "./pending-writes.js";
 import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
+import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 
 // Local MCP endpoint so MCP clients (Claude Code, Codex, …) can use the dashboard's
 // sources through the app's own Google sign-in and Reminders access. Works only while
@@ -115,6 +119,34 @@ function notifyChanged(source: SourceId): void {
   ipcMain.broadcast("data:changed", event);
 }
 
+async function agendaScopeForReminder(): Promise<string | null> {
+  try {
+    const { email, connected } = await getGoogleStatus();
+    if (connected && !email) return null;
+    return email
+      ? `google:${createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 24)}`
+      : "local";
+  } catch (error) {
+    logger.warn("mcp", "Could not determine agenda scope for reminder reconciliation", {
+      errorType: error instanceof Error ? error.name : "Unknown",
+    });
+    return null;
+  }
+}
+
+async function reconcileReminderAgendaState(
+  scope: string | null,
+  previousRef: string,
+  updated: Awaited<ReturnType<typeof setReminderCompleted>>,
+): Promise<boolean> {
+  if (!scope) return false;
+  const replacement = replacementAgendaKey(previousRef, updated);
+  if (!replacement) return true;
+  const result = await reconcileAgendaKeys(scope, [replacement]);
+  if (result.changed) ipcMain.broadcast("agenda:changed", { scope, state: result.state });
+  return true;
+}
+
 /** Runs a tool body for one source, turning setup/auth problems into readable tool errors. */
 function run<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
   return async (args: A): Promise<ToolResult> => {
@@ -143,7 +175,9 @@ const WRITES_OFF_MESSAGE =
 function runWrite<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
   const guarded = run(source, body);
   return async (args: A): Promise<ToolResult> =>
-    (await getSettings()).mcpServer.allowWrites ? guarded(args) : failure(WRITES_OFF_MESSAGE);
+    trackPendingWrite(async () =>
+      (await getSettings()).mcpServer.allowWrites ? guarded(args) : failure(WRITES_OFF_MESSAGE),
+    );
 }
 
 function capped<T>(items: T[], label: string) {
@@ -355,8 +389,24 @@ function buildMcpServer(allowWrites: boolean): McpServer {
       inputSchema: { ref: z.string().min(1), completed: z.boolean().default(true) },
     },
     runWrite("reminders", async ({ ref, completed }: { ref: string; completed: boolean }) => {
-      await setReminderCompleted(ref, completed);
+      const scope = await agendaScopeForReminder();
+      const updated = await setReminderCompleted(ref, completed);
       notifyChanged("reminders");
+      try {
+        const reconciled = await reconcileReminderAgendaState(scope, ref, updated);
+        if (!reconciled) {
+          return text(
+            `${completed ? "Reminder marked done" : "Reminder reopened"}. DayBoard could not update its saved link because the account is not ready; refresh Agenda after reconnecting.`,
+          );
+        }
+      } catch (error) {
+        logger.warn("mcp", "Saved reminder link could not be reconciled", {
+          errorType: error instanceof Error ? error.name : "Unknown",
+        });
+        return text(
+          `${completed ? "Reminder marked done" : "Reminder reopened"}. DayBoard could not update its saved link yet; refresh Agenda to retry.`,
+        );
+      }
       return text(completed ? "Reminder marked done." : "Reminder reopened.");
     }),
   );
@@ -467,10 +517,12 @@ export function getAssistantMcpServerConfig(projectId: string): McpServerConfig 
 
 /** Address of the external-client endpoint, once the server is listening. */
 export function getExternalMcpUrl(): string | null {
+  if (isDemoMode()) return null;
   return activeProjectId ? `http://127.0.0.1:${stableMcpPort(activeProjectId)}/mcp` : null;
 }
 
 export function getActiveAssistantMcpServerConfig(): McpServerConfig | null {
+  if (isDemoMode()) return null;
   return activeProjectId ? getAssistantMcpServerConfig(activeProjectId) : null;
 }
 
@@ -480,6 +532,7 @@ export function getAssistantMcpStatus(): AssistantMcpStatus {
 
 /** Verifies only MCP protocol setup and the read-only allowlist; it never reads user data. */
 export async function checkAssistantMcpConnection(): Promise<AssistantMcpStatus> {
+  if (isDemoMode()) return { state: "unavailable", ok: false, toolCount: 0 };
   if (assistantMcpCheck) return assistantMcpCheck;
   const config = getActiveAssistantMcpServerConfig();
   if (!config) return assistantMcpStatus;
@@ -558,6 +611,9 @@ function authorizationHeader(request: RequestHeaders): string | undefined {
 }
 
 async function authorizeExternalClient(request: RequestHeaders) {
+  if (isDemoMode()) {
+    return { status: 403, message: "MCP access is unavailable in DayBoard demo mode." };
+  }
   if (!(await getSettings()).mcpServer.enabled) {
     return {
       status: 403,
@@ -583,8 +639,13 @@ export function createMcpHttpServer() {
       ASSISTANT_MCP_PATH,
       {
         buildServer: async () => buildAssistantMcpServer(),
-        authorize: async (request) =>
-          hasAssistantMcpAuthorization(request) ? null : { status: 401, message: "Unauthorized" },
+        authorize: async (request) => {
+          if (isDemoMode())
+            return { status: 403, message: "MCP access is unavailable in DayBoard demo mode." };
+          return hasAssistantMcpAuthorization(request)
+            ? null
+            : { status: 401, message: "Unauthorized" };
+        },
         transports: new Map(),
       },
     ],
@@ -671,6 +732,10 @@ export function createMcpHttpServer() {
 }
 
 export function startMcpHttpServer(projectId: string): void {
+  if (isDemoMode()) {
+    logger.info("mcp", "MCP server disabled in demo mode");
+    return;
+  }
   const port = stableMcpPort(projectId);
   const httpServer = createMcpHttpServer();
 

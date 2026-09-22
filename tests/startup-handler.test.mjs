@@ -31,6 +31,11 @@ const bundle = await build({
     {
       name: "startup-backend-stub",
       setup(api) {
+        api.onResolve({ filter: /demo-data\.js$/ }, () => ({ path: "demo", namespace: "startup-mode" }));
+        api.onLoad({ filter: /.*/, namespace: "startup-mode" }, () => ({
+          contents: "export const assertNotDemo = () => {}; export const isDemoMode = () => false;",
+          loader: "js",
+        }));
         api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
           path: "backend",
           namespace: "startup-fixture",

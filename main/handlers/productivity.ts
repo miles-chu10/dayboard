@@ -41,10 +41,16 @@ import {
   setReminderCompleted,
 } from "../services/apple-reminders.js";
 import { calendarRangeDays } from "../services/calendar-range.js";
+import {
+  trackPendingWrite as trackProductivityWrite,
+  drainPendingWrites,
+  hasPendingWrites,
+} from "../services/pending-writes.js";
 import { getSettings } from "../services/settings-store.js";
 import {
   completeAgendaBlock,
   abandonAgendaBlock,
+  reconcileAgendaKeys,
   getAgendaState,
   prepareAgendaBlock,
   removeAgendaDuplicateLink,
@@ -52,6 +58,7 @@ import {
   setAgendaDuplicateLink,
   setAgendaFocus,
 } from "../services/agenda-store.js";
+import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 import { localDateRange } from "../services/agenda-utils.js";
 import {
   assertNotDemo,
@@ -71,9 +78,11 @@ import type {
   AgendaCreateBlockInput,
   AgendaDuplicateLink,
   AgendaScheduledBlock,
+  AgendaScopedState,
   AgendaState,
   AccountsStatus,
   CalendarListResult,
+  ReminderItem,
   ReviewData,
   SourceResult,
 } from "../shared-types.js";
@@ -85,6 +94,21 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 const WEEK_MS = 7 * 86_400_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
+let accountChanging = false;
+
+async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
+  if (accountChanging || hasPendingWrites())
+    throw new Error("Wait for the current save or account connection to finish, then try again.");
+  accountChanging = true;
+  try {
+    await operation();
+  } finally {
+    accountChanging = false;
+  }
+}
+/** Used by normal quit to avoid ending an acknowledged provider write mid-flight. */
+export const hasPendingProductivityWrites = hasPendingWrites;
+export const drainProductivityWrites = drainPendingWrites;
 
 function asObject(value: unknown, channel: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null)
@@ -160,15 +184,59 @@ async function getAccountsStatus(): Promise<AccountsStatus> {
   return { google, reminders };
 }
 
-async function agendaScope(): Promise<string> {
+async function agendaScope(): Promise<string | null> {
   if (isDemoMode()) return "demo";
-  const { email } = await getGoogleStatus();
+  const { email, connected } = await getGoogleStatus();
+  if (accountChanging) return null;
+  // A provider can be connected while its account identity is still unavailable.
+  // Do not write that state into the anonymous local bucket.
+  if (connected && !email) return null;
   if (!email) return "local";
   return `google:${createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 24)}`;
 }
 
-function broadcastAgenda(state: AgendaState): void {
-  ipcMain.broadcast("agenda:changed", state);
+function scopedAgenda(scope: string, state: AgendaState): AgendaScopedState {
+  return { scope, state };
+}
+
+export async function requireAgendaScope(): Promise<string> {
+  const scope = await agendaScope();
+  if (!scope)
+    throw new Error("Your connected account identity is still loading. Try again shortly.");
+  return scope;
+}
+
+function broadcastAgenda(scope: string, state: AgendaState): void {
+  ipcMain.broadcast("agenda:changed", scopedAgenda(scope, state));
+}
+
+export async function reconcileReminderAgendaState(
+  items: ReminderItem[],
+  previousRefs: readonly string[] = [],
+  capturedScope?: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const scope = capturedScope === undefined ? await agendaScope() : capturedScope;
+  if (!scope) return;
+  const replacements = items.flatMap((item, index) => {
+    const legacy = replacementAgendaKey(previousRefs[index] ?? item.ref, item);
+    return legacy ? [legacy] : [];
+  });
+  if (!replacements.length) return;
+  const result = await reconcileAgendaKeys(scope, replacements);
+  if (result.changed) broadcastAgenda(scope, result.state);
+}
+
+export function requireExpectedAgendaScope(
+  input: Record<string, unknown>,
+  scope: string,
+  channel: string,
+): void {
+  if (input.expectedScope !== scope) {
+    throw new Error(
+      `${channel}: account changed before this save could be applied. Refresh and try again.`,
+    );
+  }
 }
 
 async function broadcastAccounts(): Promise<AccountsStatus> {
@@ -262,9 +330,10 @@ function agendaInput(payload: unknown): AgendaCreateBlockInput {
   }
   if (source === "reminders") {
     const ref = requireShortString(task, "ref", channel);
-    if (key !== `reminder:${ref}`)
-      throw new Error(`${channel}: reminder key does not match its reference`);
-    return { ...base, task: { key, source, ref } };
+    const identity = requireShortString(task, "identity", channel);
+    if (key !== `reminder:${identity}`)
+      throw new Error(`${channel}: reminder key does not match its stable identity`);
+    return { ...base, task: { key, source, identity, ref } };
   }
   throw new Error(`${channel}: "task.source" must be "tasks" or "reminders"`);
 }
@@ -351,7 +420,7 @@ async function persistAgendaBlock(scope: string, block: AgendaScheduledBlock): P
     ) {
       throw new Error("Agenda link was not present after saving.");
     }
-    broadcastAgenda(state);
+    broadcastAgenda(scope, state);
   } catch {
     throw new Error(
       "The calendar event may exist, but its source link could not be saved. Retry with the same request.",
@@ -444,6 +513,7 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("google:saveCredentials", async (_event, payload: unknown) => {
     const channel = "google:saveCredentials";
+    assertNotDemo(channel);
     const input = asObject(payload, channel);
     const clientId = requireString(input, "clientId", channel);
     const clientSecret = requireString(input, "clientSecret", channel);
@@ -452,22 +522,25 @@ export function registerProductivityHandlers(): void {
         "That doesn't look like a Google OAuth Client ID (it should end in .apps.googleusercontent.com).",
       );
     }
-    await saveGoogleCredentials(clientId, clientSecret);
+    await changeAccount(() => saveGoogleCredentials(clientId, clientSecret));
     return broadcastAccounts();
   });
 
   ipcMain.handle("google:clearCredentials", async () => {
-    await clearGoogleCredentials();
+    assertNotDemo("google:clearCredentials");
+    await changeAccount(clearGoogleCredentials);
     return broadcastAccounts();
   });
 
   ipcMain.handle("google:connect", async () => {
-    await googleMutation("google:connect", connectGoogle);
+    assertNotDemo("google:connect");
+    await changeAccount(() => googleMutation("google:connect", connectGoogle));
     return broadcastAccounts();
   });
 
   ipcMain.handle("google:disconnect", async () => {
-    await disconnectGoogle();
+    assertNotDemo("google:disconnect");
+    await changeAccount(disconnectGoogle);
     return broadcastAccounts();
   });
 
@@ -488,7 +561,12 @@ export function registerProductivityHandlers(): void {
     const listId = requireString(input, "listId", channel);
     const taskId = requireString(input, "taskId", channel);
     const completed = requireBoolean(input, "completed", channel);
-    await googleMutation(channel, () => setTaskCompleted(listId, taskId, completed));
+    const scope = await requireAgendaScope();
+    requireExpectedAgendaScope(input, scope, channel);
+    await trackProductivityWrite(() =>
+      googleMutation(channel, () => setTaskCompleted(listId, taskId, completed)),
+    );
+    ipcMain.broadcast("data:changed", { source: "tasks" });
   });
 
   ipcMain.handle("tasks:create", async (_event, payload: unknown) => {
@@ -500,20 +578,29 @@ export function registerProductivityHandlers(): void {
       notes: optionalString(input, "notes", channel),
       due: optionalString(input, "due", channel, DATE_RE),
     };
-    await googleMutation(channel, () => createTask(task));
+    await trackProductivityWrite(() => googleMutation(channel, () => createTask(task)));
+    ipcMain.broadcast("data:changed", { source: "tasks" });
   });
 
   // Apple Reminders
-  ipcMain.handle("reminders:list", () =>
-    isDemoMode() ? demoReminders() : remindersList(listReminders),
-  );
+  ipcMain.handle("reminders:list", async () => {
+    if (isDemoMode()) return demoReminders();
+    const scope = await agendaScope();
+    const result = await remindersList(listReminders);
+    if (result.state === "ok") await reconcileReminderAgendaState(result.items, [], scope);
+    return result;
+  });
 
   ipcMain.handle("reminders:requestAccess", async () => {
+    assertNotDemo("reminders:requestAccess");
     await requestRemindersAccess();
     return broadcastAccounts();
   });
 
-  ipcMain.handle("reminders:openSettings", () => openRemindersPrivacySettings());
+  ipcMain.handle("reminders:openSettings", () => {
+    assertNotDemo("reminders:openSettings");
+    return openRemindersPrivacySettings();
+  });
 
   ipcMain.handle("reminders:setCompleted", async (_event, payload: unknown) => {
     const channel = "reminders:setCompleted";
@@ -521,19 +608,40 @@ export function registerProductivityHandlers(): void {
     const input = asObject(payload, channel);
     const ref = requireString(input, "ref", channel);
     const completed = requireBoolean(input, "completed", channel);
-    await setReminderCompleted(ref, completed);
+    const scope = await requireAgendaScope();
+    requireExpectedAgendaScope(input, scope, channel);
+    const updated = await trackProductivityWrite(async () => {
+      const item = await setReminderCompleted(ref, completed);
+      try {
+        await reconcileReminderAgendaState([item], [ref], scope);
+      } catch {
+        // EventKit has already committed. Returning a rejected mutation would
+        // cause the renderer to roll back a change that really happened.
+        return {
+          ...item,
+          agendaSaveError:
+            "Apple Reminders saved this change, but DayBoard could not save its updated item link. Keep the app open and retry refreshing.",
+        };
+      }
+      return item;
+    });
+    ipcMain.broadcast("data:changed", { source: "reminders" });
+    return updated;
   });
 
   ipcMain.handle("reminders:create", async (_event, payload: unknown) => {
     const channel = "reminders:create";
     assertNotDemo(channel);
     const input = asObject(payload, channel);
-    await createReminder({
-      title: requireString(input, "title", channel),
-      notes: optionalString(input, "notes", channel),
-      dueDate: optionalString(input, "dueDate", channel, DATE_RE),
-      dueTime: optionalString(input, "dueTime", channel, TIME_RE),
-    });
+    await trackProductivityWrite(() =>
+      createReminder({
+        title: requireString(input, "title", channel),
+        notes: optionalString(input, "notes", channel),
+        dueDate: optionalString(input, "dueDate", channel, DATE_RE),
+        dueTime: optionalString(input, "dueTime", channel, TIME_RE),
+      }),
+    );
+    ipcMain.broadcast("data:changed", { source: "reminders" });
   });
 
   // Gmail
@@ -567,21 +675,29 @@ export function registerProductivityHandlers(): void {
     const input = asObject(payload, channel);
     const id = requireString(input, "id", channel);
     const body = requireString(input, "body", channel);
-    return googleMutation(channel, () => createReplyDraft(id, body));
+    const result = await trackProductivityWrite(() =>
+      googleMutation(channel, () => createReplyDraft(id, body)),
+    );
+    ipcMain.broadcast("data:changed", { source: "mail" });
+    return result;
   });
 
   ipcMain.handle("mail:archive", async (_event, payload: unknown) => {
     const channel = "mail:archive";
     assertNotDemo(channel);
     const id = requireString(asObject(payload, channel), "id", channel);
-    await googleMutation(channel, () => modifyMessage(id, ["INBOX"]));
+    await trackProductivityWrite(() => googleMutation(channel, () => modifyMessage(id, ["INBOX"])));
+    ipcMain.broadcast("data:changed", { source: "mail" });
   });
 
   ipcMain.handle("mail:markRead", async (_event, payload: unknown) => {
     const channel = "mail:markRead";
     assertNotDemo(channel);
     const id = requireString(asObject(payload, channel), "id", channel);
-    await googleMutation(channel, () => modifyMessage(id, ["UNREAD"]));
+    await trackProductivityWrite(() =>
+      googleMutation(channel, () => modifyMessage(id, ["UNREAD"])),
+    );
+    ipcMain.broadcast("data:changed", { source: "mail" });
   });
 
   // Google Calendar
@@ -637,69 +753,95 @@ export function registerProductivityHandlers(): void {
       notes: optionalString(input, "notes", channel),
     };
     if (!event.date) throw new Error("Events need a date.");
-    await googleMutation(channel, () => createEvent(event));
+    await trackProductivityWrite(() => googleMutation(channel, () => createEvent(event)));
+    ipcMain.broadcast("data:changed", { source: "calendar" });
   });
 
   // Agenda planning state. Scope selection stays in the backend so account identifiers never cross IPC.
-  ipcMain.handle(
-    "agenda:getState",
-    async (): Promise<AgendaState> => getAgendaState(await agendaScope()),
-  );
+  ipcMain.handle("agenda:getScope", async (): Promise<string> => {
+    return requireAgendaScope();
+  });
 
-  ipcMain.handle("agenda:setFocus", async (_event, payload: unknown): Promise<AgendaState> => {
-    const channel = "agenda:setFocus";
-    const input = asObject(payload, channel);
-    if (
-      !Array.isArray(input.focusKeys) ||
-      input.focusKeys.length > 100 ||
-      input.focusKeys.some((key) => typeof key !== "string" || key.length > 320)
-    ) {
-      throw new Error(`${channel}: "focusKeys" must contain at most 100 short strings`);
-    }
-    const state = await setAgendaFocus(await agendaScope(), input.focusKeys);
-    broadcastAgenda(state);
-    return state;
+  ipcMain.handle("agenda:getState", async (): Promise<AgendaScopedState> => {
+    const scope = await agendaScope();
+    return scopedAgenda(
+      scope ?? "unavailable",
+      scope
+        ? await getAgendaState(scope)
+        : {
+            focusKeys: [],
+            duplicateLinks: [],
+            scheduledBlocks: [],
+          },
+    );
   });
 
   ipcMain.handle(
+    "agenda:setFocus",
+    async (_event, payload: unknown): Promise<AgendaScopedState> => {
+      const channel = "agenda:setFocus";
+      const input = asObject(payload, channel);
+      if (
+        !Array.isArray(input.focusKeys) ||
+        input.focusKeys.length > 100 ||
+        input.focusKeys.some((key) => typeof key !== "string" || key.length > 320)
+      ) {
+        throw new Error(`${channel}: "focusKeys" must contain at most 100 short strings`);
+      }
+      const scope = await requireAgendaScope();
+      requireExpectedAgendaScope(input, scope, channel);
+      const state = await setAgendaFocus(scope, input.focusKeys);
+      broadcastAgenda(scope, state);
+      return scopedAgenda(scope, state);
+    },
+  );
+
+  ipcMain.handle(
     "agenda:setDuplicateLink",
-    async (_event, payload: unknown): Promise<AgendaState> => {
+    async (_event, payload: unknown): Promise<AgendaScopedState> => {
+      const input = asObject(payload, "agenda:setDuplicateLink");
+      const scope = await requireAgendaScope();
+      requireExpectedAgendaScope(input, scope, "agenda:setDuplicateLink");
       const state = await setAgendaDuplicateLink(
-        await agendaScope(),
-        duplicateLinkInput(payload, "agenda:setDuplicateLink"),
+        scope,
+        duplicateLinkInput(input, "agenda:setDuplicateLink"),
       );
-      broadcastAgenda(state);
-      return state;
+      broadcastAgenda(scope, state);
+      return scopedAgenda(scope, state);
     },
   );
 
   ipcMain.handle(
     "agenda:removeDuplicateLink",
-    async (_event, payload: unknown): Promise<AgendaState> => {
+    async (_event, payload: unknown): Promise<AgendaScopedState> => {
       const channel = "agenda:removeDuplicateLink";
       const input = asObject(payload, channel);
+      const scope = await requireAgendaScope();
+      requireExpectedAgendaScope(input, scope, channel);
       const state = await removeAgendaDuplicateLink(
-        await agendaScope(),
+        scope,
         requireShortString(input, "leftKey", channel),
         requireShortString(input, "rightKey", channel),
       );
-      broadcastAgenda(state);
-      return state;
+      broadcastAgenda(scope, state);
+      return scopedAgenda(scope, state);
     },
   );
 
   ipcMain.handle(
     "agenda:removeScheduledBlock",
-    async (_event, payload: unknown): Promise<AgendaState> => {
+    async (_event, payload: unknown): Promise<AgendaScopedState> => {
       const channel = "agenda:removeScheduledBlock";
       const input = asObject(payload, channel);
+      const scope = await requireAgendaScope();
+      requireExpectedAgendaScope(input, scope, channel);
       const state = await removeAgendaScheduledBlock(
-        await agendaScope(),
+        scope,
         requireShortString(input, "taskKey", channel),
         requireShortString(input, "eventId", channel),
       );
-      broadcastAgenda(state);
-      return state;
+      broadcastAgenda(scope, state);
+      return scopedAgenda(scope, state);
     },
   );
 
@@ -708,11 +850,18 @@ export function registerProductivityHandlers(): void {
     async (_event, payload: unknown): Promise<AgendaScheduledBlock> => {
       assertNotDemo("agenda:createBlock");
       const input = agendaInput(payload);
-      const scope = await agendaScope();
+      const scope = await requireAgendaScope();
+      requireExpectedAgendaScope(
+        asObject(payload, "agenda:createBlock"),
+        scope,
+        "agenda:createBlock",
+      );
       const key = `${scope}:${input.requestId}`;
       const existing = agendaCreates.get(key);
       if (existing) return existing;
-      const operation = createAgendaBlock(scope, input).finally(() => agendaCreates.delete(key));
+      const operation = trackProductivityWrite(() => createAgendaBlock(scope, input)).finally(() =>
+        agendaCreates.delete(key),
+      );
       agendaCreates.set(key, operation);
       return operation;
     },
@@ -744,6 +893,7 @@ export function registerProductivityHandlers(): void {
   // Links
   ipcMain.handle("app:openExternal", async (_event, payload: unknown) => {
     const channel = "app:openExternal";
+    assertNotDemo(channel);
     const url = requireString(asObject(payload, channel), "url", channel);
     if (new URL(url).protocol !== "https:")
       throw new Error(`${channel}: only https links can be opened`);

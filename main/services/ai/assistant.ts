@@ -2,6 +2,7 @@ import { GlazeAIError, glaze, stepCountIs, streamText, tool } from "@glaze/core/
 import { logger } from "@glaze/core/backend";
 
 import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
+import { demoAssistantReply, isDemoMode } from "../demo-data.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
 import { runCliCompletion } from "./cli-providers.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
@@ -46,6 +47,11 @@ export async function runAssistant(
   send: (chunk: AIStreamChunk) => void,
   signal: AbortSignal,
 ): Promise<AssistantResult> {
+  if (isDemoMode()) {
+    const text = demoAssistantReply(params.messages[params.messages.length - 1]?.content ?? "");
+    if (!signal.aborted) send({ type: "delta", text });
+    return { text };
+  }
   const settings = await getSettings();
   const servers = resolveAssistantMcpServers(
     settings.ai.useMcpInAssistant,

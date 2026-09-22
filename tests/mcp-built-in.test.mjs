@@ -13,7 +13,7 @@ const root = new URL("..", import.meta.url).pathname;
 let bundleSequence = 0;
 
 const backendStub = `
-export const ipcMain = { broadcast() {} };
+export const ipcMain = { broadcast(...args) { (globalThis.__mcpBroadcasts ??= []).push(args); } };
 export const logger = { error() {}, warn() {}, info() {} };
 `;
 
@@ -31,13 +31,16 @@ export async function modifyMessage() { throw new Error("write should not run");
 export async function setTaskCompleted() { throw new Error("write should not run"); }
 `;
 
-const authStub = `export class GoogleAuthError extends Error {}`;
+const authStub = `export class GoogleAuthError extends Error {} export const getGoogleStatus = async () => globalThis.__mcpGoogleStatus ?? ({ connected: false, email: null });`;
 const remindersStub = `
 export async function createReminder() { throw new Error("write should not run"); }
 export async function getRemindersAccess() { return "full-access"; }
 export async function listCompletedReminders() { return []; }
 export async function listReminders() { return []; }
-export async function setReminderCompleted() { throw new Error("write should not run"); }
+export async function setReminderCompleted(ref, completed) {
+  if (!globalThis.__mcpReminderResult) throw new Error("write should not run");
+  return { ...globalThis.__mcpReminderResult, ref, completed };
+}
 `;
 const settingsStub = `
 export async function getSettings() {
@@ -65,6 +68,11 @@ function mcpPlugin() {
     ["./settings-store.js", settingsStub],
     ["./mcp-access-key.js", accessKeyStub],
     ["./calendar-range.js", calendarRangeStub],
+    ["./demo-data.js", `export const isDemoMode = () => false;`],
+    ["./agenda-store.js", `export const reconcileAgendaKeys = async () => {
+      if (globalThis.__mcpReconcileError) throw new Error("agenda state is temporarily unavailable");
+      return { changed: false, state: { focusKeys: [], duplicateLinks: [], scheduledBlocks: [] } };
+    };`],
   ]);
   return {
     name: "mcp-built-in-fixtures",
@@ -313,6 +321,43 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
     }
   } finally {
     delete globalThis.__mcpServerSettings;
+    await close(server);
+  }
+});
+
+test("an MCP reminder write reports link reconciliation separately from its confirmed provider result", async () => {
+  const module = await loadMcpHarness();
+  const server = module.createMcpHttpServer();
+  const port = await listen(server);
+  const url = new URL(`http://127.0.0.1:${port}/mcp`);
+  try {
+    globalThis.__mcpServerSettings = { enabled: true, allowWrites: true };
+    globalThis.__mcpGoogleStatus = { connected: false, email: null };
+    globalThis.__mcpReminderResult = { identity: "stable-reminder", recurring: false };
+    globalThis.__mcpReconcileError = true;
+    globalThis.__mcpBroadcasts = [];
+    const client = new Client({ name: "reminder-write", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(url, { requestInit: { headers: EXTERNAL_AUTH } });
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({
+        name: "complete_reminder",
+        arguments: { ref: "old-ref", completed: true },
+      });
+      assert.notEqual(result.isError, true);
+      assert.match(result.content[0].text, /Reminder marked done/);
+      assert.match(result.content[0].text, /could not update its saved link yet/);
+      assert.ok(globalThis.__mcpBroadcasts.some(([channel, event]) => channel === "data:changed" && event.source === "reminders"));
+    } finally {
+      await transport.terminateSession().catch(() => undefined);
+      await client.close();
+    }
+  } finally {
+    delete globalThis.__mcpServerSettings;
+    delete globalThis.__mcpGoogleStatus;
+    delete globalThis.__mcpReminderResult;
+    delete globalThis.__mcpReconcileError;
+    delete globalThis.__mcpBroadcasts;
     await close(server);
   }
 });

@@ -5,6 +5,11 @@ export function setStorageNamespace(value: string): void {
   namespace = value;
 }
 
+/** For small non-JSON caches such as pre-render appearance preferences. */
+export function storedKey(key: string): string {
+  return namespace + key;
+}
+
 export function readStored<T>(key: string, guard: (value: unknown) => value is T): T | null {
   try {
     const raw = localStorage.getItem(namespace + key);

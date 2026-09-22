@@ -8,7 +8,7 @@ import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
 import { useAppearanceSync } from "../lib/appearance";
-import { useBackendSync } from "../lib/queries";
+import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 
 const LAUNCH_ROUTE: Record<
@@ -27,6 +27,9 @@ const LAUNCH_ROUTE: Record<
 export function RootView() {
   useTheme();
   useBackendSync();
+  // Every route can create or change source items. Hydrate the backend-owned
+  // account scope before those actions, including direct launch into Sources.
+  useAgendaState();
   useAppearanceSync();
 
   // IPC connection and environment

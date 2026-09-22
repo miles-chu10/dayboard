@@ -1,4 +1,5 @@
 import type { AgendaDuplicateLink, ReminderItem, SourceResult, TaskItem } from "@main/shared-types";
+import { reminderAgendaKey } from "../../shared/agenda-identities";
 
 export interface Todo {
   key: string;
@@ -12,6 +13,8 @@ export interface Todo {
   completedAt: string | null;
   task?: TaskItem;
   reminder?: ReminderItem;
+  /** The full accepted connected component, including this item, when it is merged. */
+  linkedKeys?: string[];
   /** Open items the user linked as the same to-do; shown on this row instead of separately. */
   linked?: Todo[];
 }
@@ -40,7 +43,7 @@ export function buildTodos(
   if (reminders?.state === "ok") {
     for (const reminder of reminders.items) {
       todos.push({
-        key: `reminder:${reminder.ref}`,
+        key: reminderAgendaKey(reminder),
         source: "reminders",
         title: reminder.title,
         notes: reminder.notes,
@@ -64,15 +67,31 @@ export function compareByDue(a: Todo, b: Todo): number {
 
 /** Keys of items the user accepted as duplicates of `key`. */
 export function linkedKeys(links: AgendaDuplicateLink[] | undefined, key: string): string[] {
-  return (links ?? []).flatMap((link) =>
-    link.status !== "accepted"
-      ? []
-      : link.leftKey === key
-        ? [link.rightKey]
-        : link.rightKey === key
-          ? [link.leftKey]
-          : [],
-  );
+  return linkedGroupKeys(links, key).filter((candidate) => candidate !== key);
+}
+
+/**
+ * Accepted links are an undirected graph. Display and completion use the same
+ * component so a chain such as A-B-C cannot merge differently than it writes.
+ */
+export function linkedGroupKeys(links: AgendaDuplicateLink[] | undefined, key: string): string[] {
+  const adjacent = new Map<string, string[]>();
+  for (const link of links ?? []) {
+    if (link.status !== "accepted") continue;
+    adjacent.set(link.leftKey, [...(adjacent.get(link.leftKey) ?? []), link.rightKey]);
+    adjacent.set(link.rightKey, [...(adjacent.get(link.rightKey) ?? []), link.leftKey]);
+  }
+  const seen = new Set([key]);
+  const queue = [key];
+  for (let index = 0; index < queue.length; index++) {
+    for (const next of adjacent.get(queue[index]) ?? []) {
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return queue;
 }
 
 function specificity(todo: Todo): number {
@@ -83,20 +102,26 @@ function specificity(todo: Todo): number {
  * Collapses each group of linked open items into one row. The item with the most specific
  * deadline stays (Google Tasks wins ties) and carries the others in `linked`.
  */
-export function mergeLinkedTodos(todos: Todo[], links: AgendaDuplicateLink[] | undefined): Todo[] {
-  if (!links?.some((link) => link.status === "accepted")) return todos;
-  const open = new Map(todos.filter((todo) => !todo.completed).map((todo) => [todo.key, todo]));
+export function mergeLinkedTodos(
+  todos: Todo[],
+  links: AgendaDuplicateLink[] | undefined,
+  visibleSources?: Partial<Record<Todo["source"], boolean>>,
+): Todo[] {
+  const visible = todos.filter((todo) => visibleSources?.[todo.source] ?? true);
+  if (!links?.some((link) => link.status === "accepted")) return visible;
+  const open = new Map(visible.filter((todo) => !todo.completed).map((todo) => [todo.key, todo]));
   const hidden = new Set<string>();
   const partners = new Map<string, Todo[]>();
-  for (const todo of todos) {
+  const memberships = new Map<string, string[]>();
+  for (const todo of visible) {
     if (todo.completed || hidden.has(todo.key)) continue;
-    const group = [todo];
-    for (let index = 0; index < group.length; index++) {
-      for (const key of linkedKeys(links, group[index].key)) {
-        const other = open.get(key);
-        if (other && !group.includes(other) && !hidden.has(key)) group.push(other);
-      }
-    }
+    // Traverse stored graph keys before selecting displayable items. An
+    // unavailable, completed, or source-filtered B still connects A-B-C.
+    const membership = linkedGroupKeys(links, todo.key);
+    const group = membership
+      .map((key) => open.get(key))
+      .filter((item): item is Todo => Boolean(item));
+    memberships.set(todo.key, membership);
     if (group.length < 2) continue;
     const [primary, ...rest] = [...group].sort(
       (a, b) =>
@@ -105,9 +130,20 @@ export function mergeLinkedTodos(todos: Todo[], links: AgendaDuplicateLink[] | u
         a.key.localeCompare(b.key),
     );
     partners.set(primary.key, rest);
+    memberships.set(primary.key, membership);
     for (const other of rest) hidden.add(other.key);
   }
-  return todos
+  return visible
     .filter((todo) => !hidden.has(todo.key))
-    .map((todo) => (partners.has(todo.key) ? { ...todo, linked: partners.get(todo.key) } : todo));
+    .map((todo) =>
+      partners.has(todo.key)
+        ? {
+            ...todo,
+            linked: partners.get(todo.key),
+            linkedKeys: memberships.get(todo.key) ?? [todo.key],
+          }
+        : memberships.has(todo.key)
+          ? { ...todo, linkedKeys: memberships.get(todo.key) }
+          : todo,
+    );
 }

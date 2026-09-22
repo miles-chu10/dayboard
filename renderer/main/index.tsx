@@ -4,16 +4,14 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router, queryClient } from "./router";
 import "../styles.css";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider, Toaster } from "@glaze/core/components";
+import { Text, TooltipProvider, Toaster } from "@glaze/core/components";
 import { initLogging } from "@glaze/core/utils";
 import { applyCachedAppearance } from "../lib/appearance";
-import { invoke } from "../lib/ipc";
-import { setStorageNamespace } from "../lib/storage";
+import { initializeDemoMode } from "../lib/demo";
 
 declare const __APP_DISPLAY_NAME__: string | undefined;
 
 initLogging();
-applyCachedAppearance();
 
 document.title = __APP_DISPLAY_NAME__ || document.title;
 
@@ -23,20 +21,35 @@ if (!rootElement) {
   throw new Error("Root element not found");
 }
 
-// Create React root and render once the storage namespace is known
 const root = ReactDOM.createRoot(rootElement);
-const demo = await invoke<boolean>("app:isDemo").catch(() => false);
-if (demo) setStorageNamespace("demo:");
-root.render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RouterProvider router={router} />
-      </TooltipProvider>
-      <Toaster />
-    </QueryClientProvider>
-  </React.StrictMode>,
-);
+try {
+  // Fail closed if the backend cannot determine the mode: no cached real data may render first.
+  await initializeDemoMode();
+  applyCachedAppearance();
+  root.render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+        <Toaster />
+      </QueryClientProvider>
+    </React.StrictMode>,
+  );
+} catch {
+  root.render(
+    <main className="h-full grid place-items-center p-8 text-center">
+      <div>
+        <Text as="h1" variant="heading2">
+          DayBoard couldn’t start safely
+        </Text>
+        <Text as="p" variant="regular" color="secondary" className="mt-2">
+          Quit DayBoard and reopen it to try again.
+        </Text>
+      </div>
+    </main>,
+  );
+}
 
 // Hot Module Replacement (HMR) support
 if (import.meta.hot) {

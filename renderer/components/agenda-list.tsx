@@ -8,7 +8,7 @@ import type { AgendaEntry } from "../lib/agenda";
 import { useToggleTodo } from "../lib/queries";
 import type { Todo } from "../lib/todos";
 import { DueChip, ListChip } from "./agenda-chips";
-import { eventKey } from "./event-detail";
+import { calendarEventKey } from "../lib/calendar-identity";
 import { EventBar } from "./event-row";
 
 export const todoEntry = (todo: Todo): AgendaEntry => ({
@@ -18,7 +18,7 @@ export const todoEntry = (todo: Todo): AgendaEntry => ({
 });
 export const eventEntry = (event: CalendarEventItem): AgendaEntry => ({
   kind: "event",
-  key: `event:${event.calendarId}:${event.id}`,
+  key: calendarEventKey(event),
   event,
 });
 
@@ -63,7 +63,7 @@ export function AgendaList({
   now: Date;
   focusKeys: string[];
   onOpen: (todo: Todo) => void;
-  onOpenEvent?: (event: CalendarEventItem) => void;
+  onOpenEvent?: (event: CalendarEventItem, key: string) => void;
   onPin: (todo: Todo) => void;
   /** Item (todo key or event key) whose details render inline under its row. */
   expandedKey?: string;
@@ -73,7 +73,7 @@ export function AgendaList({
     expandedKey === key && renderExpanded ? (
       <div className="py-1 pl-6">{renderExpanded()}</div>
     ) : null;
-  const events = entries.flatMap((entry) => (entry.kind === "event" ? [entry.event] : []));
+  const events = entries.flatMap((entry) => (entry.kind === "event" ? [entry] : []));
   const todos = entries.flatMap((entry) => (entry.kind === "todo" ? [entry.todo] : []));
   return (
     <div
@@ -83,15 +83,15 @@ export function AgendaList({
     >
       {events.length ? (
         <div className="flex flex-col gap-[var(--density-bar-gap)]">
-          {events.map((event) => (
-            <Fragment key={eventKey(event)}>
+          {events.map(({ event, key }) => (
+            <Fragment key={key}>
               <EventBar
                 event={event}
                 now={now}
-                onOpen={onOpenEvent ? () => onOpenEvent(event) : undefined}
-                expanded={renderExpanded ? expandedKey === eventKey(event) : undefined}
+                onOpen={onOpenEvent ? () => onOpenEvent(event, key) : undefined}
+                expanded={renderExpanded ? expandedKey === key : undefined}
               />
-              {inline(eventKey(event))}
+              {inline(key)}
             </Fragment>
           ))}
         </div>
@@ -103,7 +103,7 @@ export function AgendaList({
               <TodoLine
                 todo={todo}
                 now={now}
-                focused={focusKeys.includes(todo.key)}
+                focused={(todo.linkedKeys ?? [todo.key]).some((key) => focusKeys.includes(key))}
                 expanded={renderExpanded ? expandedKey === todo.key : undefined}
                 onOpen={() => onOpen(todo)}
                 onPin={() => onPin(todo)}
@@ -168,14 +168,12 @@ function TodoLine({
       {todo.notes ? (
         <AlignLeft aria-label="Has notes" className="size-3.5 shrink-0 text-tertiary" />
       ) : null}
-      {todo.linked?.length ? (
+      {(todo.linkedKeys?.length ?? 0) > 1 ? (
         <span
           role="img"
           aria-label="Linked items"
           className="flex shrink-0"
-          title={`Linked with ${todo.linked
-            .map((item) => (item.source === "tasks" ? "Google Tasks" : "Apple Reminders"))
-            .join(" and ")} · completing one completes both`}
+          title="Completing this item also updates its available linked items."
         >
           <Link2 aria-hidden="true" className="size-3.5 text-tertiary" />
         </span>
