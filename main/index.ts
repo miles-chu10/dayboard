@@ -26,6 +26,8 @@ import { drainProductivityWrites } from "./handlers/productivity.js";
 import { createSaveQuitGuard } from "./services/quit-guard.js";
 import { drainPendingWrites } from "./services/pending-writes.js";
 import { drainSettingsStores } from "./services/settings-store.js";
+import { clearAttachmentPicks } from "./services/ai/attachments.js";
+import { clearReminderIdentities } from "./services/apple-reminders.js";
 
 // Get directory paths
 const __filename = fileURLToPath(import.meta.url);
@@ -230,7 +232,11 @@ const saveBeforeQuit = createSaveQuitGuard({
     });
     return result.response === 1;
   },
-  resumeQuit: () => app.quit(),
+  resumeQuit: () => {
+    clearAttachmentPicks();
+    clearReminderIdentities();
+    app.quit();
+  },
 });
 app.on("before-quit", (event) => {
   void saveBeforeQuit(event).catch(() => {

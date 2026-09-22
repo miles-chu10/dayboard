@@ -69,3 +69,12 @@ test("unchanged calendar description and reminder deadline are omitted from prov
     false,
   );
 });
+
+test("unchanged event times are omitted so the event keeps its own time zone", async () => {
+  const form = await load();
+  const original = event();
+  const fields = form.eventEditorFields(original);
+  assert.equal(form.eventTimesChanged(original, { ...fields, title: "Renamed" }), false);
+  assert.equal(form.eventTimesChanged(original, { ...fields, allDay: true }), true);
+  assert.equal(form.eventTimesChanged(original, { ...fields, end: "2026-09-22T11:00" }), true);
+});

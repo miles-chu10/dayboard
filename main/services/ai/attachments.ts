@@ -7,12 +7,25 @@ import { dialog } from "@glaze/core/backend";
 import type { AssistantAttachment } from "../../shared-types.js";
 
 // Only paths the user picked in the native panel can be read; the renderer sees opaque IDs.
-const picked = new Map<string, { path: string; kind: "file" | "folder" }>();
+const picked = new Map<string, { path: string; kind: "file" | "folder"; pickedAt: number }>();
+const PICK_LIMIT = 100;
+const PICK_TTL_MS = 6 * 60 * 60 * 1000;
 
 const FILE_LIMIT = 60_000;
 const TOTAL_LIMIT = 200_000;
 const FOLDER_ENTRIES = 200;
 const SKIP = new Set([".git", "node_modules", ".DS_Store", "build", "dist", ".next"]);
+
+function prunePicks(now = Date.now()) {
+  for (const [id, entry] of picked) {
+    if (now - entry.pickedAt > PICK_TTL_MS) picked.delete(id);
+  }
+  while (picked.size > PICK_LIMIT) picked.delete(picked.keys().next().value!);
+}
+
+export function clearAttachmentPicks(): void {
+  picked.clear();
+}
 
 export async function pickAttachments(): Promise<AssistantAttachment[]> {
   const result = await dialog.showOpenDialog({
@@ -26,9 +39,10 @@ export async function pickAttachments(): Promise<AssistantAttachment[]> {
     if (!stat) continue;
     const id = randomUUID();
     const kind = stat.isDirectory() ? "folder" : "file";
-    picked.set(id, { path: filePath, kind });
+    picked.set(id, { path: filePath, kind, pickedAt: Date.now() });
     attachments.push({ id, name: path.basename(filePath), kind });
   }
+  prunePicks();
   return attachments;
 }
 
@@ -63,8 +77,8 @@ async function listFolder(root: string): Promise<string[]> {
   return entries;
 }
 
-/** Text block describing the attachments, capped in size, for the latest user message. */
 export async function attachmentContext(ids: string[]): Promise<string> {
+  prunePicks();
   let budget = TOTAL_LIMIT;
   const parts: string[] = [];
   for (const id of ids.slice(0, 10)) {

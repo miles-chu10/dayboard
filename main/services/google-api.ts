@@ -699,10 +699,16 @@ function calendarEditBody(input: UpdateEventInput): Record<string, unknown> {
     summary: input.title,
     ...(input.description === undefined ? {} : { description: input.description || null }),
     location: input.location || null,
-    start: input.allDay
-      ? { date: input.start }
-      : { dateTime: input.start, timeZone: input.timeZone },
-    end: input.allDay ? { date: input.end } : { dateTime: input.end, timeZone: input.timeZone },
+    ...(input.timesChanged
+      ? {
+          start: input.allDay
+            ? { date: input.start }
+            : { dateTime: input.start, timeZone: input.timeZone },
+          end: input.allDay
+            ? { date: input.end }
+            : { dateTime: input.end, timeZone: input.timeZone },
+        }
+      : {}),
   };
 }
 

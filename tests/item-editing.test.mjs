@@ -157,6 +157,7 @@ test("calendar editing validates exclusive all-day bounds and preserves the exac
       end: "2026-10-02",
       allDay: true,
       timeZone: "America/Los_Angeles",
+      timesChanged: true,
     }),
     /must be after/,
   );
@@ -170,6 +171,7 @@ test("calendar editing validates exclusive all-day bounds and preserves the exac
     end: "2026-10-02T10:00:00-07:00",
     allDay: false,
     timeZone: "America/Los_Angeles",
+    timesChanged: true,
   });
   assert.equal(result.id, "instance-1");
   assert.equal(state.calls.at(0)[1].eventId, "instance-1");
@@ -300,6 +302,7 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
       end: "2026-10-02T10:00:00-07:00",
       allDay: false,
       timeZone: "America/Los_Angeles",
+      timesChanged: true,
     });
     assert.equal(event.id, "instance-1");
     const eventPatch = requests.find(
@@ -321,11 +324,15 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
       end: "2026-10-02T10:00:00-07:00",
       allDay: false,
       timeZone: "America/Los_Angeles",
+      timesChanged: false,
     });
     const titleOnlyPatch = requests.filter(
       (request) => String(request.url).includes("/events/instance-1") && request.init.method === "PATCH",
     ).at(-1);
-    assert.equal("description" in JSON.parse(titleOnlyPatch.init.body), false);
+    const titleOnlyBody = JSON.parse(titleOnlyPatch.init.body);
+    assert.equal("description" in titleOnlyBody, false);
+    assert.equal("start" in titleOnlyBody, false);
+    assert.equal("end" in titleOnlyBody, false);
     const editable = await api.getEventForEditing("work", "full-description");
     assert.equal(editable.description, `<p>${"x".repeat(800)}</p>`);
   } finally {
