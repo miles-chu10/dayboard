@@ -48,7 +48,11 @@ function mcpNote(session: McpSession | null, cliServers: number): string {
 }
 
 export async function runAssistant(
-  params: { messages: AssistantMessageInput[]; system: string; attachments?: string[] },
+  params: {
+    messages: AssistantMessageInput[];
+    system: string;
+    attachments?: string[];
+  },
   send: (chunk: AIStreamChunk) => void,
   signal: AbortSignal,
 ): Promise<AssistantResult> {
@@ -76,16 +80,21 @@ export async function runAssistant(
   const system = params.system + modelSystemNote(model);
   const reportUsage = (usage: { inputTokens: number; outputTokens: number }) =>
     send({ type: "usage", ...usage, contextWindow: model.contextWindow });
-  // Antigravity has no per-run MCP configuration, so it answers from the snapshot alone.
+  // Antigravity and Muse have no per-run MCP configuration, so they answer from the snapshot alone.
   const servers =
-    provider === "gemini"
+    provider === "gemini" || provider === "muse"
       ? []
       : resolveAssistantMcpServers(
           settings.ai.useMcpInAssistant,
           settings.ai.useMcpInAssistant ? await getMcpServers() : [],
         );
 
-  if (provider === "claude" || provider === "codex" || provider === "gemini") {
+  if (
+    provider === "claude" ||
+    provider === "codex" ||
+    provider === "gemini" ||
+    provider === "muse"
+  ) {
     const text = await runCliCompletion({
       provider,
       system: system + mcpNote(null, servers.length),

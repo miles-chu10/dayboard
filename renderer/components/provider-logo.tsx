@@ -20,14 +20,23 @@ const ANTHROPIC_PATH =
 const GEMINI_PATH =
   "M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12Z";
 
-const MARK: Record<AIProvider, { path: string; className: string }> = {
+type Mark = { path: string; className: string } | { letter: string; className: string };
+
+// Providers without a bundled logo get a brand-colored lettermark.
+const MARK: Record<AIProvider, Mark> = {
   claude: { path: CLAUDE_PATH, className: "text-[#D97757]" },
   codex: { path: OPENAI_PATH, className: "text-primary" },
   glaze: { path: SPARKLE_PATH, className: "text-accent" },
   gemini: { path: GEMINI_PATH, className: "text-[#4796E3]" },
+  muse: { letter: "M", className: "text-[#0866FF]" },
   openai: { path: OPENAI_PATH, className: "text-primary" },
   anthropic: { path: ANTHROPIC_PATH, className: "text-primary" },
   google: { path: GEMINI_PATH, className: "text-[#4796E3]" },
+  xai: { letter: "x", className: "text-[#1d1d1f]" },
+  mistral: { letter: "M", className: "text-[#FA520F]" },
+  deepseek: { letter: "D", className: "text-[#4D6BFE]" },
+  groq: { letter: "g", className: "text-[#F55036]" },
+  openrouter: { letter: "OR", className: "text-[#6467F2]" },
 };
 
 /** The selected AI provider's logo, sized by the caller (e.g. `size-4`). */
@@ -47,7 +56,25 @@ export function ProviderMark({
       aria-label={PROVIDER_LABEL[provider]}
       className={cn("shrink-0", mark.className, className)}
     >
-      <path d={mark.path} />
+      {"path" in mark ? (
+        <path d={mark.path} />
+      ) : (
+        <>
+          <rect x="1" y="1" width="22" height="22" rx="6" />
+          <text
+            x="12"
+            y="12"
+            dy="0.35em"
+            textAnchor="middle"
+            fontSize={mark.letter.length > 1 ? 10 : 14}
+            fontWeight={700}
+            fontFamily="-apple-system, BlinkMacSystemFont, sans-serif"
+            fill="#fff"
+          >
+            {mark.letter}
+          </text>
+        </>
+      )}
     </svg>
   );
 }

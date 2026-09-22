@@ -5,6 +5,8 @@ import type {
   AssistantModelInfo,
   CodexModelInfo,
 } from "../../shared-types.js";
+import { isApiProvider } from "./api-keys.js";
+import { API_LABEL } from "./api-providers.js";
 
 export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
   const args: string[] = [];
@@ -77,10 +79,8 @@ export function describeModel(
   provider: AIProvider = ai.provider,
   apiModel?: ApiModelInfo,
 ): AssistantModelInfo {
-  if (provider === "openai" || provider === "anthropic" || provider === "google") {
-    const label = { openai: "OpenAI API", anthropic: "Anthropic API", google: "Gemini API" }[
-      provider
-    ];
+  if (isApiProvider(provider)) {
+    const label = API_LABEL[provider];
     return {
       provider,
       name: apiModel ? `${apiModel.name} (${label})` : label,
@@ -88,6 +88,16 @@ export function describeModel(
       fast: false,
       effort: null,
       contextWindow: apiModel?.contextWindow ?? null,
+    };
+  }
+  if (provider === "muse") {
+    return {
+      provider,
+      name: ai.museModel ? `Muse · ${ai.museModel}` : "Muse (Muse Code default)",
+      id: ai.museModel || null,
+      fast: false,
+      effort: null,
+      contextWindow: null,
     };
   }
   if (provider === "gemini") {
@@ -135,18 +145,18 @@ export function describeModel(
 
 /** Appended to every Assistant system prompt so the model can state what it is. */
 export function modelSystemNote(info: AssistantModelInfo): string {
-  const via = {
-    claude: "Claude Code (the user's Claude subscription)",
-    codex: "the Codex CLI (the user's ChatGPT subscription)",
-    gemini: "Google Antigravity (the user's Gemini subscription)",
-    openai: "the OpenAI API (the user's API key)",
-    anthropic: "the Anthropic API (the user's API key)",
-    google: "the Gemini API (the user's API key)",
-    glaze: "Glaze AI",
-  }[info.provider];
+  const via = isApiProvider(info.provider)
+    ? `the ${API_LABEL[info.provider]} (the user's API key)`
+    : {
+        claude: "Claude Code (the user's Claude subscription)",
+        codex: "the Codex CLI (the user's ChatGPT subscription)",
+        gemini: "Google Antigravity (the user's Gemini subscription)",
+        muse: "Meta's Muse Code CLI (the user's Meta account)",
+        glaze: "Glaze AI",
+      }[info.provider];
   const exact = info.id
     ? `The exact model ID is "${info.id}".`
-    : info.provider === "claude" || info.provider === "gemini"
+    : info.provider === "claude" || info.provider === "gemini" || info.provider === "muse"
       ? "The CLI resolves the exact model ID when the request starts; the app shows it under your reply."
       : "The exact model ID isn't published for this provider.";
   return `\n\n# Model\nYou are running as ${info.name} through ${via}. ${exact} Fast mode is ${info.fast ? "ON" : "off"}.${info.effort ? ` Reasoning effort: ${info.effort}.` : ""} When asked which model you are, state exactly this rather than guessing.`;

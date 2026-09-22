@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@glaze/core/components";
-import type { AIFeature, AIProvider, AppSettings, SourceId } from "@main/shared-types";
+import type {
+  AIFeature,
+  AIProvider,
+  ApiProviderId,
+  AppSettings,
+  SourceId,
+} from "@main/shared-types";
 
 import { errorMessage, invoke } from "./ipc";
 
@@ -55,21 +61,51 @@ export const PROVIDER_LABEL: Record<AIProvider, string> = {
   claude: "Claude",
   codex: "ChatGPT",
   gemini: "Gemini",
+  muse: "Muse",
   openai: "OpenAI API",
   anthropic: "Anthropic API",
   google: "Gemini API",
+  xai: "xAI Grok",
+  mistral: "Mistral",
+  deepseek: "DeepSeek",
+  groq: "Groq",
+  openrouter: "OpenRouter",
 };
 
 /** Subscription accounts vs. pay-per-use API keys, for grouping in pickers. */
-export const SUBSCRIPTION_PROVIDERS = ["claude", "codex", "gemini"] as const;
-export const API_KEY_PROVIDERS = ["openai", "anthropic", "google"] as const;
+export const SUBSCRIPTION_PROVIDERS = ["claude", "codex", "gemini", "muse"] as const;
+export const API_KEY_PROVIDERS = [
+  "openai",
+  "anthropic",
+  "google",
+  "xai",
+  "mistral",
+  "deepseek",
+  "groq",
+  "openrouter",
+] as const satisfies readonly ApiProviderId[];
+
+export function isApiKeyProvider(provider: AIProvider): provider is ApiProviderId {
+  return (API_KEY_PROVIDERS as readonly AIProvider[]).includes(provider);
+}
+
+/** Antigravity and Muse run without per-request MCP configuration. */
+export function providerUsesMcp(provider: AIProvider): boolean {
+  return provider !== "gemini" && provider !== "muse";
+}
 
 export const PROVIDER_DETAIL: Record<AIProvider, string> = {
   glaze: "Uses your Glaze account.",
   claude: "Uses your Claude subscription through Claude Code.",
   codex: "Uses your ChatGPT subscription through the Codex CLI.",
   gemini: "Uses your Google AI subscription through the Antigravity CLI (agy).",
+  muse: "Uses your Meta account (Muse) through the Muse Code CLI.",
   openai: "Pay per use with your OpenAI API key.",
   anthropic: "Pay per use with your Anthropic API key.",
   google: "Pay per use with your Gemini API key from Google AI Studio.",
+  xai: "Grok models with your xAI API key.",
+  mistral: "Mistral models with your Mistral API key.",
+  deepseek: "DeepSeek models with your DeepSeek API key.",
+  groq: "Very fast open models with your Groq API key.",
+  openrouter: "Hundreds of models from one OpenRouter key.",
 };

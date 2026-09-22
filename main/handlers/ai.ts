@@ -2,6 +2,7 @@ import { clipboard, ipcMain, logger } from "@glaze/core/backend";
 
 import type {
   AIStreamChunk,
+  ApiProviderId,
   AssistantMcpCheck,
   AssistantMcpServerInfo,
   McpServerConfig,
@@ -22,6 +23,7 @@ import { listCodexModels } from "../services/ai/codex-models.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
+  API_PROVIDERS,
   clearApiKey,
   getApiKeyStatuses,
   isApiProvider,
@@ -62,7 +64,15 @@ function externalMcpSetup(client: McpClientKind, url: string, key: string): stri
     return `[mcp_servers.dayboard]\nurl = "${url}"\nhttp_headers = { Authorization = "${authorization}" }\n`;
   }
   return JSON.stringify(
-    { mcpServers: { dayboard: { type: "http", url, headers: { Authorization: authorization } } } },
+    {
+      mcpServers: {
+        dayboard: {
+          type: "http",
+          url,
+          headers: { Authorization: authorization },
+        },
+      },
+    },
     null,
     2,
   );
@@ -129,7 +139,12 @@ export function registerAIHandlers(): void {
 
   ipcMain.handle("mcp:assistantStatus", async () => {
     if (isDemoMode())
-      return { state: "unavailable" as const, ok: false, toolCount: 0, serverCount: 0 };
+      return {
+        state: "unavailable" as const,
+        ok: false,
+        toolCount: 0,
+        serverCount: 0,
+      };
     return {
       ...getAssistantMcpStatus(),
       serverCount: resolveAssistantMcpServers(
@@ -144,7 +159,9 @@ export function registerAIHandlers(): void {
   });
 
   // External MCP clients (Claude Code, Codex, …)
-  ipcMain.handle("mcp:externalInfo", () => ({ url: isDemoMode() ? null : getExternalMcpUrl() }));
+  ipcMain.handle("mcp:externalInfo", () => ({
+    url: isDemoMode() ? null : getExternalMcpUrl(),
+  }));
 
   ipcMain.handle("mcp:copyExternalSetup", async (_event, payload: unknown) => {
     const channel = "mcp:copyExternalSetup";
@@ -196,8 +213,13 @@ export function registerAIHandlers(): void {
   // Providers
   ipcMain.handle("ai:providerStatus", async (_event, payload: unknown) => {
     const input = asObject(payload, "ai:providerStatus");
-    if (input.provider !== "claude" && input.provider !== "codex" && input.provider !== "gemini") {
-      throw new Error("ai:providerStatus: provider must be claude, codex, or gemini");
+    if (
+      input.provider !== "claude" &&
+      input.provider !== "codex" &&
+      input.provider !== "gemini" &&
+      input.provider !== "muse"
+    ) {
+      throw new Error("ai:providerStatus: provider must be claude, codex, gemini, or muse");
     }
     if (isDemoMode()) {
       return {
@@ -250,10 +272,11 @@ export function registerAIHandlers(): void {
 
   /** Which providers can run now: installed subscription CLIs and saved API keys. */
   ipcMain.handle("ai:availability", async (): Promise<ProviderAvailability> => {
-    const [claude, codex, gemini, keys] = await Promise.all([
+    const [claude, codex, gemini, muse, keys] = await Promise.all([
       resolveCli("claude"),
       resolveCli("codex"),
       resolveCli("gemini"),
+      resolveCli("muse"),
       getApiKeyStatuses(),
     ]);
     return {
@@ -261,9 +284,10 @@ export function registerAIHandlers(): void {
       claude: Boolean(claude),
       codex: Boolean(codex),
       gemini: Boolean(gemini),
-      openai: keys.openai.configured,
-      anthropic: keys.anthropic.configured,
-      google: keys.google.configured,
+      muse: Boolean(muse),
+      ...(Object.fromEntries(
+        API_PROVIDERS.map((provider) => [provider, keys[provider].configured]),
+      ) as Record<ApiProviderId, boolean>),
     };
   });
 
@@ -356,7 +380,9 @@ export function registerAIHandlers(): void {
         return { text };
       } catch (error) {
         if (!isCancelled(error))
-          logger.error("ai", "ai:run failed", { message: (error as Error).message });
+          logger.error("ai", "ai:run failed", {
+            message: (error as Error).message,
+          });
         throw error;
       }
     },

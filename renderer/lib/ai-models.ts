@@ -9,9 +9,18 @@ import type {
 } from "@main/shared-types";
 
 import { invoke } from "./ipc";
+import { isApiKeyProvider } from "./settings";
 
-export const CLAUDE_MODEL_OPTIONS: { value: ClaudeModel; label: string; sublabel: string }[] = [
-  { value: "default", label: "Claude Code default", sublabel: "The model set in Claude Code" },
+export const CLAUDE_MODEL_OPTIONS: {
+  value: ClaudeModel;
+  label: string;
+  sublabel: string;
+}[] = [
+  {
+    value: "default",
+    label: "Claude Code default",
+    sublabel: "The model set in Claude Code",
+  },
   { value: "fable", label: "Fable", sublabel: "Latest Claude Fable" },
   { value: "opus", label: "Opus", sublabel: "Latest Claude Opus" },
   { value: "sonnet", label: "Sonnet", sublabel: "Latest Claude Sonnet" },
@@ -26,6 +35,13 @@ export const CLAUDE_MODEL_OPTIONS: { value: ClaudeModel; label: string; sublabel
     label: "Sonnet (1M context)",
     sublabel: "Sonnet with a 1 million token context window",
   },
+];
+
+/** Muse Code models; empty follows the CLI's default. */
+export const MUSE_MODEL_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Muse Code default" },
+  { value: "muse-spark-1.3", label: "Muse Spark 1.3" },
+  { value: "muse-spark-1.2", label: "Muse Spark 1.2" },
 ];
 
 export const codexModelsKey = ["codex-models"] as const;
@@ -74,8 +90,18 @@ export function selectedModel(
     };
   }
   if (provider === "gemini")
-    return { label: ai.geminiModel || "Gemini default", fast: false, contextWindow: null };
-  if (provider === "openai" || provider === "anthropic" || provider === "google") {
+    return {
+      label: ai.geminiModel || "Gemini default",
+      fast: false,
+      contextWindow: null,
+    };
+  if (provider === "muse")
+    return {
+      label: ai.museModel || "Muse default",
+      fast: false,
+      contextWindow: null,
+    };
+  if (isApiKeyProvider(provider)) {
     const chosen = ai.apiModels[provider];
     const model =
       apiModels?.find((entry) => entry.id === chosen) ?? (chosen ? undefined : apiModels?.[0]);

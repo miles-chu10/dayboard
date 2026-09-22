@@ -9,6 +9,7 @@ import type {
   Density,
   DetailView,
   AIProvider,
+  ApiProviderId,
   AppSettings,
   CalendarRange,
   ClaudeEffort,
@@ -18,6 +19,7 @@ import type {
   SourceColor,
   SourceId,
 } from "../shared-types.js";
+import { API_PROVIDERS } from "./ai/api-keys.js";
 import { CALENDAR_RANGES } from "./calendar-range.js";
 import { assertNotDemo, isDemoMode } from "./demo-data.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
@@ -38,15 +40,7 @@ const ACCENTS: AccentColor[] = [
 ];
 const DENSITIES: Density[] = ["default", "compact"];
 const DETAIL_VIEWS: DetailView[] = ["dialog", "inline", "sidebar"];
-const PROVIDERS: AIProvider[] = [
-  "glaze",
-  "claude",
-  "codex",
-  "gemini",
-  "openai",
-  "anthropic",
-  "google",
-];
+const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex", "gemini", "muse", ...API_PROVIDERS];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
   "tasks",
@@ -111,7 +105,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     codexEffort: "",
     codexServiceTier: "",
     geminiModel: "",
-    apiModels: { openai: "", anthropic: "", google: "" },
+    museModel: "",
+    apiModels: Object.fromEntries(API_PROVIDERS.map((provider) => [provider, ""])) as Record<
+      ApiProviderId,
+      string
+    >,
     assistantProvider: "",
     useMcpInAssistant: true,
     assistantPermission: "ask",
@@ -225,11 +223,10 @@ export function normalizeSettings(value: unknown): AppSettings {
       codexEffort: token(ai.codexEffort),
       codexServiceTier: token(ai.codexServiceTier),
       geminiModel: modelId(ai.geminiModel),
-      apiModels: {
-        openai: modelId(record(ai.apiModels).openai),
-        anthropic: modelId(record(ai.apiModels).anthropic),
-        google: modelId(record(ai.apiModels).google),
-      },
+      museModel: modelId(ai.museModel),
+      apiModels: Object.fromEntries(
+        API_PROVIDERS.map((provider) => [provider, modelId(record(ai.apiModels)[provider])]),
+      ) as Record<ApiProviderId, string>,
       assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
       assistantPermission: oneOf(

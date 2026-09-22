@@ -54,7 +54,7 @@ import {
   useReminders,
   useTasks,
 } from "../lib/queries";
-import { PROVIDER_LABEL, featureOn, sourceOn, useSettings } from "../lib/settings";
+import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
 import { buildTodos } from "../lib/todos";
 import { readTriageMap } from "../lib/triage";
 
@@ -364,7 +364,11 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       if (cancelRef.current !== cancellationId) return;
       const result = await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
-        { messages: requestMessages, system, attachments: sentAttachments.map((item) => item.id) },
+        {
+          messages: requestMessages,
+          system,
+          attachments: sentAttachments.map((item) => item.id),
+        },
         (chunk) => {
           if (cancelRef.current !== cancellationId) return;
           if (chunk.type === "meta") {
@@ -375,7 +379,10 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
             return;
           }
           if (chunk.type === "usage") {
-            setUsage({ inputTokens: chunk.inputTokens, contextWindow: chunk.contextWindow });
+            setUsage({
+              inputTokens: chunk.inputTokens,
+              contextWindow: chunk.contextWindow,
+            });
             return;
           }
           if (chunk.type === "delta") {
@@ -392,12 +399,20 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
               tools: existing
                 ? message.tools.map((tool) =>
                     tool.id === chunk.id
-                      ? { ...tool, status: chunk.status, name: chunk.name ?? tool.name }
+                      ? {
+                          ...tool,
+                          status: chunk.status,
+                          name: chunk.name ?? tool.name,
+                        }
                       : tool,
                   )
                 : [
                     ...message.tools,
-                    { id: chunk.id, name: chunk.name ?? "Tool", status: chunk.status },
+                    {
+                      id: chunk.id,
+                      name: chunk.name ?? "Tool",
+                      status: chunk.status,
+                    },
                   ],
             };
           });
@@ -530,9 +545,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
           ? PROVIDER_LABEL[provider]
           : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
         demo ? "Sample data" : null,
-        provider !== "gemini" && mcpServers.data?.length
+        providerUsesMcp(provider) && mcpServers.data?.length
           ? `MCP: ${mcpServers.data.map((server) => server.name).join(", ")}`
-          : provider !== "gemini" && mcpCount
+          : providerUsesMcp(provider) && mcpCount
             ? `${mcpCount} MCP ${mcpCount === 1 ? "server" : "servers"}`
             : null,
       ]
@@ -556,7 +571,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
             onClick={() => setMcpOpen(true)}
           >
             <Server />
-            {provider === "gemini" ? 0 : (mcpServers.data?.length ?? mcpCount)}
+            {providerUsesMcp(provider) ? (mcpServers.data?.length ?? mcpCount) : 0}
           </Button>
           <Button
             iconOnly
@@ -624,8 +639,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         open={mcpOpen}
         onOpenChange={setMcpOpen}
         providerNote={
-          provider === "gemini"
-            ? "Gemini through Antigravity can't use MCP servers from DayBoard yet; it answers from your agenda snapshot."
+          !providerUsesMcp(provider)
+            ? `${PROVIDER_LABEL[provider]} can't use MCP servers from DayBoard yet; it answers from your agenda snapshot.`
             : !settings?.ai.useMcpInAssistant
               ? "MCP servers are turned off for the Assistant in Settings → MCP Servers."
               : null

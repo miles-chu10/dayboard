@@ -10,19 +10,20 @@ export type RemindersAccess =
 export type SourceId = "tasks" | "reminders" | "mail" | "calendar";
 export type SourceColor = "blue" | "green" | "orange" | "red" | "purple" | "magenta" | "yellow";
 /**
- * glaze: Glaze AI · claude/codex/gemini: subscriptions through Claude Code, Codex, and
- * Antigravity (agy) · openai/anthropic/google: pay-per-use API keys.
+ * glaze: Glaze AI · claude/codex/gemini/muse: subscriptions through Claude Code, Codex,
+ * Antigravity (agy), and Meta's Muse Code · the rest: pay-per-use API keys.
  */
-export type AIProvider =
-  | "glaze"
-  | "claude"
-  | "codex"
-  | "gemini"
+export type AIProvider = "glaze" | CliProviderId | ApiProviderId;
+export type CliProviderId = "claude" | "codex" | "gemini" | "muse";
+export type ApiProviderId =
   | "openai"
   | "anthropic"
-  | "google";
-export type CliProviderId = "claude" | "codex" | "gemini";
-export type ApiProviderId = "openai" | "anthropic" | "google";
+  | "google"
+  | "xai"
+  | "mistral"
+  | "deepseek"
+  | "groq"
+  | "openrouter";
 export type AIFeature =
   | "briefing"
   | "autoBriefing"
@@ -107,6 +108,8 @@ export interface AppSettings {
     codexServiceTier: string;
     /** Antigravity model name; empty uses its default. */
     geminiModel: string;
+    /** Muse Code model ID; empty uses Muse's default. */
+    museModel: string;
     /** Model ID per API-key provider; empty picks the newest listed model. */
     apiModels: Record<ApiProviderId, string>;
     /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
@@ -372,7 +375,12 @@ export type AIStreamChunk =
   /** The exact model serving this reply, as reported by the provider. */
   | { type: "meta"; model: AssistantModelInfo }
   /** Tokens for this turn; `contextWindow` is null when the provider doesn't publish it. */
-  | { type: "usage"; inputTokens: number; outputTokens: number; contextWindow: number | null }
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      contextWindow: number | null;
+    }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
 export type AssistantResult = { text: string } | { blocked: string };

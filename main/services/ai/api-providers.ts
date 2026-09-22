@@ -9,7 +9,29 @@ export const API_LABEL: Record<ApiProviderId, string> = {
   openai: "OpenAI API",
   anthropic: "Anthropic API",
   google: "Gemini API",
+  xai: "xAI Grok API",
+  mistral: "Mistral API",
+  deepseek: "DeepSeek API",
+  groq: "Groq API",
+  openrouter: "OpenRouter",
 };
+
+type CompatibleProvider = Exclude<ApiProviderId, "openai" | "anthropic" | "google">;
+
+/** Providers with OpenAI-compatible chat completions and `/models` listing. */
+const COMPATIBLE_BASE_URL: Record<CompatibleProvider, string> = {
+  xai: "https://api.x.ai/v1",
+  mistral: "https://api.mistral.ai/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  groq: "https://api.groq.com/openai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+};
+
+function isCompatible(provider: ApiProviderId): provider is CompatibleProvider {
+  return provider in COMPATIBLE_BASE_URL;
+}
+
+const NON_CHAT = /(embed|whisper|tts|audio|image|vision-preview|moderation|guard|ocr|transcri)/i;
 
 const CACHE_MS = 10 * 60_000;
 const modelCache = new Map<ApiProviderId, { at: number; models: ApiModelInfo[] }>();
@@ -21,7 +43,10 @@ async function requireKey(provider: ApiProviderId): Promise<string> {
 }
 
 async function fetchJson(url: string, headers: Record<string, string>): Promise<unknown> {
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+  const response = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(20_000),
+  });
   if (response.status === 401 || response.status === 403)
     throw new Error("The API key was rejected. Check it in Settings → AI.");
   if (!response.ok) throw new Error(`Couldn't load models (${response.status}).`);
@@ -59,7 +84,11 @@ export async function listApiModels(
         );
       })
       .sort((a, b) => Number(b.created ?? 0) - Number(a.created ?? 0))
-      .map((model) => ({ id: String(model.id), name: String(model.id), contextWindow: null }));
+      .map((model) => ({
+        id: String(model.id),
+        name: String(model.id),
+        contextWindow: null,
+      }));
   } else if (provider === "anthropic") {
     const body = await fetchJson("https://api.anthropic.com/v1/models?limit=100", {
       "x-api-key": key,
@@ -71,6 +100,26 @@ export async function listApiModels(
         id: String(model.id),
         name: String(model.display_name ?? model.id),
         contextWindow: typeof model.max_input_tokens === "number" ? model.max_input_tokens : null,
+      }));
+  } else if (isCompatible(provider)) {
+    const body = await fetchJson(`${COMPATIBLE_BASE_URL[provider]}/models`, {
+      Authorization: `Bearer ${key}`,
+    });
+    models = records(body, "data")
+      .filter((model) => !NON_CHAT.test(String(model.id ?? "")))
+      .sort((a, b) => Number(b.created ?? 0) - Number(a.created ?? 0))
+      .slice(0, 200)
+      .map((model) => ({
+        id: String(model.id),
+        name: String(model.name ?? model.id),
+        contextWindow:
+          typeof model.context_length === "number"
+            ? model.context_length
+            : typeof model.context_window === "number"
+              ? model.context_window
+              : typeof model.max_context_length === "number"
+                ? model.max_context_length
+                : null,
       }));
   } else {
     const body = await fetchJson(
@@ -116,5 +165,11 @@ export async function apiLanguageModel(provider: ApiProviderId, modelId: string)
   const apiKey = await requireKey(provider);
   if (provider === "openai") return createOpenAI({ apiKey })(modelId);
   if (provider === "anthropic") return createAnthropic({ apiKey })(modelId);
+  if (isCompatible(provider))
+    return createOpenAI({
+      apiKey,
+      baseURL: COMPATIBLE_BASE_URL[provider],
+      name: provider,
+    }).chat(modelId);
   return createGoogleGenerativeAI({ apiKey })(modelId);
 }

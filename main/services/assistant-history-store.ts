@@ -2,13 +2,14 @@ import * as path from "node:path";
 
 import { app } from "@glaze/core/backend";
 
-import type {
-  AssistantAction,
-  AssistantChat,
-  AssistantHistory,
-  AssistantMessage,
-  AssistantProvider,
-  AssistantToolCall,
+import {
+  ASSISTANT_PROVIDERS,
+  type AssistantAction,
+  type AssistantChat,
+  type AssistantHistory,
+  type AssistantMessage,
+  type AssistantProvider,
+  type AssistantToolCall,
 } from "../../shared/assistant-history.js";
 import { isDemoMode } from "./demo-data.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
@@ -107,12 +108,7 @@ function normalizeMessage(value: unknown): AssistantMessage {
   if (!Array.isArray(value.tools) || !Array.isArray(value.actions))
     throw new Error("Assistant history contains an invalid message payload.");
   const provider = value.provider;
-  if (
-    provider !== undefined &&
-    !["glaze", "claude", "codex", "gemini", "openai", "anthropic", "google"].includes(
-      provider as string,
-    )
-  )
+  if (provider !== undefined && !ASSISTANT_PROVIDERS.includes(provider as AssistantProvider))
     throw new Error("Assistant history contains an invalid message provider.");
   return {
     id: requireString(value.id, "message id", 320),
@@ -242,7 +238,11 @@ export async function getAssistantHistory(scope: string): Promise<AssistantHisto
 export async function saveAssistantChat(scope: string, chat: unknown): Promise<AssistantHistory> {
   const normalized = normalizeChat(chat);
   return mutate(scope, (file) => {
-    const current = file.histories[scope] ?? { scope, chats: [], activeChatId: null };
+    const current = file.histories[scope] ?? {
+      scope,
+      chats: [],
+      activeChatId: null,
+    };
     const chats = [...current.chats.filter((entry) => entry.id !== normalized.id), normalized].sort(
       newestFirst,
     );
@@ -287,7 +287,11 @@ export async function importLegacyAssistantChat(
     throw new Error("Assistant history exceeds the message limit for one chat.");
   return mutate(scope, (file) => {
     if (!isDemoMode() && file.legacyImported) return publicHistory(file, scope);
-    const current = file.histories[scope] ?? { scope, chats: [], activeChatId: null };
+    const current = file.histories[scope] ?? {
+      scope,
+      chats: [],
+      activeChatId: null,
+    };
     const now = new Date().toISOString();
     const chat: AssistantChat = {
       id: crypto.randomUUID(),

@@ -49,6 +49,7 @@ const LABEL: Record<CliProvider, string> = {
   claude: "Claude Code",
   codex: "Codex",
   gemini: "Antigravity",
+  muse: "Muse Code",
 };
 
 const MISSING_MESSAGE: Record<CliProvider, string> = {
@@ -58,6 +59,7 @@ const MISSING_MESSAGE: Record<CliProvider, string> = {
     "Codex CLI isn't installed. Install it with `npm i -g @openai/codex`, then run `codex login` in Terminal.",
   gemini:
     "Google's Antigravity CLI (agy) isn't installed. Install Antigravity from antigravity.google, then run `agy` in Terminal to sign in with your Google account.",
+  muse: "Meta's Muse Code CLI isn't installed. Install it with `curl -fsSL https://dev.meta.ai/install.sh | bash`, then run `muse login` in Terminal.",
 };
 
 const LOGIN_MESSAGE: Record<CliProvider, string> = {
@@ -67,6 +69,7 @@ const LOGIN_MESSAGE: Record<CliProvider, string> = {
     "Codex isn't signed in. Run `codex login` in Terminal and choose Sign in with ChatGPT, then try again.",
   gemini:
     "Antigravity isn't signed in. Run `agy` in Terminal and sign in with your Google account, then try again.",
+  muse: "Muse isn't signed in. Run `muse login` in Terminal and approve the code with your Meta account, then try again.",
 };
 
 // Subscription mode: API-key variables would silently override the user's subscription login.
@@ -81,6 +84,7 @@ const STRIPPED_ENV: Record<CliProvider, string[]> = {
   ],
   codex: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY"],
   gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS"],
+  muse: ["META_API_KEY", "MODEL_API_KEY"],
 };
 
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -116,6 +120,8 @@ function looksLikeLoginError(text: string): boolean {
     "please run /login",
     "/login",
     "codex login",
+    "muse login",
+    "not signed in",
     "invalid api key",
     "authentication_error",
     "unauthorized",
@@ -404,7 +410,10 @@ function handleClaudeLine(line: string, state: ParseState, options: CliRunOption
   } else if (event.type === "user") {
     for (const block of content) {
       if (block.type === "tool_result" && typeof block.tool_use_id === "string") {
-        options.onTool({ id: block.tool_use_id, status: block.is_error ? "error" : "success" });
+        options.onTool({
+          id: block.tool_use_id,
+          status: block.is_error ? "error" : "success",
+        });
       }
     }
   } else if (event.type === "result") {
@@ -444,7 +453,12 @@ async function claudeArgs(options: CliRunOptions): Promise<string[]> {
       options.mcpServers.map((server) => [
         serverKey(server),
         server.transport === "stdio"
-          ? { type: "stdio", command: server.command, args: server.args, env: server.env }
+          ? {
+              type: "stdio",
+              command: server.command,
+              args: server.args,
+              env: server.env,
+            }
           : { type: "http", url: server.url, headers: server.headers },
       ]),
     );
@@ -548,7 +562,10 @@ function handleCodexLine(line: string, state: ParseState, options: CliRunOptions
     });
   } else if (type === "mcp_tool_call_end" && typeof msg.call_id === "string") {
     const result = isRecord(msg.result) ? msg.result : {};
-    options.onTool({ id: msg.call_id, status: "Err" in result ? "error" : "success" });
+    options.onTool({
+      id: msg.call_id,
+      status: "Err" in result ? "error" : "success",
+    });
   } else if (item?.type === "mcp_tool_call" && typeof item.id === "string") {
     const failed = item.status === "failed" || Boolean(item.error);
     options.onTool({
@@ -727,12 +744,129 @@ export async function listGeminiModels(): Promise<string[]> {
   ].slice(0, 40);
 }
 
+// ── Muse Code (Meta account) ──────────────────────────────────────────────────────────────
+
+interface MuseState extends ParseState {
+  kinds: Map<string, string>;
+  streamed: Set<string>;
+}
+
+function museParams(event: Record<string, unknown>): Record<string, unknown> {
+  return isRecord(event.params) ? event.params : event;
+}
+
+/** `muse exec --json` emits MSP view notifications: `item/*`, `turn/completed`, `session/*`. */
+function handleMuseLine(line: string, state: MuseState, options: CliRunOptions) {
+  const event = parseJsonLine(line);
+  if (!event) return;
+  const method = String(event.method ?? event.type ?? "");
+  const params = museParams(event);
+  if (method === "session/modelChanged" && typeof params.modelId === "string") {
+    options.onModel?.(params.modelId);
+  } else if (method === "item/delta" && typeof params.delta === "string") {
+    const id = String(params.itemId ?? "");
+    if ((params.field ?? "text") !== "text" || state.kinds.get(id) !== "agentMessage") return;
+    if (!state.streamed.has(id)) separateMessages(state, options);
+    state.streamed.add(id);
+    state.sawDelta = true;
+    emitText(state, options, params.delta);
+  } else if (method.startsWith("item/") && isRecord(params.item)) {
+    const item = params.item;
+    const id = String(item.itemId ?? "");
+    const kind = String(item.kind ?? "");
+    state.kinds.set(id, kind);
+    if (kind === "toolCall") {
+      const status = String(item.status ?? "");
+      options.onTool({
+        id,
+        name: typeof item.tool === "string" ? item.tool : undefined,
+        status: status === "inProgress" ? "running" : status === "completed" ? "success" : "error",
+      });
+    } else if (
+      kind === "agentMessage" &&
+      method === "item/completed" &&
+      !state.streamed.has(id) &&
+      typeof item.text === "string"
+    ) {
+      separateMessages(state, options);
+      state.streamed.add(id);
+      emitText(state, options, item.text);
+    }
+  } else if (method === "turn/completed") {
+    if (isRecord(params.usage)) {
+      options.onUsage?.({
+        inputTokens: Number(params.usage.inputTokens ?? 0),
+        outputTokens: Number(params.usage.outputTokens ?? 0),
+      });
+    }
+    if (isRecord(params.error) && typeof params.error.message === "string")
+      state.error = params.error.message;
+  } else if (typeof event.error === "string") {
+    state.error = event.error;
+  }
+}
+
+async function runMuse(options: CliRunOptions): Promise<string> {
+  const bin = await resolveCli("muse");
+  if (!bin) throw new Error(MISSING_MESSAGE.muse);
+  const settings = await getSettings();
+  const cwd = await workDir();
+  const promptFile = path.join(os.tmpdir(), `dayboard-muse-${randomBytes(8).toString("hex")}.md`);
+  await fs.writeFile(promptFile, `${options.system}\n\n---\n\n${options.prompt}`, {
+    mode: 0o600,
+  });
+  // Answer-only: no file writes, no web tools, and no personal skills from other folders.
+  const args = [
+    "exec",
+    "--json",
+    "--prompt-file",
+    promptFile,
+    "--disable-write",
+    "--disable-web-tools",
+    "--no-foreign-personal-context",
+    "--user-input-auto-resolve",
+    "--max-model-steps",
+    "12",
+  ];
+  if (settings.ai.museModel) args.push("--model", settings.ai.museModel);
+  const state: MuseState = {
+    ...createState(),
+    kinds: new Map(),
+    streamed: new Set(),
+  };
+  try {
+    const outcome = await runDirect({
+      label: LABEL.muse,
+      bin,
+      args,
+      stdin: "",
+      env: await getToolEnv(STRIPPED_ENV.muse),
+      cwd,
+      timeoutMs: options.timeoutMs,
+      signal: options.signal,
+      onLine: (line) => handleMuseLine(line, state, options),
+    });
+    const error = state.text
+      ? null
+      : (state.error ?? (outcome.code !== 0 ? outcome.output || "Muse failed." : null));
+    if (error)
+      throw new Error(
+        looksLikeLoginError(error) ? LOGIN_MESSAGE.muse : redact(error).slice(0, 1200),
+      );
+    return state.text;
+  } finally {
+    await fs.rm(promptFile, { force: true });
+  }
+}
+
 export function runCliCompletion(options: CliRunOptions): Promise<string> {
   return options.provider === "claude"
     ? runClaude(options)
     : options.provider === "gemini"
       ? runGemini(options)
-      : runCodex(options);
+      : options.provider === "muse"
+        ? runMuse(options)
+        : runCodex(options);
 }
 
 function runVersion(bin: string): Promise<string> {

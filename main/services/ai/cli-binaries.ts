@@ -9,7 +9,12 @@ import { runLoginShell } from "../shell-env.js";
 type CliProvider = CliProviderId;
 
 /** Command names; Gemini subscriptions run through Google's Antigravity CLI. */
-const COMMAND: Record<CliProvider, string> = { claude: "claude", codex: "codex", gemini: "agy" };
+const COMMAND: Record<CliProvider, string> = {
+  claude: "claude",
+  codex: "codex",
+  gemini: "agy",
+  muse: "muse",
+};
 
 const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
   claude: [
@@ -28,6 +33,7 @@ const BINARY_CANDIDATES: Record<CliProvider, string[]> = {
     ".bun/bin/codex",
   ],
   gemini: [".local/bin/agy", ".gemini/bin/agy", "/opt/homebrew/bin/agy", "/usr/local/bin/agy"],
+  muse: [".local/bin/muse", "/opt/homebrew/bin/muse", "/usr/local/bin/muse"],
 };
 
 // ── Binary resolution ──────────────────────────────────────────────────────────────

@@ -13,6 +13,17 @@ export function useAssistantMcpServers() {
   });
 }
 
+/** Live connection check (tool lists) for the Assistant's MCP servers, shared by the sidebar and dialog. */
+export function useAssistantMcpCheck(enabled: boolean) {
+  return useQuery({
+    queryKey: ["assistant-mcp-check"],
+    queryFn: () => invoke<AssistantMcpCheck[]>("mcp:assistantCheck"),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 /** The MCP servers the Assistant will connect to, with a live connection check. */
 export function McpServersDialog({
   open,
@@ -24,12 +35,7 @@ export function McpServersDialog({
   providerNote?: string | null;
 }) {
   const servers = useAssistantMcpServers();
-  const check = useQuery({
-    queryKey: ["assistant-mcp-check"],
-    queryFn: () => invoke<AssistantMcpCheck[]>("mcp:assistantCheck"),
-    enabled: open && Boolean(servers.data?.length),
-    staleTime: 60_000,
-  });
+  const check = useAssistantMcpCheck(open && Boolean(servers.data?.length));
   const results = new Map(check.data?.map((result) => [result.id, result]));
 
   return (

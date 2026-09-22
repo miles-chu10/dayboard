@@ -101,6 +101,24 @@ export function GeneralTab() {
 
   return (
     <>
+      {settings ? (
+        <FieldSet title="Profile">
+          <Field
+            label="Your name"
+            description="Shown in the sidebar with your connection status, and used by the Assistant. Leave empty to use your Google account name."
+          >
+            <NameInput
+              value={settings.general.userName}
+              onSave={(userName) =>
+                edit((draft) => {
+                  draft.general.userName = userName;
+                })
+              }
+            />
+          </Field>
+        </FieldSet>
+      ) : null}
+
       <FieldSet title="Appearance">
         <Field orientation="horizontal">
           <FieldContent>
@@ -192,22 +210,6 @@ export function GeneralTab() {
 
       {settings ? (
         <>
-          <FieldSet title="Profile">
-            <Field
-              label="Your name"
-              description="Shown in the sidebar and used by the Assistant. Leave empty to use your Google account."
-            >
-              <NameInput
-                value={settings.general.userName}
-                onSave={(userName) =>
-                  edit((draft) => {
-                    draft.general.userName = userName;
-                  })
-                }
-              />
-            </Field>
-          </FieldSet>
-
           <FieldSet title="Startup & Refresh">
             <Field
               label="Start at login"

@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import type {
   AIProvider,
-  ApiProviderId,
   AssistantAttachment,
   AssistantPermission,
   ClaudeModel,
@@ -38,6 +37,7 @@ import type {
 
 import {
   CLAUDE_MODEL_OPTIONS,
+  MUSE_MODEL_OPTIONS,
   assistantProvider,
   claudeSupportsFast,
   formatTokens,
@@ -45,25 +45,19 @@ import {
   useCodexModels,
   useProviderAvailability,
 } from "../lib/ai-models";
-import { useApiModels, useGeminiModels } from "../settings/provider-accounts";
+import { useAllApiModels, useGeminiModels } from "../settings/provider-accounts";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
-import { PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
+import {
+  API_KEY_PROVIDERS,
+  PROVIDER_LABEL,
+  SUBSCRIPTION_PROVIDERS,
+  isApiKeyProvider,
+  useSettingsEditor,
+} from "../lib/settings";
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
 
-const PICKER_PROVIDERS: AIProvider[] = [
-  "claude",
-  "codex",
-  "gemini",
-  "openai",
-  "anthropic",
-  "google",
-  "glaze",
-];
-
-function isApiKeyProvider(provider: AIProvider): provider is ApiProviderId {
-  return provider === "openai" || provider === "anthropic" || provider === "google";
-}
+const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS, "glaze"];
 
 export const PERMISSION_OPTIONS: {
   value: AssistantPermission;
@@ -174,19 +168,20 @@ export function AssistantComposer({
   const available = useProviderAvailability().data;
   const codexModels = useCodexModels(Boolean(available?.codex));
   const geminiModels = useGeminiModels(Boolean(available?.gemini));
-  const apiModels = {
-    openai: useApiModels("openai", Boolean(available?.openai)),
-    anthropic: useApiModels("anthropic", Boolean(available?.anthropic)),
-    google: useApiModels("google", Boolean(available?.google)),
-  };
+  const apiModels = useAllApiModels(available);
   const current = selectedModel(
     settings,
     codexModels.data,
     provider,
-    isApiKeyProvider(provider) ? apiModels[provider].data : undefined,
+    isApiKeyProvider(provider) ? apiModels[provider] : undefined,
   );
 
-  type Choice = { value: string; label: string; sublabel?: string; selected: boolean };
+  type Choice = {
+    value: string;
+    label: string;
+    sublabel?: string;
+    selected: boolean;
+  };
   function modelChoices(option: AIProvider): Choice[] {
     if (!ai) return [];
     if (option === "glaze") return [{ value: "", label: "Glaze AI", selected: true }];
@@ -216,10 +211,17 @@ export function AssistantComposer({
           selected: ai.geminiModel === model,
         })),
       ];
+    if (option === "muse")
+      return MUSE_MODEL_OPTIONS.map((model) => ({
+        value: model.value,
+        label: model.label,
+        selected: ai.museModel === model.value,
+      }));
+    if (!isApiKeyProvider(option)) return [];
     const chosen = ai.apiModels[option];
     return [
       { value: "", label: "Newest available", selected: !chosen },
-      ...(apiModels[option].data ?? []).slice(0, 25).map((model) => ({
+      ...(apiModels[option] ?? []).slice(0, 25).map((model) => ({
         value: model.id,
         label: model.name,
         sublabel: model.id !== model.name ? model.id : undefined,
@@ -239,6 +241,7 @@ export function AssistantComposer({
         if (!model?.tiers.some((tier) => tier.id === draft.ai.codexServiceTier))
           draft.ai.codexServiceTier = "";
       } else if (option === "gemini") draft.ai.geminiModel = value;
+      else if (option === "muse") draft.ai.museModel = value;
       else if (isApiKeyProvider(option)) draft.ai.apiModels[option] = value;
     });
   }

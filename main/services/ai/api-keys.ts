@@ -8,18 +8,55 @@ import { createSerialQueue, readFileIfExists, writeFileAtomic } from "../file-st
 
 // API keys are stored encrypted in userData and never sent to the renderer.
 
-export const API_PROVIDERS: ApiProviderId[] = ["openai", "anthropic", "google"];
+export const API_PROVIDERS: ApiProviderId[] = [
+  "openai",
+  "anthropic",
+  "google",
+  "xai",
+  "mistral",
+  "deepseek",
+  "groq",
+  "openrouter",
+];
 
 const FILES: Record<ApiProviderId, string> = {
   openai: "openai-key.bin",
   anthropic: "anthropic-key.bin",
   google: "google-ai-key.bin",
+  xai: "xai-key.bin",
+  mistral: "mistral-key.bin",
+  deepseek: "deepseek-key.bin",
+  groq: "groq-key.bin",
+  openrouter: "openrouter-key.bin",
 };
 
 const PATTERNS: Record<ApiProviderId, { re: RegExp; hint: string }> = {
-  openai: { re: /^sk-[A-Za-z0-9_-]{20,}$/, hint: "OpenAI keys start with sk-." },
-  anthropic: { re: /^sk-ant-[A-Za-z0-9_-]{20,}$/, hint: "Anthropic keys start with sk-ant-." },
-  google: { re: /^[A-Za-z0-9_-]{30,}$/, hint: "Paste the key from Google AI Studio." },
+  openai: {
+    re: /^sk-[A-Za-z0-9_-]{20,}$/,
+    hint: "OpenAI keys start with sk-.",
+  },
+  anthropic: {
+    re: /^sk-ant-[A-Za-z0-9_-]{20,}$/,
+    hint: "Anthropic keys start with sk-ant-.",
+  },
+  google: {
+    re: /^[A-Za-z0-9_-]{30,}$/,
+    hint: "Paste the key from Google AI Studio.",
+  },
+  xai: { re: /^xai-[A-Za-z0-9_-]{20,}$/, hint: "xAI keys start with xai-." },
+  mistral: {
+    re: /^[A-Za-z0-9]{24,}$/,
+    hint: "Paste the key from console.mistral.ai.",
+  },
+  deepseek: {
+    re: /^sk-[A-Za-z0-9_-]{20,}$/,
+    hint: "DeepSeek keys start with sk-.",
+  },
+  groq: { re: /^gsk_[A-Za-z0-9_-]{20,}$/, hint: "Groq keys start with gsk_." },
+  openrouter: {
+    re: /^sk-or-[A-Za-z0-9_-]{20,}$/,
+    hint: "OpenRouter keys start with sk-or-.",
+  },
 };
 
 const queue = createSerialQueue();

@@ -12,17 +12,23 @@ import {
   Text,
 } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
-import { CalendarCheck2, CalendarDays, Plus, Settings, Video } from "lucide-react";
+import { useState } from "react";
+import { CalendarCheck2, CalendarDays, Plus, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId } from "@main/shared-types";
 
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, todayISO } from "../lib/dates";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
-import { PROVIDER_LABEL, featureOn, sourceOn, useSettings } from "../lib/settings";
+import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, SOURCE_IDS, SOURCE_META, sourceColor } from "../lib/sources";
 import { buildTodos } from "../lib/todos";
 import { useOpenCapture } from "./capture-dialog";
+import {
+  McpServersDialog,
+  useAssistantMcpCheck,
+  useAssistantMcpServers,
+} from "./mcp-servers-dialog";
 import { ProviderMark } from "./provider-logo";
 import { GmailLogo } from "./source-logos";
 
@@ -52,7 +58,9 @@ function plural(count: number, word: string): string {
 }
 
 export function AppSidebar() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const navigate = useNavigate();
   const openCapture = useOpenCapture();
   const settings = useSettings().data;
@@ -112,6 +120,7 @@ export function AppSidebar() {
   const connectionDetail = [
     google?.connected ? `Google: ${google.email ?? "connected"}` : "Google: not connected",
     `Apple Reminders: ${remindersOk ? "allowed" : "not allowed"}`,
+    "Change your name in Settings → General.",
   ].join("\n");
   const status = !connected
     ? "Not connected"
@@ -120,6 +129,11 @@ export function AppSidebar() {
       : "Connected · Reminders off";
   const showAssistant = featureOn(settings, "assistant");
   const showReview = featureOn(settings, "weeklyReview");
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const mcpServers = useAssistantMcpServers();
+  const mcpCheck = useAssistantMcpCheck(showAssistant && Boolean(mcpServers.data?.length));
+  const mcpResults = new Map(mcpCheck.data?.map((result) => [result.id, result]));
+  const mcpInUse = providerUsesMcp(provider);
   const agendaDue = open.filter((todo) => todo.dueDate === today).length;
   const agendaLate = overdue();
 
@@ -296,7 +310,84 @@ export function AppSidebar() {
             ) : null}
           </SidebarListGroup>
         ) : null}
+        {showAssistant ? (
+          <SidebarListGroup title="MCP Servers" collapsible defaultOpen>
+            {mcpServers.data?.length ? (
+              mcpServers.data.map((server) => {
+                const result = mcpResults.get(server.id);
+                const state = !result
+                  ? mcpCheck.isFetching
+                    ? "checking"
+                    : "unknown"
+                  : result.ok
+                    ? "ok"
+                    : "error";
+                return (
+                  <SidebarListItem
+                    key={server.id}
+                    icon={<Server className="size-4" />}
+                    title={server.name}
+                    subtitle={
+                      !mcpInUse
+                        ? `Not used by ${PROVIDER_LABEL[provider]}`
+                        : state === "ok"
+                          ? plural(result!.tools.length, "tool")
+                          : state === "error"
+                            ? "Unavailable"
+                            : state === "checking"
+                              ? "Checking…"
+                              : server.builtIn
+                                ? "Built in"
+                                : server.target
+                    }
+                    accessory={
+                      <span
+                        role="img"
+                        aria-label={
+                          state === "ok"
+                            ? "Connected"
+                            : state === "error"
+                              ? "Unavailable"
+                              : "Not checked"
+                        }
+                        className={cn(
+                          "inline-block size-2 rounded-full",
+                          state === "ok"
+                            ? "bg-support-green"
+                            : state === "error"
+                              ? "bg-support-red"
+                              : "bg-current text-tertiary",
+                        )}
+                      />
+                    }
+                    onClick={() => setMcpOpen(true)}
+                  />
+                );
+              })
+            ) : (
+              <SidebarListItem
+                icon={<Server className="size-4" />}
+                title="Add MCP server…"
+                subtitle={
+                  settings?.ai.useMcpInAssistant === false
+                    ? "Turned off for the Assistant"
+                    : "Give the Assistant more tools"
+                }
+                onClick={() => void openSettings()}
+              />
+            )}
+          </SidebarListGroup>
+        ) : null}
       </SidebarList>
+      <McpServersDialog
+        open={mcpOpen}
+        onOpenChange={setMcpOpen}
+        providerNote={
+          mcpInUse
+            ? null
+            : `${PROVIDER_LABEL[provider]} can't use MCP servers from DayBoard yet; switch the Assistant to Claude, ChatGPT, or an API model to use them.`
+        }
+      />
     </Sidebar>
   );
 }

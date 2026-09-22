@@ -18,6 +18,7 @@ import type {
   AppSettings,
   ClaudeEffort,
   ClaudeModel,
+  CliProviderId,
   CodexModelInfo,
   ProviderStatus,
 } from "@main/shared-types";
@@ -25,8 +26,20 @@ import type {
 import { CLAUDE_MODEL_OPTIONS } from "../lib/ai-models";
 import { errorMessage, invoke } from "../lib/ipc";
 import { ProviderMark } from "../components/provider-logo";
-import { PROVIDER_DETAIL, PROVIDER_LABEL, useSettingsEditor } from "../lib/settings";
-import { ApiKeysSection, ApiModelField, GeminiModelField } from "./provider-accounts";
+import {
+  API_KEY_PROVIDERS,
+  PROVIDER_DETAIL,
+  PROVIDER_LABEL,
+  SUBSCRIPTION_PROVIDERS,
+  isApiKeyProvider,
+  useSettingsEditor,
+} from "../lib/settings";
+import {
+  ApiKeysSection,
+  ApiModelField,
+  GeminiModelField,
+  MuseModelField,
+} from "./provider-accounts";
 import { SettingSelect } from "./setting-select";
 
 const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
@@ -84,13 +97,29 @@ const DEFAULT_OPTION = "__default";
 
 const CLAUDE_MODELS = CLAUDE_MODEL_OPTIONS;
 
-const CLAUDE_EFFORTS: { value: ClaudeEffort; label: string; sublabel: string }[] = [
+const CLAUDE_EFFORTS: {
+  value: ClaudeEffort;
+  label: string;
+  sublabel: string;
+}[] = [
   { value: "default", label: "Default", sublabel: "Use Claude Code's setting" },
-  { value: "low", label: "Low", sublabel: "Fast responses with lighter thinking" },
+  {
+    value: "low",
+    label: "Low",
+    sublabel: "Fast responses with lighter thinking",
+  },
   { value: "medium", label: "Medium", sublabel: "Balances speed and depth" },
-  { value: "high", label: "High", sublabel: "Deeper thinking for complex requests" },
+  {
+    value: "high",
+    label: "High",
+    sublabel: "Deeper thinking for complex requests",
+  },
   { value: "xhigh", label: "Extra High", sublabel: "Even more thinking" },
-  { value: "max", label: "Max", sublabel: "Maximum thinking for the hardest problems" },
+  {
+    value: "max",
+    label: "Max",
+    sublabel: "Maximum thinking for the hardest problems",
+  },
 ];
 
 const EFFORT_LABEL: Record<string, string> = {
@@ -107,9 +136,20 @@ function effortLabel(effort: string): string {
   return EFFORT_LABEL[effort] ?? effort.charAt(0).toUpperCase() + effort.slice(1);
 }
 
-const CLI_LABEL = { claude: "Claude Code", codex: "Codex CLI", gemini: "Antigravity CLI" } as const;
+const CLI_LABEL: Record<CliProviderId, string> = {
+  claude: "Claude Code",
+  codex: "Codex CLI",
+  gemini: "Antigravity CLI",
+  muse: "Muse Code",
+};
 
-function ProviderStatusRow({ provider }: { provider: "claude" | "codex" | "gemini" }) {
+const PROVIDER_GROUPS: { title: string; providers: readonly AIProvider[] }[] = [
+  { title: "Built in", providers: ["glaze"] },
+  { title: "Subscription accounts", providers: SUBSCRIPTION_PROVIDERS },
+  { title: "API keys", providers: API_KEY_PROVIDERS },
+];
+
+function ProviderStatusRow({ provider }: { provider: CliProviderId }) {
   const queryClient = useQueryClient();
   const [verified, setVerified] = useState(false);
   const key = ["provider-status", provider];
@@ -131,9 +171,15 @@ function ProviderStatusRow({ provider }: { provider: "claude" | "codex" | "gemin
   const current = status.data;
   const indicator =
     status.isPending || verify.isPending
-      ? { variant: "loading" as const, text: verify.isPending ? "Checking sign-in…" : "Checking…" }
+      ? {
+          variant: "loading" as const,
+          text: verify.isPending ? "Checking sign-in…" : "Checking…",
+        }
       : current?.ok
-        ? { variant: "success" as const, text: verified ? "Ready" : "Installed" }
+        ? {
+            variant: "success" as const,
+            text: verified ? "Ready" : "Installed",
+          }
         : current?.reason === "not-logged-in"
           ? { variant: "warning" as const, text: "Not signed in" }
           : current?.reason === "missing"
@@ -405,7 +451,11 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
             label="ChatGPT speed"
             value={ai.codexServiceTier || DEFAULT_OPTION}
             options={[
-              { value: DEFAULT_OPTION, label: "Standard", sublabel: "Normal speed and usage" },
+              {
+                value: DEFAULT_OPTION,
+                label: "Standard",
+                sublabel: "Normal speed and usage",
+              },
               ...tiers.map((tier) => ({
                 value: tier.id,
                 label: tier.name,
@@ -456,39 +506,45 @@ export function AITab() {
                   })
                 }
               >
-                {(
-                  ["glaze", "claude", "codex", "gemini", "openai", "anthropic", "google"] as const
-                ).map((provider) => (
-                  <Label key={provider}>
-                    <RadioGroupItem value={provider} />
-                    <span className="flex flex-col">
-                      <span className="flex items-center gap-1.5">
-                        <ProviderMark provider={provider} className="size-3.5" />
-                        <Text>{PROVIDER_LABEL[provider]}</Text>
-                      </span>
-                      <Text variant="small" color="tertiary">
-                        {PROVIDER_DETAIL[provider]}
-                      </Text>
-                    </span>
-                  </Label>
+                {PROVIDER_GROUPS.map((group) => (
+                  <div key={group.title} className="flex flex-col gap-2">
+                    <Text variant="small-strong" color="secondary" className="pt-1">
+                      {group.title}
+                    </Text>
+                    {group.providers.map((provider) => (
+                      <Label key={provider}>
+                        <RadioGroupItem value={provider} />
+                        <span className="flex flex-col">
+                          <span className="flex items-center gap-1.5">
+                            <ProviderMark provider={provider} className="size-3.5" />
+                            <Text>{PROVIDER_LABEL[provider]}</Text>
+                          </span>
+                          <Text variant="small" color="tertiary">
+                            {PROVIDER_DETAIL[provider]}
+                          </Text>
+                        </span>
+                      </Label>
+                    ))}
+                  </div>
                 ))}
               </RadioGroup>
             </Field>
             {ai.provider === "claude" ? <ClaudeOptions settings={settings} edit={edit} /> : null}
             {ai.provider === "codex" ? <CodexOptions settings={settings} edit={edit} /> : null}
             {ai.provider === "gemini" ? <GeminiModelField settings={settings} edit={edit} /> : null}
-            {ai.provider === "openai" || ai.provider === "anthropic" || ai.provider === "google" ? (
+            {ai.provider === "muse" ? <MuseModelField settings={settings} edit={edit} /> : null}
+            {isApiKeyProvider(ai.provider) ? (
               <ApiModelField provider={ai.provider} settings={settings} edit={edit} />
             ) : null}
           </FieldSet>
 
           <FieldSet
             title="Subscription accounts"
-            description="Your Claude, ChatGPT, and Google AI plans, through their official command-line tools on this Mac. No API keys needed; sign in once in Terminal."
+            description="Your Claude, ChatGPT, Google AI, and Meta Muse plans, through their official command-line tools on this Mac. No API keys needed; sign in once in Terminal."
           >
-            <ProviderStatusRow provider="claude" />
-            <ProviderStatusRow provider="codex" />
-            <ProviderStatusRow provider="gemini" />
+            {SUBSCRIPTION_PROVIDERS.map((provider) => (
+              <ProviderStatusRow key={provider} provider={provider} />
+            ))}
           </FieldSet>
 
           <ApiKeysSection />

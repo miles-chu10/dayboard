@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Field, FieldSet, Input, toast } from "@glaze/core/components";
 import type {
   ApiKeyStatuses,
@@ -7,9 +7,11 @@ import type {
   ApiProviderId,
   AppSettings,
   OpenAIKeyStatus,
+  ProviderAvailability,
 } from "@main/shared-types";
 
 import { ProviderMark } from "../components/provider-logo";
+import { MUSE_MODEL_OPTIONS } from "../lib/ai-models";
 import { errorMessage, invoke } from "../lib/ipc";
 import { API_KEY_PROVIDERS, PROVIDER_LABEL } from "../lib/settings";
 import { SettingSelect } from "./setting-select";
@@ -30,6 +32,11 @@ const KEY_HELP: Record<ApiProviderId, string> = {
   openai: "platform.openai.com → API keys. Also used for Assistant dictation.",
   anthropic: "console.anthropic.com → API keys.",
   google: "aistudio.google.com → Get API key.",
+  xai: "console.x.ai → API Keys.",
+  mistral: "console.mistral.ai → API Keys.",
+  deepseek: "platform.deepseek.com → API keys.",
+  groq: "console.groq.com → API Keys.",
+  openrouter: "openrouter.ai → Keys. One key reaches models from many providers.",
 };
 
 function ApiKeyRow({ provider, status }: { provider: ApiProviderId; status?: OpenAIKeyStatus }) {
@@ -123,6 +130,48 @@ export function useApiModels(provider: ApiProviderId, enabled: boolean) {
   });
 }
 
+/** Model lists for every API-key provider that has a saved key. */
+export function useAllApiModels(available: ProviderAvailability | undefined) {
+  const results = useQueries({
+    queries: API_KEY_PROVIDERS.map((provider) => ({
+      queryKey: ["api-models", provider],
+      queryFn: () => invoke<ApiModelInfo[]>("ai:apiModels", { provider }),
+      enabled: Boolean(available?.[provider]),
+      staleTime: 10 * 60_000,
+      retry: false,
+    })),
+  });
+  return Object.fromEntries(
+    API_KEY_PROVIDERS.map((provider, index) => [provider, results[index].data]),
+  ) as Record<ApiProviderId, ApiModelInfo[] | undefined>;
+}
+
+export function MuseModelField({ settings, edit }: { settings: AppSettings; edit: SettingsEdit }) {
+  const current = settings.ai.museModel;
+  return (
+    <Field label="Model" description="Muse Spark models from your Meta account.">
+      <SettingSelect
+        label="Muse model"
+        value={current || NEWEST}
+        options={[
+          ...MUSE_MODEL_OPTIONS.map((option) => ({
+            value: option.value || NEWEST,
+            label: option.label,
+          })),
+          ...(current && !MUSE_MODEL_OPTIONS.some((option) => option.value === current)
+            ? [{ value: current, label: current }]
+            : []),
+        ]}
+        onChange={(value) =>
+          edit((draft) => {
+            draft.ai.museModel = value === NEWEST ? "" : value;
+          })
+        }
+      />
+    </Field>
+  );
+}
+
 export function useGeminiModels(enabled: boolean) {
   return useQuery({
     queryKey: ["gemini-models"],
@@ -163,7 +212,10 @@ export function ApiModelField({
         value={current || NEWEST}
         options={[
           { value: NEWEST, label: "Newest available" },
-          ...(models.data ?? []).map((model) => ({ value: model.id, label: model.name })),
+          ...(models.data ?? []).map((model) => ({
+            value: model.id,
+            label: model.name,
+          })),
           ...(current && !models.data?.some((model) => model.id === current)
             ? [{ value: current, label: current }]
             : []),
@@ -201,7 +253,10 @@ export function GeminiModelField({
         value={current || NEWEST}
         options={[
           { value: NEWEST, label: "Antigravity default" },
-          ...(models.data ?? []).map((model) => ({ value: model, label: model })),
+          ...(models.data ?? []).map((model) => ({
+            value: model,
+            label: model,
+          })),
           ...(current && !models.data?.includes(current)
             ? [{ value: current, label: current }]
             : []),
