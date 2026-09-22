@@ -6,11 +6,6 @@ import type { AgendaDuplicateLink, AgendaScheduledBlock, AgendaState } from "../
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
 import { mutateAndPersist } from "./agenda-utils.js";
 
-const MAX_FOCUS_KEYS = 100;
-const MAX_DUPLICATE_LINKS = 250;
-const MAX_SCHEDULED_BLOCKS = 250;
-const MAX_PENDING_BLOCKS = 50;
-
 interface PendingBlock {
   requestId: string;
   taskKey: string;
@@ -24,12 +19,15 @@ interface StoredAgendaState extends AgendaState {
 }
 
 interface AgendaFile {
-  version: 1;
+  version: 2;
   accounts: Record<string, StoredAgendaState>;
 }
 
 const queue = createSerialQueue();
 let cached: AgendaFile | null = null;
+type KeyReplacement = { previousKey: string; currentKey: string };
+const pendingReconciliations = new Map<string, KeyReplacement[]>();
+const pendingDeletedEvents = new Map<string, Set<string>>();
 
 function statePath(): string {
   return path.join(app.getPath("userData"), "agenda-state.json");
@@ -43,45 +41,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function strings(value: unknown, cap: number): string[] {
-  if (!Array.isArray(value)) return [];
-  return [
-    ...new Set(
-      value.filter((entry): entry is string => typeof entry === "string" && entry.length <= 320),
-    ),
-  ].slice(0, cap);
+function strings(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string"))
+    throw new Error(
+      "Agenda state contains invalid focus records; the original file was preserved.",
+    );
+  return [...new Set(value as string[])];
 }
 
 function normalizeDuplicateLinks(value: unknown): AgendaDuplicateLink[] {
-  if (!Array.isArray(value)) return [];
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("Agenda state contains invalid link records.");
   const seen = new Set<string>();
   const links: AgendaDuplicateLink[] = [];
   for (const entry of value) {
     if (!isRecord(entry) || typeof entry.leftKey !== "string" || typeof entry.rightKey !== "string")
-      continue;
-    if (
-      entry.leftKey === entry.rightKey ||
-      entry.leftKey.length > 320 ||
-      entry.rightKey.length > 320
-    )
-      continue;
-    if (entry.status !== "accepted" && entry.status !== "dismissed") continue;
+      throw new Error("Agenda state contains an invalid item link.");
+    if (entry.leftKey === entry.rightKey)
+      throw new Error("Agenda state contains a self-referencing item link.");
+    if (entry.status !== "accepted" && entry.status !== "dismissed")
+      throw new Error("Agenda state contains an invalid link status.");
     const [leftKey, rightKey] = [entry.leftKey, entry.rightKey].sort();
     const key = `${leftKey}\u0000${rightKey}`;
     if (seen.has(key)) continue;
     seen.add(key);
     links.push({ leftKey, rightKey, status: entry.status });
-    if (links.length === MAX_DUPLICATE_LINKS) break;
   }
   return links;
 }
 
 function normalizeScheduledBlocks(value: unknown): AgendaScheduledBlock[] {
-  if (!Array.isArray(value)) return [];
+  if (value === undefined) return [];
+  if (!Array.isArray(value))
+    throw new Error("Agenda state contains invalid calendar associations.");
   const seen = new Set<string>();
   const blocks: AgendaScheduledBlock[] = [];
   for (const entry of value) {
-    if (!isRecord(entry)) continue;
+    if (!isRecord(entry)) throw new Error("Agenda state contains an invalid calendar association.");
     const { taskKey, eventId, date, startTime, endTime, requestId } = entry;
     if (
       typeof taskKey !== "string" ||
@@ -91,7 +88,7 @@ function normalizeScheduledBlocks(value: unknown): AgendaScheduledBlock[] {
       typeof endTime !== "string" ||
       (requestId !== undefined && typeof requestId !== "string")
     ) {
-      continue;
+      throw new Error("Agenda state contains an invalid calendar association.");
     }
     const key = requestId || `${taskKey}\u0000${eventId}`;
     if (seen.has(key)) continue;
@@ -104,39 +101,40 @@ function normalizeScheduledBlocks(value: unknown): AgendaScheduledBlock[] {
       endTime,
       ...(requestId ? { requestId } : {}),
     });
-    if (blocks.length === MAX_SCHEDULED_BLOCKS) break;
   }
   return blocks;
 }
 
 function normalizePendingBlocks(value: unknown): PendingBlock[] {
-  if (!Array.isArray(value)) return [];
+  if (value === undefined) return [];
+  if (!Array.isArray(value))
+    throw new Error("Agenda state contains invalid pending calendar operations.");
   const seen = new Set<string>();
   const blocks: PendingBlock[] = [];
   for (const entry of value) {
-    if (!isRecord(entry)) continue;
+    if (!isRecord(entry)) throw new Error("Agenda state contains an invalid pending operation.");
     const { requestId, taskKey, date, startTime, endTime } = entry;
     if (
       typeof requestId !== "string" ||
       typeof taskKey !== "string" ||
       typeof date !== "string" ||
       typeof startTime !== "string" ||
-      typeof endTime !== "string" ||
-      seen.has(requestId)
+      typeof endTime !== "string"
     ) {
-      continue;
+      throw new Error("Agenda state contains an invalid pending operation.");
     }
+    if (seen.has(requestId)) continue;
     seen.add(requestId);
     blocks.push({ requestId, taskKey, date, startTime, endTime });
-    if (blocks.length === MAX_PENDING_BLOCKS) break;
   }
   return blocks;
 }
 
 function normalizeState(value: unknown): StoredAgendaState {
-  const raw = isRecord(value) ? value : {};
+  if (!isRecord(value)) throw new Error("Agenda state contains an invalid account record.");
+  const raw = value;
   return {
-    focusKeys: strings(raw.focusKeys, MAX_FOCUS_KEYS),
+    focusKeys: strings(raw.focusKeys),
     duplicateLinks: normalizeDuplicateLinks(raw.duplicateLinks),
     scheduledBlocks: normalizeScheduledBlocks(raw.scheduledBlocks),
     pendingBlocks: normalizePendingBlocks(raw.pendingBlocks),
@@ -144,14 +142,18 @@ function normalizeState(value: unknown): StoredAgendaState {
 }
 
 function normalizeFile(value: unknown): AgendaFile {
-  const raw = isRecord(value) ? value : {};
+  if (!isRecord(value)) throw new Error("Agenda state must be a JSON object.");
+  const raw = value;
+  if ((raw.version !== 1 && raw.version !== 2) || !isRecord(raw.accounts)) {
+    throw new Error("Agenda state has an unsupported schema.");
+  }
   const accounts: Record<string, StoredAgendaState> = {};
   if (isRecord(raw.accounts)) {
     for (const [scope, state] of Object.entries(raw.accounts)) {
-      if (scope.length <= 160) accounts[scope] = normalizeState(state);
+      accounts[scope] = normalizeState(state);
     }
   }
-  return { version: 1, accounts };
+  return { version: 2, accounts };
 }
 
 function publicState(state: StoredAgendaState): AgendaState {
@@ -166,7 +168,7 @@ async function load(): Promise<AgendaFile> {
   if (cached) return cached;
   const raw = await readFileIfExists(statePath());
   if (!raw) {
-    cached = { version: 1, accounts: {} };
+    cached = { version: 2, accounts: {} };
     return cached;
   }
   let parsed: unknown;
@@ -174,6 +176,17 @@ async function load(): Promise<AgendaFile> {
     parsed = JSON.parse(raw.toString("utf8"));
   } catch {
     throw new Error(`Agenda state at ${statePath()} is not valid JSON.`);
+  }
+  if (!isRecord(parsed)) throw new Error(`Agenda state at ${statePath()} must be a JSON object.`);
+  const sourceVersion = parsed.version;
+  if ((sourceVersion !== 1 && sourceVersion !== 2) || !isRecord(parsed.accounts)) {
+    throw new Error(`Agenda state at ${statePath()} has an unsupported schema.`);
+  }
+  // Keep an exact, atomic copy of legacy bytes before the schema writer can
+  // normalize anything. Never infer associations from titles during migration.
+  if (sourceVersion !== 2) {
+    const backup = `${statePath()}.v${sourceVersion}.bak`;
+    if (!(await readFileIfExists(backup))) await writeFileAtomic(backup, raw);
   }
   cached = normalizeFile(parsed);
   return cached;
@@ -204,7 +217,7 @@ export async function getAgendaState(scope: string): Promise<AgendaState> {
 
 export function setAgendaFocus(scope: string, focusKeys: string[]): Promise<AgendaState> {
   return update(scope, (state) => {
-    state.focusKeys = strings(focusKeys, MAX_FOCUS_KEYS);
+    state.focusKeys = strings(focusKeys);
     return publicState(state);
   });
 }
@@ -220,7 +233,7 @@ export function setAgendaDuplicateLink(
         (entry) => entry.leftKey !== leftKey || entry.rightKey !== rightKey,
       ),
       { leftKey, rightKey, status: link.status },
-    ].slice(-MAX_DUPLICATE_LINKS);
+    ];
     return publicState(state);
   });
 }
@@ -265,8 +278,7 @@ export function prepareAgendaBlock(
           entry.endTime === pending.endTime,
       ),
     );
-    if (!existing && !block && !slotTaken)
-      state.pendingBlocks = [...state.pendingBlocks, pending].slice(-MAX_PENDING_BLOCKS);
+    if (!existing && !block && !slotTaken) state.pendingBlocks = [...state.pendingBlocks, pending];
     return { block, pending: existing ?? pending, slotTaken };
   });
 }
@@ -283,7 +295,7 @@ export function completeAgendaBlock(
 ): Promise<AgendaState> {
   return update(scope, (state) => {
     if (!state.scheduledBlocks.some((entry) => entry.requestId === block.requestId)) {
-      state.scheduledBlocks = [...state.scheduledBlocks, block].slice(-MAX_SCHEDULED_BLOCKS);
+      state.scheduledBlocks = [...state.scheduledBlocks, block];
     }
     state.pendingBlocks = state.pendingBlocks.filter(
       (entry) => entry.requestId !== block.requestId,
@@ -303,4 +315,87 @@ export function removeAgendaScheduledBlock(
     );
     return publicState(state);
   });
+}
+
+/** A confirmed provider deletion must release its exact saved planning slot. */
+export function removeDeletedAgendaEvent(scope: string, eventId: string): Promise<AgendaState> {
+  const pending = pendingDeletedEvents.get(scope) ?? new Set<string>();
+  pending.add(eventId);
+  pendingDeletedEvents.set(scope, pending);
+  return update(scope, (state) => {
+    const requestIds = new Set(
+      state.scheduledBlocks
+        .filter((block) => block.eventId === eventId)
+        .map((block) => block.requestId),
+    );
+    state.scheduledBlocks = state.scheduledBlocks.filter((block) => block.eventId !== eventId);
+    state.pendingBlocks = state.pendingBlocks.filter((block) => !requestIds.has(block.requestId));
+    return publicState(state);
+  }).then((state) => {
+    pending.delete(eventId);
+    if (!pending.size) pendingDeletedEvents.delete(scope);
+    return state;
+  });
+}
+
+function containsAgendaKey(state: StoredAgendaState, key: string): boolean {
+  return (
+    state.focusKeys.includes(key) ||
+    state.duplicateLinks.some((link) => link.leftKey === key || link.rightKey === key) ||
+    state.scheduledBlocks.some((block) => block.taskKey === key) ||
+    state.pendingBlocks.some((block) => block.taskKey === key)
+  );
+}
+
+/**
+ * Reconciles an opaque provider-ref replacement only when the mutation itself
+ * supplied an exact lineage and the new key cannot collide with an existing
+ * record. Ambiguous legacy records stay untouched for the user to resolve.
+ */
+export function reconcileAgendaKeys(
+  scope: string,
+  replacements: readonly { previousKey: string; currentKey: string }[],
+): Promise<{ state: AgendaState; changed: boolean }> {
+  const pending = [...(pendingReconciliations.get(scope) ?? []), ...replacements];
+  if (!pending.length) return getAgendaState(scope).then((state) => ({ state, changed: false }));
+  pendingReconciliations.set(scope, pending);
+  return update(scope, (state) => {
+    let changed = false;
+    for (const { previousKey, currentKey } of pending) {
+      if (previousKey === currentKey || !containsAgendaKey(state, previousKey)) continue;
+      if (containsAgendaKey(state, currentKey)) continue;
+      state.focusKeys = state.focusKeys.map((key) => (key === previousKey ? currentKey : key));
+      state.duplicateLinks = state.duplicateLinks.map((link) => {
+        const leftKey = link.leftKey === previousKey ? currentKey : link.leftKey;
+        const rightKey = link.rightKey === previousKey ? currentKey : link.rightKey;
+        const [orderedLeft, orderedRight] = [leftKey, rightKey].sort();
+        return { ...link, leftKey: orderedLeft, rightKey: orderedRight };
+      });
+      state.scheduledBlocks = state.scheduledBlocks.map((block) =>
+        block.taskKey === previousKey ? { ...block, taskKey: currentKey } : block,
+      );
+      state.pendingBlocks = state.pendingBlocks.map((block) =>
+        block.taskKey === previousKey ? { ...block, taskKey: currentKey } : block,
+      );
+      changed = true;
+    }
+    return { state: publicState(state), changed };
+  }).then((result) => {
+    const remaining = (pendingReconciliations.get(scope) ?? []).filter(
+      (item) => !pending.includes(item),
+    );
+    if (remaining.length) pendingReconciliations.set(scope, remaining);
+    else pendingReconciliations.delete(scope);
+    return result;
+  });
+}
+
+/** Allows normal shutdown to wait for already-authorized agenda persistence. */
+export async function drainAgendaStore(): Promise<void> {
+  await queue.drain();
+  // A provider may have succeeded while the local disk was temporarily
+  // unavailable. Retry its exact mappings before allowing a normal quit.
+  for (const scope of pendingReconciliations.keys()) await reconcileAgendaKeys(scope, []);
+  for (const [scope, eventIds] of pendingDeletedEvents)
+    for (const eventId of eventIds) await removeDeletedAgendaEvent(scope, eventId);
 }

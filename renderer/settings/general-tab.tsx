@@ -16,6 +16,7 @@ import type { NativeThemeInfo } from "@glaze/core/ipc";
 import type { CalendarRange, Density, DetailView, LaunchView } from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
+import { isRendererDemoMode } from "../lib/demo";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
 import { useStartAtLogin } from "../lib/use-start-at-login";
 import { AccentPicker } from "./accent-picker";
@@ -62,6 +63,10 @@ export function GeneralTab() {
   }, []);
 
   const handleThemeChange = async (value: string) => {
+    if (isRendererDemoMode()) {
+      toast.error("Theme changes are unavailable in screenshot demo mode.");
+      return;
+    }
     try {
       await window.glazeAPI.nativeTheme.setThemeSource(value as "system" | "light" | "dark");
       await refreshThemeInfo();

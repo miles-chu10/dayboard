@@ -6,6 +6,7 @@ import type {
   AgendaCreateBlockInput,
   AgendaDuplicateLink,
   AgendaScheduledBlock,
+  AgendaScopedState,
   AgendaState,
   AppSettings,
   CalendarEventItem,
@@ -39,6 +40,8 @@ export const queryKeys = {
   mcpServers: ["mcp-servers"],
   assistantMcp: ["assistant-mcp"],
   agenda: ["agenda"],
+  agendaScope: ["agenda", "scope"],
+  agendaForScope: (scope: string) => ["agenda", "state", scope] as const,
 } as const;
 
 const DATA_KEYS = [
@@ -52,6 +55,7 @@ const DATA_KEYS = [
 
 const SOURCE_STALE_TIME = 2 * 60_000;
 const todoWrites = new Set<string>();
+const todoVersions = new Map<string, number>();
 
 export function useAccounts() {
   return useQuery({
@@ -191,8 +195,10 @@ export function useBackendSync() {
     const unsubscribers = [
       ipc.onNotification("accounts:changed", () => {
         // Never show a prior account's cached data during a reconnect or switch.
-        for (const queryKey of [...DATA_KEYS, queryKeys.agenda])
+        for (const queryKey of [...DATA_KEYS, queryKeys.agendaScope])
           void queryClient.resetQueries({ queryKey });
+        void queryClient.cancelQueries({ queryKey: ["agenda", "state"] });
+        queryClient.removeQueries({ queryKey: ["agenda", "state"] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       }),
       ipc.onNotification("settings:changed", (params) => {
@@ -214,9 +220,14 @@ export function useBackendSync() {
         void queryClient.invalidateQueries({ queryKey: queryKeys.assistantMcp });
       }),
       ipc.onNotification("agenda:changed", (params) => {
-        const state = params as AgendaState | null;
-        if (state) queryClient.setQueryData(queryKeys.agenda, state);
-        else void queryClient.invalidateQueries({ queryKey: queryKeys.agenda });
+        const event = params as AgendaScopedState | null;
+        if (event?.scope && event.state) {
+          void queryClient.cancelQueries(
+            { queryKey: queryKeys.agendaForScope(event.scope) },
+            { revert: false },
+          );
+          queryClient.setQueryData(queryKeys.agendaForScope(event.scope), event.state);
+        } else void queryClient.invalidateQueries({ queryKey: ["agenda", "state"] });
       }),
     ];
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
@@ -225,6 +236,11 @@ export function useBackendSync() {
 
 function todoQueryKey(todo: Todo) {
   return todo.task ? queryKeys.tasks : queryKeys.reminders;
+}
+
+function currentAgendaState(queryClient: QueryClient): AgendaState | undefined {
+  const scope = queryClient.getQueryData<string>(queryKeys.agendaScope);
+  return scope ? queryClient.getQueryData<AgendaState>(queryKeys.agendaForScope(scope)) : undefined;
 }
 
 function setTodoCompleted(
@@ -266,24 +282,45 @@ function setTodoCompleted(
   }
 }
 
-async function writeCompleted(todo: Todo, completed: boolean): Promise<void> {
+function setTodoCanonical(queryClient: QueryClient, todo: Todo, canonical: ReminderItem | null) {
+  if (!todo.reminder || !canonical) return;
+  const previousRef = todo.reminder.ref;
+  queryClient.setQueryData<SourceResult<ReminderItem>>(queryKeys.reminders, (prev) =>
+    prev?.state === "ok"
+      ? {
+          ...prev,
+          items: prev.items.map((item) => (item.ref === previousRef ? canonical : item)),
+        }
+      : prev,
+  );
+}
+
+async function writeCompleted(
+  todo: Todo,
+  completed: boolean,
+  expectedScope: string,
+): Promise<ReminderItem | null> {
   if (todo.task) {
     await invoke("tasks:setCompleted", {
       listId: todo.task.listId,
       taskId: todo.task.id,
       completed,
+      expectedScope,
     });
+    return null;
   } else if (todo.reminder) {
-    await invoke("reminders:setCompleted", { ref: todo.reminder.ref, completed });
+    return invoke<ReminderItem>("reminders:setCompleted", {
+      ref: todo.reminder.ref,
+      completed,
+      expectedScope,
+    });
   }
+  throw new Error("This item is unavailable in its source.");
 }
 
 /** Linked items still in the same state as `todo`, so they flip together. */
 function linkedPartners(queryClient: QueryClient, todo: Todo): Todo[] {
-  const keys = linkedKeys(
-    queryClient.getQueryData<AgendaState>(queryKeys.agenda)?.duplicateLinks,
-    todo.key,
-  );
+  const keys = linkedKeys(currentAgendaState(queryClient)?.duplicateLinks, todo.key);
   if (!keys.length) return [];
   return buildTodos(
     queryClient.getQueryData<SourceResult<TaskItem>>(queryKeys.tasks),
@@ -297,63 +334,178 @@ function linkedPartners(queryClient: QueryClient, todo: Todo): Todo[] {
 export function useToggleTodo() {
   const queryClient = useQueryClient();
   const revisions = useRef(new Map<string, number>());
-  const partnersFor = useRef(new Map<string, Todo[]>());
+  const partnersFor = useRef(new Map<string, { partners: Todo[]; scope: string }>());
+  const undoExact = async (participants: Todo[], scope: string, versions: Map<string, number>) => {
+    if (queryClient.getQueryData<string>(queryKeys.agendaScope) !== scope) {
+      toast.error("Return to the original account before using Undo.");
+      return false;
+    }
+    if (
+      participants.some(
+        (item) =>
+          todoWrites.has(item.key) ||
+          todoVersions.get(`${scope}:${item.key}`) !== versions.get(item.key),
+      )
+    ) {
+      toast.error(
+        "These items have changed since this update. Refresh to see their current state.",
+      );
+      return false;
+    }
+    for (const item of participants) todoWrites.add(item.key);
+    const results = await Promise.allSettled(
+      participants.map((participant) => writeCompleted(participant, participant.completed, scope)),
+    );
+    for (const item of participants) todoWrites.delete(item.key);
+    if (queryClient.getQueryData<string>(queryKeys.agendaScope) !== scope) return true;
+    const failed = participants.filter(
+      (_participant, index) => results[index].status === "rejected",
+    );
+    for (const [index, result] of results.entries()) {
+      if (result.status !== "fulfilled") continue;
+      const participant = participants[index];
+      setTodoCanonical(queryClient, participant, result.value);
+      const canonicalParticipant = result.value
+        ? { ...participant, reminder: result.value }
+        : participant;
+      if (!result.value) setTodoCompleted(queryClient, canonicalParticipant, participant.completed);
+      if (result.value?.agendaSaveError) toast.error(result.value.agendaSaveError);
+    }
+    for (const participant of participants)
+      void queryClient.invalidateQueries({ queryKey: todoQueryKey(participant) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.review });
+    if (failed.length) {
+      toast.error("Some linked items could not be restored. Refresh to see their current state.");
+    }
+    return true;
+  };
   const mutation = useMutation({
     mutationFn: async (todo: Todo) => {
       const completed = !todo.completed;
-      await writeCompleted(todo, completed);
-      const partners = partnersFor.current.get(todo.key) ?? [];
+      const operation = partnersFor.current.get(todo.key);
+      if (!operation) throw new Error("This update could not be started. Try again.");
+      const { partners, scope } = operation;
+      const primary = await writeCompleted(todo, completed, scope);
       const results = await Promise.allSettled(
-        partners.map((partner) => writeCompleted(partner, completed)),
+        partners.map((partner) => writeCompleted(partner, completed, scope)),
       );
-      return partners.filter((_partner, index) => results[index].status === "rejected");
+      return {
+        failed: partners.filter((_partner, index) => results[index].status === "rejected"),
+        successful: [
+          { participant: todo, canonical: primary },
+          ...partners.flatMap((partner, index) => {
+            const result = results[index];
+            return result.status === "fulfilled"
+              ? [{ participant: partner, canonical: result.value }]
+              : [];
+          }),
+        ],
+      };
     },
     onMutate: async (todo) => {
       if (todoWrites.has(todo.key)) throw new Error("This item is already being updated.");
+      const scope = queryClient.getQueryData<string>(queryKeys.agendaScope);
+      if (!scope || scope === "unavailable")
+        throw new Error("Your account is still loading. Try again shortly.");
       const partners = linkedPartners(queryClient, todo);
-      partnersFor.current.set(todo.key, partners);
+      partnersFor.current.set(todo.key, { partners, scope });
       todoWrites.add(todo.key);
       for (const partner of partners) todoWrites.add(partner.key);
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks });
       await queryClient.cancelQueries({ queryKey: queryKeys.reminders });
+      if (queryClient.getQueryData<string>(queryKeys.agendaScope) !== scope) {
+        for (const item of [todo, ...partners]) todoWrites.delete(item.key);
+        partnersFor.current.delete(todo.key);
+        throw new Error("The account changed before this update started.");
+      }
       const revision = (revisions.current.get(todo.key) ?? 0) + 1;
       revisions.current.set(todo.key, revision);
       const targetCompleted = !todo.completed;
-      for (const item of [todo, ...partners]) setTodoCompleted(queryClient, item, targetCompleted);
-      return { revision, targetCompleted, partners };
+      const versions = new Map<string, number>();
+      for (const item of [todo, ...partners]) {
+        const version = (todoVersions.get(`${scope}:${item.key}`) ?? 0) + 1;
+        todoVersions.set(`${scope}:${item.key}`, version);
+        versions.set(item.key, version);
+        setTodoCompleted(queryClient, item, targetCompleted);
+      }
+      return { revision, targetCompleted, partners, scope, versions };
     },
     onError: (error, todo, context) => {
-      if (context && revisions.current.get(todo.key) === context.revision) {
+      if (
+        context &&
+        queryClient.getQueryData<string>(queryKeys.agendaScope) === context.scope &&
+        revisions.current.get(todo.key) === context.revision
+      ) {
         setTodoCompleted(queryClient, todo, todo.completed, context.targetCompleted);
         for (const partner of context.partners)
           setTodoCompleted(queryClient, partner, partner.completed, context.targetCompleted);
-        toast.error(`Couldn't update “${todo.title}”: ${errorMessage(error)}`);
       }
+      toast.error(`Couldn't update “${todo.title}”: ${errorMessage(error)}`);
     },
-    onSuccess: (failedPartners, todo, context) => {
+    onSuccess: (result, todo, context) => {
+      if (!context || queryClient.getQueryData<string>(queryKeys.agendaScope) !== context.scope)
+        return;
+      const failedPartners = result.failed;
+      const successfulParticipants = result.successful.map(({ participant, canonical }) => {
+        setTodoCanonical(queryClient, participant, canonical);
+        if (canonical?.agendaSaveError) toast.error(canonical.agendaSaveError);
+        // Keep the original completed value for Undo while replacing only its
+        // opaque transport ref with the canonical mutation result.
+        return canonical ? { ...participant, reminder: canonical } : participant;
+      });
+      // A failed partner's optimistic value must not remain checked when a
+      // subsequent refetch also fails; restore from the captured original.
+      for (const partner of failedPartners)
+        setTodoCompleted(queryClient, partner, partner.completed, context?.targetCompleted);
       if (failedPartners.length)
         toast.error(
           `“${todo.title}” updated, but its linked item in ${failedPartners
             .map((partner) => (partner.source === "tasks" ? "Google Tasks" : "Apple Reminders"))
             .join(" and ")} couldn't be updated.`,
         );
-      const plan = queryClient.getQueryData<AgendaState>(queryKeys.agenda);
-      if (!todo.completed && plan?.focusKeys.includes(todo.key)) {
-        void invoke<AgendaState>("agenda:setFocus", {
-          focusKeys: plan.focusKeys.filter((key) => key !== todo.key),
+      const plan = currentAgendaState(queryClient);
+      const completedKeys = new Set(
+        result.successful
+          .filter(
+            ({ participant, canonical }) =>
+              !participant.completed && (!canonical || canonical.completed),
+          )
+          .map(({ participant }) => participant.key),
+      );
+      if (plan?.focusKeys.some((key) => completedKeys.has(key))) {
+        void invoke<AgendaScopedState>("agenda:setFocus", {
+          focusKeys: plan.focusKeys.filter((key) => !completedKeys.has(key)),
+          expectedScope: context.scope,
         })
-          .then((state) => queryClient.setQueryData(queryKeys.agenda, state))
+          .then((result) =>
+            queryClient.setQueryData(queryKeys.agendaForScope(result.scope), result.state),
+          )
           .catch(() => toast.error("The item completed, but its focus pin could not be removed."));
       }
       const synced = (context?.partners.length ?? 0) - failedPartners.length;
+      const undoUnsupported = successfulParticipants.some(
+        (participant) => participant.reminder?.recurring && !participant.completed,
+      );
+      let undoUsed = false;
       toast.success(
         `Updated “${todo.title}”${synced ? ` and ${synced} linked item${synced === 1 ? "" : "s"}` : ""}`,
-        {
-          action: {
-            label: "Undo",
-            onClick: () => mutation.mutate({ ...todo, completed: !todo.completed }),
-          },
-        },
+        undoUnsupported
+          ? {
+              description:
+                "Undo is unavailable because a recurring reminder advanced to its next occurrence.",
+            }
+          : {
+              action: {
+                label: "Undo",
+                // This exact success snapshot never recomputes current graph partners.
+                onClick: async () => {
+                  if (undoUsed) return;
+                  undoUsed = true;
+                  if (!(await undoExact(successfulParticipants, context.scope, context.versions)))
+                    undoUsed = false;
+                },
+              },
+            },
       );
     },
     onSettled: (_result, _error, todo, context) => {
@@ -374,46 +526,66 @@ export function useToggleTodo() {
 
 export function useAgendaState() {
   const queryClient = useQueryClient();
+  const scopeQuery = useQuery({
+    queryKey: queryKeys.agendaScope,
+    queryFn: () => invoke<string>("agenda:getScope"),
+    staleTime: 30_000,
+  });
+  const scope = scopeQuery.data;
   const query = useQuery({
-    queryKey: queryKeys.agenda,
-    queryFn: () => invoke<AgendaState>("agenda:getState"),
+    queryKey: queryKeys.agendaForScope(scope ?? "pending"),
+    queryFn: async ({ signal }) => {
+      const result = await invoke<AgendaScopedState>("agenda:getState");
+      if (signal.aborted || result.scope !== scope)
+        throw new DOMException("Agenda account changed while state was loading.", "AbortError");
+      return result.state;
+    },
+    enabled: Boolean(scope) && scope !== "unavailable",
     staleTime: 5 * 60_000,
   });
+  const storeResult = (result: AgendaScopedState) =>
+    queryClient.setQueryData(queryKeys.agendaForScope(result.scope), result.state);
   const setFocus = useMutation({
-    mutationFn: (input: { focusKeys: string[] }) => invoke<AgendaState>("agenda:setFocus", input),
-    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+    mutationFn: (input: { focusKeys: string[] }) =>
+      invoke<AgendaScopedState>("agenda:setFocus", { ...input, expectedScope: scope }),
+    onSuccess: storeResult,
     onError: (error) => toast.error(`Couldn't save focus: ${errorMessage(error)}`),
   });
   const setDuplicateLink = useMutation({
     mutationFn: (input: AgendaDuplicateLink) =>
-      invoke<AgendaState>("agenda:setDuplicateLink", input),
-    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+      invoke<AgendaScopedState>("agenda:setDuplicateLink", { ...input, expectedScope: scope }),
+    onSuccess: storeResult,
     onError: (error) => toast.error(`Couldn't save item link: ${errorMessage(error)}`),
   });
   const removeDuplicateLink = useMutation({
     mutationFn: (input: Pick<AgendaDuplicateLink, "leftKey" | "rightKey">) =>
-      invoke<AgendaState>("agenda:removeDuplicateLink", input),
-    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+      invoke<AgendaScopedState>("agenda:removeDuplicateLink", { ...input, expectedScope: scope }),
+    onSuccess: storeResult,
     onError: (error) => toast.error(`Couldn't unlink items: ${errorMessage(error)}`),
   });
   const removeScheduledBlock = useMutation({
     mutationFn: (input: Pick<AgendaScheduledBlock, "taskKey" | "eventId">) =>
-      invoke<AgendaState>("agenda:removeScheduledBlock", input),
-    onSuccess: (state) => queryClient.setQueryData(queryKeys.agenda, state),
+      invoke<AgendaScopedState>("agenda:removeScheduledBlock", { ...input, expectedScope: scope }),
+    onSuccess: storeResult,
     onError: (error) => toast.error(`Couldn't unlink calendar block: ${errorMessage(error)}`),
   });
   const createBlock = useMutation({
     mutationFn: (input: AgendaCreateBlockInput) =>
-      invoke<AgendaScheduledBlock>("agenda:createBlock", input),
+      invoke<AgendaScheduledBlock>("agenda:createBlock", { ...input, expectedScope: scope }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.agenda });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.agendaForScope(scope ?? "pending"),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendar });
       void queryClient.invalidateQueries({ queryKey: queryKeys.review });
     },
   });
   return {
     ...query,
+    isError: scopeQuery.isError || query.isError,
+    error: scopeQuery.error ?? query.error,
     isPending:
+      scopeQuery.isPending ||
       query.isPending ||
       setFocus.isPending ||
       setDuplicateLink.isPending ||

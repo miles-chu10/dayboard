@@ -180,6 +180,9 @@ async function loadHarness(state) {
   return async (channel, payload) => {
     const handler = state.handlers.get(channel);
     assert.ok(handler, `missing handler ${channel}`);
+    if (channel.startsWith("agenda:") && !channel.startsWith("agenda:get")) {
+      payload = { expectedScope: await state.handlers.get("agenda:getScope")({}), ...payload };
+    }
     return handler({}, payload);
   };
 }
@@ -193,6 +196,21 @@ async function withFixture(run) {
     await rm(userData, { recursive: true, force: true });
   }
 }
+
+test("stale or unresolved account scope cannot save relationships or complete items", async () => {
+  await withFixture(async state => {
+    const invoke = await loadHarness(state);
+    const scope = await invoke("agenda:getScope");
+    await invoke("agenda:setFocus", { focusKeys: ["task:list-1:task-1"] });
+    state.email = "second@example.test";
+    await assert.rejects(invoke("agenda:setFocus", { focusKeys: [], expectedScope: scope }), /account changed/);
+    await assert.rejects(invoke("tasks:setCompleted", { listId: "list-1", taskId: "task-1", completed: true, expectedScope: scope }), /account changed/);
+    await assert.rejects(invoke("reminders:setCompleted", { ref: "reminder-1", completed: true, expectedScope: scope }), /account changed/);
+    state.email = null;
+    await assert.rejects(invoke("agenda:getScope"), /identity is still loading/);
+    await assert.rejects(invoke("agenda:setFocus", { focusKeys: [] }), /identity is still loading/);
+  });
+});
 
 const requestId = "11111111-1111-4111-8111-111111111111";
 function blockInput(overrides = {}) {
@@ -239,12 +257,12 @@ test("agenda focus is durable and isolated by account scope", async () => {
     const invoke = await loadHarness(state);
     await invoke("agenda:setFocus", { focusKeys: ["task:list-1:task-1"] });
     state.email = "other@example.test";
-    assert.deepEqual(await invoke("agenda:getState"), { focusKeys: [], duplicateLinks: [], scheduledBlocks: [] });
+    assert.deepEqual((await invoke("agenda:getState")).state, { focusKeys: [], duplicateLinks: [], scheduledBlocks: [] });
     await invoke("agenda:setFocus", { focusKeys: ["reminder:reminder-1"] });
     state.email = "agenda@example.test";
 
     const afterRestart = await loadHarness(state);
-    assert.deepEqual((await afterRestart("agenda:getState")).focusKeys, ["task:list-1:task-1"]);
+    assert.deepEqual((await afterRestart("agenda:getState")).state.focusKeys, ["task:list-1:task-1"]);
     const saved = JSON.parse(await readFile(path.join(state.userData, "agenda-state.json"), "utf8"));
     assert.equal(Object.keys(saved.accounts).length, 2);
   });
@@ -258,7 +276,7 @@ test("agenda block is idempotent, linked, and only reaches synthetic providers",
     assert.deepEqual(retry, first);
     assert.equal(state.calls.creates, 1);
     assert.equal(state.remoteEvents.size, 1);
-    assert.deepEqual((await invoke("agenda:getState")).scheduledBlocks, [first]);
+    assert.deepEqual((await invoke("agenda:getState")).state.scheduledBlocks, [first]);
     assert.ok(state.broadcasts.some((event) => event.channel === "data:changed"));
   });
 });
@@ -271,7 +289,7 @@ test("a transient synthetic remote error leaves a retryable request without dupl
     const block = await invoke("agenda:createBlock", blockInput());
     assert.equal(state.calls.creates, 2);
     assert.equal(state.remoteEvents.size, 1);
-    assert.equal((await invoke("agenda:getState")).scheduledBlocks[0].eventId, block.eventId);
+    assert.equal((await invoke("agenda:getState")).state.scheduledBlocks[0].eventId, block.eventId);
   });
 });
 
@@ -294,7 +312,7 @@ test("a local save failure after event creation recovers from the persisted requ
     const block = await invoke("agenda:createBlock", blockInput());
     assert.equal(state.calls.creates, 1);
     assert.equal(state.remoteEvents.size, 1);
-    assert.equal((await invoke("agenda:getState")).scheduledBlocks[0].eventId, block.eventId);
+    assert.equal((await invoke("agenda:getState")).state.scheduledBlocks[0].eventId, block.eventId);
   });
 });
 

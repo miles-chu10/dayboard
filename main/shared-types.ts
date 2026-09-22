@@ -191,6 +191,10 @@ export interface TaskItem {
 }
 
 export interface ReminderItem {
+  /** Provider succeeded, but its local relationship metadata still needs saving. */
+  agendaSaveError?: string;
+  /** Calendar-qualified provider identity when available; `ref` is a mutable transport reference. */
+  identity: string;
   ref: string;
   listTitle: string;
   title: string;
@@ -202,6 +206,8 @@ export interface ReminderItem {
   priority: number;
   completed: boolean;
   completedAt: string | null;
+  /** EventKit exposes a recurring series as its next incomplete occurrence. */
+  recurring: boolean;
 }
 
 export interface MailItem {
@@ -284,9 +290,10 @@ export type AgendaTodoRef =
       taskId: string;
     }
   | {
-      /** Stable Apple Reminder identity: `reminder:${ref}`. */
+      /** Stable local identity: `reminder:${identity}`; `ref` can be replaced by EventKit. */
       key: string;
       source: "reminders";
+      identity: string;
       ref: string;
     };
 
@@ -310,6 +317,12 @@ export interface AgendaState {
   focusKeys: string[];
   duplicateLinks: AgendaDuplicateLink[];
   scheduledBlocks: AgendaScheduledBlock[];
+}
+
+/** The backend owns the opaque scope; renderer cache keys must include it. */
+export interface AgendaScopedState {
+  scope: string;
+  state: AgendaState;
 }
 
 export interface AgendaCreateBlockInput {

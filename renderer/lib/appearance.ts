@@ -3,6 +3,7 @@ import { computeAccentContrastColor } from "@glaze/core/components";
 import type { AccentColor, Density } from "@main/shared-types";
 
 import { useSettings } from "./settings";
+import { storedKey } from "./storage";
 
 export const ACCENT_OPTIONS: {
   value: AccentColor;
@@ -22,7 +23,6 @@ export const ACCENT_OPTIONS: {
   { value: "graphite", label: "Graphite", light: "#7C7C82", dark: "#98989D" },
 ];
 
-// Unnamespaced so the accent applies before first paint, including in demo mode.
 const CACHE_KEY = "dayboard:accent";
 const DENSITY_KEY = "dayboard:density";
 const STYLE_ID = "dayboard-accent";
@@ -43,21 +43,21 @@ export function applyAccent(accent: AccentColor): void {
       `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${computeAccentContrastColor(hex)} !important;`;
     style.textContent = `:root:root { ${rule(option.light)} } :root.dark:root { ${rule(option.dark)} }`;
   }
-  localStorage.setItem(CACHE_KEY, accent);
+  localStorage.setItem(storedKey(CACHE_KEY), accent);
 }
 
 /** Compact mode swaps the `--density-*` spacing variables defined in styles.css. */
 export function applyDensity(density: Density): void {
   document.documentElement.classList.toggle("density-compact", density === "compact");
-  localStorage.setItem(DENSITY_KEY, density);
+  localStorage.setItem(storedKey(DENSITY_KEY), density);
 }
 
 /** Applies the last-known accent and density before first paint. */
 export function applyCachedAppearance(): void {
-  const cached = localStorage.getItem(CACHE_KEY);
+  const cached = localStorage.getItem(storedKey(CACHE_KEY));
   if (cached && ACCENT_OPTIONS.some((item) => item.value === cached))
     applyAccent(cached as AccentColor);
-  if (localStorage.getItem(DENSITY_KEY) === "compact") applyDensity("compact");
+  if (localStorage.getItem(storedKey(DENSITY_KEY)) === "compact") applyDensity("compact");
 }
 
 /** Keeps this window's accent and density in step with Settings. */

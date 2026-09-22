@@ -3,6 +3,7 @@ import { useGlazeAI } from "@glaze/core/hooks";
 import type { AIStreamChunk } from "@main/shared-types";
 
 import { errorMessage } from "./ipc";
+import { isRendererDemoMode } from "./demo";
 import { useSettings } from "./settings";
 
 export const BLOCKED_MESSAGE: Record<string, string> = {
@@ -31,6 +32,7 @@ interface CliState {
  * useGlazeAI (consent, credits, auto-resume); Claude and ChatGPT run their CLIs in the backend.
  */
 export function useAITask() {
+  const demo = isRendererDemoMode();
   const provider = useSettings().data?.ai.provider ?? "glaze";
   const glazeAI = useGlazeAI();
   const [output, setOutput] = useState("");
@@ -102,18 +104,18 @@ export function useAITask() {
     stop();
     setOutput("");
     setRunProvider(provider);
-    if (provider === "glaze") await runGlaze(options);
-    else await runCli(options);
+    if (demo || provider !== "glaze") await runCli(options);
+    else await runGlaze(options);
   }
 
   function clear() {
     stop();
     setOutput("");
-    glazeAI.reset();
+    if (!demo) glazeAI.reset();
     setCli({ status: "idle", error: null });
   }
 
-  const usingGlaze = runProvider === "glaze";
+  const usingGlaze = !demo && runProvider === "glaze";
   const glazeAborted = glazeAI.error?.name === "AbortError";
   const message = usingGlaze
     ? (BLOCKED_MESSAGE[glazeAI.state] ??

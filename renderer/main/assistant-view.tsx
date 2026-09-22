@@ -19,6 +19,7 @@ import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { BLOCKED_MESSAGE } from "../lib/ai";
+import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSystem } from "../lib/ai-prompts";
 import {
   ASSISTANT_SUGGESTIONS,
@@ -58,12 +59,14 @@ function AssistantMessageView({
   streaming,
   onAddAction,
   onEnableAI,
+  demo,
 }: {
   message: AssistantMessage;
   provider: AIProvider;
   streaming: boolean;
   onAddAction: (index: number) => void;
   onEnableAI: () => void;
+  demo: boolean;
 }) {
   if (message.role === "user") {
     return (
@@ -114,8 +117,12 @@ function AssistantMessageView({
                     {describeAction(action)}
                   </Text>
                 </div>
-                <Button size="small" onClick={() => onAddAction(index)} disabled={action.added}>
-                  {action.added ? "Added" : "Add"}
+                <Button
+                  size="small"
+                  onClick={() => onAddAction(index)}
+                  disabled={action.added || demo}
+                >
+                  {action.added ? "Added" : demo ? "Sample" : "Add"}
                 </Button>
               </div>
             ))}
@@ -141,6 +148,7 @@ function AssistantMessageView({
 }
 
 export function AssistantView() {
+  const demo = isRendererDemoMode();
   const queryClient = useQueryClient();
   const settings = useSettings().data;
   const enabled = featureOn(settings, "assistant");
@@ -153,7 +161,43 @@ export function AssistantView() {
   const calendar = useCalendar();
   const mcpStatus = useAssistantMcpStatus();
 
-  const [messages, setMessages] = useState<AssistantMessage[]>(loadConversation);
+  const [messages, setMessages] = useState<AssistantMessage[]>(() =>
+    demo
+      ? [
+          {
+            id: "demo-assistant-intro",
+            role: "assistant",
+            content:
+              "**Sample conversation**\n\nI’m using fictional DayBoard data for this demo. Ask about Alex Rivera’s launch work, calendar, or inbox.",
+            tools: [],
+            actions: [],
+            error: null,
+            blocked: null,
+            provider: "glaze",
+          },
+          {
+            id: "demo-assistant-question",
+            role: "user",
+            content: "What should I focus on this afternoon?",
+            tools: [],
+            actions: [],
+            error: null,
+            blocked: null,
+          },
+          {
+            id: "demo-assistant-answer",
+            role: "assistant",
+            content:
+              "**Sample answer**\n\nReview the launch announcement before the 3 PM roadmap sync. Priya’s unread email has the final-copy decision, and the onboarding pull request is the next unblocker.",
+            tools: [],
+            actions: [],
+            error: null,
+            blocked: null,
+            provider: "glaze",
+          },
+        ]
+      : loadConversation(),
+  );
   const [input, setInput] = useState("");
   const [runningId, setRunningId] = useState<string | null>(null);
   const cancelRef = useRef<string | null>(null);
@@ -337,6 +381,7 @@ export function AssistantView() {
   }
 
   async function addAction(messageId: string, index: number) {
+    if (demo) return;
     const action = messages.find((message) => message.id === messageId)?.actions[index];
     if (!action) return;
     try {
@@ -356,6 +401,7 @@ export function AssistantView() {
   const subtitle = enabled
     ? [
         PROVIDER_LABEL[provider],
+        demo ? "Sample data" : null,
         mcpCount ? `${mcpCount} MCP ${mcpCount === 1 ? "server" : "servers"}` : null,
       ]
         .filter(Boolean)
@@ -440,7 +486,10 @@ export function AssistantView() {
               provider={provider}
               streaming={message.id === runningId}
               onAddAction={(index) => void addAction(message.id, index)}
-              onEnableAI={() => void glazeAI.enableInHost()}
+              onEnableAI={() => {
+                if (!demo) void glazeAI.enableInHost();
+              }}
+              demo={demo}
             />
           ))
         )}

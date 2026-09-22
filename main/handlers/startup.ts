@@ -1,5 +1,6 @@
 import { ipcMain } from "@glaze/core/backend";
 
+import { assertNotDemo, isDemoMode } from "../services/demo-data.js";
 import { getStartAtLogin, setStartAtLogin } from "../services/startup-settings.js";
 
 function requireBoolean(payload: unknown): boolean {
@@ -13,8 +14,11 @@ function requireBoolean(payload: unknown): boolean {
 }
 
 export function registerStartupHandlers(): void {
-  ipcMain.handle("startup:getLoginItem", () => getStartAtLogin());
-  ipcMain.handle("startup:setLoginItem", (_event, payload: unknown) =>
-    setStartAtLogin(requireBoolean(payload)),
+  ipcMain.handle("startup:getLoginItem", () =>
+    isDemoMode() ? { openAtLogin: false, status: "not-registered" } : getStartAtLogin(),
   );
+  ipcMain.handle("startup:setLoginItem", (_event, payload: unknown) => {
+    assertNotDemo("startup:setLoginItem");
+    return setStartAtLogin(requireBoolean(payload));
+  });
 }
