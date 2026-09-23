@@ -69,7 +69,10 @@ test("identified subsets and newly appended duplicates remain unique on another 
   const result = identifyCalendarEvents([original[1], event({ title: "New" })]);
   assert.equal(calendarEventKey(result[0]), calendarEventKey(original[1]));
   assert.notEqual(calendarEventKey(result[0]), calendarEventKey(result[1]));
-  assert.deepEqual(identifyCalendarEvents(result).map(calendarEventKey), result.map(calendarEventKey));
+  assert.deepEqual(
+    identifyCalendarEvents(result).map(calendarEventKey),
+    result.map(calendarEventKey),
+  );
 });
 
 test("a repeated supplied key is retained once and reassigned for the second entry", () => {
@@ -106,7 +109,15 @@ test("invalid supplied selection keys are ignored rather than becoming route ide
   const raw = event();
   const canonical = calendarEventKey(raw);
   const prefix = canonical.slice(0, -1);
-  for (const selectionKey of ["", "unrelated", `${prefix}-1`, `${prefix}01`, `${prefix}1.5`, 7, null]) {
+  for (const selectionKey of [
+    "",
+    "unrelated",
+    `${prefix}-1`,
+    `${prefix}01`,
+    `${prefix}1.5`,
+    7,
+    null,
+  ]) {
     const malformed = { ...raw, selectionKey };
     assert.equal(calendarEventKey(malformed), canonical);
     assert.equal(calendarEventKey(identifyCalendarEvents([malformed])[0]), canonical);

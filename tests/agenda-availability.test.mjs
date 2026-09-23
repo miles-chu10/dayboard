@@ -72,8 +72,15 @@ test("availability accepts a real leap day without changing the requested date",
 
 test("availability rejects work hours that roll outside the requested day or truncate", () => {
   for (const [start, end] of [
-    [-1, 18], [9, 25], [23, 26], [9.5, 18], [9, 18.5],
-    [18, 9], [9, 9], [NaN, 18], [9, Infinity],
+    [-1, 18],
+    [9, 25],
+    [23, 26],
+    [9.5, 18],
+    [9, 18.5],
+    [18, 9],
+    [9, 9],
+    [NaN, 18],
+    [9, Infinity],
   ]) {
     assert.deepEqual(getAvailableSlots([], date, 30, before, start, end), [], `${start}..${end}`);
   }
@@ -81,7 +88,10 @@ test("availability rejects work hours that roll outside the requested day or tru
 
 test("midnight is a valid exclusive workday end, not another day of suggested starts", () => {
   const slots = getAvailableSlots([], date, 30, before, 23, 24);
-  assert.deepEqual(slots.map(({ start }) => clock(start)), ["23:00", "23:15", "23:30"]);
+  assert.deepEqual(
+    slots.map(({ start }) => clock(start)),
+    ["23:00", "23:15", "23:30"],
+  );
   assert.ok(slots.every(({ start }) => start.getDate() === 22));
   assert.equal(clock(slots.at(-1).end), "00:00");
   assert.equal(slots.at(-1).end.getDate(), 23);
@@ -108,13 +118,21 @@ test("event boundaries are exclusive and an exact-sized gap remains bookable", (
     event({ id: "next", start: `${date}T10:30:00`, end: `${date}T12:00:00` }),
   ];
   const slots = getAvailableSlots(events, date, 30, before, 9, 12);
-  assert.deepEqual(slots.map(({ start }) => clock(start)), ["10:00"]);
+  assert.deepEqual(
+    slots.map(({ start }) => clock(start)),
+    ["10:00"],
+  );
 });
 
 test("overnight events block only their overlapping part of the requested day", () => {
-  const slots = getAvailableSlots([
-    event({ start: "2026-09-21T23:00:00", end: `${date}T10:15:00` }),
-  ], date, 30, before, 9, 12);
+  const slots = getAvailableSlots(
+    [event({ start: "2026-09-21T23:00:00", end: `${date}T10:15:00` })],
+    date,
+    30,
+    before,
+    9,
+    12,
+  );
   assert.equal(clock(slots[0].start), "10:15");
 });
 
@@ -148,7 +166,13 @@ for (const transitionDate of ["2026-03-08", "2026-11-01"]) {
 
 test("Agenda construction preserves a pre-identified selection after upstream filtering", () => {
   const original = identifyCalendarEvents([event({ title: "First" }), event({ title: "Second" })]);
-  const agenda = buildAgenda({ events: [original[1]], todos: [], startDate: date, days: 1, now: before });
+  const agenda = buildAgenda({
+    events: [original[1]],
+    todos: [],
+    startDate: date,
+    days: 1,
+    now: before,
+  });
   assert.equal(agenda.days[0].timed[0].key, calendarEventKey(original[1]));
   assert.equal(agenda.days[0].timed[0].event.title, "Second");
 });
@@ -158,7 +182,13 @@ test("Agenda preserves pre-identified all-day keys after upstream filtering", ()
     event({ title: "First", allDay: true, start: date, end: "2026-09-23" }),
     event({ title: "Second", allDay: true, start: date, end: "2026-09-23" }),
   ]);
-  const agenda = buildAgenda({ events: [original[1]], todos: [], startDate: date, days: 1, now: before });
+  const agenda = buildAgenda({
+    events: [original[1]],
+    todos: [],
+    startDate: date,
+    days: 1,
+    now: before,
+  });
   assert.equal(calendarEventKey(agenda.days[0].allDay[0]), calendarEventKey(original[1]));
   assert.equal(agenda.days[0].allDay[0].title, "Second");
 });
