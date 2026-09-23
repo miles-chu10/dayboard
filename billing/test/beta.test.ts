@@ -52,7 +52,7 @@ function setup(overrides: Partial<Env> = {}) {
       .prepare("SELECT email FROM beta_signups ORDER BY email")
       .all()
       .map((row) => String(row.email));
-  return { env, worker, signup, rows };
+  return { db, env, worker, signup, rows };
 }
 
 test("normalizes and validates beta email addresses", () => {
@@ -143,6 +143,22 @@ test("rate-limits repeated attempts from one network", async () => {
   const statuses = [];
   for (let i = 0; i < 6; i++) statuses.push((await signup({ email: `p${i}@example.com` })).status);
   assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429]);
+});
+
+test("drops rate-limit buckets from earlier minutes", async () => {
+  const { db, signup } = setup();
+  db.sql
+    .prepare("INSERT INTO rate_limits (bucket, window_start, hits) VALUES ('stale', 1, 5)")
+    .run();
+  assert.equal((await signup({ email: "a@example.com" })).status, 200);
+  const buckets = db.sql.prepare("SELECT bucket, hits FROM rate_limits").all();
+  assert.equal(buckets.length, 1);
+  assert.notEqual(buckets[0].bucket, "stale");
+  const plan = db.sql
+    .prepare("EXPLAIN QUERY PLAN DELETE FROM rate_limits WHERE window_start < ?")
+    .all(1)
+    .map((row) => String(row.detail));
+  assert.match(plan.join("\n"), /USING (COVERING )?INDEX rate_limits_window_start/);
 });
 
 test("fails closed when signup configuration is missing or wrong", async () => {
