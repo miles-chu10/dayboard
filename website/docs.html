@@ -3,86 +3,183 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101315" />
+    <title>Guide — DayBoard</title>
     <meta
       name="description"
-      content="A short guide to DayBoard sources, optional AI, and data boundaries."
+      content="Get started with DayBoard: your Agenda, connecting sources, optional AI, the MCP server, and where your data goes."
     />
-    <title>Guide — DayBoard</title>
-    <link rel="icon" type="image/jpeg" href="assets/dayboard-icon.jpg" />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/hanken-grotesk.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <script src="assets/site.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
-      <nav class="nav wrap" aria-label="Main navigation">
+      <nav class="nav wrap" aria-label="Main">
         <a class="brand" href="index.html"
-          ><img src="assets/dayboard-icon.jpg" alt="" width="38" height="38" />DayBoard</a
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html">Overview</a><a href="download.html">Download</a
+          <a href="index.html#features">Features</a><a href="index.html#privacy">Privacy</a
           ><a href="docs.html" aria-current="page">Guide</a><a href="support.html">Support</a
-          ><a class="nav-source" href="https://github.com/miles-chu10/dayboard">Source ↗</a>
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </div>
+        <a class="button" href="beta.html">Join the beta</a>
       </nav>
     </header>
+
     <main id="main">
-      <div class="page-head">
+      <header class="page-head">
         <div class="wrap">
-          <span class="eyebrow">Getting started</span>
-          <h1>DayBoard guide</h1>
-          <p>A short introduction while the public Mac build is being prepared.</p>
+          <span class="eyebrow">Guide</span>
+          <h1>Getting started with <em>DayBoard.</em></h1>
+          <p>
+            Set up your sources, find your way around the Agenda, and decide how much AI you want.
+          </p>
         </div>
-      </div>
-      <div class="content wrap content-narrow">
-        <h2>Start with your Agenda</h2>
-        <p>
-          DayBoard is designed to bring Google Calendar, Google Tasks, and Apple Reminders into one
-          Agenda. Source controls let you focus the view. Gmail has its own inbox view.
-        </p>
-        <h2>Connect the sources you want</h2>
-        <p>
-          Google Tasks, Gmail, and Google Calendar require Google sign-in and the permissions for
-          the sources you enable. Apple Reminders requires macOS permission. Connected services
-          continue to store and process their own data under their own terms.
-        </p>
-        <h2>Use AI only when useful</h2>
-        <p>
-          AI features are optional. Depending on the provider you choose, DayBoard may use a
-          signed-in desktop CLI or an API key. AI requests send the context needed for that feature
-          to the selected provider. Review the provider's terms and privacy practices before
-          enabling it.
-        </p>
-        <h2>Connect an MCP client if you choose</h2>
-        <p>
-          DayBoard can run a local MCP server while the app is open. It is optional and off by
-          default. Access requires a key, and changes through MCP must be enabled separately in
-          settings.
-        </p>
-        <h2 id="data">Where your data goes</h2>
-        <p>
-          DayBoard saves app settings and certain history locally on your Mac. Syncing with Google
-          sends requests to Google's services. Apple Reminders access uses macOS permissions. AI
-          features send selected context to the provider you configure. The exact permissions and
-          final release privacy notice will be documented before a public download is offered.
-        </p>
-        <h2>More information</h2>
-        <p>
-          See <a class="inline-link" href="download.html">download status</a>,
-          <a class="inline-link" href="license.html">open-source and build licensing</a>, or
-          <a class="inline-link" href="support.html">support and FAQ</a>.
-        </p>
+      </header>
+
+      <div class="wrap two-col">
+        <article class="prose">
+          <h2 id="agenda">Start with your Agenda</h2>
+          <p>
+            The Agenda is DayBoard's home: today's calendar events, Google Tasks and Apple Reminders
+            in one list, with unread Gmail underneath. Switch between <strong>Today</strong> and
+            <strong>Next 7 days</strong>, search across everything, and use the source checkboxes to
+            focus the view.
+          </p>
+          <p>
+            Overdue items collect in their own row so they don't crowd your day. Items without a
+            date wait under <strong>No date</strong>.
+          </p>
+
+          <h2 id="sources">Connect your sources</h2>
+          <p>Open Settings (<span class="kbd">⌘ ,</span>) and choose <strong>Sources</strong>.</p>
+          <ul>
+            <li>
+              <strong>Google Calendar, Google Tasks and Gmail:</strong> click
+              <strong>Sign in with Google</strong> and approve access in your browser.
+            </li>
+            <li><strong>Apple Reminders:</strong> turn it on and allow access when macOS asks.</li>
+            <li>Turn any source off at any time, and pick the color each one uses.</li>
+          </ul>
+          <p>
+            Changes you make in DayBoard sync back to Google and Apple. If the same to-do lives in
+            both Google Tasks and Apple Reminders, open its details and <strong>Link</strong> the
+            pair. It then shows up once, and checking it off completes both.
+          </p>
+
+          <h2 id="views">Calendar, Inbox and details</h2>
+          <p>
+            The Calendar has <strong>Month</strong>, <strong>Week</strong> and
+            <strong>Schedule</strong> layouts, with tasks and reminders on their due dates. The
+            Inbox lists your recent Gmail. Under <strong>Settings → General</strong>, choose whether
+            details open in a pop-up, inline, or in a side panel.
+          </p>
+
+          <h2 id="ai">Turn on AI (optional)</h2>
+          <p>
+            AI is off until you choose a provider in <strong>Settings → AI</strong>. You can use the
+            Claude or ChatGPT account you already have through Claude Code or Codex, or add an API
+            key. Then pick the model and turn individual features on or off.
+          </p>
+          <ul>
+            <li>
+              <strong>Assistant:</strong> ask about your day. Any change it suggests waits for your
+              confirmation.
+            </li>
+            <li>
+              <strong>Brief me, Suggest focus and Weekly Review:</strong> summaries of what matters.
+            </li>
+            <li><strong>Inbox sorting and reply drafts,</strong> saved to your Gmail drafts.</li>
+          </ul>
+
+          <h2 id="mcp">Connect your own AI tools (optional)</h2>
+          <p>
+            DayBoard can run a local MCP server while it's open, so tools like Claude Code and Codex
+            can read your day. It's off by default. Turn it on in
+            <strong>Settings → MCP Servers</strong>. Clients need the access key shown there, and
+            the server stays read-only unless you also allow changes.
+          </p>
+
+          <h2 id="data">Where your data goes</h2>
+          <ul>
+            <li>
+              <strong>On your Mac:</strong> settings, linked items and Assistant history. Sign-in
+              tokens are encrypted with macOS's built-in protection.
+            </li>
+            <li>
+              <strong>Google:</strong> DayBoard talks directly to Google's APIs for Calendar, Tasks
+              and Gmail. Google stores that data under its own terms.
+            </li>
+            <li><strong>Apple Reminders:</strong> read and changed on your Mac through macOS.</li>
+            <li>
+              <strong>Your AI provider:</strong> when you use an AI feature, only the context that
+              request needs is sent to the provider you chose.
+            </li>
+            <li>
+              <strong>DayBoard's services:</strong> none of your calendar, tasks, reminders or mail.
+              The beta signup stores only your email address.
+            </li>
+          </ul>
+
+          <h2 id="updates">Getting new beta builds</h2>
+          <p>
+            Beta builds don't update themselves. When a new build is ready, you'll get an email with
+            the download link. Install it over the old one, and your settings stay in place.
+          </p>
+        </article>
+
+        <aside class="aside-card" aria-labelledby="help-title">
+          <span class="eyebrow">Need a hand?</span>
+          <h2 id="help-title">We're listening.</h2>
+          <p>
+            Found a bug or have an idea? Open an issue on GitHub. Leave out personal details,
+            account tokens and private mail.
+          </p>
+          <a class="button" href="https://github.com/miles-chu10/dayboard/issues"
+            >Open GitHub Issues</a
+          >
+          <a class="button button-quiet" href="support.html">Support & FAQ</a>
+        </aside>
       </div>
     </main>
+
     <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <p>DayBoard for macOS. Source licensed under GPL-3.0-only.</p>
-        <div class="footer-links">
-          <a href="index.html">Overview</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="license.html">License</a
-          ><a href="support.html">Support</a
-          ><a href="https://github.com/miles-chu10/dayboard">GitHub ↗</a>
-        </div>
+      <div class="wrap footer-grid">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <nav class="footer-links" aria-label="Footer">
+          <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="license.html">License</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </nav>
+        <p class="fine">
+          © 2026 DayBoard. Source licensed under GPL-3.0. Google Calendar, Google Tasks and Gmail
+          are trademarks of Google LLC; Apple Reminders and macOS are trademarks of Apple Inc.
+          DayBoard isn't affiliated with Google or Apple.
+        </p>
       </div>
     </footer>
   </body>

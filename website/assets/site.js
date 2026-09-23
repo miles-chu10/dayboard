@@ -1,71 +1,135 @@
-// Set these values only after the release artifacts and merchant checkout are verified.
-// Keep all public release destinations in this one file.
+// Public destinations live here. Point betaSignupUrl at the deployed DayBoard service's
+// /v1/beta-signup endpoint; the signup forms stay closed until it is a valid HTTPS URL.
 const SITE_CONFIG = Object.freeze({
-  downloadUrl: "",
-  checkoutUrl: "",
-  screenshotUrl: "assets/agenda-demo.png",
-  priceLabel: "",
-  trialLabel: "",
+  betaSignupUrl: "",
 });
 
-function isPublicUrl(value) {
-  if (!value) return false;
+const MESSAGES = {
+  invalid: "Enter a valid email address.",
+  invalid_email: "That email address doesn't look right.",
+  rate_limited: "Too many tries from this network. Wait a minute and try again.",
+  failed: "Something went wrong on our side. Try again in a moment.",
+  offline: "Couldn't reach the signup service. Check your connection and try again.",
+};
+
+function signupEndpoint() {
   try {
-    const url = new URL(value);
-    return url.protocol === "https:";
+    const url = new URL(SITE_CONFIG.betaSignupUrl);
+    // Plain HTTP is accepted only while previewing the site on this Mac.
+    const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+    return url.protocol === "https:" || (local && url.protocol === "http:") ? url.href : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-for (const element of document.querySelectorAll("[data-download]")) {
-  if (isPublicUrl(SITE_CONFIG.downloadUrl)) {
-    element.href = SITE_CONFIG.downloadUrl;
-    element.textContent = "Download for macOS";
-    element.removeAttribute("aria-disabled");
-    element.classList.remove("is-unavailable");
+function markJoined(form) {
+  const done = document.createElement("div");
+  done.className = "signup-done";
+  done.tabIndex = -1;
+  done.innerHTML =
+    '<span class="check" aria-hidden="true">✓</span><div><strong>You\'re on the list.</strong>' +
+    "<p>We'll email you a download link when your beta invite is ready.</p></div>";
+  form.replaceChildren(done);
+  return done;
+}
+
+function setupSignup(form, endpoint) {
+  const input = form.querySelector('input[type="email"]');
+  const button = form.querySelector('button[type="submit"]');
+  const status = form.querySelector(".signup-status");
+  const note = form.querySelector(".signup-note");
+
+  if (!endpoint) {
+    input.disabled = true;
+    button.disabled = true;
+    note.textContent = "Beta signups open soon. Check back shortly.";
+    return;
+  }
+
+  const fail = (message) => {
+    status.dataset.tone = "error";
+    status.textContent = message;
+    button.disabled = false;
+    button.textContent = button.dataset.label;
+    form.removeAttribute("aria-busy");
+  };
+
+  button.dataset.label = button.textContent;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!input.checkValidity()) {
+      fail(MESSAGES.invalid);
+      input.focus();
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Joining…";
+    form.setAttribute("aria-busy", "true");
+    status.textContent = "";
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: input.value.trim(),
+          company: form.elements.company.value,
+        }),
+      });
+      if (response.ok) {
+        const forms = document.querySelectorAll("form[data-signup]");
+        const done = markJoined(form);
+        for (const other of forms) if (other !== form) markJoined(other);
+        done.focus();
+        return;
+      }
+      const body = await response.json().catch(() => ({}));
+      fail(MESSAGES[body.error] ?? MESSAGES.failed);
+    } catch {
+      fail(MESSAGES.offline);
+    }
+  });
+}
+
+const endpoint = signupEndpoint();
+for (const form of document.querySelectorAll("form[data-signup]")) setupSignup(form, endpoint);
+
+// Screenshot tabs (e.g. Calendar week/month).
+for (const list of document.querySelectorAll('[role="tablist"]')) {
+  const tabs = [...list.querySelectorAll('[role="tab"]')];
+  const select = (tab) => {
+    for (const other of tabs) {
+      const selected = other === tab;
+      other.setAttribute("aria-selected", String(selected));
+      other.tabIndex = selected ? 0 : -1;
+      document.getElementById(other.getAttribute("aria-controls")).hidden = !selected;
+    }
+  };
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+      if (!step) return;
+      const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length];
+      select(next);
+      next.focus();
+    });
   }
 }
 
-if (isPublicUrl(SITE_CONFIG.downloadUrl)) {
-  for (const element of document.querySelectorAll("[data-release-status]")) {
-    element.textContent = "Official macOS download available";
-  }
-  for (const element of document.querySelectorAll("[data-release-note]")) {
-    element.textContent = "Download the official macOS build from this site.";
-  }
-}
+const header = document.querySelector(".site-header");
+const onScroll = () => header?.classList.toggle("is-scrolled", window.scrollY > 8);
+window.addEventListener("scroll", onScroll, { passive: true });
+onScroll();
 
-for (const element of document.querySelectorAll("[data-checkout]")) {
-  if (isPublicUrl(SITE_CONFIG.checkoutUrl)) {
-    element.href = SITE_CONFIG.checkoutUrl;
-    element.textContent = "Buy the official build";
-    element.hidden = false;
-  }
-}
-
-for (const element of document.querySelectorAll("[data-price]")) {
-  if (SITE_CONFIG.priceLabel) {
-    element.textContent = SITE_CONFIG.priceLabel;
-    element.hidden = false;
-  }
-}
-
-for (const element of document.querySelectorAll("[data-trial]")) {
-  if (SITE_CONFIG.trialLabel) {
-    element.textContent = SITE_CONFIG.trialLabel;
-    element.hidden = false;
-  }
-}
-
-for (const element of document.querySelectorAll("[data-screenshot]")) {
-  if (isPublicUrl(SITE_CONFIG.screenshotUrl) || SITE_CONFIG.screenshotUrl.startsWith("assets/")) {
-    const image = new Image();
-    image.src = SITE_CONFIG.screenshotUrl;
-    image.alt = "DayBoard Agenda shown with fictional example data";
-    image.onload = () => {
-      element.replaceChildren(image);
-      element.classList.add("has-screenshot");
-    };
-  }
-}
+const revealed = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add("is-in");
+      revealed.unobserve(entry.target);
+    }
+  },
+  { rootMargin: "0px 0px -12% 0px" },
+);
+for (const element of document.querySelectorAll("[data-reveal], .merge")) revealed.observe(element);

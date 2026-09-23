@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { build } from "esbuild";
 import { Miniflare, convertV4MiniflareOptions, Response as RuntimeResponse } from "miniflare";
@@ -136,18 +136,18 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
   );
   try {
     const db = await mf.getD1Database("DB");
-    const migration = await readFile(
-      new URL("../migrations/0001_init.sql", import.meta.url),
-      "utf8",
-    );
-    // D1 exec treats newlines as statement boundaries; prepare complete migration statements.
-    await db.batch(
-      migration
-        .split(";")
-        .map((sql) => sql.trim())
-        .filter(Boolean)
-        .map((sql) => db.prepare(sql)),
-    );
+    const dir = new URL("../migrations/", import.meta.url);
+    for (const file of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
+      const migration = await readFile(new URL(file, dir), "utf8");
+      // D1 exec treats newlines as statement boundaries; prepare complete migration statements.
+      await db.batch(
+        migration
+          .split(";")
+          .map((sql) => sql.trim())
+          .filter(Boolean)
+          .map((sql) => db.prepare(sql)),
+      );
+    }
     const request = (path: string, method = "GET", cookie = "", body?: unknown) =>
       mf.dispatchFetch(origin + path, {
         method,

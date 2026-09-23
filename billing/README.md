@@ -19,6 +19,22 @@ Tests call a fake Stripe transport with the **real Stripe SDK webhook verifier**
 
 For a visual-only preview, run `node --import tsx scripts/preview-billing.mjs` from the repository root. Its page banner identifies a disposable UI fixture; it never contacts Stripe or opens account/license storage. The real payment and authorization behavior is exercised separately by the tests above.
 
+## Beta signups
+
+`POST /v1/beta-signup` stores email addresses from the website's beta forms in the `beta_signups` table (`migrations/0002_beta_signups.sql`). It works before any Stripe setup. It needs only the D1 binding, `SERVICE_ORIGIN`, `HASH_SECRET`, and `SITE_ORIGIN`: the website's exact HTTPS origin, the only origin allowed to call it (CORS). If any of these is missing, it answers `503 signup_unconfigured`.
+
+- The request body is `{"email": "...", "company": ""}` as JSON, 1 KB at most. Addresses are trimmed and lowercased.
+- New and already-listed addresses get the same `200 {"ok": true}`, so the form can't reveal who signed up. A filled `company` field (hidden from people) is treated as a bot: it gets the same answer and nothing is stored.
+- Invalid addresses get `400 invalid_email`. More than five attempts per minute from one network get `429 rate_limited`.
+- The service stores only the address and time, and sends no email.
+
+Export the list, or remove an address on request:
+
+```sh
+wrangler d1 execute <database> --remote --command "SELECT email, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups ORDER BY created_at"
+wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups WHERE email = 'person@example.com'"
+```
+
 ## Configuration required before launch
 
 Copy `wrangler.example.jsonc` to `wrangler.jsonc` in the intended deploy checkout and replace every placeholder. Do not use the example as a live configuration. These are public, server-side Worker variables:
@@ -31,6 +47,7 @@ Copy `wrangler.example.jsonc` to `wrangler.jsonc` in the intended deploy checkou
 | `PRICE_CURRENCY`   | Lowercase three-letter currency of that price                             |
 | `ENVIRONMENT`      | `test` or `live`; must match the Stripe secret and all Stripe objects     |
 | `ACTIVATION_LIMIT` | Merchant-chosen decimal device cap, 1–99                                  |
+| `SITE_ORIGIN`      | Exact HTTPS origin of the website allowed to post beta signups            |
 
 These are **server secrets**, never public Worker variables, build constants, repository files, or `.env` files:
 
@@ -49,7 +66,7 @@ The intended operator must also decide the price, support address/process, refun
 
 1. In the approved Stripe account, create exactly one active one-time Product/Price pair; record its product ID, price ID, currency, and test/live mode. Inspect the price and supported payment methods. Choose the activation cap and support process.
 2. In the approved Cloudflare account, create a D1 database and configure a dedicated HTTPS route. Replace the placeholders in the copied Wrangler config. Provide the four secrets through an approved secret manager and Wrangler's secret binding flow. Keep `ENCRYPTION_KEY` and `HASH_SECRET` independently backed up; rotating either without a migration loses claim or validation ability.
-3. Build, then apply `migrations/0001_init.sql` using `wrangler d1 migrations apply <configured database name> --remote`. Deploy with `wrangler deploy`. The Worker should be the sole writer to the D1 database; preserve schema and issued keys on rollback.
+3. Build, then apply the migrations in `migrations/` using `wrangler d1 migrations apply <configured database name> --remote`. Deploy with `wrangler deploy`. The Worker should be the sole writer to the D1 database; preserve schema and issued keys on rollback.
 4. Register a **snapshot** Stripe webhook at `https://<service-origin>/v1/stripe/webhook`. Subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, and `charge.dispute.created`. Set its signing secret on the Worker. Stripe API errors and database failures return non-2xx so Stripe can retry. Monitor failed deliveries.
 5. In Stripe **test mode**, make a real sandbox checkout; verify the receipt claim, repeat claim, desktop validation/activation/deactivation, duplicate webhook, refund, dispute, and persisted D1 readback. Exercise the actual deployed pages at desktop and mobile sizes. Only after those checks and approved tax/support policy should the live route and live product be configured.
 

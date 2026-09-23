@@ -54,7 +54,7 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 
 ## Website and source distribution
 
-The static site is in `website/`. Its configuration deliberately hides purchase/download actions until real destinations are verified. The app screenshot contains fictional demo data. Set the final source, download and checkout destinations only for the approved release; include the current privacy, support and refund information.
+The static site is in `website/`. During the beta it collects signups through the billing service's `POST /v1/beta-signup` endpoint and sends invites with the download link by email, so beta builds are never linked publicly. Its screenshots contain fictional demo data. Add public download and checkout destinations only for the approved release, with the current privacy, support and refund information.
 
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join the beta — DayBoard</title>
+    <meta
+      name="description"
+      content="Join the free DayBoard beta for Apple Silicon Macs: what testers get, what you need, and how to install a beta build."
+    />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Join the DayBoard beta" />
+    <meta
+      property="og:description"
+      content="Google Calendar, Google Tasks, Apple Reminders and Gmail in one calm Mac app. Free during the beta."
+    />
+    <meta property="og:image" content="assets/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/hanken-grotesk.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <script src="assets/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <div class="nav-links">
+          <a href="index.html#features">Features</a><a href="index.html#privacy">Privacy</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </div>
+        <a class="button" href="#join" aria-current="page">Join the beta</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <header class="page-head">
+        <div class="wrap">
+          <span class="pill rise"
+            ><span class="dots" aria-hidden="true"
+              ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
+              ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
+            ><span><strong>Free public beta</strong> · macOS 14 or later</span></span
+          >
+          <h1 class="rise" style="--i: 1">Join the DayBoard <em>beta.</em></h1>
+          <p class="rise" style="--i: 2">
+            Get early builds of DayBoard for your Mac, free for the whole beta. Tell us what works,
+            what doesn't, and what you want next.
+          </p>
+        </div>
+      </header>
+
+      <div class="wrap two-col">
+        <div class="prose">
+          <h2>What beta testers get</h2>
+          <ul>
+            <li><strong>Every feature, free</strong> for the whole beta.</li>
+            <li>
+              <strong>New builds as they're ready,</strong> with the download link sent by email.
+            </li>
+            <li>
+              <strong>A say in what's next.</strong> Report bugs and ideas on
+              <a href="https://github.com/miles-chu10/dayboard/issues">GitHub Issues</a>.
+            </li>
+          </ul>
+
+          <h2>What you need</h2>
+          <ul>
+            <li>A Mac with Apple silicon (M1 or later) running macOS 14 Sonoma or later.</li>
+            <li>A Google account for Google Calendar, Google Tasks and Gmail, if you use them.</li>
+            <li>Apple Reminders works through macOS, with your permission.</li>
+            <li>
+              For the optional AI features: Claude Code, the Codex app or CLI, or an API key from
+              your AI provider.
+            </li>
+          </ul>
+
+          <h2 id="install">Installing a beta build</h2>
+          <p>
+            Beta builds aren't notarized by Apple yet, so macOS asks you to confirm the first time
+            you open DayBoard. It takes a minute, and you only do it once per install.
+          </p>
+          <ol class="steps">
+            <li>
+              Open the <strong>.dmg</strong> from your invite email and drag DayBoard into your
+              <strong>Applications</strong> folder.
+            </li>
+            <li>
+              Open DayBoard. macOS says it can't verify the app and doesn't open it. Close that
+              message. Don't move DayBoard to the Trash.
+            </li>
+            <li>
+              Open <strong>System Settings → Privacy &amp; Security</strong>. Under
+              <strong>Security</strong>, click <strong>Open Anyway</strong> next to DayBoard.
+            </li>
+            <li>
+              Confirm with your password or Touch ID. DayBoard opens, and macOS won't ask again.
+            </li>
+          </ol>
+          <p>
+            Only install DayBoard from the link in your invite email or from this site. Notarized
+            builds, which open without these steps, are on the way.
+          </p>
+
+          <h2>Your email</h2>
+          <p>
+            We use your email only to send beta invites and major beta news. It's stored by
+            DayBoard's own signup service, never sold or shared, and you can ask to be removed at
+            any time by replying to any beta email.
+          </p>
+        </div>
+
+        <aside class="aside-card" aria-labelledby="join-title">
+          <span class="eyebrow">Save your spot</span>
+          <h2 id="join-title">Get your invite.</h2>
+          <p>One email when your invite is ready. No spam.</p>
+          <form class="signup" id="join" data-signup novalidate>
+            <div class="signup-row">
+              <label class="visually-hidden" for="email-beta">Email address</label>
+              <input
+                id="email-beta"
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+                maxlength="254"
+              />
+              <div class="trap" aria-hidden="true">
+                <label for="company-beta">Leave this empty</label
+                ><input id="company-beta" name="company" tabindex="-1" autocomplete="off" />
+              </div>
+              <button class="button" type="submit">Join the beta</button>
+            </div>
+            <p class="signup-note">Free during the beta.</p>
+            <p class="signup-status" role="status" aria-live="polite"></p>
+            <noscript><p class="signup-note">Turn on JavaScript to join the beta.</p></noscript>
+          </form>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-grid">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <nav class="footer-links" aria-label="Footer">
+          <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="license.html">License</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </nav>
+        <p class="fine">
+          © 2026 DayBoard. Source licensed under GPL-3.0. Google Calendar, Google Tasks and Gmail
+          are trademarks of Google LLC; Apple Reminders and macOS are trademarks of Apple Inc.
+          DayBoard isn't affiliated with Google or Apple.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

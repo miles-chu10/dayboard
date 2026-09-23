@@ -3,108 +3,152 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101315" />
-    <meta name="description" content="DayBoard support information and common questions." />
     <title>Support — DayBoard</title>
-    <link rel="icon" type="image/jpeg" href="assets/dayboard-icon.jpg" />
+    <meta
+      name="description"
+      content="Answers about the DayBoard beta, installing, sources, AI and privacy, and how to report a problem."
+    />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/hanken-grotesk.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <script src="assets/site.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
-      <nav class="nav wrap" aria-label="Main navigation">
+      <nav class="nav wrap" aria-label="Main">
         <a class="brand" href="index.html"
-          ><img src="assets/dayboard-icon.jpg" alt="" width="38" height="38" />DayBoard</a
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html">Overview</a><a href="download.html">Download</a
+          <a href="index.html#features">Features</a><a href="index.html#privacy">Privacy</a
           ><a href="docs.html">Guide</a><a href="support.html" aria-current="page">Support</a
-          ><a class="nav-source" href="https://github.com/miles-chu10/dayboard">Source ↗</a>
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </div>
+        <a class="button" href="beta.html">Join the beta</a>
       </nav>
     </header>
+
     <main id="main">
-      <div class="page-head">
+      <header class="page-head">
         <div class="wrap">
-          <span class="eyebrow">Help and answers</span>
-          <h1>Support</h1>
-          <p>Common questions about the app and its upcoming official Mac build.</p>
+          <span class="eyebrow">Support</span>
+          <h1>How can we <em>help?</em></h1>
+          <p>
+            Answers to common questions, and the fastest way to report a problem during the beta.
+          </p>
         </div>
-      </div>
-      <div class="content wrap content-narrow">
-        <h2>Frequently asked questions</h2>
-        <details>
-          <summary>Can I download DayBoard now?</summary>
+      </header>
+
+      <div class="wrap two-col">
+        <div class="faq-list">
+          <details open>
+            <summary>How do I get the beta?</summary>
+            <p>
+              <a href="beta.html">Join the beta list</a>. When your invite is ready, you'll get an
+              email with a link to download the DayBoard installer.
+            </p>
+          </details>
+          <details>
+            <summary>macOS won't open DayBoard. What do I do?</summary>
+            <p>
+              Beta builds aren't notarized yet, so macOS asks you to confirm the first launch. Open
+              System Settings → Privacy &amp; Security and click <b>Open Anyway</b> next to
+              DayBoard. The <a href="beta.html#install">install steps</a> walk through it.
+            </p>
+          </details>
+          <details>
+            <summary>Which Macs are supported?</summary>
+            <p>
+              Macs with Apple silicon (M1 or later) running macOS 14 Sonoma or later. Intel Macs
+              aren't supported yet.
+            </p>
+          </details>
+          <details>
+            <summary>Do I need all four services?</summary>
+            <p>
+              No. Turn on only the sources you use in Settings → Sources. Google services need a
+              Google sign-in, and Apple Reminders asks for macOS permission.
+            </p>
+          </details>
+          <details>
+            <summary>Does DayBoard require an AI account?</summary>
+            <p>
+              No. AI is optional and off until you choose a provider. If you turn it on, only the
+              context each request needs is sent to that provider.
+            </p>
+          </details>
+          <details>
+            <summary>Is my data sent to DayBoard?</summary>
+            <p>
+              No. DayBoard talks directly to Google and to Apple Reminders on your Mac. There's no
+              DayBoard server that sees your calendar, tasks, reminders or mail. See
+              <a href="docs.html#data">where your data goes</a>.
+            </p>
+          </details>
+          <details>
+            <summary>Will DayBoard stay free?</summary>
+            <p>
+              The beta is free. After launch, the signed official build will be a paid download that
+              funds development. The source stays open under GPL-3.0, so you can always build it
+              yourself.
+            </p>
+          </details>
+          <details>
+            <summary>How do I leave the beta list?</summary>
+            <p>Reply to any beta email and ask to be removed. We'll delete your address.</p>
+          </details>
+        </div>
+
+        <aside class="aside-card" aria-labelledby="report-title">
+          <span class="eyebrow">Report a problem</span>
+          <h2 id="report-title">Tell us what broke.</h2>
           <p>
-            The public official build is still being prepared.
-            <a class="inline-link" href="download.html">The download page</a> will carry the
-            verified installer link when it is ready.
+            Open an issue on GitHub with what you expected, what happened, and your macOS version.
+            Please leave out personal details, account tokens and private mail.
           </p>
-        </details>
-        <details>
-          <summary>Do I need all four connected services?</summary>
-          <p>
-            No. The intended workflow lets you enable the sources you use. Google sources require
-            Google sign-in, and Apple Reminders requires macOS permission.
-          </p>
-        </details>
-        <details>
-          <summary>Does DayBoard require an AI account?</summary>
-          <p>
-            No. AI is optional. If you enable it, you choose a supported provider, and relevant
-            context is sent to that provider for each request.
-          </p>
-        </details>
-        <details>
-          <summary>Is the source really open?</summary>
-          <p>
-            The planned public source license is GPL-3.0-only. See the
-            <a class="inline-link" href="license.html">license explanation</a> and the
-            <a class="inline-link" href="https://github.com/miles-chu10/dayboard"
-              >source repository</a
-            >.
-          </p>
-        </details>
-        <details>
-          <summary>Why charge for an official build?</summary>
-          <p>
-            Preparing and maintaining a convenient Mac download takes work. The source license lets
-            you build from the GPL code yourself.
-          </p>
-        </details>
-        <details>
-          <summary>How will I activate a purchase?</summary>
-          <p>
-            The planned checkout opens Stripe's payment page. After payment, return to the DayBoard
-            receipt page to copy or download your license key. Paste it into Settings → License in
-            the Mac app. Keep a private copy of the key for reinstalling or moving to another Mac.
-          </p>
-        </details>
-        <h2>Report a problem</h2>
-        <p>
-          After the public source repository opens, use
-          <a class="inline-link" href="https://github.com/miles-chu10/dayboard/issues"
-            >GitHub Issues</a
+          <a class="button" href="https://github.com/miles-chu10/dayboard/issues/new"
+            >Open a GitHub issue</a
           >
-          for reproducible bugs and documentation problems. Please remove personal data, account
-          tokens, and private messages before posting.
-        </p>
-        <p>
-          For now, the <a class="inline-link" href="docs.html">guide</a> explains the intended
-          source and data behavior. A dedicated purchase support channel will be listed when
-          checkout opens.
-        </p>
+          <a class="button button-quiet" href="docs.html">Read the guide</a>
+        </aside>
       </div>
     </main>
+
     <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <p>DayBoard for macOS. Source licensed under GPL-3.0-only.</p>
-        <div class="footer-links">
-          <a href="index.html">Overview</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="license.html">License</a
-          ><a href="support.html">Support</a
-          ><a href="https://github.com/miles-chu10/dayboard">GitHub ↗</a>
-        </div>
+      <div class="wrap footer-grid">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <nav class="footer-links" aria-label="Footer">
+          <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="license.html">License</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </nav>
+        <p class="fine">
+          © 2026 DayBoard. Source licensed under GPL-3.0. Google Calendar, Google Tasks and Gmail
+          are trademarks of Google LLC; Apple Reminders and macOS are trademarks of Apple Inc.
+          DayBoard isn't affiliated with Google or Apple.
+        </p>
       </div>
     </footer>
   </body>
