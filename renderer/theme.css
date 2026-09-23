@@ -105,6 +105,14 @@
   /* Accent (runtime-overridable; see appearance.ts). */
   --color-accent: var(--accent);
   --color-accent-contrast: var(--accent-contrast);
+  /* Accent behind text (buttons, checked boxes, today) is darkened just enough for its text; accent
+     as text and as a focus ring or stroke uses a 4.5:1 ink. See renderer/ui/theming.ts. */
+  --background-color-accent: var(--accent-fill);
+  --border-color-accent: var(--accent-fill);
+  --text-color-accent: var(--accent-ink);
+  --outline-color-accent: var(--accent-ink);
+  --ring-color-accent: var(--accent-ink);
+  --stroke-accent: var(--accent-ink);
   --color-accent-5: color-mix(in srgb, var(--accent) 5%, transparent);
   --color-accent-10: color-mix(in srgb, var(--accent) 10%, transparent);
 
@@ -116,6 +124,22 @@
   --color-support-blue: var(--db-support-blue);
   --color-support-purple: var(--db-support-purple);
   --color-support-magenta: var(--db-support-magenta);
+  /* Support colors as text and strokes use a 4.5:1 ink; dots, bars and fills keep the vivid hue. */
+  --text-color-support-red: var(--db-support-red-ink);
+  --text-color-support-orange: var(--db-support-orange-ink);
+  --text-color-support-yellow: var(--db-support-yellow-ink);
+  --text-color-support-green: var(--db-support-green-ink);
+  --text-color-support-blue: var(--db-support-blue-ink);
+  --text-color-support-purple: var(--db-support-purple-ink);
+  --text-color-support-magenta: var(--db-support-magenta-ink);
+  --stroke-support-red: var(--db-support-red-ink);
+  --stroke-support-orange: var(--db-support-orange-ink);
+  --stroke-support-yellow: var(--db-support-yellow-ink);
+  --stroke-support-green: var(--db-support-green-ink);
+  --stroke-support-blue: var(--db-support-blue-ink);
+  --stroke-support-purple: var(--db-support-purple-ink);
+  --stroke-support-magenta: var(--db-support-magenta-ink);
+  --color-destructive: var(--db-destructive);
   --color-support-red-10: color-mix(in srgb, var(--db-support-red) 12%, transparent);
   --color-support-yellow-10: color-mix(in srgb, var(--db-support-yellow) 12%, transparent);
   --color-support-orange-10: color-mix(in srgb, var(--db-support-orange) 12%, transparent);
@@ -130,6 +154,8 @@
   --accent: #007aff;
   --theme-accent: #007aff;
   --accent-contrast: #ffffff;
+  --accent-fill: #0072ee;
+  --accent-ink: #0060c9;
 
   --db-background: #ffffff;
   --db-background-secondary: #f5f5f7;
@@ -139,22 +165,30 @@
   --db-list-hover: rgb(0 0 0 / 5%);
   --db-list-selection: rgb(0 0 0 / 8%);
   --db-separator: rgb(0 0 0 / 10%);
-  --db-field: rgb(0 0 0 / 12%);
+  --db-field: rgb(0 0 0 / 42%);
 
   --db-primary: rgb(0 0 0 / 92%);
   --db-secondary: rgb(0 0 0 / 62%);
-  --db-tertiary: rgb(0 0 0 / 42%);
+  --db-tertiary: rgb(0 0 0 / 56%);
   --db-quaternary: rgb(0 0 0 / 26%);
   --db-disabled: rgb(0 0 0 / 32%);
-  --db-link: #0068da;
+  --db-link: #0060ca;
 
   --db-support-red: #ff3b30;
-  --db-support-orange: #ff9500;
-  --db-support-yellow: #d9a400;
+  --db-support-orange: #d07900;
+  --db-support-yellow: #b38700;
   --db-support-green: #22a23f;
   --db-support-blue: #007aff;
   --db-support-purple: #af52de;
   --db-support-magenta: #ff2d55;
+  --db-support-red-ink: #bd2c24;
+  --db-support-orange-ink: #935500;
+  --db-support-yellow-ink: #7e5f00;
+  --db-support-green-ink: #18732d;
+  --db-support-blue-ink: #0060c9;
+  --db-support-purple-ink: #8d42b3;
+  --db-support-magenta-ink: #c12240;
+  --db-destructive: #df342a;
 }
 
 :root.dark {
@@ -162,6 +196,8 @@
   --accent: #0a84ff;
   --theme-accent: #0a84ff;
   --accent-contrast: #ffffff;
+  --accent-fill: #0975e3;
+  --accent-ink: #75baff;
 
   --db-background: #1e1e1e;
   --db-background-secondary: #262626;
@@ -171,14 +207,14 @@
   --db-list-hover: rgb(255 255 255 / 7%);
   --db-list-selection: rgb(255 255 255 / 13%);
   --db-separator: rgb(255 255 255 / 12%);
-  --db-field: rgb(255 255 255 / 16%);
+  --db-field: rgb(255 255 255 / 35%);
 
   --db-primary: rgb(255 255 255 / 92%);
   --db-secondary: rgb(255 255 255 / 64%);
-  --db-tertiary: rgb(255 255 255 / 44%);
+  --db-tertiary: rgb(255 255 255 / 60%);
   --db-quaternary: rgb(255 255 255 / 28%);
   --db-disabled: rgb(255 255 255 / 32%);
-  --db-link: #409cff;
+  --db-link: #79baff;
 
   --db-support-red: #ff453a;
   --db-support-orange: #ff9f0a;
@@ -187,6 +223,14 @@
   --db-support-blue: #0a84ff;
   --db-support-purple: #bf5af2;
   --db-support-magenta: #ff375f;
+  --db-support-red-ink: #ff9993;
+  --db-support-orange-ink: #ff9f0a;
+  --db-support-yellow-ink: #ffd60a;
+  --db-support-green-ink: #30d158;
+  --db-support-blue-ink: #75baff;
+  --db-support-purple-ink: #da9ef7;
+  --db-support-magenta-ink: #ff96ab;
+  --db-destructive: #da3b32;
 }
 
 /* Pre-hydration fallback so the first paint matches the OS before renderer/hooks/use-theme.ts
@@ -197,6 +241,8 @@
     --accent: #0a84ff;
     --theme-accent: #0a84ff;
     --accent-contrast: #ffffff;
+    --accent-fill: #0975e3;
+    --accent-ink: #75baff;
 
     --db-background: #1e1e1e;
     --db-background-secondary: #262626;
@@ -206,14 +252,14 @@
     --db-list-hover: rgb(255 255 255 / 7%);
     --db-list-selection: rgb(255 255 255 / 13%);
     --db-separator: rgb(255 255 255 / 12%);
-    --db-field: rgb(255 255 255 / 16%);
+    --db-field: rgb(255 255 255 / 35%);
 
     --db-primary: rgb(255 255 255 / 92%);
     --db-secondary: rgb(255 255 255 / 64%);
-    --db-tertiary: rgb(255 255 255 / 44%);
+    --db-tertiary: rgb(255 255 255 / 60%);
     --db-quaternary: rgb(255 255 255 / 28%);
     --db-disabled: rgb(255 255 255 / 32%);
-    --db-link: #409cff;
+    --db-link: #79baff;
 
     --db-support-red: #ff453a;
     --db-support-orange: #ff9f0a;
@@ -222,6 +268,14 @@
     --db-support-blue: #0a84ff;
     --db-support-purple: #bf5af2;
     --db-support-magenta: #ff375f;
+    --db-support-red-ink: #ff9993;
+    --db-support-orange-ink: #ff9f0a;
+    --db-support-yellow-ink: #ffd60a;
+    --db-support-green-ink: #30d158;
+    --db-support-blue-ink: #75baff;
+    --db-support-purple-ink: #da9ef7;
+    --db-support-magenta-ink: #ff96ab;
+    --db-destructive: #da3b32;
   }
 }
 

@@ -1,5 +1,5 @@
 export { cn } from "./utils";
-export { computeAccentContrastColor } from "./theming";
+export { accentColors, type Scheme } from "./theming";
 
 export { Text, type TextProps, type TextVariant, type TextColor } from "./text";
 export { Badge, badgeVariants, type BadgeProps } from "./badge";

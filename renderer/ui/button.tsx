@@ -15,7 +15,7 @@ export const buttonVariants = cva(
         filled: "bg-control text-primary hover:bg-control/80 active:bg-control",
         muted: "bg-control-subtle text-primary hover:bg-control",
         accent: "bg-accent text-accent-contrast hover:opacity-90 active:opacity-80",
-        destructive: "bg-support-red text-white hover:opacity-90 active:opacity-80",
+        destructive: "bg-destructive text-white hover:opacity-90 active:opacity-80",
         glass: "bg-well/70 text-primary backdrop-blur hover:bg-control",
         glassAccent: "bg-accent/90 text-accent-contrast backdrop-blur hover:bg-accent",
         transparent: "bg-transparent text-primary hover:bg-control-subtle",
