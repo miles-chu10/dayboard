@@ -25,9 +25,9 @@ Run from the repo root. The shell may export `NODE_ENV=production`, which makes 
 - `npm run typecheck` — `tsc` over `tsconfig.node.json` (main, preload, shared, tests) and `tsconfig.web.json` (renderer).
 - `npm run lint` / `npm run format` (oxfmt, width 100) / `npm run format:check`.
 - `npm test` — unit tests. `npm run test:e2e` — builds, then Playwright Electron E2E.
-- `npm run package:preview` — local unsigned arm64 preview DMG and update ZIP; no publishing.
+- `npm run package:preview` — local ad-hoc-signed (not notarized) arm64 preview DMG and update ZIP; no publishing.
 - `npm run test:billing` — typecheck and test the separate license backend after installing its dependencies.
-- `npm run package:test` — credential-free unsigned test app.
+- `npm run package:test` — credential-free ad-hoc-signed test app.
 - `npm run dist` — unsigned arm64 release candidate in `release/`, requiring complete build configuration; publishing remains disabled. See `docs/RELEASE.md` for signing and external gates.
 - `postinstall` runs `electron-builder install-app-deps` to rebuild node-pty for Electron.
 

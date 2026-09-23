@@ -8,7 +8,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
 - Stripe now replaces Lemon Squeezy by explicit user choice. The separate `billing/` Worker handles hosted Checkout, per-order authenticated key delivery, idempotent signed-webhook fulfillment, refund/dispute revocation and device limits. The app binds keys to issuer/product/environment, preserves old encrypted records and compensates only newly created activation slots. The 14-day trial and 30-day offline grace remain. Missing commercial configuration produces preview mode; strict release builds require live configuration.
 - The website is prepared in `website/`, with a real fictional-data screenshot. Purchase/download URLs remain unset until verified destinations exist.
-- Version: `1.3.0-beta.6`; packaged target: Apple Silicon, macOS 14+.
+- Version: `1.3.0-beta.7`; packaged target: Apple Silicon, macOS 14+.
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 
 ## Verification observed
@@ -33,7 +33,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.
 2. Live Gmail/AI-provider acceptance and first-time Reminders consent on a clean Mac remain unverified. Google Tasks, Calendar and existing Reminders access are verified for the selected account; this does not prove public OAuth eligibility for every account.
 3. Approved Developer ID signing, notarization and a signed update installation on a test Mac. No Developer ID Application identity was available at the last inventory.
-4. Manual window-drag acceptance, source migration review and public download/site publication. The preview is unsigned and has no merchant configuration.
+4. Manual window-drag acceptance, source migration review and public download/site publication. The preview is ad-hoc signed, not Developer ID signed or notarized, and has no merchant configuration.
 
 The Glaze source repository and this standalone repository are separate histories and do not synchronize automatically. Preserve the public repository's history when preparing the standalone migration; do not force-push over it.
 

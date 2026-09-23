@@ -4,10 +4,12 @@
 
 - `npm run build`: compile the native helper and app. Missing Google configuration produces a clearly unconfigured app.
 - `npm run test:e2e`: builds with `DAYBOARD_TEST=1`; OAuth/merchant constants are blank and tests use temporary profiles. Real source integrations are disabled in the empty-profile test.
-- `npm run package:test`: create an unsigned test `.app` with no OAuth/merchant configuration.
-- `npm run package:preview`: create an unsigned preview DMG and ZIP, using available local build configuration. No publishing occurs.
+- `npm run package:test`: create an ad-hoc-signed test `.app` with no OAuth/merchant configuration.
+- `npm run package:preview`: create an ad-hoc-signed preview DMG and ZIP, using available local build configuration. No publishing occurs.
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
+
+Ad-hoc signing seals the whole bundle without an Apple identity. Without it, macOS reports a downloaded copy as damaged. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. These packages are not notarized, so the first launch on another Mac needs **Open Anyway** in System Settings → Privacy & Security. Both scripts fail if `codesign --verify --deep --strict` rejects the app.
 
 The current package target is Apple Silicon, macOS 14+. Intel compatibility is not claimed.
 
