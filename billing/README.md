@@ -21,23 +21,25 @@ For a visual-only preview, run `node --import tsx scripts/preview-billing.mjs` f
 
 ## Beta signups
 
-`POST /v1/beta-signup` stores email addresses from the website's beta forms in the `beta_signups` table (`migrations/0002_beta_signups.sql`). It works before any Stripe setup. It needs only the D1 binding, `SERVICE_ORIGIN`, `HASH_SECRET`, and `SITE_ORIGIN`: the website's exact HTTPS origin. Browsers can call the endpoint only from that origin (CORS). Scripts can send any `Origin` header, so the check doesn't stop them; the rate limit and hidden field only slow automated signups, and nothing confirms that an address belongs to the person who entered it. If any of these is missing, it answers `503 signup_unconfigured`.
+`POST /v1/beta-signup` stores email addresses from the website's beta forms in the `beta_signups` table (`migrations/0002_beta_signups.sql`). It works before any Stripe setup. It needs only the D1 binding, `SERVICE_ORIGIN`, `HASH_SECRET`, and `SITE_ORIGIN`: the website's exact HTTPS origin. Browsers can call the endpoint only from that origin (CORS). Scripts can send any `Origin` header, so the check doesn't stop them; the rate limit and hidden field only slow automated signups, and nothing confirms that an address belongs to the person who entered it. If the binding, `HASH_SECRET` or `SITE_ORIGIN` is missing, it answers `503 signup_unconfigured`; a request addressed to any origin other than `SERVICE_ORIGIN` gets `403 origin_mismatch`.
 
 - The request body is `{"email": "...", "company": ""}` as JSON, 1 KB at most. Addresses are trimmed and lowercased.
 - New and already-listed addresses get the same `200 {"ok": true}`, so the form can't reveal who signed up. A filled `company` field (hidden from people) is treated as a bot: it gets the same answer and nothing is stored.
 - Invalid addresses get `400 invalid_email`. More than five attempts per minute from one network get `429 rate_limited`.
 - The service stores only the address and time, and sends no email.
 
-Export the list, or remove an address on request:
+For a signup-only deployment, start from `wrangler.signup.example.jsonc` (copy it to the git-ignored `wrangler.jsonc`) and follow `docs/launch/website-deploy.md`.
+
+From `billing/`, export the list or remove an address on request:
 
 ```sh
-wrangler d1 execute <database> --remote --command "SELECT email, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups ORDER BY created_at"
-wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups WHERE email = 'person@example.com'"
+npx wrangler d1 execute <database> --remote --command "SELECT email, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups ORDER BY created_at"
+npx wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups WHERE email = 'person@example.com'"
 ```
 
 ## Configuration required before launch
 
-Copy `wrangler.example.jsonc` to `wrangler.jsonc` in the intended deploy checkout and replace every placeholder. Do not use the example as a live configuration. These are public, server-side Worker variables:
+Copy `wrangler.example.jsonc` to `wrangler.jsonc` (git-ignored) in the intended deploy checkout and replace every placeholder. Do not use the example as a live configuration. These are public, server-side Worker variables:
 
 | Variable           | Meaning                                                                   |
 | ------------------ | ------------------------------------------------------------------------- |

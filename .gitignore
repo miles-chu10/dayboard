@@ -19,3 +19,4 @@ resources/bin/
 billing/.wrangler/
 billing/.dev.vars*
 billing/*.sqlite*
+billing/wrangler.jsonc
