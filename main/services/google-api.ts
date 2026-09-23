@@ -48,8 +48,9 @@ async function googleFetch<T>(
   attempt = 0,
 ): Promise<T> {
   const token = await getGoogleAccessToken();
+  const method = init.method ?? "GET";
   const response = await fetch(url, {
-    method: init.method ?? "GET",
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -57,14 +58,20 @@ async function googleFetch<T>(
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
 
-  if ((response.status === 429 || response.status === 503) && attempt < 3) {
+  if (
+    method.toUpperCase() === "GET" &&
+    (response.status === 429 || response.status === 503) &&
+    attempt < 3
+  ) {
     const retryAfter = Number(response.headers.get("retry-after"));
     const delay =
       Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** attempt;
+    await response.body?.cancel().catch(() => {});
     await sleep(delay + Math.random() * 250);
     return googleFetch<T>(url, init, attempt + 1);
   }
   if (response.status === 401) {
+    await response.body?.cancel().catch(() => {});
     throw new GoogleAuthError("not-connected", "Google session expired. Reconnect your account.");
   }
   if (!response.ok) {
