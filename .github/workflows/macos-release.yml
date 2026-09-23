@@ -72,6 +72,16 @@ jobs:
       - name: Remove temporary signing inputs
         if: always()
         run: node scripts/macos-release.mjs cleanup
+      # electron-builder deletes its temporary signing keychain only when the build finishes normally.
+      - name: Remove temporary signing keychains
+        if: always()
+        run: |
+          security list-keychains -d user | tr -d '"' | while read -r keychain; do
+            case "$keychain" in
+              */login.keychain-db | "") ;;
+              *) security delete-keychain "$keychain" || true ;;
+            esac
+          done
       - name: Verify signed app, DMG and ZIP
         run: node scripts/macos-release.mjs verify
       - name: Smoke-test the signed package with fictional data
