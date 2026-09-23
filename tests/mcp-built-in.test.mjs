@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
 import { request } from "node:http";
 import path from "node:path";
-import { URL } from "node:url";
 import test from "node:test";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { build } from "esbuild";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 let bundleSequence = 0;
 
 const backendStub = `

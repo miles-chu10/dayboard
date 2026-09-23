@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
 import test from "node:test";
-import { URL } from "node:url";
 
 import { build } from "esbuild";
 
@@ -21,7 +21,7 @@ export const ipcMain = { handle: (channel, handler) => globalThis.__startupHandl
 `;
 
 const bundle = await build({
-  entryPoints: [new URL("../main/handlers/startup.ts", import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL("../main/handlers/startup.ts", import.meta.url))],
   bundle: true,
   format: "esm",
   platform: "node",

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
-import { URL } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 
 async function loadModule(file) {
   const result = await build({
-    entryPoints: [new URL(file, import.meta.url).pathname],
+    entryPoints: [fileURLToPath(new URL(file, import.meta.url))],
     bundle: true, platform: "node", format: "esm", write: false, logLevel: "silent",
     plugins: [{ name: "offline-cli", setup(api) {
       api.onResolve({ filter: /(?:shell-env|cli-binaries)\.js$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
+      api.onResolve({ filter: /^@glaze\/core\/backend$/ }, (args) => ({ path: args.path, namespace: "glaze-backend" }));
       api.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'export const getToolEnv = async () => ({}); export const resolveCli = async () => null;', loader: "js" }));
+      api.onLoad({ filter: /.*/, namespace: "glaze-backend" }, () => ({ contents: 'export const app = { getPath: () => "/nonexistent" }; export const safeStorage = {};', loader: "js" }));
     } }],
   });
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);

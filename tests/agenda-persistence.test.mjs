@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
-import { URL } from "node:url";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 
 import { build } from "esbuild";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 let sequence = 0;
 
 const backendStub = `

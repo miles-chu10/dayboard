@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
-import { URL } from "node:url";
 import { setTimeout } from "node:timers";
 import path from "node:path";
 import test from "node:test";
 import { build } from "esbuild";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 let sequence = 0;
 const stubs = {
   react: `export const useRef = value => ({ current: value }); export const useEffect = () => {};`,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
-import { URL } from "node:url";
 import path from "node:path";
 import test from "node:test";
 import { build } from "esbuild";
@@ -17,7 +17,7 @@ async function fixture(invoke) {
     "./ipc": "export const invoke = (channel, input) => globalThis.__historyClient.invoke(channel, input); export const errorMessage = error => error.message;",
   };
   const result = await build({
-    entryPoints: [path.join(new URL("..", import.meta.url).pathname, "renderer/lib/assistant-history.ts")],
+    entryPoints: [path.join(fileURLToPath(new URL("..", import.meta.url)), "renderer/lib/assistant-history.ts")],
     bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent",
     plugins: [{ name: "history-client", setup(api) {
       api.onResolve({ filter: /.*/ }, args => stubs[args.path] ? {path: args.path, namespace: "fixture"} : undefined);

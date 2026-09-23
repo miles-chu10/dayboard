@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
-import { URL } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 
 // Exercise the real adapter while replacing authentication and every HTTP request.
 const output = await build({
-  entryPoints: [new URL("../main/services/google-api.ts", import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL("../main/services/google-api.ts", import.meta.url))],
   bundle:true, platform:"node",format:"esm",write:false,logLevel:"silent",
   plugins:[{name:"fake-auth",setup(api){
     api.onResolve({filter:/google-auth\.js$/},() => ({path:"fake-auth",namespace:"fixture"}));

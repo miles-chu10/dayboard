@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { URL } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
 import test from "node:test";
 import { build } from "esbuild";
 
 const bundled = await build({
-  entryPoints: [new URL("../main/services/quit-guard.ts", import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL("../main/services/quit-guard.ts", import.meta.url))],
   bundle: true,
   platform: "node",
   format: "esm",

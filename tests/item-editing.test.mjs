@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
+import { fileURLToPath, URL } from "node:url";
 import { Buffer } from "node:buffer";
 import path from "node:path";
 import test from "node:test";
-import { URL } from "node:url";
 
 import { build } from "esbuild";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 let sequence = 0;
 
 function fixture() {
