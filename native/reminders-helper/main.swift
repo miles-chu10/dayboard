@@ -241,11 +241,12 @@ func opGetCalendars() -> JSONObject {
 func opGetReminders(_ params: JSONObject) throws -> JSONObject {
   let completed = boolVal(params, "completed")
   let limit = int(params, "limit") ?? 200
-  var all = try fetchReminders(calendars: nil, completed: completed)
-  all.sort { ($0.dueDateComponents?.date ?? Date.distantFuture) < ($1.dueDateComponents?.date ?? Date.distantFuture) }
-  let truncated = all.count > limit
-  let page = Array(all.prefix(limit))
-  return ["result": ["reminders": page.map(encodeReminder), "truncated": truncated]]
+  let all = try fetchReminders(calendars: nil, completed: completed)
+  let page = pageReminders(
+    all, completed: completed == true, limit: limit,
+    dueDate: { $0.dueDateComponents?.date }, completionDate: { $0.completionDate }
+  )
+  return ["result": ["reminders": page.items.map(encodeReminder), "truncated": page.truncated]]
 }
 
 func opGetReminder(_ params: JSONObject) throws -> JSONObject {

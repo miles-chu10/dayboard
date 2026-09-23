@@ -71,6 +71,50 @@ struct RemindersInputFixture {
     let fallback = try choose(nil)
     precondition(fallback.id == "valid")
     precondition(defaultLookups == 1)
+
+    struct ReminderDateFixture {
+      let id: String
+      let dueDate: Date?
+      let completionDate: Date?
+    }
+    let oldDue = Date(timeIntervalSince1970: 1_000)
+    let recentDue = Date(timeIntervalSince1970: 2_000)
+    let oldCompletion = Date(timeIntervalSince1970: 3_000)
+    let recentCompletion = Date(timeIntervalSince1970: 4_000)
+    let newestCompletion = Date(timeIntervalSince1970: 5_000)
+    let completed = (0..<401).map {
+      ReminderDateFixture(id: "old-\($0)", dueDate: oldDue, completionDate: oldCompletion)
+    } + [
+      ReminderDateFixture(id: "recent", dueDate: recentDue, completionDate: recentCompletion),
+      ReminderDateFixture(id: "newest", dueDate: recentDue, completionDate: newestCompletion),
+      ReminderDateFixture(id: "missing-date", dueDate: oldDue, completionDate: nil),
+    ]
+    let completedPage = pageReminders(
+      completed, completed: true, limit: 400,
+      dueDate: { $0.dueDate }, completionDate: { $0.completionDate }
+    )
+    precondition(completedPage.truncated)
+    precondition(completedPage.items.count == 400)
+    precondition(completedPage.items.prefix(2).map(\.id) == ["newest", "recent"])
+    precondition(!completedPage.items.contains { $0.id == "missing-date" })
+    let fullCompletedPage = pageReminders(
+      completed, completed: true, limit: completed.count,
+      dueDate: { $0.dueDate }, completionDate: { $0.completionDate }
+    )
+    precondition(!fullCompletedPage.truncated)
+    precondition(fullCompletedPage.items.last?.id == "missing-date")
+
+    let incomplete = [
+      ReminderDateFixture(id: "undated", dueDate: nil, completionDate: newestCompletion),
+      ReminderDateFixture(id: "later", dueDate: recentDue, completionDate: oldCompletion),
+      ReminderDateFixture(id: "earlier", dueDate: oldDue, completionDate: nil),
+    ]
+    let incompletePage = pageReminders(
+      incomplete, completed: false, limit: 3,
+      dueDate: { $0.dueDate }, completionDate: { $0.completionDate }
+    )
+    precondition(!incompletePage.truncated)
+    precondition(incompletePage.items.map(\.id) == ["earlier", "later", "undated"])
     print("native Reminders input fixture passed")
   }
 }

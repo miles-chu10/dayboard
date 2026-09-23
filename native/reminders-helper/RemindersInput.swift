@@ -117,3 +117,18 @@ func selectCalendar<T>(
   }
   return calendar
 }
+
+func pageReminders<T>(
+  _ reminders: [T], completed: Bool, limit: Int,
+  dueDate: (T) -> Date?, completionDate: (T) -> Date?
+) -> (items: [T], truncated: Bool) {
+  let sorted = reminders.sorted { left, right in
+    if completed {
+      let leftCompletion = completionDate(left) ?? .distantPast
+      let rightCompletion = completionDate(right) ?? .distantPast
+      if leftCompletion != rightCompletion { return leftCompletion > rightCompletion }
+    }
+    return (dueDate(left) ?? .distantFuture) < (dueDate(right) ?? .distantFuture)
+  }
+  return (Array(sorted.prefix(limit)), reminders.count > limit)
+}

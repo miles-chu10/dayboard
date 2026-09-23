@@ -115,9 +115,12 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const PERMISSION_TIMEOUT_MS = 5 * 60_000;
 
 interface Pending {
+  id: string;
+  op: string;
+  params: Record<string, unknown>;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 function helperPath(): string {
@@ -127,82 +130,114 @@ function helperPath(): string {
 
 class RemindersProcess {
   private child: ChildProcessWithoutNullStreams | null = null;
-  private readonly pending = new Map<string, Pending>();
-  private readonly buffer = new LineBuffer();
+  private active: Pending | null = null;
+  private readonly queued: Pending[] = [];
 
   private ensureStarted(): ChildProcessWithoutNullStreams {
-    if (this.child && !this.child.killed) return this.child;
+    if (this.child) return this.child;
 
     const child = spawn(helperPath(), [], { stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
+    const buffer = new LineBuffer();
 
     child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => this.handleData(chunk));
+    child.stdout.on("data", (chunk: string) => {
+      if (this.child !== child) return;
+      for (const line of buffer.push(chunk)) this.handleLine(child, line);
+    });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", () => {
+      if (this.child !== child) return;
       // The helper reports failures per-request over stdout; stderr is unstructured diagnostics.
     });
-    child.on("error", (error) => this.rejectAll(error));
+    child.on("error", (error) => this.retire(child, error, true));
     child.on("exit", (code) => {
-      if (this.child === child) this.child = null;
-      this.rejectAll(
+      this.retire(
+        child,
         new Error(`Reminders helper exited unexpectedly (code ${code ?? "unknown"}).`),
+        false,
       );
     });
 
     return child;
   }
 
-  private handleData(chunk: string): void {
-    for (const line of this.buffer.push(chunk)) this.handleLine(line);
-  }
-
-  private handleLine(line: string): void {
+  private handleLine(child: ChildProcessWithoutNullStreams, line: string): void {
+    if (this.child !== child) return;
     let response: HelperResponse;
     try {
       response = decodeResponse(line);
     } catch {
       return;
     }
-    const pending = this.pending.get(response.id);
-    if (!pending) return;
-    this.pending.delete(response.id);
-    clearTimeout(pending.timer);
+    const pending = this.active;
+    if (!pending || response.id !== pending.id) return;
+    this.active = null;
+    if (pending.timer) clearTimeout(pending.timer);
     if (response.ok) pending.resolve(response.result);
     else pending.reject(new Error(response.error));
+    this.startNext();
   }
 
-  private rejectAll(error: Error): void {
-    for (const [id, pending] of this.pending) {
-      clearTimeout(pending.timer);
-      pending.reject(error);
-      this.pending.delete(id);
+  private retire(child: ChildProcessWithoutNullStreams, error: Error, kill: boolean): void {
+    if (this.child !== child) return;
+    this.child = null;
+    const pending = [...(this.active ? [this.active] : []), ...this.queued.splice(0)];
+    this.active = null;
+    for (const request of pending) {
+      if (request.timer) clearTimeout(request.timer);
+      request.reject(error);
+    }
+    if (kill) child.kill("SIGKILL");
+  }
+
+  private startNext(): void {
+    if (this.active || this.queued.length === 0) return;
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = this.ensureStarted();
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(String(error));
+      for (const pending of this.queued.splice(0)) pending.reject(failure);
+      return;
+    }
+    const pending = this.queued.shift()!;
+    this.active = pending;
+    pending.timer = setTimeout(
+      () => {
+        if (this.child !== child || this.active !== pending) return;
+        this.retire(
+          child,
+          new Error(`Reminders helper timed out waiting for "${pending.op}".`),
+          true,
+        );
+      },
+      pending.op === "requestAccess" ? PERMISSION_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+    );
+    try {
+      child.stdin.write(
+        encodeRequest({ id: pending.id, op: pending.op, params: pending.params }),
+        (error) => {
+          if (error && this.child === child && this.active === pending) {
+            this.retire(child, error, true);
+          }
+        },
+      );
+    } catch (error) {
+      this.retire(child, error instanceof Error ? error : new Error(String(error)), true);
     }
   }
 
-  async request<T>(op: string, params: Record<string, unknown> = {}): Promise<T> {
-    const child = this.ensureStarted();
-    const id = randomUUID();
+  request<T>(op: string, params: Record<string, unknown> = {}): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(
-        () => {
-          this.pending.delete(id);
-          reject(new Error(`Reminders helper timed out waiting for "${op}".`));
-        },
-        op === "requestAccess" ? PERMISSION_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
-      );
-      this.pending.set(id, {
+      this.queued.push({
+        id: randomUUID(),
+        op,
+        params,
         resolve: resolve as (value: unknown) => void,
         reject,
-        timer,
       });
-      child.stdin.write(encodeRequest({ id, op, params }), (error) => {
-        if (error) {
-          this.pending.delete(id);
-          clearTimeout(timer);
-          reject(error);
-        }
-      });
+      this.startNext();
     });
   }
 }
