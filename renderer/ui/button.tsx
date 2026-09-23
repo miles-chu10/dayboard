@@ -14,10 +14,11 @@ export const buttonVariants = cva(
       variant: {
         filled: "bg-control text-primary hover:bg-control/80 active:bg-control",
         muted: "bg-control-subtle text-primary hover:bg-control",
-        accent: "bg-accent text-accent-contrast hover:opacity-90 active:opacity-80",
-        destructive: "bg-destructive text-white hover:opacity-90 active:opacity-80",
+        accent: "bg-accent text-accent-contrast hover:bg-accent-hover active:bg-accent-active",
+        destructive:
+          "bg-destructive text-white hover:bg-destructive-hover active:bg-destructive-active",
         glass: "bg-well/70 text-primary backdrop-blur hover:bg-control",
-        glassAccent: "bg-accent/90 text-accent-contrast backdrop-blur hover:bg-accent",
+        glassAccent: "bg-accent text-accent-contrast backdrop-blur hover:bg-accent-hover",
         transparent: "bg-transparent text-primary hover:bg-control-subtle",
       },
       size: {

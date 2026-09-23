@@ -108,6 +108,8 @@
   /* Accent behind text (buttons, checked boxes, today) is darkened just enough for its text; accent
      as text and as a focus ring or stroke uses a 4.5:1 ink. See renderer/ui/theming.ts. */
   --background-color-accent: var(--accent-fill);
+  --background-color-accent-hover: var(--accent-fill-hover);
+  --background-color-accent-active: var(--accent-fill-active);
   --border-color-accent: var(--accent-fill);
   --text-color-accent: var(--accent-ink);
   --outline-color-accent: var(--accent-ink);
@@ -140,6 +142,8 @@
   --stroke-support-purple: var(--db-support-purple-ink);
   --stroke-support-magenta: var(--db-support-magenta-ink);
   --color-destructive: var(--db-destructive);
+  --color-destructive-hover: var(--db-destructive-hover);
+  --color-destructive-active: var(--db-destructive-active);
   --color-support-red-10: color-mix(in srgb, var(--db-support-red) 12%, transparent);
   --color-support-yellow-10: color-mix(in srgb, var(--db-support-yellow) 12%, transparent);
   --color-support-orange-10: color-mix(in srgb, var(--db-support-orange) 12%, transparent);
@@ -155,6 +159,8 @@
   --theme-accent: #007aff;
   --accent-contrast: #ffffff;
   --accent-fill: #0072ee;
+  --accent-fill-hover: #0069db;
+  --accent-fill-active: #0060c8;
   --accent-ink: #0060c9;
 
   --db-background: #ffffff;
@@ -189,6 +195,8 @@
   --db-support-purple-ink: #8d42b3;
   --db-support-magenta-ink: #c12240;
   --db-destructive: #df342a;
+  --db-destructive-hover: #cd3027;
+  --db-destructive-active: #bb2c23;
 }
 
 :root.dark {
@@ -197,6 +205,8 @@
   --theme-accent: #0a84ff;
   --accent-contrast: #ffffff;
   --accent-fill: #0975e3;
+  --accent-fill-hover: #086cd1;
+  --accent-fill-active: #0862bf;
   --accent-ink: #75baff;
 
   --db-background: #1e1e1e;
@@ -231,6 +241,8 @@
   --db-support-purple-ink: #da9ef7;
   --db-support-magenta-ink: #ff96ab;
   --db-destructive: #da3b32;
+  --db-destructive-hover: #c9362e;
+  --db-destructive-active: #b7322a;
 }
 
 /* Pre-hydration fallback so the first paint matches the OS before renderer/hooks/use-theme.ts
@@ -242,6 +254,8 @@
     --theme-accent: #0a84ff;
     --accent-contrast: #ffffff;
     --accent-fill: #0975e3;
+    --accent-fill-hover: #086cd1;
+    --accent-fill-active: #0862bf;
     --accent-ink: #75baff;
 
     --db-background: #1e1e1e;
@@ -276,6 +290,8 @@
     --db-support-purple-ink: #da9ef7;
     --db-support-magenta-ink: #ff96ab;
     --db-destructive: #da3b32;
+    --db-destructive-hover: #c9362e;
+    --db-destructive-active: #b7322a;
   }
 }
 
