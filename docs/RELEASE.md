@@ -9,7 +9,9 @@
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
 
-Ad-hoc signing seals the whole bundle without an Apple identity. Without it, macOS reports a downloaded copy as damaged. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. These packages are not notarized, so the first launch on another Mac needs **Open Anyway** in System Settings → Privacy & Security. Both scripts fail if `codesign --verify --deep --strict` rejects the app.
+Ad-hoc signing seals the whole bundle without an Apple identity. Without it, macOS reports a downloaded copy as damaged. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. These packages are not notarized, so the first launch on another Mac needs **Open Anyway** in System Settings → Privacy & Security. Both scripts fail if `codesign --verify --deep --strict` rejects the app or if its signature is not ad-hoc.
+
+`scripts/package-preview.mjs` packages the app with electron-builder identity lookup disabled, then passes the literal `-` directly to `@electron/osx-sign` with identity validation disabled. It seals nested code before creating the DMG and ZIP from that verified app. Preview packaging never selects an installed signing certificate, including names containing a hyphen, and never changes the shared Developer ID release configuration.
 
 The current package target is Apple Silicon, macOS 14+. Intel compatibility is not claimed.
 
