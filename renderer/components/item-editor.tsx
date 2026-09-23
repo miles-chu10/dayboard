@@ -236,8 +236,13 @@ function ItemEditor({
   const [eventForEditing, setEventForEditing] = useState<CalendarEventItem | null>(() =>
     isCalendarEvent(item) ? item : null,
   );
-  const [loadingEvent, setLoadingEvent] = useState(kind === "event" && !demo);
-  const [eventLoadError, setEventLoadError] = useState<string | null>(null);
+  const [eventLoad, setEventLoad] = useState<{ item: EditableItem; error: string | null } | null>(
+    null,
+  );
+  // A replacement item needs its own full details before any fields can be saved.
+  const currentEventLoad = eventLoad?.item === item ? eventLoad : null;
+  const loadingEvent = kind === "event" && !demo && !currentEventLoad;
+  const eventLoadError = currentEventLoad?.error ?? null;
   const title = fields.title.trim();
   const eventTimesValid = itemEditorCanSave(kind, fields);
   const saveDisabled =
@@ -247,8 +252,6 @@ function ItemEditor({
     if (kind !== "event" || demo || !scope) return;
     const event = item as CalendarEventItem;
     let cancelled = false;
-    setLoadingEvent(true);
-    setEventLoadError(null);
     void invoke<CalendarEventItem>("calendar:getForEditing", {
       calendarId: event.calendarId,
       eventId: event.id,
@@ -258,12 +261,10 @@ function ItemEditor({
         if (cancelled) return;
         setEventForEditing(fullEvent);
         setFields(eventEditorFields(fullEvent));
+        setEventLoad({ item, error: null });
       })
       .catch((error) => {
-        if (!cancelled) setEventLoadError(errorMessage(error));
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingEvent(false);
+        if (!cancelled) setEventLoad({ item, error: errorMessage(error) });
       });
     return () => {
       cancelled = true;
@@ -440,6 +441,11 @@ function ItemEditor({
             <Callout color="orange">Loading the signed-in account. Try again in a moment.</Callout>
           ) : null}
           {saveError ? <Callout color="red">{saveError}</Callout> : null}
+          {loadingEvent ? (
+            <Text variant="small" color="secondary">
+              Loading event details…
+            </Text>
+          ) : null}
           {eventLoadError ? (
             <Callout color="red">Couldn’t load this event’s full details: {eventLoadError}</Callout>
           ) : null}
@@ -452,7 +458,7 @@ function ItemEditor({
               <Input
                 value={fields.title}
                 onChange={(event) => setField("title", event.target.value)}
-                disabled={demo}
+                disabled={demo || loadingEvent}
                 aria-invalid={!title}
                 autoFocus
               />
@@ -461,7 +467,7 @@ function ItemEditor({
               <Textarea
                 value={fields.notes}
                 onChange={(event) => setField("notes", event.target.value)}
-                disabled={demo}
+                disabled={demo || loadingEvent}
                 rows={4}
               />
             </Field>
@@ -479,13 +485,13 @@ function ItemEditor({
                       type="date"
                       value={fields.dueDate}
                       onChange={(event) => setField("dueDate", event.target.value)}
-                      disabled={demo}
+                      disabled={demo || loadingEvent}
                     />
                     {fields.dueDate ? (
                       <Button
                         size="small"
                         variant="transparent"
-                        disabled={demo}
+                        disabled={demo || loadingEvent}
                         onClick={() => {
                           setField("dueDate", "");
                           setField("dueTime", "");
@@ -510,7 +516,7 @@ function ItemEditor({
                       <Select
                         value={fields.priority}
                         onValueChange={(value) => setField("priority", value)}
-                        disabled={demo}
+                        disabled={demo || loadingEvent}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -533,7 +539,7 @@ function ItemEditor({
                     <Checkbox
                       checked={fields.allDay}
                       onCheckedChange={(checked) => setAllDay(checked === true)}
-                      disabled={demo}
+                      disabled={demo || loadingEvent}
                     />
                     This event lasts all day
                   </label>
@@ -547,7 +553,7 @@ function ItemEditor({
                     type={fields.allDay ? "date" : "datetime-local"}
                     value={fields.start}
                     onChange={(event) => setField("start", event.target.value)}
-                    disabled={demo}
+                    disabled={demo || loadingEvent}
                     aria-invalid={!fields.start}
                   />
                 </Field>
@@ -562,7 +568,7 @@ function ItemEditor({
                     value={fields.end}
                     min={fields.start || undefined}
                     onChange={(event) => setField("end", event.target.value)}
-                    disabled={demo}
+                    disabled={demo || loadingEvent}
                     aria-invalid={!eventTimesValid}
                   />
                 </Field>
@@ -570,7 +576,7 @@ function ItemEditor({
                   <Input
                     value={fields.location}
                     onChange={(event) => setField("location", event.target.value)}
-                    disabled={demo}
+                    disabled={demo || loadingEvent}
                   />
                 </Field>
               </>
