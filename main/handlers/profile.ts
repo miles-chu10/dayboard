@@ -1,4 +1,4 @@
-import { ipcMain } from "@glaze/core/backend";
+import { ipcMain } from "../platform/index.js";
 
 import {
   clearProfileAvatar,

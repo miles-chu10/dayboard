@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Callout, Markdown, ScrollArea, Status, Text } from "@glaze/core/components";
+import { Button, Callout, Markdown, ScrollArea, Status, Text } from "@renderer/ui";
 import { RotateCw } from "lucide-react";
 import type { SourceId } from "@main/shared-types";
 
@@ -72,7 +72,13 @@ export function ReviewView() {
     if (!ai.isDone) return;
     const next = { generatedAt: new Date().toISOString(), markdown: ai.output };
     writeStored(STORAGE_KEY, next);
-    setStored(next);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setStored(next);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ai.isDone, ai.output]);
 
   const today = todayISO();

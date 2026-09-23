@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Field, FieldSet, Status, toast } from "@glaze/core/components";
+import { Button, Field, FieldSet, Status, toast } from "@renderer/ui";
 import type { AccountsStatus, GoogleAccountStatus, RemindersAccess } from "@main/shared-types";
 
 import { errorMessage, invoke } from "../lib/ipc";

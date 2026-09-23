@@ -1,5 +1,6 @@
-import { GlazeAIError, glaze, stepCountIs, streamText, tool } from "@glaze/core/ai";
-import { logger } from "@glaze/core/backend";
+import { stepCountIs, streamText, tool } from "ai";
+
+import { logger } from "../../platform/index.js";
 
 import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
 import { demoAssistantReply, isDemoMode } from "../demo-data.js";
@@ -11,6 +12,7 @@ import { runCliCompletion } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
 import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
+import { resolveConfiguredProvider } from "./provider-resolution.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
 
 const ASSISTANT_TIMEOUT_MS = 5 * 60_000;
@@ -62,7 +64,11 @@ export async function runAssistant(
     return { text };
   }
   const settings = await getSettings();
-  const provider = settings.ai.assistantProvider || settings.ai.provider;
+  if (!settings.ai.enabled || !settings.ai.providerChosen) return { blocked: "not-configured" };
+  const provider = await resolveConfiguredProvider(
+    settings.ai.assistantProvider || settings.ai.provider,
+  );
+  if (!provider) return { blocked: "not-configured" };
   const codexModels = provider === "codex" ? await listCodexModels().catch(() => []) : [];
   const apiModel = isApiProvider(provider)
     ? await resolveApiModel(provider, settings.ai)
@@ -130,16 +136,16 @@ export async function runAssistant(
       ]),
     );
 
+    // The CLI branch above returns first, so reaching here means an API-key provider.
+    if (!apiModel || !isApiProvider(provider))
+      throw new Error(`No model available for ${provider}.`);
     const result = streamText({
-      model:
-        apiModel && isApiProvider(provider)
-          ? await apiLanguageModel(provider, apiModel.id)
-          : glaze("fast"),
+      model: await apiLanguageModel(provider, apiModel.id),
       system: system + mcpNote(session, 0),
       messages: params.messages,
       tools,
       stopWhen: stepCountIs(8),
-      maxOutputTokens: apiModel ? 4000 : 1500,
+      maxOutputTokens: 4000,
       abortSignal: signal,
     });
 
@@ -194,7 +200,6 @@ export async function runAssistant(
     }
     return { text };
   } catch (error) {
-    if (error instanceof GlazeAIError) return { blocked: error.state };
     logger.error("ai", "Assistant request failed", error);
     throw error;
   } finally {

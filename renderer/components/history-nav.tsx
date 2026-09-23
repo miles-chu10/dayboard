@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@glaze/core/components";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@renderer/ui";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 function useHistoryState() {

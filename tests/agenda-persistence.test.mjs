@@ -32,7 +32,7 @@ function backendPlugin() {
   return {
     name: "agenda-store-backend",
     setup(buildApi) {
-      buildApi.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
+      buildApi.onResolve({ filter: /(?:^|\/)platform\/index\.(?:js|ts)$/ }, () => ({
         path: "backend-stub",
         namespace: "agenda-store-fixture",
       }));
@@ -54,7 +54,9 @@ async function load(entry) {
     plugins: [backendPlugin()],
     logLevel: "silent",
   });
-  return import(`data:text/javascript;base64,${Buffer.from(`${result.outputFiles[0].text}\n// ${sequence++}`).toString("base64")}`);
+  return import(
+    `data:text/javascript;base64,${Buffer.from(`${result.outputFiles[0].text}\n// ${sequence++}`).toString("base64")}`
+  );
 }
 
 async function withStore(run) {
@@ -103,10 +105,20 @@ test("separate opaque scopes remain isolated after a fresh store load", async ()
 
 test("separate processes restore accepted, dismissed, unlinked, pinned and calendar decisions", async () => {
   await withStore(async (userData) => {
-    const bundle = await build({ entryPoints: [path.join(root, "main/services/agenda-store.ts")], bundle: true, platform: "node", format: "esm", write: false, plugins: [backendPlugin()], logLevel: "silent" });
+    const bundle = await build({
+      entryPoints: [path.join(root, "main/services/agenda-store.ts")],
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      write: false,
+      plugins: [backendPlugin()],
+      logLevel: "silent",
+    });
     await writeFile(path.join(userData, "store.mjs"), bundle.outputFiles[0].text);
     const driver = path.join(userData, "driver.mjs");
-    await writeFile(driver, `
+    await writeFile(
+      driver,
+      `
       globalThis.__agendaStoreUserData = process.argv[2];
       const store = await import('./store.mjs');
       const block = { requestId: 'request-1', taskKey: 'task:a', eventId: 'fixture-event', date: '2026-09-22', startTime: '09:00', endTime: '09:30' };
@@ -125,9 +137,13 @@ test("separate processes restore accepted, dismissed, unlinked, pinned and calen
       if (process.argv[3] === 'retry') await store.completeAgendaBlock('account-a', block);
       await store.drainAgendaStore();
       process.stdout.write(JSON.stringify(await store.getAgendaState('account-a')));
-    `);
-    const run = action => {
-      const child = spawnSync(process.execPath, [driver, userData, action], { encoding: "utf8", cwd: userData });
+    `,
+    );
+    const run = (action) => {
+      const child = spawnSync(process.execPath, [driver, userData, action], {
+        encoding: "utf8",
+        cwd: userData,
+      });
       assert.equal(child.status, 0, child.stderr);
       return JSON.parse(child.stdout);
     };
@@ -135,21 +151,22 @@ test("separate processes restore accepted, dismissed, unlinked, pinned and calen
     assert.deepEqual(run("read"), saved);
     assert.deepEqual(run("retry"), saved);
     assert.deepEqual(saved.focusKeys, ["task:a"]);
-    assert.deepEqual(saved.duplicateLinks.map(link => link.status), ["accepted", "dismissed"]);
+    assert.deepEqual(
+      saved.duplicateLinks.map((link) => link.status),
+      ["accepted", "dismissed"],
+    );
     assert.equal(saved.scheduledBlocks.length, 1);
   });
 });
 
 test("legacy JSON is backed up byte-for-byte before normalization and exact ref migration", async () => {
   await withStore(async (userData) => {
-    const original = '{\n  "version": 1,\n  "accounts": {\n    "scope-a": {\n      "focusKeys": ["reminder:old-ref"],\n      "duplicateLinks": [{"leftKey":"reminder:old-ref","rightKey":"task:list:1","status":"accepted"}],\n      "scheduledBlocks": [{"taskKey":"reminder:old-ref","eventId":"event-1","date":"2026-09-22","startTime":"09:00","endTime":"09:30"}]\n    }\n  }\n}\n';
+    const original =
+      '{\n  "version": 1,\n  "accounts": {\n    "scope-a": {\n      "focusKeys": ["reminder:old-ref"],\n      "duplicateLinks": [{"leftKey":"reminder:old-ref","rightKey":"task:list:1","status":"accepted"}],\n      "scheduledBlocks": [{"taskKey":"reminder:old-ref","eventId":"event-1","date":"2026-09-22","startTime":"09:00","endTime":"09:30"}]\n    }\n  }\n}\n';
     await writeFile(path.join(userData, "agenda-state.json"), original);
     const store = await load("main/services/agenda-store.ts");
     await store.getAgendaState("scope-a");
-    assert.equal(
-      await readFile(path.join(userData, "agenda-state.json.v1.bak"), "utf8"),
-      original,
-    );
+    assert.equal(await readFile(path.join(userData, "agenda-state.json.v1.bak"), "utf8"), original);
     const migrated = await store.reconcileAgendaKeys("scope-a", [
       { previousKey: "reminder:old-ref", currentKey: "reminder:calendar:external" },
     ]);
@@ -196,8 +213,16 @@ test("failed persistence leaves the caller snapshot unchanged", async () => {
 
 test("reminder completion retains the canonical replacement ref and never masks a completed write", async () => {
   const native = (ref, completed = false) => ({
-    ref: { value: ref }, externalId: "external", calendarId: "calendar", title: "Call Mom", notes: null,
-    due: null, priority: 0, isCompleted: completed, completionDate: null, recurrenceRules: [],
+    ref: { value: ref },
+    externalId: "external",
+    calendarId: "calendar",
+    title: "Call Mom",
+    notes: null,
+    due: null,
+    priority: 0,
+    isCompleted: completed,
+    completionDate: null,
+    recurrenceRules: [],
   });
   let writes = 0;
   globalThis.__remindersFixture = {
@@ -235,11 +260,44 @@ test("link graph uses the same full component through chains, cycles, and hidden
     { leftKey: "reminder:b", rightKey: "task:c", status: "accepted" },
     { leftKey: "task:c", rightKey: "task:a", status: "accepted" },
   ];
-  assert.deepEqual(new Set(todos.linkedGroupKeys(links, "task:a")), new Set(["task:a", "reminder:b", "task:c"]));
+  assert.deepEqual(
+    new Set(todos.linkedGroupKeys(links, "task:a")),
+    new Set(["task:a", "reminder:b", "task:c"]),
+  );
   const input = [
-    { key: "task:a", source: "tasks", title: "A", notes: null, dueDate: null, dueTime: null, listTitle: "Tasks", completed: false, completedAt: null },
-    { key: "reminder:b", source: "reminders", title: "B", notes: null, dueDate: null, dueTime: null, listTitle: "Reminders", completed: false, completedAt: null },
-    { key: "task:c", source: "tasks", title: "C", notes: null, dueDate: "2026-09-22", dueTime: null, listTitle: "Tasks", completed: false, completedAt: null },
+    {
+      key: "task:a",
+      source: "tasks",
+      title: "A",
+      notes: null,
+      dueDate: null,
+      dueTime: null,
+      listTitle: "Tasks",
+      completed: false,
+      completedAt: null,
+    },
+    {
+      key: "reminder:b",
+      source: "reminders",
+      title: "B",
+      notes: null,
+      dueDate: null,
+      dueTime: null,
+      listTitle: "Reminders",
+      completed: false,
+      completedAt: null,
+    },
+    {
+      key: "task:c",
+      source: "tasks",
+      title: "C",
+      notes: null,
+      dueDate: "2026-09-22",
+      dueTime: null,
+      listTitle: "Tasks",
+      completed: false,
+      completedAt: null,
+    },
   ];
   const merged = todos.mergeLinkedTodos(input, links, { tasks: true, reminders: false });
   assert.equal(merged.length, 1);
@@ -248,7 +306,18 @@ test("link graph uses the same full component through chains, cycles, and hidden
 });
 
 test("unique reminder identity survives canonical ref replacement and later truncated fetches", async () => {
-  const native = ref => ({ ref: { value: ref }, externalId: "external", calendarId: "calendar", title: "Fixture", notes: null, due: null, priority: 0, isCompleted: false, completionDate: null, recurrenceRules: [] });
+  const native = (ref) => ({
+    ref: { value: ref },
+    externalId: "external",
+    calendarId: "calendar",
+    title: "Fixture",
+    notes: null,
+    due: null,
+    priority: 0,
+    isCompleted: false,
+    completionDate: null,
+    recurrenceRules: [],
+  });
   globalThis.__remindersFixture = {
     getCalendars: async () => [{ id: "calendar", title: "Fixtures" }],
     getReminders: async () => ({ reminders: [native("old")], truncated: false }),
@@ -260,8 +329,13 @@ test("unique reminder identity survives canonical ref replacement and later trun
     const updated = await service.setReminderCompleted("old", true);
     assert.equal(updated.identity, original.identity);
     assert.equal(updated.ref, "new");
-    globalThis.__remindersFixture.getReminders = async () => ({ reminders: [native("new")], truncated: true });
+    globalThis.__remindersFixture.getReminders = async () => ({
+      reminders: [native("new")],
+      truncated: true,
+    });
     const [truncated] = await service.listReminders();
     assert.equal(truncated.identity, original.identity);
-  } finally { delete globalThis.__remindersFixture; }
+  } finally {
+    delete globalThis.__remindersFixture;
+  }
 });

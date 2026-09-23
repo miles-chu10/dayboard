@@ -13,7 +13,8 @@ import { AssistantView } from "./assistant-view";
 import { ReviewView } from "./review-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
-import { ErrorBoundaryView } from "@glaze/core/components";
+import { ErrorBoundaryView } from "@renderer/ui";
+import type { ComponentType } from "react";
 import { validateAgendaSearch } from "../lib/agenda-search";
 
 const rootRoute = createRootRouteWithContext<{
@@ -121,7 +122,7 @@ declare module "@tanstack/react-router" {
   }
   interface StaticDataRouteOption {
     title?: string;
-    component?: any;
+    component?: ComponentType;
   }
 }
 

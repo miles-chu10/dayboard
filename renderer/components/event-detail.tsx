@@ -1,4 +1,4 @@
-import { Button, Dialog, Field, FieldGroup, Text } from "@glaze/core/components";
+import { Button, Dialog, Field, FieldGroup, Text } from "@renderer/ui";
 import { ExternalLink, Sparkles, Video } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 

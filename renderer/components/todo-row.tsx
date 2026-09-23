@@ -1,5 +1,5 @@
-import { Checkbox, EmptyState, Text } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Checkbox, EmptyState, Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import type { ReactNode } from "react";
 
 import { useToggleTodo } from "../lib/queries";

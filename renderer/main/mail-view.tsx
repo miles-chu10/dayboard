@@ -7,7 +7,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Status,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import { RotateCw, Sparkles, Square } from "lucide-react";
 import type { MailItem } from "@main/shared-types";
 
@@ -112,7 +112,7 @@ export function MailView() {
                             <SegmentedControl
                               size="small"
                               value={activeFilter}
-                              onValueChange={(value) => setFilter(value as MailFilter)}
+                              onValueChange={(value: string) => setFilter(value as MailFilter)}
                               aria-label="Filter inbox"
                             >
                               <SegmentedControlItem value="all">All</SegmentedControlItem>

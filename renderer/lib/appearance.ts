@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { computeAccentContrastColor } from "@glaze/core/components";
+import { computeAccentContrastColor } from "@renderer/ui";
 import type { AccentColor, Density } from "@main/shared-types";
 
 import { useSettings } from "./settings";

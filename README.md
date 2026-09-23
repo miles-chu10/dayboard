@@ -1,6 +1,8 @@
-# Dayboard
+# DayBoard
 
-Dayboard is a native macOS productivity dashboard built with [Glaze](https://glaze.app). It brings **Google Tasks**, **Apple Reminders**, **Gmail**, and **Google Calendar** into one Agenda, with optional AI features powered by Glaze AI, your Claude subscription (Claude Code), or your ChatGPT subscription (Codex CLI).
+DayBoard is a standalone macOS productivity app built with Electron, TypeScript, and React. It brings **Google Tasks**, **Apple Reminders**, **Gmail**, and **Google Calendar** into one Agenda. The application runs without Glaze. Optional AI uses a provider you explicitly choose and configure.
+
+This is the **1.3.0-beta.1 standalone preview**. Public downloads and purchases require the release configuration and verification described in [the release guide](docs/RELEASE.md).
 
 ## Features
 
@@ -28,24 +30,36 @@ Apple Reminders and Google Tasks don't copy data to each other. Instead, when an
 
 ## Requirements
 
-- macOS with the Glaze app
-- Sign in with Google from **Settings → Sources** (browser OAuth). End users do not create a Google Cloud project. Developers put a Google **Desktop app** OAuth client in the gitignored `sources/google-oauth.local.json` (uploaded with sources for Glaze's remote Store builds; `~/.config/dayboard/google-oauth.json` works as a local fallback) (`{ "clientId": …, "clientSecret": … }`); the build fails without it and injects it into `main/services/google-oauth-app-client.ts`. Sign-in uses PKCE with a 127.0.0.1 loopback redirect, and the Tasks, Gmail, and Calendar APIs must be enabled.
+- macOS 14 or later on Apple Silicon for the current packaged target.
+- Google sign-in from **Settings → Sources**, using the app's Desktop OAuth client and a browser PKCE/loopback flow. End users do not create a Google Cloud project. Developers supply their own client through `DAYBOARD_GOOGLE_OAUTH_FILE` or `~/.config/dayboard/google-oauth.json`; never commit that file. Builds without it remain usable with Google sign-in unavailable; strict release builds reject it.
+- Apple Reminders permission is requested only when connecting that source. A bundled Swift EventKit helper performs the native operations.
 - Optional: [Claude Code](https://claude.com/claude-code) and/or the [Codex CLI](https://github.com/openai/codex), signed in from Terminal, to use your subscriptions as the AI provider.
 
 ## Development
 
 ```sh
-sh ./glaze-node.sh --npm install --include=dev
-npm test          # offline unit and backend tests
+npm ci --include=dev
+npm run dev       # builds the native helper, then starts Electron + Vite
+npm test          # disposable, offline unit and native fixtures
 npm run format
-npm run verify    # lint, type-check, build, and publish to the managed app runtime
-npm run launch    # open the verified managed app
+npm run typecheck
+npm run lint
+npm run test:e2e   # credential-free build; isolated demo/empty-profile Electron tests
+npm run package:preview  # local unsigned DMG and update ZIP; does not publish
 ```
 
-Source layout: `main/` is the Node.js backend (Google, Reminders, AI providers, MCP), `renderer/` is the React UI, and `tests/` holds offline backend fixtures. Design notes live in `docs/`.
+Development requires Node.js 24+ and an existing Xcode command line toolchain for the Swift helper. `main/` owns backend services; `main/platform/` implements native boundaries; `electron/preload.ts` exposes a narrow sandboxed bridge; `renderer/` owns the UI; `native/` holds the Reminders helper; `e2e/` tests the built app. `website/` is the static direct-download site.
+
+## Official builds and community builds
+
+The source is [GPL-3.0-only](LICENSE). You may build and modify it under that license. Set `DAYBOARD_LICENSE=off` at build time for a community build without the official-build purchase gate. The value is stamped into the binary, rather than read from the user's environment at runtime.
+
+Configured official builds provide a 14-day trial, license activation in Settings, and a 30-day offline validation grace period. Data viewing, preferences, and account recovery remain available when a license blocks editing and AI. Demo and unconfigured preview builds never open the personal license store or make licensing requests. AI usage is not included in an app purchase.
+
+Public merchant IDs and the checkout URL are build inputs; merchant API secrets are never included in the app. The normal `dist` command requires complete Google and merchant configuration and leaves publishing disabled. See [release configuration and checks](docs/RELEASE.md).
 
 GitHub runs the offline test suite on pushes and pull requests. Optional Codex PR reviews use a separate API key and explicit activation; see [GitHub workflows](docs/github-workflows.md).
 
-### Store screenshots
+### Demo and screenshots
 
-The local `demo-mode` marker in the app's user-data directory enables fictional data after a full quit and relaunch. Changing the marker while DayBoard is running does not change that session's mode. Demo settings and cached content are separate from normal use and earlier demo caches, AI responses are local samples, and live provider writes, authentication changes, external service links, and MCP access are blocked. Editors can be previewed without saving. Remove the marker and fully restart to return to normal use. Screenshot files stay in the ignored `store-screenshots/` directory.
+`npm run test:e2e` creates disposable profiles with fictional data and a credential-free build. Demo settings/history/appearance remain separate, AI responses are local samples, and live source writes, authentication changes, licensing changes, external service links, and MCP access are blocked. Editors can be previewed without saving. Test artifacts stay in ignored directories. Never use a personal profile for automated UI tests.

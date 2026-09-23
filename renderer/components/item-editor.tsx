@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -17,7 +17,7 @@ import {
   Text,
   Textarea,
   toast,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import { Pencil } from "lucide-react";
 import type { CalendarEventItem, ReminderItem, SourceResult, TaskItem } from "@main/shared-types";
 
@@ -224,6 +224,7 @@ function ItemEditor({
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
+  const fieldId = useId();
   const kind = kindFor(item);
   const source = sourceLabel(kind);
   const [fields, setFields] = useState(() => initialFields(item));
@@ -247,8 +248,6 @@ function ItemEditor({
     if (kind !== "event" || demo || !scope) return;
     const event = item as CalendarEventItem;
     let cancelled = false;
-    setLoadingEvent(true);
-    setEventLoadError(null);
     void invoke<CalendarEventItem>("calendar:getForEditing", {
       calendarId: event.calendarId,
       eventId: event.id,
@@ -446,10 +445,12 @@ function ItemEditor({
           <FieldGroup>
             <Field
               label="Title"
+              htmlFor={`${fieldId}-title`}
               orientation="vertical"
               error={!title ? "A title is required." : undefined}
             >
               <Input
+                id={`${fieldId}-title`}
                 value={fields.title}
                 onChange={(event) => setField("title", event.target.value)}
                 disabled={demo}
@@ -457,8 +458,13 @@ function ItemEditor({
                 autoFocus
               />
             </Field>
-            <Field label={kind === "event" ? "Description" : "Notes"} orientation="vertical">
+            <Field
+              label={kind === "event" ? "Description" : "Notes"}
+              htmlFor={`${fieldId}-notes`}
+              orientation="vertical"
+            >
               <Textarea
+                id={`${fieldId}-notes`}
                 value={fields.notes}
                 onChange={(event) => setField("notes", event.target.value)}
                 disabled={demo}
@@ -473,9 +479,15 @@ function ItemEditor({
             ) : null}
             {kind === "task" || kind === "reminder" ? (
               <>
-                <Field label="Deadline" description={dateDescription} orientation="vertical">
+                <Field
+                  label="Deadline"
+                  htmlFor={`${fieldId}-due`}
+                  description={dateDescription}
+                  orientation="vertical"
+                >
                   <div className="flex items-center gap-2">
                     <Input
+                      id={`${fieldId}-due`}
                       type="date"
                       value={fields.dueDate}
                       onChange={(event) => setField("dueDate", event.target.value)}
@@ -498,21 +510,27 @@ function ItemEditor({
                 </Field>
                 {kind === "reminder" ? (
                   <>
-                    <Field label="Time" description="Optional." orientation="vertical">
+                    <Field
+                      label="Time"
+                      htmlFor={`${fieldId}-time`}
+                      description="Optional."
+                      orientation="vertical"
+                    >
                       <Input
+                        id={`${fieldId}-time`}
                         type="time"
                         value={fields.dueTime}
                         onChange={(event) => setField("dueTime", event.target.value)}
                         disabled={demo || !fields.dueDate}
                       />
                     </Field>
-                    <Field label="Priority" orientation="vertical">
+                    <Field label="Priority" htmlFor={`${fieldId}-priority`} orientation="vertical">
                       <Select
                         value={fields.priority}
                         onValueChange={(value) => setField("priority", value)}
                         disabled={demo}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id={`${fieldId}-priority`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -540,10 +558,12 @@ function ItemEditor({
                 </Field>
                 <Field
                   label={fields.allDay ? "Start date" : "Start"}
+                  htmlFor={`${fieldId}-start`}
                   description={eventDescription}
                   orientation="vertical"
                 >
                   <Input
+                    id={`${fieldId}-start`}
                     type={fields.allDay ? "date" : "datetime-local"}
                     value={fields.start}
                     onChange={(event) => setField("start", event.target.value)}
@@ -553,11 +573,13 @@ function ItemEditor({
                 </Field>
                 <Field
                   label={fields.allDay ? "End date" : "End"}
+                  htmlFor={`${fieldId}-end`}
                   description={fields.allDay ? "The last day the event appears." : eventDescription}
                   orientation="vertical"
                   error={eventTimesValid ? undefined : "End must be after the start."}
                 >
                   <Input
+                    id={`${fieldId}-end`}
                     type={fields.allDay ? "date" : "datetime-local"}
                     value={fields.end}
                     min={fields.start || undefined}
@@ -566,8 +588,9 @@ function ItemEditor({
                     aria-invalid={!eventTimesValid}
                   />
                 </Field>
-                <Field label="Location" orientation="vertical">
+                <Field label="Location" htmlFor={`${fieldId}-location`} orientation="vertical">
                   <Input
+                    id={`${fieldId}-location`}
                     value={fields.location}
                     onChange={(event) => setField("location", event.target.value)}
                     disabled={demo}

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { clipboard, ipcMain, logger, shell } from "@glaze/core/backend";
+import { ipcMain, logger, shell } from "../platform/index.js";
 
 import {
   createEvent,
@@ -22,13 +22,10 @@ import {
   setTaskCompleted,
 } from "../services/google-api.js";
 import {
-  GOOGLE_REDIRECT_URI,
   GoogleAuthError,
-  clearGoogleCredentials,
   connectGoogle,
   disconnectGoogle,
   getGoogleStatus,
-  saveGoogleCredentials,
 } from "../services/google-auth.js";
 import {
   createReminder,
@@ -43,6 +40,7 @@ import {
 import { calendarRangeDays } from "../services/calendar-range.js";
 import {
   trackPendingWrite as trackProductivityWrite,
+  trackAccountChange,
   drainPendingWrites,
   hasPendingWrites,
 } from "../services/pending-writes.js";
@@ -97,14 +95,14 @@ const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
 let accountChanging = false;
 
 async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
-  if (accountChanging || hasPendingWrites())
-    throw new Error("Wait for the current save or account connection to finish, then try again.");
-  accountChanging = true;
-  try {
-    await operation();
-  } finally {
-    accountChanging = false;
-  }
+  await trackAccountChange(async () => {
+    accountChanging = true;
+    try {
+      await operation();
+    } finally {
+      accountChanging = false;
+    }
+  });
 }
 /** Used by normal quit to avoid ending an acknowledged provider write mid-flight. */
 export const hasPendingProductivityWrites = hasPendingWrites;
@@ -511,27 +509,6 @@ export function registerProductivityHandlers(): void {
   // Accounts
   ipcMain.handle("accounts:getStatus", () => getAccountsStatus());
 
-  ipcMain.handle("google:saveCredentials", async (_event, payload: unknown) => {
-    const channel = "google:saveCredentials";
-    assertNotDemo(channel);
-    const input = asObject(payload, channel);
-    const clientId = requireString(input, "clientId", channel);
-    const clientSecret = requireString(input, "clientSecret", channel);
-    if (!clientId.endsWith(".apps.googleusercontent.com")) {
-      throw new Error(
-        "That doesn't look like a Google OAuth Client ID (it should end in .apps.googleusercontent.com).",
-      );
-    }
-    await changeAccount(() => saveGoogleCredentials(clientId, clientSecret));
-    return broadcastAccounts();
-  });
-
-  ipcMain.handle("google:clearCredentials", async () => {
-    assertNotDemo("google:clearCredentials");
-    await changeAccount(clearGoogleCredentials);
-    return broadcastAccounts();
-  });
-
   ipcMain.handle("google:connect", async () => {
     assertNotDemo("google:connect");
     await changeAccount(() => googleMutation("google:connect", connectGoogle));
@@ -542,11 +519,6 @@ export function registerProductivityHandlers(): void {
     assertNotDemo("google:disconnect");
     await changeAccount(disconnectGoogle);
     return broadcastAccounts();
-  });
-
-  ipcMain.handle("google:copyRedirectUri", () => {
-    clipboard.writeText(GOOGLE_REDIRECT_URI);
-    return GOOGLE_REDIRECT_URI;
   });
 
   // Google Tasks

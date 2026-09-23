@@ -1,4 +1,4 @@
-import { clipboard, ipcMain, logger } from "@glaze/core/backend";
+import { clipboard, ipcMain, logger } from "../platform/index.js";
 
 import type {
   AIStreamChunk,
@@ -30,7 +30,8 @@ import {
   saveApiKey,
 } from "../services/ai/api-keys.js";
 import { apiLanguageModel, listApiModels, resolveApiModel } from "../services/ai/api-providers.js";
-import { streamText } from "@glaze/core/ai";
+import { streamText } from "ai";
+import { resolveConfiguredProvider } from "../services/ai/provider-resolution.js";
 import { testMcpServer } from "../services/ai/mcp-client.js";
 import {
   checkAssistantMcpConnection,
@@ -247,7 +248,13 @@ export function registerAIHandlers(): void {
   });
 
   // API keys (OpenAI, Anthropic, Gemini). Keys are write-only from the renderer.
-  ipcMain.handle("apiKeys:status", () => getApiKeyStatuses());
+  ipcMain.handle("apiKeys:status", () =>
+    isDemoMode()
+      ? Object.fromEntries(
+          API_PROVIDERS.map((provider) => [provider, { configured: false, hint: null }]),
+        )
+      : getApiKeyStatuses(),
+  );
   ipcMain.handle("apiKeys:save", (_event, payload: unknown) => {
     const channel = "apiKeys:save";
     assertNotDemo(channel);
@@ -272,6 +279,17 @@ export function registerAIHandlers(): void {
 
   /** Which providers can run now: installed subscription CLIs and saved API keys. */
   ipcMain.handle("ai:availability", async (): Promise<ProviderAvailability> => {
+    if (isDemoMode())
+      return {
+        claude: false,
+        codex: false,
+        gemini: false,
+        muse: false,
+        ...(Object.fromEntries(API_PROVIDERS.map((provider) => [provider, false])) as Record<
+          ApiProviderId,
+          boolean
+        >),
+      };
     const [claude, codex, gemini, muse, keys] = await Promise.all([
       resolveCli("claude"),
       resolveCli("codex"),
@@ -280,7 +298,6 @@ export function registerAIHandlers(): void {
       getApiKeyStatuses(),
     ]);
     return {
-      glaze: true,
       claude: Boolean(claude),
       codex: Boolean(codex),
       gemini: Boolean(gemini),
@@ -334,7 +351,7 @@ export function registerAIHandlers(): void {
     return { text: await transcribe(audio, mimeType) };
   });
 
-  // One-shot generation through a subscription CLI (Glaze AI runs in the renderer).
+  // One-shot generation through the selected CLI or API provider.
   ipcMain.handleStream<unknown, AIStreamChunk, { text: string }>(
     "ai:run",
     async (payload, sendChunk, context) => {
@@ -348,8 +365,11 @@ export function registerAIHandlers(): void {
         return { text };
       }
       const settings = await getSettings();
+      if (!settings.ai.enabled || !settings.ai.providerChosen)
+        throw new Error("Choose and enable an AI provider in Settings → AI first.");
       const provider = settings.ai.provider;
-      if (provider === "glaze") throw new Error("Glaze AI requests run in the app window.");
+      if (!(await resolveConfiguredProvider(provider)))
+        throw new Error(`Set up ${provider} in Settings → AI before using it.`);
       try {
         if (isApiProvider(provider)) {
           const model = await resolveApiModel(provider, settings.ai);

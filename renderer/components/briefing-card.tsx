@@ -9,7 +9,7 @@ import {
   Markdown,
   Status,
   Text,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 
 import { useAITask } from "../lib/ai";
 import { BRIEFING_SYSTEM } from "../lib/ai-prompts";
@@ -55,18 +55,24 @@ export function BriefingCard({
     if (!ai.isDone) return;
     const next = { date: todayISO(), generatedAt: new Date().toISOString(), markdown: ai.output };
     writeStored(STORAGE_KEY, next);
-    setStored(next);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setStored(next);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ai.isDone, ai.output]);
-
-  function generate() {
-    void ai.run({ system: BRIEFING_SYSTEM, prompt: buildPrompt(), maxOutputTokens: 600 });
-  }
 
   useEffect(() => {
     if (!autoGenerate || !ready || autoStarted.current || stored?.date === todayISO()) return;
     autoStarted.current = true;
-    generate();
-  }, [autoGenerate, ready, stored]);
+    void ai.run({ system: BRIEFING_SYSTEM, prompt: buildPrompt(), maxOutputTokens: 600 });
+  }, [autoGenerate, ready, stored, ai, buildPrompt]);
+
+  function generate() {
+    void ai.run({ system: BRIEFING_SYSTEM, prompt: buildPrompt(), maxOutputTokens: 600 });
+  }
 
   const text = ai.isRunning || ai.isDone ? ai.output : (stored?.markdown ?? "");
   const stamp =

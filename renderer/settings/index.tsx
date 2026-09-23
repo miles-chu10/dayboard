@@ -1,14 +1,18 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Text, TooltipProvider, Toaster } from "@glaze/core/components";
-import { initLogging } from "@glaze/core/utils";
+import { Text, TooltipProvider, Toaster } from "@renderer/ui";
+import { useTheme } from "@renderer/hooks";
 import { applyCachedAppearance } from "../lib/appearance";
 import { initializeDemoMode } from "../lib/demo";
 import { SettingsView } from "./settings-view";
+import { UpdateBoundary } from "../components/update-boundary";
 import "../styles.css";
 
-initLogging();
+function ThemeSync() {
+  useTheme();
+  return null;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,8 +35,11 @@ try {
   root.render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
+        <ThemeSync />
         <TooltipProvider>
-          <SettingsView />
+          <UpdateBoundary>
+            <SettingsView />
+          </UpdateBoundary>
         </TooltipProvider>
         <Toaster />
       </QueryClientProvider>

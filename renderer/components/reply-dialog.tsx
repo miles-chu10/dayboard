@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Button,
-  Callout,
-  Dialog,
-  Input,
-  Status,
-  Text,
-  Textarea,
-  toast,
-} from "@glaze/core/components";
+import { Button, Callout, Dialog, Input, Status, Text, Textarea, toast } from "@renderer/ui";
 import type { MailItem } from "@main/shared-types";
 
 import { useAITask } from "../lib/ai";
@@ -40,7 +31,14 @@ export function ReplyDialog({
   });
 
   useEffect(() => {
-    if (ai.isDone) setDraft(ai.output.trim());
+    if (!ai.isDone) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setDraft(ai.output.trim());
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ai.isDone, ai.output]);
 
   if (!message) return null;

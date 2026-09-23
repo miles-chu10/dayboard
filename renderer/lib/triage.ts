@@ -73,17 +73,24 @@ export function useTriage(messages: MailItem[] | undefined) {
         task: typeof task === "string" ? task.trim() : "",
       };
     }
-    if (!Object.keys(results).length) {
-      setParseFailed(true);
-      return;
-    }
-    setParseFailed(false);
-    setMap((previous) => {
-      const merged = Object.entries({ ...previous, ...results }).slice(-MAX_STORED);
-      const next = Object.fromEntries(merged);
-      writeStored(STORAGE_KEY, next);
-      return next;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (!Object.keys(results).length) {
+        setParseFailed(true);
+        return;
+      }
+      setParseFailed(false);
+      setMap((previous) => {
+        const merged = Object.entries({ ...previous, ...results }).slice(-MAX_STORED);
+        const next = Object.fromEntries(merged);
+        writeStored(STORAGE_KEY, next);
+        return next;
+      });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [ai.isDone, ai.output]);
 
   function run() {

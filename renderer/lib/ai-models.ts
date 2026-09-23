@@ -69,18 +69,18 @@ export function useProviderAvailability() {
 
 /** The provider the Assistant uses: its own pick, or the default. */
 export function assistantProvider(settings: AppSettings | undefined): AIProvider {
-  return settings?.ai.assistantProvider || settings?.ai.provider || "glaze";
+  return settings?.ai.assistantProvider || settings?.ai.provider || "claude";
 }
 
 /** The model the composer should show before a reply reports the exact ID. */
 export function selectedModel(
   settings: AppSettings | undefined,
   codexModels: CodexModelInfo[] | undefined,
-  provider: AIProvider = settings?.ai.provider ?? "glaze",
+  provider: AIProvider = settings?.ai.provider ?? "claude",
   apiModels?: ApiModelInfo[],
 ): { label: string; fast: boolean; contextWindow: number | null } {
   const ai = settings?.ai;
-  if (!ai || provider === "glaze") return { label: "Glaze AI", fast: false, contextWindow: null };
+  if (!ai) return { label: "Choose a model", fast: false, contextWindow: null };
   if (provider === "claude") {
     const option = CLAUDE_MODEL_OPTIONS.find((entry) => entry.value === ai.claudeModel);
     return {

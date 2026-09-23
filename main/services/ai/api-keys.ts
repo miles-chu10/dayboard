@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { app, safeStorage } from "@glaze/core/backend";
+import { app, safeStorage } from "../../platform/index.js";
 
 import type { ApiKeyStatuses, ApiProviderId, OpenAIKeyStatus } from "../../shared-types.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "../file-store.js";

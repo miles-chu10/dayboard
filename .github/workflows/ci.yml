@@ -26,7 +26,10 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      # Fixtures replace Glaze/native integrations. No native install scripts,
-      # personal credentials, or local Glaze SDK are needed for this test suite.
-      - run: npm ci --ignore-scripts
+      # Offline fixtures replace Electron and providers. The native Swift fixture runs
+      # on macOS only; this job never needs account credentials or a local app installation.
+      - run: npm ci --include=dev --ignore-scripts
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run lint
       - run: npm test

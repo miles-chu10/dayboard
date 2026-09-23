@@ -1,4 +1,4 @@
-import { Button } from "@glaze/core/components";
+import { Button } from "@renderer/ui";
 import { Plus, RotateCw } from "lucide-react";
 
 import { useOpenCapture } from "./capture-dialog";

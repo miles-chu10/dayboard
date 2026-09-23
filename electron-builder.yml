@@ -1,0 +1,48 @@
+appId: com.mileschu.dayboard
+productName: DayBoard
+copyright: Copyright © 2026 Miles Chu
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+# node-pty's native binary and spawn-helper must live outside app.asar to be executable.
+asarUnpack:
+  - node_modules/node-pty/**
+extraResources:
+  - from: out/third-party-notices.txt
+    to: third-party-notices.txt
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: resources/bin
+    to: bin
+    filter:
+      - "**/*"
+mac:
+  minimumSystemVersion: "14.0"
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  category: public.app-category.productivity
+  icon: app-icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  binaries:
+    - Contents/Resources/bin/reminders-helper
+  notarize: false
+  extendInfo:
+    NSRemindersFullAccessUsageDescription: DayBoard shows your Apple Reminders on the dashboard and lets you complete or add reminders.
+    NSRemindersUsageDescription: DayBoard shows your Apple Reminders on the dashboard and lets you complete or add reminders.
+    NSMicrophoneUsageDescription: Dictate messages to the Assistant. Audio is sent to OpenAI for transcription only when you use dictation.
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+# Release feed for electron-updater. Config only: `npm run dist` passes --publish never.
+publish:
+  provider: github
+  owner: miles-chu10
+  repo: dayboard

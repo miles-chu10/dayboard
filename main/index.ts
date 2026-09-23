@@ -1,25 +1,11 @@
-// Main process entry point - Node.js backend for Glaze app
-//
-// The glaze CLI runtime automatically handles all framework wiring (IPC server,
-// native bridge, lifecycle, signal handlers) before this file runs.
-// This entry point uses only APIs.
-
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
-
-import {
-  app,
-  BrowserWindow,
-  Menu,
-  dialog,
-  logger,
-  initDevToolsButtonState,
-} from "@glaze/core/backend";
-
+import { app, dialog, logger } from "./platform/index.js";
 import { registerHandlers } from "./handlers/index.js";
-import { getPreloadPath, getWindowUrl } from "./windows/window-paths.js";
-import { openSettingsWindow } from "./windows/settings-window.js";
+import {
+  acquireSingleInstanceLock,
+  createMainWindow,
+  getMainWindow,
+  setupApplicationMenu,
+} from "./window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
 import { drainAgendaStore } from "./services/agenda-store.js";
 import { drainProductivityWrites } from "./handlers/productivity.js";
@@ -28,197 +14,29 @@ import { drainPendingWrites } from "./services/pending-writes.js";
 import { drainSettingsStores } from "./services/settings-store.js";
 import { clearAttachmentPicks } from "./services/ai/attachments.js";
 import { clearReminderIdentities } from "./services/apple-reminders.js";
+import { drainNativeThemeWrites, loadNativeTheme } from "./platform/native-theme.js";
+import { registerUpdateHandlers } from "./handlers/updates.js";
+import { pauseAndDrainAppOperations, resumeAppOperations } from "./services/runtime-activity.js";
 
-// Get directory paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// The standalone package has no Glaze project id. Keep the local MCP port stable across builds.
+const MCP_PROJECT_ID = "com.mileschu.dayboard";
 
-// ── IPC Handlers ──────────────────────────────────────────────────────
-// ipcMain is already wired to the IPC server by the runtime bootstrap.
-registerHandlers();
-
-// ── Dev-only parity harness ───────────────────────────────────────────
-// The parity autotest lives in main/dev/, which is excluded from scaffolded
-// apps. The build (build-backend) defines GLAZE_DEV_HARNESS="1" only when that
-// directory is present, so esbuild dead-code-eliminates this block — and never
-// resolves the missing module — for user apps. A no-op unless a scenario env var
-// is set even in the template.
-type DevHarness = {
-  applyParityScenarioStartup(): void;
-  runParityAutotestIfRequested(): Promise<void>;
-};
-type AppAiDevHarness = {
-  runAppAiAutotest(): Promise<void>;
-};
-let devHarness: DevHarness | null = null;
-let appAiDevHarness: AppAiDevHarness | null = null;
-if (process.env.GLAZE_DEV_HARNESS === "1") {
-  // @ts-ignore dev-only harness; present only in the template, excluded from scaffolded apps
-  devHarness = (await import("./dev/parity-autotest.js")) as DevHarness;
-  devHarness.applyParityScenarioStartup();
-  // @ts-ignore dev-only harness; present only in the template, excluded from scaffolded apps
-  appAiDevHarness = (await import("./dev/app-ai-autotest.js")) as AppAiDevHarness;
+let updates: ReturnType<typeof registerUpdateHandlers> | undefined;
+async function drainAppWrites(): Promise<void> {
+  await drainProductivityWrites();
+  await drainPendingWrites();
+  await drainSettingsStores();
+  await drainAgendaStore();
+  await drainNativeThemeWrites();
 }
-
-// ── State ─────────────────────────────────────────────────────────────
-let mainWindow: BrowserWindow | null = null;
-
-// ── Window creation ───────────────────────────────────────────────────
-async function createMainWindow() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    logger.debug("main", "Main window already exists, skipping creation");
-    return;
-  }
-
-  // Read display name from package.json
-  // In production: __dirname = build/main, package.json is at ../../package.json
-  const packageJsonPath = path.join(__dirname, "..", "..", "package.json");
-
-  const minWindowWidth = 800;
-  const minWindowHeight = 600;
-  const windowWidth = 1100;
-  const windowHeight = 800;
-  let windowTitle = "Glaze App";
-
-  try {
-    if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, "utf-8"));
-      windowTitle = packageJson.productName || packageJson.appConfig?.displayName || windowTitle;
-    }
-  } catch {
-    // Use defaults
-  }
-
-  // Create main window
-  const browserWindowStartTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] Creating BrowserWindow", {
-    timestamp: new Date().toISOString(),
-  });
-
-  mainWindow = new BrowserWindow({
-    windowKey: "main", // Stable key for frame persistence
-    width: windowWidth,
-    height: windowHeight,
-    minWidth: minWindowWidth,
-    minHeight: minWindowHeight,
-    title: windowTitle,
-    show: false, // Don't show until WebView is ready (prevents flickering)
-    webPreferences: {
-      preload: getPreloadPath(),
-    },
-  });
-
-  const browserWindowEndTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] BrowserWindow constructor completed", {
-    timestamp: new Date().toISOString(),
-    duration_ms: browserWindowEndTime - browserWindowStartTime,
-  });
-
-  // Wait for ready-to-show event before showing window (prevents flickering)
-  mainWindow.once("ready-to-show", () => {
-    const showStartTime = Date.now();
-    logger.info("main", "⏱️ [COLD_START] ready-to-show event received, showing window", {
-      timestamp: new Date().toISOString(),
-    });
-
-    mainWindow?.show();
-
-    const showEndTime = Date.now();
-    logger.info("main", "⏱️ [COLD_START] Window shown", {
-      timestamp: new Date().toISOString(),
-      duration_ms: showEndTime - showStartTime,
-    });
-  });
-
-  // Determine URL to load (dev server preferred, fallback to build files)
-  const url = await getWindowUrl("main-window.html");
-  logger.info("main", "Resolved main window URL", { url });
-
-  // Load URL - window will be shown automatically when ready-to-show fires
-  const loadURLStartTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] Loading URL in window", {
-    timestamp: new Date().toISOString(),
-    url,
-  });
-
-  await mainWindow.loadURL(url);
-
-  const loadURLEndTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] URL loaded in window (waiting for ready-to-show)", {
-    timestamp: new Date().toISOString(),
-    duration_ms: loadURLEndTime - loadURLStartTime,
-  });
-}
-
-// ── Application menu ──────────────────────────────────────────────────
-async function setupApplicationMenu() {
-  await initDevToolsButtonState();
-  const menu = Menu.buildFromTemplate([
-    {
-      label: "App",
-      submenu: [
-        { role: "about" },
-        { type: "separator" },
-        {
-          label: "Settings…",
-          icon: "gearshape",
-          accelerator: "Command+,",
-          click: async () => await openSettingsWindow(),
-        },
-        { type: "separator" },
-        { role: "services" },
-        { type: "separator" },
-        { role: "hide" },
-        { role: "hideOthers" },
-        { role: "unhide" },
-        { type: "separator" },
-        { role: "quit" },
-      ],
-    },
-    { role: "fileMenu" },
-    { role: "editMenu" },
-    { role: "viewMenu" },
-    { role: "windowMenu" },
-  ]);
-  Menu.setApplicationMenu(menu);
-  logger.info("main", "Application menu configured with Settings");
-}
-
-// ── Lifecycle events ──────────────────────────────────────────────────
-app.on("window-all-closed", () => {
-  // On macOS, apps typically don't quit when all windows are closed
-  // Uncomment to quit on all windows closed:
-  // app.quit();
-});
-
-app.on("activate", (hasVisibleWindows) => {
-  logger.info("main", "App activate event received", {
-    hasVisibleWindows,
-    mainWindowExists: !!mainWindow,
-    mainWindowDestroyed: mainWindow?.isDestroyed() ?? true,
-  });
-
-  // On macOS, re-create window when dock icon clicked if no windows
-  if (!hasVisibleWindows) {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      logger.info("main", "Creating main window due to activate event");
-      createMainWindow();
-    } else {
-      logger.info("main", "Showing existing main window");
-      mainWindow.show();
-    }
-  } else {
-    logger.info("main", "Has visible windows, no action needed");
-  }
-});
 
 const saveBeforeQuit = createSaveQuitGuard({
   drain: async () => {
-    await drainProductivityWrites();
-    await drainPendingWrites();
-    await drainSettingsStores();
-    await drainAgendaStore();
+    await pauseAndDrainAppOperations();
+    await drainAppWrites();
   },
+  onCancelled: resumeAppOperations,
+  isUpdateInstallReady: () => updates?.status().phase === "installing",
   confirmUnfinished: async () => {
     const result = await dialog.showMessageBox({
       type: "warning",
@@ -238,50 +56,54 @@ const saveBeforeQuit = createSaveQuitGuard({
     app.quit();
   },
 });
-app.on("before-quit", (event) => {
-  void saveBeforeQuit(event).catch(() => {
-    logger.warn("main", "Quit cancelled because pending changes could not be checked.");
-  });
-});
 
-// ── App ready ─────────────────────────────────────────────────────────
-const startTime = Date.now();
-logger.info("main", "⏱️ [COLD_START] Waiting for app ready...", {
-  timestamp: new Date().toISOString(),
-});
-
-app.whenReady().then(async () => {
-  const windowCreateStartTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] App ready, creating main window", {
-    timestamp: new Date().toISOString(),
-    wait_duration_ms: windowCreateStartTime - startTime,
+if (acquireSingleInstanceLock()) {
+  app.on("before-quit", (event) => {
+    void saveBeforeQuit(event).catch((error) => {
+      logger.warn("main", "Quit cancelled because pending changes could not be checked", error);
+    });
   });
 
-  await devHarness?.runParityAutotestIfRequested();
-  await appAiDevHarness?.runAppAiAutotest();
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
 
-  await setupApplicationMenu();
+  app.on("activate", (_event, hasVisibleWindows) => {
+    if (hasVisibleWindows) return;
+    const window = getMainWindow();
+    if (window && !window.isDestroyed()) {
+      window.show();
+      window.focus();
+    } else {
+      void createMainWindow().catch((error) =>
+        logger.error("main", "Failed to reopen main window", error),
+      );
+    }
+  });
 
-  // Local MCP endpoint for Claude Code / Codex; port is derived from the project id.
-  try {
-    const packageJson = JSON.parse(
-      await fs.promises.readFile(path.join(__dirname, "..", "..", "package.json"), "utf-8"),
-    ) as { id?: unknown };
-    if (typeof packageJson.id === "string") startMcpHttpServer(packageJson.id);
-    else logger.warn("main", "package.json has no id; MCP server not started");
-  } catch (error) {
-    logger.warn("main", "Could not start MCP server", error);
-  }
-
-  createMainWindow()
-    .then(() => {
-      const windowCreateEndTime = Date.now();
-      logger.info("main", "⏱️ [COLD_START] Main window created successfully", {
-        timestamp: new Date().toISOString(),
-        duration_ms: windowCreateEndTime - windowCreateStartTime,
+  void app
+    .whenReady()
+    .then(async () => {
+      await loadNativeTheme();
+      registerHandlers();
+      updates = registerUpdateHandlers({
+        prepareForInstall: async () => {
+          await pauseAndDrainAppOperations();
+          try {
+            await drainAppWrites();
+          } catch (error) {
+            resumeAppOperations();
+            throw error;
+          }
+        },
+        resumeAfterInstallFailure: resumeAppOperations,
       });
+      setupApplicationMenu({ checkForUpdates: () => updates!.check() });
+      startMcpHttpServer(MCP_PROJECT_ID);
+      await createMainWindow();
     })
     .catch((error) => {
-      logger.error("main", "Failed to create main window", error);
+      logger.error("main", "Failed to start DayBoard", error);
+      app.quit();
     });
-});
+}

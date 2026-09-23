@@ -10,10 +10,10 @@ export type RemindersAccess =
 export type SourceId = "tasks" | "reminders" | "mail" | "calendar";
 export type SourceColor = "blue" | "green" | "orange" | "red" | "purple" | "magenta" | "yellow";
 /**
- * glaze: Glaze AI · claude/codex/gemini/muse: subscriptions through Claude Code, Codex,
+ * claude/codex/gemini/muse: subscriptions through Claude Code, Codex,
  * Antigravity (agy), and Meta's Muse Code · the rest: pay-per-use API keys.
  */
-export type AIProvider = "glaze" | CliProviderId | ApiProviderId;
+export type AIProvider = CliProviderId | ApiProviderId;
 export type CliProviderId = "claude" | "codex" | "gemini" | "muse";
 export type ApiProviderId =
   | "openai"
@@ -95,6 +95,8 @@ export interface AppSettings {
   };
   ai: {
     enabled: boolean;
+    /** False until a standalone provider was selected; legacy Glaze settings stay unconfigured. */
+    providerChosen: boolean;
     provider: AIProvider;
     claudeModel: ClaudeModel;
     claudeEffort: ClaudeEffort;

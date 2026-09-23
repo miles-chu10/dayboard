@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@glaze/core/components";
+import { toast } from "@renderer/ui";
 
 import { errorMessage, invoke } from "./ipc";
 

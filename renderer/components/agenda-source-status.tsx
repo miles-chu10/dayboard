@@ -7,7 +7,7 @@ import {
   CollapsibleRoot,
   CollapsibleTrigger,
   Text,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import type { SourceId, SourceResult } from "@main/shared-types";
 
 import { formatTimeOfDay } from "../lib/dates";

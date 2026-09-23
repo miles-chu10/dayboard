@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useGlazeAI } from "@glaze/core/hooks";
 import type { AIStreamChunk } from "@main/shared-types";
 
 import { errorMessage } from "./ipc";
-import { isRendererDemoMode } from "./demo";
-import { useSettings } from "./settings";
 
+/** User-facing text for an `AssistantResult`'s `blocked` code (see `runAssistant`). */
 export const BLOCKED_MESSAGE: Record<string, string> = {
-  "needs-consent": "AI access wasn't allowed. Try again when you're ready.",
-  "signed-out": "Sign in to Glaze to use AI features.",
-  "needs-subscription": "This needs an upgraded Glaze plan. Try again to see options.",
-  "insufficient-credits": "You're out of Glaze AI credits for now.",
-  "daily-limit-reached": "You've reached today's AI limit for this app.",
-  "host-unavailable": "Glaze couldn't be reached. Try again.",
-  disabled: "AI is currently unavailable for this account.",
+  "not-configured": "Set up AI in Settings to use this feature.",
 };
 
 interface RunOptions {
@@ -27,52 +19,35 @@ interface CliState {
   error: string | null;
 }
 
-/**
- * One streaming AI request using the provider chosen in Settings. Glaze AI runs through
- * useGlazeAI (consent, credits, auto-resume); Claude and ChatGPT run their CLIs in the backend.
- */
+/** One streaming AI request using the provider chosen in Settings, run through the backend. */
 export function useAITask() {
-  const demo = isRendererDemoMode();
-  const provider = useSettings().data?.ai.provider ?? "glaze";
-  const glazeAI = useGlazeAI();
   const [output, setOutput] = useState("");
-  const [runProvider, setRunProvider] = useState(provider);
   const [cli, setCli] = useState<CliState>({ status: "idle", error: null });
-  const abortRef = useRef<AbortController | null>(null);
   const streamRef = useRef<string | null>(null);
 
   useEffect(
     () => () => {
-      abortRef.current?.abort();
-      if (streamRef.current) window.glazeAPI.glaze.ipc.cancelStream(streamRef.current);
+      if (streamRef.current) window.dayboard.ipc.cancelStream(streamRef.current);
     },
     [],
   );
 
-  async function runGlaze(options: RunOptions) {
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await glazeAI.streamText({
-        model: "fast",
-        ...options,
-        abortSignal: controller.signal,
-        onTextDelta: (delta) => setOutput((current) => current + delta),
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      if (err instanceof Error && "state" in err && err.state === "host-unavailable") {
-        await glazeAI.enableInHost();
-      }
+  function stop() {
+    if (streamRef.current) {
+      window.dayboard.ipc.cancelStream(streamRef.current);
+      streamRef.current = null;
+      setCli({ status: "idle", error: null });
     }
   }
 
-  async function runCli(options: RunOptions) {
+  async function run(options: RunOptions) {
+    stop();
+    setOutput("");
     const id = crypto.randomUUID();
     streamRef.current = id;
     setCli({ status: "loading", error: null });
     try {
-      await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, { text: string }>(
+      await window.dayboard.ipc.stream<AIStreamChunk, { text: string }>(
         "ai:run",
         { system: options.system, prompt: options.prompt },
         (chunk) => {
@@ -91,47 +66,20 @@ export function useAITask() {
     }
   }
 
-  function stop() {
-    abortRef.current?.abort();
-    if (streamRef.current) {
-      window.glazeAPI.glaze.ipc.cancelStream(streamRef.current);
-      streamRef.current = null;
-      setCli({ status: "idle", error: null });
-    }
-  }
-
-  async function run(options: RunOptions) {
-    stop();
-    setOutput("");
-    setRunProvider(provider);
-    if (demo || provider !== "glaze") await runCli(options);
-    else await runGlaze(options);
-  }
-
   function clear() {
     stop();
     setOutput("");
-    if (!demo) glazeAI.reset();
     setCli({ status: "idle", error: null });
   }
-
-  const usingGlaze = !demo && runProvider === "glaze";
-  const glazeAborted = glazeAI.error?.name === "AbortError";
-  const message = usingGlaze
-    ? (BLOCKED_MESSAGE[glazeAI.state] ??
-      (glazeAI.error && !glazeAborted && glazeAI.state !== "loading"
-        ? "The AI request failed. Try again."
-        : null))
-    : cli.error;
 
   return {
     output,
     run,
     stop,
     clear,
-    isRunning: usingGlaze ? glazeAI.state === "loading" : cli.status === "loading",
-    isDone: (usingGlaze ? glazeAI.state === "ready" : cli.status === "ready") && output.length > 0,
-    message,
+    isRunning: cli.status === "loading",
+    isDone: cli.status === "ready" && output.length > 0,
+    message: cli.error,
   };
 }
 

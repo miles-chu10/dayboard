@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import * as path from "node:path";
 
-import { app, safeStorage } from "@glaze/core/backend";
+import { app, safeStorage } from "../platform/index.js";
 
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";
 
@@ -27,8 +27,9 @@ export function getMcpAccessKey(): Promise<string> {
     if (cachedKey) return cachedKey;
     const stored = await readFileIfExists(keyPath());
     if (!stored) return writeNewKey();
-    cachedKey = await safeStorage.decryptString(stored);
-    return cachedKey;
+    const key = await safeStorage.decryptString(stored);
+    cachedKey = key;
+    return key;
   });
 }
 

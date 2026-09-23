@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { dialog } from "@glaze/core/backend";
+import { dialog } from "../../platform/index.js";
 
 import type { AssistantAttachment } from "../../shared-types.js";
 

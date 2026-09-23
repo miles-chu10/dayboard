@@ -4,14 +4,12 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router, queryClient } from "./router";
 import "../styles.css";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Text, TooltipProvider, Toaster } from "@glaze/core/components";
-import { initLogging } from "@glaze/core/utils";
+import { Text, TooltipProvider, Toaster } from "@renderer/ui";
 import { applyCachedAppearance } from "../lib/appearance";
 import { initializeDemoMode } from "../lib/demo";
+import { UpdateBoundary } from "../components/update-boundary";
 
 declare const __APP_DISPLAY_NAME__: string | undefined;
-
-initLogging();
 
 document.title = __APP_DISPLAY_NAME__ || document.title;
 
@@ -30,7 +28,9 @@ try {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <RouterProvider router={router} />
+          <UpdateBoundary>
+            <RouterProvider router={router} />
+          </UpdateBoundary>
         </TooltipProvider>
         <Toaster />
       </QueryClientProvider>

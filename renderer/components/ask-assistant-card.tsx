@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { AIChat, Button } from "@glaze/core/components";
+import { AIChat, Button } from "@renderer/ui";
 import type { AIProvider } from "@main/shared-types";
 
 import { ASSISTANT_SUGGESTIONS } from "../lib/assistant";

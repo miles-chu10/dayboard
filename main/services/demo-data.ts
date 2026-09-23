@@ -3,7 +3,7 @@
 import { statSync } from "node:fs";
 import * as path from "node:path";
 
-import { app } from "@glaze/core/backend";
+import { app } from "../platform/index.js";
 
 import type {
   AccountsStatus,

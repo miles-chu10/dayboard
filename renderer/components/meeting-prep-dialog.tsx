@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Callout, Dialog, Markdown, Status, Text } from "@glaze/core/components";
+import { Button, Callout, Dialog, Markdown, Status, Text } from "@renderer/ui";
 import { Sparkles } from "lucide-react";
 import type { CalendarEventItem, MailItem, SourceResult } from "@main/shared-types";
 
@@ -105,7 +105,13 @@ function MeetingPrepDialog({ event, onClose }: { event: CalendarEventItem; onClo
     const next = { generatedAt: new Date().toISOString(), markdown: ai.output };
     const map = { ...(readStored(STORAGE_KEY, isPrepMap) ?? {}), [event.id]: next };
     writeStored(STORAGE_KEY, Object.fromEntries(Object.entries(map).slice(-MAX_STORED)));
-    setStored(next);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setStored(next);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ai.isDone, ai.output, event.id]);
 
   function generate() {

@@ -11,7 +11,7 @@ import {
   Switch,
   Text,
   toast,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import type {
   AIFeature,
   AIProvider,
@@ -144,7 +144,6 @@ const CLI_LABEL: Record<CliProviderId, string> = {
 };
 
 const PROVIDER_GROUPS: { title: string; providers: readonly AIProvider[] }[] = [
-  { title: "Built in", providers: ["glaze"] },
   { title: "Subscription accounts", providers: SUBSCRIPTION_PROVIDERS },
   { title: "API keys", providers: API_KEY_PROVIDERS },
 ];
@@ -478,9 +477,17 @@ export function AITab() {
   return (
     <>
       <FieldSet title="AI Features">
-        <Field label="Enable AI" description="Turn off to hide every AI feature in the dashboard.">
+        <Field
+          label="Enable AI"
+          description={
+            ai.providerChosen
+              ? "Turn off to hide every AI feature in the dashboard."
+              : "Choose a provider below before enabling AI."
+          }
+        >
           <Switch
             checked={ai.enabled}
+            disabled={!ai.providerChosen}
             onCheckedChange={(checked) =>
               edit((draft) => {
                 draft.ai.enabled = checked;
@@ -491,7 +498,11 @@ export function AITab() {
         </Field>
       </FieldSet>
 
-      {ai.enabled ? (
+      {!ai.providerChosen ? (
+        <Text color="secondary">Choose an AI provider below to finish setup.</Text>
+      ) : null}
+
+      {ai.enabled || !ai.providerChosen ? (
         <>
           <FieldSet
             title="Default provider"
@@ -499,10 +510,11 @@ export function AITab() {
           >
             <Field orientation="vertical">
               <RadioGroup
-                value={ai.provider}
+                value={ai.providerChosen ? ai.provider : ""}
                 onValueChange={(value) =>
                   edit((draft) => {
                     draft.ai.provider = value as AIProvider;
+                    draft.ai.providerChosen = true;
                   })
                 }
               >
@@ -529,11 +541,19 @@ export function AITab() {
                 ))}
               </RadioGroup>
             </Field>
-            {ai.provider === "claude" ? <ClaudeOptions settings={settings} edit={edit} /> : null}
-            {ai.provider === "codex" ? <CodexOptions settings={settings} edit={edit} /> : null}
-            {ai.provider === "gemini" ? <GeminiModelField settings={settings} edit={edit} /> : null}
-            {ai.provider === "muse" ? <MuseModelField settings={settings} edit={edit} /> : null}
-            {isApiKeyProvider(ai.provider) ? (
+            {ai.providerChosen && ai.provider === "claude" ? (
+              <ClaudeOptions settings={settings} edit={edit} />
+            ) : null}
+            {ai.providerChosen && ai.provider === "codex" ? (
+              <CodexOptions settings={settings} edit={edit} />
+            ) : null}
+            {ai.providerChosen && ai.provider === "gemini" ? (
+              <GeminiModelField settings={settings} edit={edit} />
+            ) : null}
+            {ai.providerChosen && ai.provider === "muse" ? (
+              <MuseModelField settings={settings} edit={edit} />
+            ) : null}
+            {ai.providerChosen && isApiKeyProvider(ai.provider) ? (
               <ApiModelField provider={ai.provider} settings={settings} edit={edit} />
             ) : null}
           </FieldSet>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101315" />
+    <meta
+      name="description"
+      content="A short guide to DayBoard sources, optional AI, and data boundaries."
+    />
+    <title>Guide — DayBoard</title>
+    <link rel="icon" type="image/jpeg" href="assets/dayboard-icon.jpg" />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="nav wrap" aria-label="Main navigation">
+        <a class="brand" href="index.html"
+          ><img src="assets/dayboard-icon.jpg" alt="" width="38" height="38" />DayBoard</a
+        >
+        <div class="nav-links">
+          <a href="index.html">Overview</a><a href="download.html">Download</a
+          ><a href="docs.html" aria-current="page">Guide</a><a href="support.html">Support</a
+          ><a class="nav-source" href="https://github.com/miles-chu10/dayboard">Source ↗</a>
+        </div>
+      </nav>
+    </header>
+    <main id="main">
+      <div class="page-head">
+        <div class="wrap">
+          <span class="eyebrow">Getting started</span>
+          <h1>DayBoard guide</h1>
+          <p>A short introduction while the public Mac build is being prepared.</p>
+        </div>
+      </div>
+      <div class="content wrap content-narrow">
+        <h2>Start with your Agenda</h2>
+        <p>
+          DayBoard is designed to bring Google Calendar, Google Tasks, and Apple Reminders into one
+          Agenda. Source controls let you focus the view. Gmail has its own inbox view.
+        </p>
+        <h2>Connect the sources you want</h2>
+        <p>
+          Google Tasks, Gmail, and Google Calendar require Google sign-in and the permissions for
+          the sources you enable. Apple Reminders requires macOS permission. Connected services
+          continue to store and process their own data under their own terms.
+        </p>
+        <h2>Use AI only when useful</h2>
+        <p>
+          AI features are optional. Depending on the provider you choose, DayBoard may use a
+          signed-in desktop CLI or an API key. AI requests send the context needed for that feature
+          to the selected provider. Review the provider's terms and privacy practices before
+          enabling it.
+        </p>
+        <h2>Connect an MCP client if you choose</h2>
+        <p>
+          DayBoard can run a local MCP server while the app is open. It is optional and off by
+          default. Access requires a key, and changes through MCP must be enabled separately in
+          settings.
+        </p>
+        <h2 id="data">Where your data goes</h2>
+        <p>
+          DayBoard saves app settings and certain history locally on your Mac. Syncing with Google
+          sends requests to Google's services. Apple Reminders access uses macOS permissions. AI
+          features send selected context to the provider you configure. The exact permissions and
+          final release privacy notice will be documented before a public download is offered.
+        </p>
+        <h2>More information</h2>
+        <p>
+          See <a class="inline-link" href="download.html">download status</a>,
+          <a class="inline-link" href="license.html">open-source and build licensing</a>, or
+          <a class="inline-link" href="support.html">support and FAQ</a>.
+        </p>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <p>DayBoard for macOS. Source licensed under GPL-3.0-only.</p>
+        <div class="footer-links">
+          <a href="index.html">Overview</a><a href="download.html">Download</a
+          ><a href="docs.html">Guide</a><a href="license.html">License</a
+          ><a href="support.html">Support</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub ↗</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

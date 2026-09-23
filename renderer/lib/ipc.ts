@@ -1,13 +1,15 @@
 export function invoke<T = void>(channel: string, ...args: unknown[]): Promise<T> {
-  return window.glazeAPI.glaze.ipc.invoke<T>(channel, ...args);
+  return window.dayboard.ipc.invoke<T>(channel, ...args);
 }
 
 export function openExternal(url: string): Promise<void> {
   return invoke("app:openExternal", { url });
 }
 
-export function openSettings(): Promise<void> {
-  return invoke("window:openSettings");
+export function openSettings(
+  tab?: import("@shared/settings-navigation").SettingsTab,
+): Promise<void> {
+  return tab ? invoke("window:openSettings", { tab }) : invoke("window:openSettings");
 }
 
 export function errorMessage(error: unknown): string {

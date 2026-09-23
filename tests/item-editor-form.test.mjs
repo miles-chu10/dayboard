@@ -17,7 +17,9 @@ async function load() {
     write: false,
     logLevel: "silent",
   });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
+  return import(
+    `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
+  );
 }
 
 const event = (overrides = {}) => ({
@@ -43,12 +45,20 @@ test("task and reminder forms do not require calendar times to save", async () =
   assert.equal(form.itemEditorCanSave("task", { allDay: false, start: "", end: "" }), true);
   assert.equal(form.itemEditorCanSave("reminder", { allDay: false, start: "", end: "" }), true);
   assert.equal(form.itemEditorCanSave("event", { allDay: false, start: "", end: "" }), false);
-  assert.equal(form.reminderDueChanged({ dueDate: "2026-09-24", dueTime: "09:30" }, { dueDate: "2026-09-24", dueTime: "09:30" }), false);
+  assert.equal(
+    form.reminderDueChanged(
+      { dueDate: "2026-09-24", dueTime: "09:30" },
+      { dueDate: "2026-09-24", dueTime: "09:30" },
+    ),
+    false,
+  );
 });
 
 test("all-day form dates stay inclusive while provider payload dates stay exclusive", async () => {
   const form = await load();
-  const fields = form.eventEditorFields(event({ allDay: true, start: "2026-10-02", end: "2026-10-05" }));
+  const fields = form.eventEditorFields(
+    event({ allDay: true, start: "2026-10-02", end: "2026-10-05" }),
+  );
   assert.equal(fields.start, "2026-10-02");
   assert.equal(fields.end, "2026-10-04");
   assert.equal(form.nextCalendarDate(fields.end), "2026-10-05");

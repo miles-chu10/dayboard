@@ -6,6 +6,8 @@ interface SaveQuitOptions {
   drain: () => Promise<void>;
   confirmUnfinished: () => Promise<boolean>;
   resumeQuit: () => void;
+  isUpdateInstallReady?: () => boolean;
+  onCancelled?: () => void;
   timeoutMs?: number;
 }
 
@@ -14,11 +16,16 @@ export function createSaveQuitGuard({
   drain,
   confirmUnfinished,
   resumeQuit,
+  isUpdateInstallReady = () => false,
+  onCancelled = () => {},
   timeoutMs = 3_500,
 }: SaveQuitOptions) {
   let ready = false;
   let waiting = false;
   return async (event: QuitEvent): Promise<void> => {
+    // The explicit update install already drained saves. Let Squirrel finish its own quit;
+    // cancelling it and replacing it with app.quit() can interrupt the installation.
+    if (isUpdateInstallReady()) return;
     if (ready) return;
     event.preventDefault();
     if (waiting) return;
@@ -43,6 +50,7 @@ export function createSaveQuitGuard({
       resumeQuit();
     } finally {
       waiting = false;
+      if (!ready) onCancelled();
     }
   };
 }

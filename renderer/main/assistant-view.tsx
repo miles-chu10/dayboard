@@ -10,8 +10,7 @@ import {
   ScrollArea,
   Text,
   toast,
-} from "@glaze/core/components";
-import { useGlazeAI } from "@glaze/core/hooks";
+} from "@renderer/ui";
 import { History, Server, SquarePen } from "lucide-react";
 import type {
   AIProvider,
@@ -23,6 +22,7 @@ import type {
 import type { AssistantHistory } from "../../shared/assistant-history";
 
 import { AssistantComposer, type ContextUsage } from "../components/assistant-composer";
+import { LicenseGate } from "../components/license-gate";
 import { displayName } from "../components/app-sidebar";
 import { HistoryNav } from "../components/history-nav";
 import { McpServersDialog, useAssistantMcpServers } from "../components/mcp-servers-dialog";
@@ -82,7 +82,7 @@ function AssistantMessageView({
   provider,
   streaming,
   onAddAction,
-  onEnableAI,
+  onOpenSettings,
   demo,
   adding,
 }: {
@@ -90,7 +90,7 @@ function AssistantMessageView({
   provider: AIProvider;
   streaming: boolean;
   onAddAction: (index: number) => void;
-  onEnableAI: () => void;
+  onOpenSettings: () => void;
   demo: boolean;
   adding: boolean;
 }) {
@@ -103,7 +103,7 @@ function AssistantMessageView({
   }
 
   const { body } = splitActions(message.content);
-  const canEnable = message.blocked === "needs-consent" || message.blocked === "host-unavailable";
+  const needsSettings = message.blocked === "not-configured";
   const author = message.provider ?? provider;
 
   return (
@@ -121,7 +121,10 @@ function AssistantMessageView({
           ) : null}
         </div>
         {message.tools.map((tool) => (
-          <AIChat.Tool.Root key={tool.id} status={tool.status}>
+          <AIChat.Tool.Root
+            key={tool.id}
+            status={tool.status === "success" ? "complete" : tool.status}
+          >
             <AIChat.Tool.Trigger>
               <AIChat.Tool.Name>{tool.name}</AIChat.Tool.Name>
             </AIChat.Tool.Trigger>
@@ -163,9 +166,9 @@ function AssistantMessageView({
           <Callout
             color="orange"
             actions={
-              canEnable ? (
-                <Button size="small" onClick={onEnableAI}>
-                  Allow AI
+              needsSettings ? (
+                <Button size="small" onClick={onOpenSettings}>
+                  AI Settings
                 </Button>
               ) : undefined
             }
@@ -203,7 +206,7 @@ export function AssistantView() {
     };
     loadRef.current = load;
     load();
-    const unsubscribe = window.glazeAPI.glaze.ipc.onNotification("accounts:changed", load);
+    const unsubscribe = window.dayboard.ipc.onNotification("accounts:changed", load);
     return () => {
       mounted = false;
       unsubscribe();
@@ -238,7 +241,6 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const provider = assistantProvider(settings);
   const [mcpOpen, setMcpOpen] = useState(false);
   const mcpServers = useAssistantMcpServers();
-  const glazeAI = useGlazeAI();
   const accounts = useAccounts();
   const tasks = useTasks();
   const reminders = useReminders();
@@ -268,7 +270,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
 
   useEffect(
     () => () => {
-      if (cancelRef.current) window.glazeAPI.glaze.ipc.cancelStream(cancelRef.current);
+      if (cancelRef.current) window.dayboard.ipc.cancelStream(cancelRef.current);
       cancelRef.current = null;
     },
     [],
@@ -362,7 +364,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     try {
       await history.flush();
       if (cancelRef.current !== cancellationId) return;
-      const result = await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, AssistantResult>(
+      const result = await window.dayboard.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
         {
           messages: requestMessages,
@@ -471,7 +473,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
 
   function stop() {
     if (!cancelRef.current) return;
-    window.glazeAPI.glaze.ipc.cancelStream(cancelRef.current);
+    window.dayboard.ipc.cancelStream(cancelRef.current);
     cancelRef.current = null;
     const id = runningId;
     setRunningId(null);
@@ -541,9 +543,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
 
   const subtitle = enabled
     ? [
-        provider === "glaze"
-          ? PROVIDER_LABEL[provider]
-          : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
+        `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
         demo ? "Sample data" : null,
         providerUsesMcp(provider) && mcpServers.data?.length
           ? `MCP: ${mcpServers.data.map((server) => server.name).join(", ")}`
@@ -619,18 +619,20 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                     : "\u00a0"}
               </Text>
             </div>
-            <AssistantComposer
-              input={input}
-              setInput={setInput}
-              attachments={attachments}
-              setAttachments={setAttachments}
-              onSend={() => void send(input)}
-              onStop={stop}
-              running={Boolean(runningId)}
-              disabled={history.switching}
-              usage={usage}
-              demo={demo}
-            />
+            <LicenseGate>
+              <AssistantComposer
+                input={input}
+                setInput={setInput}
+                attachments={attachments}
+                setAttachments={setAttachments}
+                onSend={() => void send(input)}
+                onStop={stop}
+                running={Boolean(runningId)}
+                disabled={history.switching}
+                usage={usage}
+                demo={demo}
+              />
+            </LicenseGate>
           </div>
         ) : undefined
       }
@@ -697,9 +699,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
               provider={provider}
               streaming={message.id === runningId}
               onAddAction={(index) => void addAction(message.id, index)}
-              onEnableAI={() => {
-                if (!demo) void glazeAI.enableInHost();
-              }}
+              onOpenSettings={() => void openSettings()}
               demo={demo}
               adding={adding}
             />

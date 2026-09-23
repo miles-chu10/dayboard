@@ -9,7 +9,7 @@ import {
   ToolbarContent,
   ToolbarRow,
   ToolbarTitle,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 
 import { useAppearanceSync } from "../lib/appearance";
 import { useBackendSync } from "../lib/queries";
@@ -17,13 +17,28 @@ import { AITab } from "./ai-tab";
 import { GeneralTab } from "./general-tab";
 import { McpTab } from "./mcp-tab";
 import { SourcesTab } from "./sources-tab";
+import { LicenseTab } from "./license-tab";
+import { UpdatesTab } from "./updates-tab";
+import { isSettingsTab, type SettingsTab } from "@shared/settings-navigation";
 
 const TAB_CONTENT_CLASS = "px-4 pb-8 pt-2 flex flex-col gap-8";
 
 export function SettingsView() {
   useBackendSync();
   useAppearanceSync();
-  const [tab, setTab] = useState("general");
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    const requested = window.location.hash.slice(1);
+    return isSettingsTab(requested) ? requested : "general";
+  });
+  useEffect(
+    () =>
+      window.dayboard.ipc.onNotification("settings:selectTab", (payload) => {
+        const requested =
+          payload && typeof payload === "object" && "tab" in payload ? payload.tab : undefined;
+        if (isSettingsTab(requested)) setTab(requested);
+      }),
+    [],
+  );
 
   // Close settings window on Escape, unless an interactive element is focused or a popover is open
   useEffect(() => {
@@ -46,7 +61,7 @@ export function SettingsView() {
       }
 
       event.preventDefault();
-      window.glazeAPI.glaze.ipc.invoke("window:closeSettings");
+      window.dayboard.ipc.invoke("window:closeSettings");
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -54,7 +69,13 @@ export function SettingsView() {
   }, []);
 
   return (
-    <TabsRoot value={tab} onValueChange={setTab} className="h-full">
+    <TabsRoot
+      value={tab}
+      onValueChange={(value) => {
+        if (isSettingsTab(value)) setTab(value);
+      }}
+      className="h-full"
+    >
       <ScrollArea
         className="h-full"
         toolbar={
@@ -64,12 +85,14 @@ export function SettingsView() {
                 <ToolbarTitle>Settings</ToolbarTitle>
               </ToolbarContent>
             </ToolbarRow>
-            <ToolbarRow className="justify-center">
-              <Tabs variant="glass">
+            <ToolbarRow className="overflow-x-auto">
+              <Tabs variant="glass" className="mx-auto shrink-0">
                 <TabsTrigger value="general">General</TabsTrigger>
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="ai">AI</TabsTrigger>
                 <TabsTrigger value="mcp">MCP Servers</TabsTrigger>
+                <TabsTrigger value="license">License</TabsTrigger>
+                <TabsTrigger value="updates">Updates</TabsTrigger>
               </Tabs>
             </ToolbarRow>
           </Toolbar>
@@ -86,6 +109,12 @@ export function SettingsView() {
         </TabsContent>
         <TabsContent value="mcp" className={TAB_CONTENT_CLASS}>
           <McpTab />
+        </TabsContent>
+        <TabsContent value="license" className={TAB_CONTENT_CLASS}>
+          <LicenseTab />
+        </TabsContent>
+        <TabsContent value="updates" className={TAB_CONTENT_CLASS}>
+          <UpdatesTab />
         </TabsContent>
       </ScrollArea>
     </TabsRoot>

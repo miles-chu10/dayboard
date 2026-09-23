@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { app, safeStorage } from "@glaze/core/backend";
+import { app, safeStorage } from "../platform/index.js";
 
 import type {
   AIFeature,
@@ -40,7 +40,7 @@ const ACCENTS: AccentColor[] = [
 ];
 const DENSITIES: Density[] = ["default", "compact"];
 const DETAIL_VIEWS: DetailView[] = ["dialog", "inline", "sidebar"];
-const PROVIDERS: AIProvider[] = ["glaze", "claude", "codex", "gemini", "muse", ...API_PROVIDERS];
+const PROVIDERS: AIProvider[] = ["claude", "codex", "gemini", "muse", ...API_PROVIDERS];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
   "tasks",
@@ -96,8 +96,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   calendar: { range: "next-7-days", visibility: {} },
   mcpServer: { enabled: false, allowWrites: false },
   ai: {
-    enabled: true,
-    provider: "glaze",
+    enabled: false,
+    providerChosen: false,
+    provider: "claude",
     claudeModel: "default",
     claudeEffort: "default",
     claudeFast: false,
@@ -211,7 +212,11 @@ export function normalizeSettings(value: unknown): AppSettings {
       allowWrites: bool(mcpServer.allowWrites, defaults.mcpServer.allowWrites),
     },
     ai: {
-      enabled: bool(ai.enabled, defaults.ai.enabled),
+      enabled: PROVIDERS.includes(ai.provider as AIProvider)
+        ? bool(ai.enabled, defaults.ai.enabled)
+        : false,
+      providerChosen:
+        PROVIDERS.includes(ai.provider as AIProvider) && bool(ai.providerChosen, true),
       provider: oneOf(ai.provider, PROVIDERS, defaults.ai.provider),
       claudeModel: oneOf(ai.claudeModel, CLAUDE_MODELS, defaults.ai.claudeModel),
       claudeEffort: oneOf(ai.claudeEffort, CLAUDE_EFFORTS, defaults.ai.claudeEffort),
@@ -273,7 +278,12 @@ function safeDemoSettings(value: unknown): AppSettings {
       calendar: { ...settings.sources.calendar, enabled: true },
     },
     mcpServer: { enabled: false, allowWrites: false },
-    ai: { ...settings.ai, useMcpInAssistant: false },
+    ai: {
+      ...settings.ai,
+      enabled: true,
+      providerChosen: true,
+      useMcpInAssistant: false,
+    },
   };
 }
 

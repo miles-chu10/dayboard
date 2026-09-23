@@ -15,12 +15,11 @@ import {
   Status,
   Switch,
   toast,
-} from "@glaze/core/components";
-import type { NativeThemeInfo } from "@glaze/core/ipc";
+} from "@renderer/ui";
+import type { NativeThemeInfo } from "@shared/bridge-protocol";
 import type { CalendarRange, Density, DetailView, LaunchView } from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
-import { isRendererDemoMode } from "../lib/demo";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts } from "../lib/queries";
@@ -54,7 +53,6 @@ const MAIL_OPTIONS = [
 
 function NameInput({ value, onSave }: { value: string; onSave: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
   const commit = () => {
     const next = draft.trim().slice(0, 80);
     if (next !== value) onSave(next);
@@ -95,23 +93,28 @@ export function GeneralTab() {
 
   const refreshThemeInfo = async () => {
     try {
-      setThemeInfo(await window.glazeAPI.nativeTheme.getInfo());
+      setThemeInfo(await window.dayboard.nativeTheme.getInfo());
     } catch (error) {
       toast.error(`Failed to get theme info: ${error}`);
     }
   };
 
   useEffect(() => {
-    void refreshThemeInfo();
+    let cancelled = false;
+    void window.dayboard.nativeTheme.getInfo().then(
+      (info) => {
+        if (!cancelled) setThemeInfo(info);
+      },
+      (error) => toast.error(`Failed to get theme info: ${error}`),
+    );
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleThemeChange = async (value: string) => {
-    if (isRendererDemoMode()) {
-      toast.error("Theme changes are unavailable in screenshot demo mode.");
-      return;
-    }
     try {
-      await window.glazeAPI.nativeTheme.setThemeSource(value as "system" | "light" | "dark");
+      await window.dayboard.nativeTheme.setThemeSource(value as "system" | "light" | "dark");
       await refreshThemeInfo();
     } catch (error) {
       toast.error(`Failed to set theme: ${error}`);
@@ -153,6 +156,7 @@ export function GeneralTab() {
             description="Shown in the sidebar with your connection status, and used by the Assistant. Leave empty to use your Google account name."
           >
             <NameInput
+              key={settings.general.userName}
               value={settings.general.userName}
               onSave={(userName) =>
                 edit((draft) => {

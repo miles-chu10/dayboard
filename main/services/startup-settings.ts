@@ -1,4 +1,4 @@
-import { app } from "@glaze/core/backend";
+import { app } from "../platform/index.js";
 
 export interface StartAtLoginState {
   openAtLogin: boolean;

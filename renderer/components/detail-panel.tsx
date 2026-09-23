@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Button, Text } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Button, Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import { X } from "lucide-react";
 
 /** Non-modal container for item details, used inline under a row and in the right-hand panel. */

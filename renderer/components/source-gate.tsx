@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { Button, Callout, EmptyState } from "@glaze/core/components";
+import { Button, Callout, EmptyState } from "@renderer/ui";
 import type { SourceResult } from "@main/shared-types";
 
 import { errorMessage, invoke, openSettings } from "../lib/ipc";

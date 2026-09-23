@@ -2,8 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { shell } from "@glaze/core/backend";
-import type { OAuthTokensInput } from "@glaze/core/oauth";
+import { shell } from "../platform/index.js";
+import type { OAuthTokensInput } from "../platform/index.js";
 
 const AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
