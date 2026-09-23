@@ -171,12 +171,27 @@ function accentFill(color: string, scheme: Scheme): { fill: string; contrast: st
 }
 
 /**
- * Hover and pressed fills for a button with `contrast` text: the fill mixed 8% and 16% away from
- * the text color, so interaction raises contrast instead of fading the label.
+ * Hover and pressed fills for a button with `contrast` text: the fill mixed 8% and 16% toward
+ * black or white. Takes the direction that keeps the label at 4.5:1 and the button at 3:1 against
+ * `scheme`'s surfaces, preferring away from the text color. When neither direction does (white
+ * labels on dark-mode blue, purple, pink and red sit in a band too narrow for a visible change),
+ * it keeps the label readable and lets the edge dip: WCAG 1.4.11 doesn't need a text button's
+ * boundary or its hover styling at 3:1, since the label identifies the control.
  */
-export function stateFills(fill: string, contrast: string): { hover: string; active: string } {
+export function stateFills(
+  fill: string,
+  contrast: string,
+  scheme: Scheme,
+): { hover: string; active: string } {
   const away = contrast === "#ffffff" ? "#000000" : "#ffffff";
-  return { hover: mix(fill, away, 0.08), active: mix(fill, away, 0.16) };
+  const toward = away === "#000000" ? "#ffffff" : "#000000";
+  const grounds = markGrounds(scheme);
+  const passes = (color: string) =>
+    contrastRatio(contrast, color) >= TEXT_CONTRAST &&
+    grounds.every((ground) => contrastRatio(color, ground) >= MARK_CONTRAST);
+  const target =
+    [away, toward].find((t) => passes(mix(fill, t, 0.08)) && passes(mix(fill, t, 0.16))) ?? away;
+  return { hover: mix(fill, target, 0.08), active: mix(fill, target, 0.16) };
 }
 
 /**
@@ -193,7 +208,7 @@ export function accentColors(
 ): { fill: string; fillHover: string; fillActive: string; contrast: string; ink: string } {
   const hex = composite(accent, SURFACES[scheme].background);
   const { fill, contrast } = accentFill(hex, scheme);
-  const { hover, active } = stateFills(fill, contrast);
+  const { hover, active } = stateFills(fill, contrast, scheme);
   const ink = ensureContrast(hex, tintedGrounds(hex, scheme, 10), TEXT_CONTRAST, scheme);
   return { fill, fillHover: hover, fillActive: active, contrast, ink };
 }

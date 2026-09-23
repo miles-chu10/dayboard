@@ -87,7 +87,7 @@ for (const scheme of ["light", "dark"] as Scheme[]) {
   });
 
   test(`${scheme}: white text reaches 4.5:1 on destructive buttons at rest, hover and pressed`, () => {
-    const { hover, active } = stateFills(v["--db-destructive"], "#ffffff");
+    const { hover, active } = stateFills(v["--db-destructive"], "#ffffff", scheme);
     assert.equal(v["--db-destructive-hover"], hover);
     assert.equal(v["--db-destructive-active"], active);
     for (const fill of [v["--db-destructive"], hover, active]) {
@@ -126,6 +126,13 @@ test("every accent option gets readable button text, visible fills and accent te
           onFill >= TEXT_CONTRAST,
           `${hex} (${scheme}) ${state} button text ${onFill.toFixed(2)}:1`,
         );
+        // White labels on dark-mode fills leave no room for a visible state change that also holds
+        // 3:1 against the surfaces; the label keeps priority there (see stateFills).
+        if (state === "rest" || (scheme === "dark" && contrast === "#ffffff")) continue;
+        const edge = Math.min(
+          ...markGrounds(scheme).map((ground) => contrastRatio(background, ground)),
+        );
+        assert.ok(edge >= MARK_CONTRAST, `${hex} (${scheme}) ${state} fill ${edge.toFixed(2)}:1`);
       }
       const asMark = Math.min(...markGrounds(scheme).map((ground) => contrastRatio(fill, ground)));
       assert.ok(
