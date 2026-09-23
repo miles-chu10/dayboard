@@ -9,6 +9,7 @@ import {
   accentColors,
   composite,
   contrastRatio,
+  markGrounds,
   textGrounds,
   tintedGrounds,
   type Scheme,
@@ -95,7 +96,7 @@ for (const scheme of ["light", "dark"] as Scheme[]) {
   });
 }
 
-test("every accent option gets readable button text and accent text in both schemes", () => {
+test("every accent option gets readable button text, visible fills and accent text in both schemes", () => {
   const options = [
     ...appearance.matchAll(/light: "(#[0-9A-Fa-f]{6})", dark: "(#[0-9A-Fa-f]{6})"/g),
   ];
@@ -108,6 +109,11 @@ test("every accent option gets readable button text and accent text in both sche
       const { fill, contrast, ink } = accentColors(hex, scheme);
       const onFill = contrastRatio(contrast, fill);
       assert.ok(onFill >= TEXT_CONTRAST, `${hex} (${scheme}) button text ${onFill.toFixed(2)}:1`);
+      const asMark = Math.min(...markGrounds(scheme).map((ground) => contrastRatio(fill, ground)));
+      assert.ok(
+        asMark >= MARK_CONTRAST,
+        `${hex} (${scheme}) fill as a mark ${asMark.toFixed(2)}:1`,
+      );
       const asText = minContrast(ink, tintedGrounds(hex, scheme, 10));
       assert.ok(asText >= TEXT_CONTRAST, `${hex} (${scheme}) accent text ${asText.toFixed(2)}:1`);
     }

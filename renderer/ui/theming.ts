@@ -137,15 +137,43 @@ export function tintedGrounds(color: string, scheme: Scheme, washPercent: number
   return [...textGrounds(scheme), composite(wash, s.background), composite(wash, s.well)];
 }
 
-/** White when white can reach 4.5:1 with a small darkening; black for clearly light colors. */
-function prefersBlackText(color: string): boolean {
-  return contrastRatio(color, "#000000") >= 7;
+/** Surfaces an accent fill sits on as a mark (switch track, radio dot, today's date, borders). */
+export function markGrounds(scheme: Scheme): string[] {
+  const s = SURFACES[scheme];
+  return [s.background, s.backgroundSecondary, s.well];
+}
+
+/**
+ * The fill closest to `color` (mixed toward black or white) that holds 4.5:1 with its text and 3:1
+ * against every mark surface. Saturated accents keep white text; clearly light ones (7:1 or more
+ * with black) use black. The other text color is the fallback when no fill works for the first.
+ */
+function accentFill(color: string, scheme: Scheme): { fill: string; contrast: string } {
+  const grounds = markGrounds(scheme);
+  const preferred = contrastRatio(color, "#000000") >= 7 ? "#000000" : "#ffffff";
+  const texts = preferred === "#000000" ? ["#000000", "#ffffff"] : ["#ffffff", "#000000"];
+  for (const contrast of texts) {
+    for (let step = 0; step <= 200; step++) {
+      for (const target of ["#000000", "#ffffff"]) {
+        const fill = mix(color, target, step / 200);
+        if (
+          contrastRatio(contrast, fill) >= TEXT_CONTRAST &&
+          grounds.every((ground) => contrastRatio(fill, ground) >= MARK_CONTRAST)
+        ) {
+          return { fill, contrast };
+        }
+      }
+    }
+  }
+  return scheme === "light"
+    ? { fill: "#000000", contrast: "#ffffff" }
+    : { fill: "#ffffff", contrast: "#000000" };
 }
 
 /**
  * Everything the app derives from an accent color for one scheme:
- * - `fill`: the accent behind text (buttons, checked boxes, today's date), darkened just enough
- *   for white text when white is used;
+ * - `fill`: the accent behind text and as a mark (buttons, checked boxes, switch tracks, today's
+ *   date), shifted just enough for 4.5:1 with its text and 3:1 against the surfaces around it;
  * - `contrast`: text and icons on `fill`;
  * - `ink`: accent-colored text, focus rings and strokes, adjusted to 4.5:1 on every ground.
  */
@@ -154,9 +182,7 @@ export function accentColors(
   scheme: Scheme,
 ): { fill: string; contrast: string; ink: string } {
   const hex = composite(accent, SURFACES[scheme].background);
-  const contrast = prefersBlackText(hex) ? "#000000" : "#ffffff";
-  const fill =
-    contrast === "#ffffff" ? ensureContrast(hex, ["#ffffff"], TEXT_CONTRAST, "light") : hex;
+  const { fill, contrast } = accentFill(hex, scheme);
   const ink = ensureContrast(hex, tintedGrounds(hex, scheme, 10), TEXT_CONTRAST, scheme);
   return { fill, contrast, ink };
 }
