@@ -76,8 +76,8 @@
             <li>
               <strong>Google:</strong> when you sign in, DayBoard asks for access to Google
               Calendar, Google Tasks and, in the beta, Gmail. It talks to Google's APIs directly
-              from your Mac to show and change those items for you. Signing out revokes DayBoard's
-              access.
+              from your Mac to show and change those items for you. Signing out deletes your Google
+              sign-in tokens from your Mac and asks Google to revoke DayBoard's access.
             </li>
             <li>
               <strong>Apple Reminders:</strong> read and changed on your Mac through macOS, with
@@ -85,14 +85,20 @@
             </li>
             <li>
               <strong>AI (optional):</strong> nothing goes to an AI provider until you choose one.
-              When you use an AI feature, DayBoard sends the context that request needs, such as the
-              items or message you ask about, to the provider you chose, through Claude Code or
-              Codex on your Mac or with your API key. That provider handles it under its own terms.
-              Dictation sends your recording to OpenAI for transcription, only when you use it.
+              AI features send data to the provider you chose, through its app on your Mac (such as
+              Claude Code or Codex) or with your API key. With each message, the Assistant sends a
+              snapshot of up to 60 events, 80 open tasks and reminders, and your 30 latest emails
+              (sender, subject and a short preview), and it can look up more as it answers. Other
+              features, such as the daily briefing, send the items they cover. If you turn on the
+              automatic briefing, it runs the first time you open DayBoard each day, without a
+              click. That provider handles the data under its own terms. Dictation sends your
+              recording to OpenAI for transcription, only when you use it.
             </li>
             <li>
               <strong>MCP server (optional):</strong> off by default. When you turn it on, it runs
-              only on your Mac, and clients need the access key shown in Settings.
+              only on your Mac, and clients need the access key shown in Settings. Apps you connect
+              to it can read your calendar, tasks, reminders and mail, make changes if you allow
+              them, and may send what they read to their own AI providers.
             </li>
             <li>
               <strong>Official builds:</strong> activating a license sends your license key, a
