@@ -2,7 +2,7 @@
 
 DayBoard is a standalone macOS productivity app built with Electron, TypeScript, and React. It brings **Google Tasks**, **Apple Reminders**, **Gmail**, and **Google Calendar** into one Agenda. The application runs without Glaze. Optional AI uses a provider you explicitly choose and configure.
 
-This is the **1.3.0-beta.1 standalone preview**. Public downloads and purchases require the release configuration and verification described in [the release guide](docs/RELEASE.md).
+This is the **1.3.0-beta.7 standalone preview**. Public downloads and purchases require the release configuration and verification described in [the release guide](docs/RELEASE.md).
 
 ## Features
 
@@ -45,7 +45,7 @@ npm run format
 npm run typecheck
 npm run lint
 npm run test:e2e   # credential-free build; isolated demo/empty-profile Electron tests
-npm run package:preview  # local unsigned DMG and update ZIP; does not publish
+npm run package:preview  # local ad-hoc-signed DMG and update ZIP (not notarized); does not publish
 ```
 
 Development requires Node.js 24+ and an existing Xcode command line toolchain for the Swift helper. `main/` owns backend services; `main/platform/` implements native boundaries; `electron/preload.ts` exposes a narrow sandboxed bridge; `renderer/` owns the UI; `native/` holds the Reminders helper; `e2e/` tests the built app. `website/` is the static direct-download site.
