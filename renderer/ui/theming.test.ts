@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -10,6 +10,7 @@ import {
   composite,
   contrastRatio,
   markGrounds,
+  stateFills,
   textGrounds,
   tintedGrounds,
   type Scheme,
@@ -17,6 +18,7 @@ import {
 
 const theme = readFileSync(new URL("../theme.css", import.meta.url), "utf8");
 const appearance = readFileSync(new URL("../lib/appearance.ts", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
 const SUPPORT = ["red", "orange", "yellow", "green", "blue", "purple", "magenta"];
 
@@ -84,13 +86,20 @@ for (const scheme of ["light", "dark"] as Scheme[]) {
     assert.ok(field >= MARK_CONTRAST, `field is ${field.toFixed(2)}:1`);
   });
 
-  test(`${scheme}: white text reaches 4.5:1 on destructive buttons`, () => {
-    assert.ok(contrastRatio("#ffffff", v["--db-destructive"]) >= TEXT_CONTRAST);
+  test(`${scheme}: white text reaches 4.5:1 on destructive buttons at rest, hover and pressed`, () => {
+    const { hover, active } = stateFills(v["--db-destructive"], "#ffffff");
+    assert.equal(v["--db-destructive-hover"], hover);
+    assert.equal(v["--db-destructive-active"], active);
+    for (const fill of [v["--db-destructive"], hover, active]) {
+      assert.ok(contrastRatio("#ffffff", fill) >= TEXT_CONTRAST, `white on ${fill}`);
+    }
   });
 
   test(`${scheme}: the default accent's derived colors match accentColors`, () => {
-    const { fill, contrast, ink } = accentColors(v["--accent"], scheme);
+    const { fill, fillHover, fillActive, contrast, ink } = accentColors(v["--accent"], scheme);
     assert.equal(v["--accent-fill"], fill);
+    assert.equal(v["--accent-fill-hover"], fillHover);
+    assert.equal(v["--accent-fill-active"], fillActive);
     assert.equal(v["--accent-contrast"], contrast);
     assert.equal(v["--accent-ink"], ink);
   });
@@ -106,9 +115,18 @@ test("every accent option gets readable button text, visible fills and accent te
       ["light", light],
       ["dark", dark],
     ] as [Scheme, string][]) {
-      const { fill, contrast, ink } = accentColors(hex, scheme);
-      const onFill = contrastRatio(contrast, fill);
-      assert.ok(onFill >= TEXT_CONTRAST, `${hex} (${scheme}) button text ${onFill.toFixed(2)}:1`);
+      const { fill, fillHover, fillActive, contrast, ink } = accentColors(hex, scheme);
+      for (const [state, background] of [
+        ["rest", fill],
+        ["hover", fillHover],
+        ["pressed", fillActive],
+      ]) {
+        const onFill = contrastRatio(contrast, background);
+        assert.ok(
+          onFill >= TEXT_CONTRAST,
+          `${hex} (${scheme}) ${state} button text ${onFill.toFixed(2)}:1`,
+        );
+      }
       const asMark = Math.min(...markGrounds(scheme).map((ground) => contrastRatio(fill, ground)));
       assert.ok(
         asMark >= MARK_CONTRAST,
@@ -133,13 +151,41 @@ test("text, stroke and accent utilities are wired to the contrast-safe colors", 
   }
   for (const [key, value] of [
     ["--background-color-accent", "--accent-fill"],
+    ["--background-color-accent-hover", "--accent-fill-hover"],
+    ["--background-color-accent-active", "--accent-fill-active"],
     ["--border-color-accent", "--accent-fill"],
     ["--text-color-accent", "--accent-ink"],
     ["--outline-color-accent", "--accent-ink"],
     ["--ring-color-accent", "--accent-ink"],
     ["--stroke-accent", "--accent-ink"],
     ["--color-destructive", "--db-destructive"],
+    ["--color-destructive-hover", "--db-destructive-hover"],
+    ["--color-destructive-active", "--db-destructive-active"],
   ]) {
     assert.match(theme, new RegExp(`${key}: var\\(${value}\\);`));
+  }
+});
+
+test("filled buttons change color on hover and press instead of fading their label", () => {
+  const button = readFileSync(new URL("./button.tsx", import.meta.url), "utf8");
+  for (const variant of ["accent", "destructive", "glassAccent"]) {
+    const classes = new RegExp(`\\b${variant}:\\s*"([^"]+)"`).exec(button)?.[1];
+    assert.ok(classes, `button.tsx has no ${variant} variant`);
+    assert.doesNotMatch(classes, /opacity-|bg-accent\//, `${variant}: ${classes}`);
+  }
+});
+
+test("renderer code only references CSS variables that theme.css or styles.css declares", () => {
+  const declared = new Set([...`${theme}\n${styles}`.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
+  const root = new URL("../", import.meta.url);
+  const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter(
+    (file) => /\.tsx?$/.test(file) && !file.endsWith(".test.ts"),
+  );
+  for (const file of files) {
+    const source = readFileSync(new URL(file, root), "utf8");
+    // `--radix-*` is set by Radix at runtime; `--db-support-${…}` is checked in source-colors.test.ts.
+    for (const [, name] of source.matchAll(/var\((--(?!radix-)[\w-]+[\w])(?![\w-]*\$\{)/g)) {
+      assert.ok(declared.has(name), `${file} uses undeclared ${name}`);
+    }
   }
 });

@@ -171,18 +171,29 @@ function accentFill(color: string, scheme: Scheme): { fill: string; contrast: st
 }
 
 /**
+ * Hover and pressed fills for a button with `contrast` text: the fill mixed 8% and 16% away from
+ * the text color, so interaction raises contrast instead of fading the label.
+ */
+export function stateFills(fill: string, contrast: string): { hover: string; active: string } {
+  const away = contrast === "#ffffff" ? "#000000" : "#ffffff";
+  return { hover: mix(fill, away, 0.08), active: mix(fill, away, 0.16) };
+}
+
+/**
  * Everything the app derives from an accent color for one scheme:
  * - `fill`: the accent behind text and as a mark (buttons, checked boxes, switch tracks, today's
  *   date), shifted just enough for 4.5:1 with its text and 3:1 against the surfaces around it;
+ * - `fillHover` / `fillActive`: `fill` for hovered and pressed buttons (see `stateFills`);
  * - `contrast`: text and icons on `fill`;
  * - `ink`: accent-colored text, focus rings and strokes, adjusted to 4.5:1 on every ground.
  */
 export function accentColors(
   accent: string,
   scheme: Scheme,
-): { fill: string; contrast: string; ink: string } {
+): { fill: string; fillHover: string; fillActive: string; contrast: string; ink: string } {
   const hex = composite(accent, SURFACES[scheme].background);
   const { fill, contrast } = accentFill(hex, scheme);
+  const { hover, active } = stateFills(fill, contrast);
   const ink = ensureContrast(hex, tintedGrounds(hex, scheme, 10), TEXT_CONTRAST, scheme);
-  return { fill, contrast, ink };
+  return { fill, fillHover: hover, fillActive: active, contrast, ink };
 }

@@ -652,7 +652,7 @@ function WeekGrid({
                     left: `calc(${(lane / lanes) * 100}% + 2px)`,
                     width: `calc(${100 / lanes}% - 4px)`,
                     borderLeftColor: colorOf(event),
-                    backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--color-surface-popover))`,
+                    backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--db-background))`,
                     opacity: past ? 0.7 : 1,
                   }}
                 >

@@ -40,8 +40,8 @@ export function applyAccent(accent: AccentColor): void {
       document.head.appendChild(style);
     }
     const rule = (hex: string, scheme: Scheme) => {
-      const { fill, contrast, ink } = accentColors(hex, scheme);
-      return `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-fill: ${fill} !important; --accent-contrast: ${contrast} !important; --accent-ink: ${ink} !important;`;
+      const { fill, fillHover, fillActive, contrast, ink } = accentColors(hex, scheme);
+      return `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-fill: ${fill} !important; --accent-fill-hover: ${fillHover} !important; --accent-fill-active: ${fillActive} !important; --accent-contrast: ${contrast} !important; --accent-ink: ${ink} !important;`;
     };
     style.textContent = `:root:root { ${rule(option.light, "light")} } :root.dark:root { ${rule(option.dark, "dark")} }`;
   }
