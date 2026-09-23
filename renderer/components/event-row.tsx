@@ -6,7 +6,7 @@ import type { CalendarEventItem } from "@main/shared-types";
 import { formatTimeOfDay } from "../lib/dates";
 import { openExternal } from "../lib/ipc";
 import { featureOn, useSettings } from "../lib/settings";
-import { sourceColor } from "../lib/sources";
+import { sourceColor, sourceColorVar } from "../lib/sources";
 import { useOpenMeetingPrep } from "./meeting-prep-dialog";
 
 const REVEAL =
@@ -41,7 +41,7 @@ export function EventBar({
   const past = !event.allDay && new Date(event.end) <= now;
   const current = !event.allDay && new Date(event.start) <= now && !past;
   const color =
-    (calendarColor && event.calendarColor) || `var(--${sourceColor(settings, "calendar")})`;
+    (calendarColor && event.calendarColor) || sourceColorVar(sourceColor(settings, "calendar"));
   const detail = [event.location, showCalendar ? event.calendarName : null]
     .filter(Boolean)
     .join(" · ");

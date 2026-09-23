@@ -9,6 +9,8 @@ import {
 } from "../components/source-logos";
 import { useSettings } from "./settings";
 
+export { sourceColorVar } from "./source-colors";
+
 export const SOURCE_IDS: SourceId[] = ["tasks", "reminders", "mail", "calendar"];
 
 export const SOURCE_META: Record<

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { computeAccentContrastColor } from "@renderer/ui";
+import { accentColors, type Scheme } from "@renderer/ui";
 import type { AccentColor, Density } from "@main/shared-types";
 
 import { useSettings } from "./settings";
@@ -39,9 +39,11 @@ export function applyAccent(accent: AccentColor): void {
       style.id = STYLE_ID;
       document.head.appendChild(style);
     }
-    const rule = (hex: string) =>
-      `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${computeAccentContrastColor(hex)} !important;`;
-    style.textContent = `:root:root { ${rule(option.light)} } :root.dark:root { ${rule(option.dark)} }`;
+    const rule = (hex: string, scheme: Scheme) => {
+      const { fill, contrast, ink } = accentColors(hex, scheme);
+      return `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-fill: ${fill} !important; --accent-contrast: ${contrast} !important; --accent-ink: ${ink} !important;`;
+    };
+    style.textContent = `:root:root { ${rule(option.light, "light")} } :root.dark:root { ${rule(option.dark, "dark")} }`;
   }
   localStorage.setItem(storedKey(CACHE_KEY), accent);
 }
