@@ -4,6 +4,29 @@ DayBoard is a standalone macOS productivity app built with Electron, TypeScript,
 
 This is the **1.3.0-beta.1 standalone preview**. Public downloads and purchases require the release configuration and verification described in [the release guide](docs/RELEASE.md).
 
+## Screenshots
+
+All screenshots use the built-in fictional demo data.
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/light-agenda.png" alt="Agenda (light theme)"><br><sub>Agenda</sub></td><td width="50%"><img src="docs/screenshots/light-calendar-week.png" alt="Calendar — week (light theme)"><br><sub>Calendar — week</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/light-calendar-month.png" alt="Calendar — month (light theme)"><br><sub>Calendar — month</sub></td><td width="50%"><img src="docs/screenshots/light-tasks.png" alt="Tasks (light theme)"><br><sub>Tasks</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/light-reminders.png" alt="Reminders (light theme)"><br><sub>Reminders</sub></td><td width="50%"><img src="docs/screenshots/light-mail.png" alt="Inbox with email details (light theme)"><br><sub>Inbox with email details</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/light-assistant.png" alt="Assistant (light theme)"><br><sub>Assistant</sub></td><td width="50%"><img src="docs/screenshots/light-settings.png" alt="Settings (light theme)"><br><sub>Settings</sub></td></tr>
+</table>
+
+<details>
+<summary>Dark theme</summary>
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/dark-agenda.png" alt="Agenda (dark theme)"><br><sub>Agenda</sub></td><td width="50%"><img src="docs/screenshots/dark-calendar-week.png" alt="Calendar — week (dark theme)"><br><sub>Calendar — week</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/dark-calendar-month.png" alt="Calendar — month (dark theme)"><br><sub>Calendar — month</sub></td><td width="50%"><img src="docs/screenshots/dark-tasks.png" alt="Tasks (dark theme)"><br><sub>Tasks</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/dark-reminders.png" alt="Reminders (dark theme)"><br><sub>Reminders</sub></td><td width="50%"><img src="docs/screenshots/dark-mail.png" alt="Inbox with email details (dark theme)"><br><sub>Inbox with email details</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/dark-assistant.png" alt="Assistant (dark theme)"><br><sub>Assistant</sub></td><td width="50%"><img src="docs/screenshots/dark-settings.png" alt="Settings (dark theme)"><br><sub>Settings</sub></td></tr>
+</table>
+
+</details>
+
 ## Features
 
 - **Agenda** — today or the next 7 days across Google Tasks, Apple Reminders, and Google Calendar, with search, per-source layers, a Google Calendar–style overdue row, KiteTasks-style event bars and task chips, and a compact daily brief.
@@ -63,3 +86,5 @@ GitHub runs the offline test suite on pushes and pull requests. Optional Codex P
 ### Demo and screenshots
 
 `npm run test:e2e` creates disposable profiles with fictional data and a credential-free build. Demo settings/history/appearance remain separate, AI responses are local samples, and live source writes, authentication changes, licensing changes, external service links, and MCP access are blocked. Editors can be previewed without saving. Test artifacts stay in ignored directories. Never use a personal profile for automated UI tests.
+
+`npm run screenshots` rebuilds the credential-free app and regenerates the gallery above in `docs/screenshots/`, in light and dark themes, from a disposable demo profile.
