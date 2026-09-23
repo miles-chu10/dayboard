@@ -155,9 +155,13 @@ for (const theme of ["light", "dark"]) {
     ]);
 
     await page.evaluate(() => globalThis.dayboard.ipc.invoke("window:openSettings"));
-    let settings;
-    while (!(settings = app.windows().find((w) => /settings-window/.test(w.url()))))
+    const settingsDeadline = Date.now() + 10_000;
+    let settings = app.windows().find((w) => /settings-window/.test(w.url()));
+    while (!settings && Date.now() < settingsDeadline) {
       await delay(100);
+      settings = app.windows().find((w) => /settings-window/.test(w.url()));
+    }
+    if (!settings) throw Error("Settings window did not open within 10 seconds");
     await settings.waitForLoadState("domcontentloaded");
     await settings.emulateMedia({ colorScheme: theme });
     await settings.getByRole("tab", { name: "General", exact: true }).click();
