@@ -28,7 +28,7 @@ import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
-import { COLOR_CLASS, SOURCE_META, sourceColor } from "../lib/sources";
+import { COLOR_CLASS, SOURCE_META, sourceColor, sourceColorVar } from "../lib/sources";
 import { buildTodos } from "../lib/todos";
 import { useOpenCapture } from "./capture-dialog";
 import { EventDetail } from "./event-detail";
@@ -239,7 +239,7 @@ export function AppSidebar() {
                   className="h-7 w-[3px] shrink-0 rounded-full"
                   style={{
                     backgroundColor:
-                      nextEvent.calendarColor ?? `var(--${sourceColor(settings, "calendar")})`,
+                      nextEvent.calendarColor ?? sourceColorVar(sourceColor(settings, "calendar")),
                   }}
                 />
                 <span className="flex min-w-0 flex-1 flex-col">

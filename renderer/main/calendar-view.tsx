@@ -19,7 +19,7 @@ import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
 import { useAgendaState, useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
 import { sourceOn, useSettings } from "../lib/settings";
-import { COLOR_CLASS, sourceColor } from "../lib/sources";
+import { COLOR_CLASS, sourceColor, sourceColorVar } from "../lib/sources";
 import { buildTodos, mergeLinkedTodos, type Todo } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import { AgendaView } from "./agenda-view";
@@ -317,7 +317,7 @@ function CalendarGrid({
 function useEventColor() {
   const settings = useSettings().data;
   return (event: CalendarEventItem) =>
-    event.calendarColor ?? `var(--${sourceColor(settings, "calendar")})`;
+    event.calendarColor ?? sourceColorVar(sourceColor(settings, "calendar"));
 }
 
 function Chip({

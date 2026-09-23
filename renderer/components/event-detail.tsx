@@ -5,7 +5,7 @@ import type { CalendarEventItem } from "@main/shared-types";
 import { eventTimeRange, parseISODate } from "../lib/dates";
 import { openExternal } from "../lib/ipc";
 import { featureOn, useSettings } from "../lib/settings";
-import { sourceColor } from "../lib/sources";
+import { sourceColor, sourceColorVar } from "../lib/sources";
 import { DetailPanel } from "./detail-panel";
 import { ItemEditButton } from "./item-editor";
 import { useOpenMeetingPrep } from "./meeting-prep-dialog";
@@ -29,7 +29,7 @@ export function EventDetail({
   const settings = useSettings().data;
   const openPrep = useOpenMeetingPrep();
   const prepOn = featureOn(settings, "meetingPrep");
-  const color = event.calendarColor ?? `var(--${sourceColor(settings, "calendar")})`;
+  const color = event.calendarColor ?? sourceColorVar(sourceColor(settings, "calendar"));
   const day = (
     event.allDay ? parseISODate(event.start.slice(0, 10)) : new Date(event.start)
   ).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
