@@ -131,7 +131,9 @@ export class LicenseService {
     if (!this.options.product) return { state: "unconfigured" };
 
     if (!record.licenseKey) {
-      const elapsedDays = Math.floor((now.getTime() - Date.parse(record.firstLaunchAt)) / DAY_MS);
+      const elapsedMs = now.getTime() - Date.parse(record.firstLaunchAt);
+      if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return { state: "expired" };
+      const elapsedDays = Math.floor(elapsedMs / DAY_MS);
       const daysLeft = Math.max(0, this.options.trialDays - elapsedDays);
       return daysLeft > 0 ? { state: "trial", daysLeft } : { state: "expired" };
     }

@@ -21,7 +21,7 @@ The root integration task owns the plan, test evidence and final acceptance. Bou
 | ------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Port platform and UI                 | Implemented                           | Typecheck, lint, standalone build, no host runtime imports                                                  |
 | Preserve behavior and account safety | Implemented                           | Unit/native fixtures, source isolation, race and failure tests                                              |
-| AI and licensing                     | Stripe implemented and tested locally | 191 app tests; 16 billing tests including local Worker/D1/SDK integration; focused security findings closed |
+| AI and licensing                     | Stripe implemented and tested locally | 192 app tests; 16 billing tests including local Worker/D1/SDK integration; focused security findings closed |
 | App interaction                      | Verified locally                      | Ten packaged Electron tests, one isolated editor regression, fictional screenshots, relaunch and recovery   |
 | Preview distributable                | Verified locally                      | DMG + ZIP, helper/notices inventory, packaged tests, resource measurements and fresh dependency install     |
 | Website/source preparation           | Prepared locally                      | Static site render/links, GPL source and reproducible instructions                                          |

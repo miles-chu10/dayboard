@@ -102,6 +102,38 @@ test("14-day trial expires at boundary and deactivation keeps installation ident
   assert.equal(s.current().licenseKey, null);
 });
 
+test("a future or invalid trial anchor cannot extend or revive an expired trial", async () => {
+  const { service, s, v } = await setup();
+  assert.deepEqual(await service.getStatus(NOW), { state: "trial", daysLeft: OPTIONS.trialDays });
+  assert.deepEqual(await service.getStatus(new Date(+NOW + DAY - 1)), {
+    state: "trial",
+    daysLeft: OPTIONS.trialDays,
+  });
+  assert.deepEqual(await service.getStatus(new Date(+NOW + DAY)), {
+    state: "trial",
+    daysLeft: OPTIONS.trialDays - 1,
+  });
+  assert.deepEqual(await service.getStatus(new Date(+NOW + 14 * DAY)), { state: "expired" });
+
+  for (const rollback of [new Date(+NOW - 1), new Date(+NOW - 365 * DAY)]) {
+    assert.deepEqual(await service.getStatus(rollback), { state: "expired" });
+    assert.deepEqual(await service.refresh(rollback), { state: "expired" });
+  }
+  assert.equal(s.current().firstLaunchAt, NOW.toISOString());
+  assert.deepEqual(v.calls.validate, []);
+
+  const invalid = { ...s.current(), firstLaunchAt: "not-a-timestamp" };
+  const {
+    service: invalidService,
+    s: invalidStore,
+    v: invalidVerifier,
+  } = await setup(OPTIONS, invalid);
+  assert.deepEqual(await invalidService.getStatus(NOW), { state: "expired" });
+  assert.deepEqual(await invalidService.refresh(NOW), { state: "expired" });
+  assert.equal(invalidStore.current().firstLaunchAt, invalid.firstLaunchAt);
+  assert.deepEqual(invalidVerifier.calls.validate, []);
+});
+
 test("invalid key formats never reach the network or store, including legacy and Stripe keys", async () => {
   const { service, s, v } = await setup();
   for (const candidate of ["OLD-LEMON-KEY", "sk_live_secret", "pk_test_secret", "DAYB_short"]) {
@@ -351,8 +383,9 @@ test("disabled and unconfigured service paths have zero store and network touche
     { ...OPTIONS, product: null },
   ]) {
     const { service, s, v } = await setup(options);
-    await service.getStatus();
-    await service.refresh();
+    const expected = { state: options.gatingDisabled ? "disabled" : "unconfigured" };
+    assert.deepEqual(await service.getStatus(new Date(+NOW - DAY)), expected);
+    assert.deepEqual(await service.refresh(new Date(+NOW - DAY)), expected);
     await assert.rejects(service.activate(A, "Mac"));
     await assert.rejects(service.deactivate());
     assert.deepEqual(s.calls, { read: 0, write: 0 });
