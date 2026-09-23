@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { computeAccentContrastColor } from "@glaze/core/components";
 import type { AccentColor, Density } from "@main/shared-types";
 
 import { useSettings } from "./settings";
@@ -27,6 +26,23 @@ const CACHE_KEY = "dayboard:accent";
 const DENSITY_KEY = "dayboard:density";
 const STYLE_ID = "dayboard-accent";
 
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((index) => {
+    const channel = parseInt(hex.slice(index, index + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Keeps the macOS convention of white labels on accent fills, but switches to
+ * black when white would fall below WCAG's 3:1 minimum (orange, and the bright
+ * dark-mode green, teal and graphite).
+ */
+export function accentLabelColor(hex: string): "#ffffff" | "#000000" {
+  return 1.05 / (relativeLuminance(hex) + 0.05) >= 3 ? "#ffffff" : "#000000";
+}
+
 /** Overrides the accent (and the macOS system accent) for this window; "system" restores it. */
 export function applyAccent(accent: AccentColor): void {
   const option = ACCENT_OPTIONS.find((item) => item.value === accent);
@@ -40,7 +56,7 @@ export function applyAccent(accent: AccentColor): void {
       document.head.appendChild(style);
     }
     const rule = (hex: string) =>
-      `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${computeAccentContrastColor(hex)} !important;`;
+      `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${accentLabelColor(hex)} !important;`;
     style.textContent = `:root:root { ${rule(option.light)} } :root.dark:root { ${rule(option.dark)} }`;
   }
   localStorage.setItem(storedKey(CACHE_KEY), accent);
