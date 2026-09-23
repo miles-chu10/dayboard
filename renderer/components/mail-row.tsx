@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Text, toast } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Badge, Button, Text, toast } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import { Archive, ExternalLink, ListPlus, Reply } from "lucide-react";
 import type { MailItem, SourceResult } from "@main/shared-types";
 

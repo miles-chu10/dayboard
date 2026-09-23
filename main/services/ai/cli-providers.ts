@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { app, logger } from "@glaze/core/backend";
+import { app, logger } from "../../platform/index.js";
 
 import type {
   CliProviderId,

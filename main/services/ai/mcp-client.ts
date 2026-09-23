@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { logger } from "@glaze/core/backend";
+import { logger } from "../../platform/index.js";
 
 import type { McpServerConfig, McpTestResult } from "../../shared-types.js";
 import { getToolEnv, toStringEnv } from "../shell-env.js";

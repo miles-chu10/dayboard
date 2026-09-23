@@ -1,4 +1,4 @@
-import { cn } from "@glaze/core/utils";
+import { cn } from "@renderer/ui/utils";
 import type { SourceId } from "@main/shared-types";
 
 import { relativeDue } from "../lib/dates";

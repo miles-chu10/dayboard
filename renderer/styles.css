@@ -1,13 +1,27 @@
-/*
- * Glaze framework styles (@import "@glaze/core/..." and @import "tailwindcss")
- * are automatically injected before this file during build and dev.
- * Add your custom styles and @source directives below.
- */
+@import "./theme.css";
 
 /* Tell Tailwind to scan all local renderer window files for class names */
 @source "./**/*.{ts,tsx}";
-@source not "./preload.ts";
 @source not "./dev/**/*";
+
+/* Electron needs explicit hit regions for the custom title bar. */
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+.no-drag,
+button,
+a,
+input,
+textarea,
+select,
+[role="button"],
+[role="separator"],
+[contenteditable="true"] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
 
 /* Density: Default vs Compact (Settings → General → Appearance). */
 :root {

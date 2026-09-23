@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { drainAssistantOperations, trackAssistantOperation } from "../renderer/lib/assistant-operations.ts";
+import {
+  drainAssistantOperations,
+  trackAssistantOperation,
+} from "../renderer/lib/assistant-operations.ts";
 
 test("a remounted history read waits for both provider creation and its durable chat update", async () => {
   let created, saved;
-  const provider = new Promise(resolve => { created = resolve; });
-  const persistence = new Promise(resolve => { saved = resolve; });
+  const provider = new Promise((resolve) => {
+    created = resolve;
+  });
+  const persistence = new Promise((resolve) => {
+    saved = resolve;
+  });
   const order = [];
   const operation = trackAssistantOperation(async () => {
     await provider;
@@ -24,7 +31,9 @@ test("a remounted history read waits for both provider creation and its durable 
 });
 
 test("failed creation releases the route barrier without claiming success", async () => {
-  const operation = trackAssistantOperation(async () => { throw new Error("synthetic failure"); });
+  const operation = trackAssistantOperation(async () => {
+    throw new Error("synthetic failure");
+  });
   await assert.rejects(operation, /synthetic failure/);
   await drainAssistantOperations();
 });

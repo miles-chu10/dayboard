@@ -1,0 +1,246 @@
+/*
+ * DayBoard UI kit theme: Tailwind v4 tokens for a native-feeling macOS look.
+ * Import once from renderer/styles.css (`@import "./theme.css";`).
+ *
+ * `--accent` / `--theme-accent` / `--accent-contrast` are the *runtime* overrides written by
+ * renderer/lib/appearance.ts (`applyAccent`); the values below are only the defaults before that
+ * runs (or when the user picks "System").
+ */
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui,
+    sans-serif;
+
+  /* Text scale (Text component variants; also used directly as `text-small` / `text-regular`). */
+  --text-heading1: 1.5rem;
+  --text-heading1--line-height: 1.25;
+  --text-heading1--font-weight: 600;
+  --text-heading2: 1.125rem;
+  --text-heading2--line-height: 1.3;
+  --text-heading2--font-weight: 600;
+  --text-extra-large: 1.125rem;
+  --text-extra-large--line-height: 1.35;
+  --text-large: 1rem;
+  --text-large--line-height: 1.4;
+  --text-regular: 0.8125rem;
+  --text-regular--line-height: 1.45;
+  --text-mono: 0.8125rem;
+  --text-mono--line-height: 1.45;
+  --text-small: 0.6875rem;
+  --text-small--line-height: 1.4;
+  --text-small-mono: 0.6875rem;
+  --text-small-mono--line-height: 1.4;
+  --text-mini: 0.5rem;
+  --text-mini--line-height: 1.3;
+
+  --radius-control: 0.5rem;
+
+  --animate-collapsible-down: collapsible-down 0.15s ease-out;
+  --animate-collapsible-up: collapsible-up 0.15s ease-out;
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+    }
+  }
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+
+  --animate-fade-in: fade-in 0.12s ease-out;
+  --animate-fade-out: fade-out 0.1s ease-in;
+  --animate-scale-in: scale-in 0.12s ease-out;
+  --animate-scale-out: scale-out 0.1s ease-in;
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes scale-out {
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  /* Semantic surfaces. */
+  --color-background: var(--db-background);
+  --color-background-secondary: var(--db-background-secondary);
+  --color-well: var(--db-well);
+  --color-control: var(--db-control);
+  --color-control-subtle: var(--db-control-subtle);
+  --color-list-hover: var(--db-list-hover);
+  --color-list-selection: var(--db-list-selection);
+  --color-separator: var(--db-separator);
+  --color-field: var(--db-field);
+
+  /* Text colors. */
+  --color-primary: var(--db-primary);
+  --color-secondary: var(--db-secondary);
+  --color-tertiary: var(--db-tertiary);
+  --color-quaternary: var(--db-quaternary);
+  --color-disabled: var(--db-disabled);
+  --color-link: var(--db-link);
+
+  /* Accent (runtime-overridable; see appearance.ts). */
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-5: color-mix(in srgb, var(--accent) 5%, transparent);
+  --color-accent-10: color-mix(in srgb, var(--accent) 10%, transparent);
+
+  /* Support (semantic tint) colors — same hue in light/dark, tuned per-scheme below. */
+  --color-support-red: var(--db-support-red);
+  --color-support-orange: var(--db-support-orange);
+  --color-support-yellow: var(--db-support-yellow);
+  --color-support-green: var(--db-support-green);
+  --color-support-blue: var(--db-support-blue);
+  --color-support-purple: var(--db-support-purple);
+  --color-support-magenta: var(--db-support-magenta);
+  --color-support-red-10: color-mix(in srgb, var(--db-support-red) 12%, transparent);
+  --color-support-yellow-10: color-mix(in srgb, var(--db-support-yellow) 12%, transparent);
+  --color-support-orange-10: color-mix(in srgb, var(--db-support-orange) 12%, transparent);
+  --color-support-green-10: color-mix(in srgb, var(--db-support-green) 12%, transparent);
+  --color-support-blue-10: color-mix(in srgb, var(--db-support-blue) 12%, transparent);
+  --color-support-purple-10: color-mix(in srgb, var(--db-support-purple) 12%, transparent);
+  --color-support-magenta-10: color-mix(in srgb, var(--db-support-magenta) 12%, transparent);
+}
+
+:root {
+  color-scheme: light;
+  --accent: #007aff;
+  --theme-accent: #007aff;
+  --accent-contrast: #ffffff;
+
+  --db-background: #ffffff;
+  --db-background-secondary: #f5f5f7;
+  --db-well: #f5f5f6;
+  --db-control: rgb(0 0 0 / 6%);
+  --db-control-subtle: rgb(0 0 0 / 4%);
+  --db-list-hover: rgb(0 0 0 / 5%);
+  --db-list-selection: rgb(0 0 0 / 8%);
+  --db-separator: rgb(0 0 0 / 10%);
+  --db-field: rgb(0 0 0 / 12%);
+
+  --db-primary: rgb(0 0 0 / 92%);
+  --db-secondary: rgb(0 0 0 / 62%);
+  --db-tertiary: rgb(0 0 0 / 42%);
+  --db-quaternary: rgb(0 0 0 / 26%);
+  --db-disabled: rgb(0 0 0 / 32%);
+  --db-link: #0068da;
+
+  --db-support-red: #ff3b30;
+  --db-support-orange: #ff9500;
+  --db-support-yellow: #d9a400;
+  --db-support-green: #22a23f;
+  --db-support-blue: #007aff;
+  --db-support-purple: #af52de;
+  --db-support-magenta: #ff2d55;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --accent: #0a84ff;
+  --theme-accent: #0a84ff;
+  --accent-contrast: #ffffff;
+
+  --db-background: #1e1e1e;
+  --db-background-secondary: #262626;
+  --db-well: #2c2c2e;
+  --db-control: rgb(255 255 255 / 9%);
+  --db-control-subtle: rgb(255 255 255 / 6%);
+  --db-list-hover: rgb(255 255 255 / 7%);
+  --db-list-selection: rgb(255 255 255 / 13%);
+  --db-separator: rgb(255 255 255 / 12%);
+  --db-field: rgb(255 255 255 / 16%);
+
+  --db-primary: rgb(255 255 255 / 92%);
+  --db-secondary: rgb(255 255 255 / 64%);
+  --db-tertiary: rgb(255 255 255 / 44%);
+  --db-quaternary: rgb(255 255 255 / 28%);
+  --db-disabled: rgb(255 255 255 / 32%);
+  --db-link: #409cff;
+
+  --db-support-red: #ff453a;
+  --db-support-orange: #ff9f0a;
+  --db-support-yellow: #ffd60a;
+  --db-support-green: #30d158;
+  --db-support-blue: #0a84ff;
+  --db-support-purple: #bf5af2;
+  --db-support-magenta: #ff375f;
+}
+
+/* Pre-hydration fallback so the first paint matches the OS before renderer/hooks/use-theme.ts
+   applies the explicit `.dark` class (which then takes precedence via source order). */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --accent: #0a84ff;
+    --theme-accent: #0a84ff;
+    --accent-contrast: #ffffff;
+
+    --db-background: #1e1e1e;
+    --db-background-secondary: #262626;
+    --db-well: #2c2c2e;
+    --db-control: rgb(255 255 255 / 9%);
+    --db-control-subtle: rgb(255 255 255 / 6%);
+    --db-list-hover: rgb(255 255 255 / 7%);
+    --db-list-selection: rgb(255 255 255 / 13%);
+    --db-separator: rgb(255 255 255 / 12%);
+    --db-field: rgb(255 255 255 / 16%);
+
+    --db-primary: rgb(255 255 255 / 92%);
+    --db-secondary: rgb(255 255 255 / 64%);
+    --db-tertiary: rgb(255 255 255 / 44%);
+    --db-quaternary: rgb(255 255 255 / 28%);
+    --db-disabled: rgb(255 255 255 / 32%);
+    --db-link: #409cff;
+
+    --db-support-red: #ff453a;
+    --db-support-orange: #ff9f0a;
+    --db-support-yellow: #ffd60a;
+    --db-support-green: #30d158;
+    --db-support-blue: #0a84ff;
+    --db-support-purple: #bf5af2;
+    --db-support-magenta: #ff375f;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    background: var(--color-background);
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  #root {
+    height: 100%;
+  }
+  ::selection {
+    background: var(--color-accent-10);
+  }
+  * {
+    scrollbar-color: var(--color-quaternary) transparent;
+  }
+}

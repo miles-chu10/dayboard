@@ -1,5 +1,5 @@
-import { cn } from "@glaze/core/utils";
-import type { AIProvider } from "@main/shared-types";
+import { cn } from "@renderer/ui/utils";
+import type { AssistantProvider } from "../../shared/assistant-history";
 
 import { PROVIDER_LABEL } from "../lib/settings";
 
@@ -23,7 +23,7 @@ const GEMINI_PATH =
 type Mark = { path: string; className: string } | { letter: string; className: string };
 
 // Providers without a bundled logo get a brand-colored lettermark.
-const MARK: Record<AIProvider, Mark> = {
+const MARK: Record<AssistantProvider, Mark> = {
   claude: { path: CLAUDE_PATH, className: "text-[#D97757]" },
   codex: { path: OPENAI_PATH, className: "text-primary" },
   glaze: { path: SPARKLE_PATH, className: "text-accent" },
@@ -44,7 +44,7 @@ export function ProviderMark({
   provider,
   className,
 }: {
-  provider: AIProvider;
+  provider: AssistantProvider;
   className?: string;
 }) {
   const mark = MARK[provider];
@@ -84,7 +84,7 @@ export function ProviderTile({
   provider,
   size = "large",
 }: {
-  provider: AIProvider;
+  provider: AssistantProvider;
   size?: "medium" | "large";
 }) {
   return (

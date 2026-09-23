@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  Button,
-  ScrollArea,
-  SegmentedControl,
-  SegmentedControlItem,
-  Text,
-} from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Button, ScrollArea, SegmentedControl, SegmentedControlItem, Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import { ChevronLeft, ChevronRight, Circle } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 
@@ -43,7 +37,7 @@ function ModeSwitch({
     <SegmentedControl
       size="small"
       value={value}
-      onValueChange={(next) => next && onChange(next as CalendarLayout)}
+      onValueChange={(next: string) => next && onChange(next as CalendarLayout)}
       aria-label="Calendar layout"
     >
       <SegmentedControlItem value="month">Month</SegmentedControlItem>
@@ -133,10 +127,7 @@ function CalendarGrid({
   const monthStart = toISODate(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
   const rangeStart = view === "month" ? startOfWeek(monthStart) : startOfWeek(selected);
   const days = view === "month" ? 42 : 7;
-  const dates = useMemo(
-    () => Array.from({ length: days }, (_, index) => addDays(rangeStart, index)),
-    [rangeStart, days],
-  );
+  const dates = Array.from({ length: days }, (_, index) => addDays(rangeStart, index));
 
   const calendar = useCalendarRange(rangeStart, days);
   const tasks = useTasks();

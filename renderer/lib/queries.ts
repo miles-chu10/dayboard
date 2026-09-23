@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { toast } from "@glaze/core/components";
+import { toast } from "@renderer/ui";
 import type {
   AccountsStatus,
   AgendaCreateBlockInput,
@@ -191,7 +191,7 @@ export function useAssistantMcpStatus() {
 export function useBackendSync() {
   const queryClient = useQueryClient();
   useEffect(() => {
-    const ipc = window.glazeAPI.glaze.ipc;
+    const ipc = window.dayboard.ipc;
     const unsubscribers = [
       ipc.onNotification("accounts:changed", () => {
         // Never show a prior account's cached data during a reconnect or switch.

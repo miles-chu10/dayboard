@@ -1,4 +1,4 @@
-import { useCallback, useRef, type ChangeEvent } from "react";
+import { useCallback, type ChangeEvent } from "react";
 import {
   AIChat,
   Button,
@@ -14,8 +14,8 @@ import {
   TooltipContent,
   TooltipTrigger,
   toast,
-} from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+} from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import {
   ChevronDown,
   File,
@@ -57,7 +57,7 @@ import {
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
 
-const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS, "glaze"];
+const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS];
 
 export const PERMISSION_OPTIONS: {
   value: AssistantPermission;
@@ -184,7 +184,6 @@ export function AssistantComposer({
   };
   function modelChoices(option: AIProvider): Choice[] {
     if (!ai) return [];
-    if (option === "glaze") return [{ value: "", label: "Glaze AI", selected: true }];
     if (option === "claude")
       return CLAUDE_MODEL_OPTIONS.map((entry) => ({
         value: entry.value,
@@ -233,6 +232,8 @@ export function AssistantComposer({
   function choose(option: AIProvider, value: string) {
     edit((draft) => {
       draft.ai.assistantProvider = option === draft.ai.provider ? "" : option;
+      draft.ai.providerChosen = true;
+      draft.ai.enabled = true;
       if (option === "claude") draft.ai.claudeModel = value as ClaudeModel;
       else if (option === "codex") {
         draft.ai.codexModel = value;
@@ -248,8 +249,6 @@ export function AssistantComposer({
   const permission = ai?.assistantPermission ?? "ask";
   const permissionLabel = PERMISSION_OPTIONS.find((option) => option.value === permission)?.label;
   const openAIKey = { data: { configured: Boolean(available?.openai) } };
-  const inputRef = useRef("");
-  inputRef.current = input;
 
   const appendText = useCallback(
     (text: string) =>
@@ -504,7 +503,7 @@ export function AssistantComposer({
             ) : (
               <AIChat.Composer.Submit
                 action="send"
-                disabled={!inputRef.current.trim() || disabled || dictation.state !== "idle"}
+                disabled={!input.trim() || disabled || dictation.state !== "idle"}
               />
             )}
           </AIChat.Composer.Actions>

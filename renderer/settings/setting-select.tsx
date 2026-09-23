@@ -1,10 +1,4 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@glaze/core/components";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@renderer/ui";
 
 export function SettingSelect({
   value,

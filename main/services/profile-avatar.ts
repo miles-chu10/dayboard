@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { app, dialog, nativeImage } from "@glaze/core/backend";
+import { app, dialog, nativeImage } from "../platform/index.js";
 
 import { assertNotDemo, isDemoMode } from "./demo-data.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";

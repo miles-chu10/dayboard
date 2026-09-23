@@ -1,6 +1,6 @@
 import { Fragment, type KeyboardEvent, type ReactNode } from "react";
-import { Button, Checkbox, Text } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Button, Checkbox, Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import { AlignLeft, ChevronRight, Link2, Pin } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 

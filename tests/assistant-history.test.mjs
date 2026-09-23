@@ -49,7 +49,7 @@ function backendPlugin({ failWrites = false } = {}) {
   return {
     name: "assistant-history-backend",
     setup(api) {
-      api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
+      api.onResolve({ filter: /(?:^|\/)platform\/index\.(?:js|ts)$/ }, () => ({
         path: "backend",
         namespace: "assistant-history",
       }));
@@ -104,7 +104,7 @@ async function loadHandlers() {
       {
         name: "assistant-history-handler-fixture",
         setup(api) {
-          api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
+          api.onResolve({ filter: /(?:^|\/)platform\/index\.(?:js|ts)$/ }, () => ({
             path: "backend",
             namespace: "history-handler",
           }));
@@ -297,17 +297,25 @@ test("a history reload cannot overtake a save awaiting account resolution", asyn
   globalThis.__assistantHistoryCalls = [];
   globalThis.__assistantHistoryTrack = (operation) => operation();
   let release;
-  const scope = new Promise((resolve) => { release = resolve; });
+  const scope = new Promise((resolve) => {
+    release = resolve;
+  });
   globalThis.__assistantHistoryScopes = [scope, "local", "local"];
   try {
     (await loadHandlers()).registerAssistantHistoryHandlers();
-    const saving = globalThis.__assistantHistoryHandlers.get("assistant:saveChat")({}, { expectedScope: "local", chat: {} });
+    const saving = globalThis.__assistantHistoryHandlers.get("assistant:saveChat")(
+      {},
+      { expectedScope: "local", chat: {} },
+    );
     const reading = globalThis.__assistantHistoryHandlers.get("assistant:getHistory")({});
     await Promise.resolve();
     assert.deepEqual(globalThis.__assistantHistoryCalls, []);
     release("local");
     await Promise.all([saving, reading]);
-    assert.deepEqual(globalThis.__assistantHistoryCalls.map((call) => call[0]), ["save", "get"]);
+    assert.deepEqual(
+      globalThis.__assistantHistoryCalls.map((call) => call[0]),
+      ["save", "get"],
+    );
   } finally {
     delete globalThis.__assistantHistoryHandlers;
     delete globalThis.__assistantHistoryCalls;

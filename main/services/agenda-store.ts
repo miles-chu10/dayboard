@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import { app } from "@glaze/core/backend";
+import { app } from "../platform/index.js";
 
 import type { AgendaDuplicateLink, AgendaScheduledBlock, AgendaState } from "../shared-types.js";
 import { createSerialQueue, readFileIfExists, writeFileAtomic } from "./file-store.js";

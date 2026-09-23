@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollArea } from "@glaze/core/components";
+import { ScrollArea } from "@renderer/ui";
 
 import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
 import { SourceHeading } from "../components/source-dot";

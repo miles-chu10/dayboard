@@ -1,0 +1,24 @@
+{
+  // Copy to wrangler.jsonc and replace every placeholder before any deployment.
+  "name": "dayboard-billing",
+  "main": "dist/worker.js",
+  "compatibility_date": "2026-09-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "REPLACE_WITH_BILLING_DOMAIN/*", "zone_name": "REPLACE_WITH_ZONE" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "REPLACE_WITH_D1_NAME",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "SERVICE_ORIGIN": "REPLACE_WITH_HTTPS_ORIGIN",
+    "PRODUCT_ID": "REPLACE_WITH_STRIPE_PRODUCT_ID",
+    "PRICE_ID": "REPLACE_WITH_STRIPE_PRICE_ID",
+    "PRICE_CURRENCY": "REPLACE_WITH_LOWERCASE_CURRENCY",
+    "ENVIRONMENT": "REPLACE_WITH_test_OR_live",
+    "ACTIVATION_LIMIT": "REPLACE_WITH_DECIMAL_LIMIT",
+  },
+}

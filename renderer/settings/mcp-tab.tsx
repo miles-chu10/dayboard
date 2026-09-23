@@ -14,7 +14,7 @@ import {
   Switch,
   Textarea,
   toast,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import type { McpServerConfig, McpTestResult } from "@main/shared-types";
 
 import { errorMessage, invoke } from "../lib/ipc";
@@ -151,7 +151,7 @@ function McpServerDialog({
             <SegmentedControl
               size="small"
               value={transport}
-              onValueChange={(value) => setTransport(value as McpServerConfig["transport"])}
+              onValueChange={(value: string) => setTransport(value as McpServerConfig["transport"])}
               aria-label="Server type"
             >
               <SegmentedControlItem value="stdio">Local Command</SegmentedControlItem>
@@ -390,7 +390,7 @@ export function McpTab() {
     <>
       <FieldSet
         title="MCP Servers"
-        description="Connect Model Context Protocol servers so the Assistant can use their tools, with Glaze AI, Claude, or ChatGPT."
+        description="Connect Model Context Protocol servers so the Assistant can use their tools with Claude or ChatGPT."
       >
         <Field
           label="Dayboard"

@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   Text,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import { CalendarPlus, ExternalLink, Sparkles, Unlink } from "lucide-react";
 import type {
   AgendaCreateBlockInput,
@@ -195,10 +195,15 @@ export function AgendaDetailDialog({
       .filter(({ link }) => link?.status !== "dismissed");
     return [...accepted, ...suggestions];
   }, [agenda.data?.duplicateLinks, todo, todos]);
-  const plannerEvents = range.data?.state === "ok" ? range.data.items : [];
   const slots = useMemo(
-    () => getAvailableSlots(plannerEvents, date, duration, plannerNow),
-    [date, duration, plannerEvents, plannerNow],
+    () =>
+      getAvailableSlots(
+        range.data?.state === "ok" ? range.data.items : [],
+        date,
+        duration,
+        plannerNow,
+      ),
+    [date, duration, range.data, plannerNow],
   );
   const selectedEnd = selectedStart ? new Date(selectedStart.getTime() + duration * 60_000) : null;
   const planningAvailable =

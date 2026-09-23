@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Button, Text } from "@glaze/core/components";
+import { Button, Text } from "@renderer/ui";
 import { ChevronRight } from "lucide-react";
 import type { SourceId } from "@main/shared-types";
 

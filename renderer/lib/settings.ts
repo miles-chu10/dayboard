@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@glaze/core/components";
+import { toast } from "@renderer/ui";
+import type { AssistantProvider } from "../../shared/assistant-history";
 import type {
   AIFeature,
   AIProvider,
@@ -56,7 +57,9 @@ export function sourceOn(settings: AppSettings | undefined, source: SourceId): b
   return settings?.sources[source].enabled ?? true;
 }
 
-export const PROVIDER_LABEL: Record<AIProvider, string> = {
+// "glaze" is retired and can no longer be selected (see settings-store.ts's PROVIDERS list);
+// its entries below only label older Assistant messages sent before the removal.
+export const PROVIDER_LABEL: Record<AssistantProvider, string> = {
   glaze: "Glaze AI",
   claude: "Claude",
   codex: "ChatGPT",
@@ -95,7 +98,6 @@ export function providerUsesMcp(provider: AIProvider): boolean {
 }
 
 export const PROVIDER_DETAIL: Record<AIProvider, string> = {
-  glaze: "Uses your Glaze account.",
   claude: "Uses your Claude subscription through Claude Code.",
   codex: "Uses your ChatGPT subscription through the Codex CLI.",
   gemini: "Uses your Google AI subscription through the Antigravity CLI (agy).",

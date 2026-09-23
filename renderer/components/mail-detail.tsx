@@ -1,15 +1,6 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Badge,
-  Button,
-  Dialog,
-  Field,
-  FieldGroup,
-  Status,
-  Text,
-  toast,
-} from "@glaze/core/components";
+import { Badge, Button, Dialog, Field, FieldGroup, Status, Text, toast } from "@renderer/ui";
 import { Archive, ExternalLink, ListPlus, Reply } from "lucide-react";
 import type { MailItem, SourceResult } from "@main/shared-types";
 

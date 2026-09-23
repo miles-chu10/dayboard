@@ -1,0 +1,24 @@
+{
+  "name": "dayboard-billing",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/worker.js",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "stripe": "22.6.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260923.1",
+    "@types/node": "^24.0.0",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20260921.0-alpha",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "wrangler": "4.136.3"
+  }
+}

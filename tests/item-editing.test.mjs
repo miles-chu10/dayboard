@@ -1,3 +1,4 @@
+import { fixtureImport } from "./fixture-imports.mjs";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import path from "node:path";
@@ -63,7 +64,7 @@ export async function reconcileReminderAgendaState(items, previousRefs, scope) {
 
 function plugin() {
   const stubs = new Map([
-    ["@glaze/core/backend", backendStub],
+    ["dayboard:platform", backendStub],
     ["../services/agenda-store.js", agendaStub],
     ["../services/google-api.js", googleStub],
     ["../services/apple-reminders.js", remindersStub],
@@ -75,7 +76,9 @@ function plugin() {
     name: "item-editing-fixtures",
     setup(api) {
       api.onResolve({ filter: /.*/ }, (args) =>
-        stubs.has(args.path) ? { path: args.path, namespace: "fixture" } : undefined,
+        stubs.has(fixtureImport(args.path))
+          ? { path: fixtureImport(args.path), namespace: "fixture" }
+          : undefined,
       );
       api.onLoad({ filter: /.*/, namespace: "fixture" }, (args) => ({
         contents: stubs.get(args.path),
@@ -97,7 +100,9 @@ async function harness(state) {
     logLevel: "silent",
   });
   const source = `${result.outputFiles[0].text}\n// fixture-${sequence++}`;
-  const module = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+  const module = await import(
+    `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
+  );
   module.registerItemEditingHandlers();
   return async (channel, payload) => {
     const handler = state.handlers.get(channel);
@@ -117,7 +122,10 @@ test("task editing sends a date-only clear and returns the provider's canonical 
     due: null,
   });
   assert.equal(result.due, null);
-  assert.deepEqual(state.calls[0], ["task:update", { listId: "inbox", taskId: "task-1", title: "Updated task", notes: "", due: null }]);
+  assert.deepEqual(state.calls[0], [
+    "task:update",
+    { listId: "inbox", taskId: "task-1", title: "Updated task", notes: "", due: null },
+  ]);
   assert.deepEqual(state.broadcasts, [{ channel: "data:changed", payload: { source: "tasks" } }]);
 });
 
@@ -223,7 +231,9 @@ async function providerModule(entry, stubs) {
         name: "provider-fixtures",
         setup(api) {
           api.onResolve({ filter: /.*/ }, (args) =>
-            stubs.has(args.path) ? { path: args.path, namespace: "provider-fixture" } : undefined,
+            stubs.has(fixtureImport(args.path))
+              ? { path: fixtureImport(args.path), namespace: "provider-fixture" }
+              : undefined,
           );
           api.onLoad({ filter: /.*/, namespace: "provider-fixture" }, (args) => ({
             contents: stubs.get(args.path),
@@ -235,7 +245,7 @@ async function providerModule(entry, stubs) {
     logLevel: "silent",
   });
   return import(
-    `data:text/javascript;base64,${Buffer.from(`${result.outputFiles[0].text}\n// provider-${sequence++}`).toString("base64")}`,
+    `data:text/javascript;base64,${Buffer.from(`${result.outputFiles[0].text}\n// provider-${sequence++}`).toString("base64")}`
   );
 }
 
@@ -252,7 +262,13 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
       text: async () => JSON.stringify(body),
     });
     if (request.includes("tasks.googleapis.com") && request.includes("/lists/inbox/tasks/task-1"))
-      return json({ id: "task-1", title: "Updated", notes: "", due: undefined, status: "needsAction" });
+      return json({
+        id: "task-1",
+        title: "Updated",
+        notes: "",
+        due: undefined,
+        status: "needsAction",
+      });
     if (request.includes("tasks.googleapis.com") && request.endsWith("/lists/inbox"))
       return json({ id: "inbox", title: "Inbox" });
     if (request.includes("calendarList"))
@@ -279,7 +295,12 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
   try {
     const api = await providerModule(
       "main/services/google-api.ts",
-      new Map([["./google-auth.js", `export async function getGoogleAccessToken() { return "fixture"; } export class GoogleAuthError extends Error {}`]]),
+      new Map([
+        [
+          "./google-auth.js",
+          `export async function getGoogleAccessToken() { return "fixture"; } export class GoogleAuthError extends Error {}`,
+        ],
+      ]),
     );
     const task = await api.updateTask({
       listId: "inbox",
@@ -306,7 +327,8 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
     });
     assert.equal(event.id, "instance-1");
     const eventPatch = requests.find(
-      (request) => String(request.url).includes("/events/instance-1") && request.init.method === "PATCH",
+      (request) =>
+        String(request.url).includes("/events/instance-1") && request.init.method === "PATCH",
     );
     assert.deepEqual(JSON.parse(eventPatch.init.body), {
       summary: "One occurrence",
@@ -326,9 +348,12 @@ test("Google provider fixtures PATCH only editable task and instance fields", as
       timeZone: "America/Los_Angeles",
       timesChanged: false,
     });
-    const titleOnlyPatch = requests.filter(
-      (request) => String(request.url).includes("/events/instance-1") && request.init.method === "PATCH",
-    ).at(-1);
+    const titleOnlyPatch = requests
+      .filter(
+        (request) =>
+          String(request.url).includes("/events/instance-1") && request.init.method === "PATCH",
+      )
+      .at(-1);
     const titleOnlyBody = JSON.parse(titleOnlyPatch.init.body);
     assert.equal("description" in titleOnlyBody, false);
     assert.equal("start" in titleOnlyBody, false);
@@ -355,7 +380,12 @@ test("Google Task metadata failures happen before a task write", async () => {
   try {
     const api = await providerModule(
       "main/services/google-api.ts",
-      new Map([["./google-auth.js", `export async function getGoogleAccessToken() { return "fixture"; } export class GoogleAuthError extends Error {}`]]),
+      new Map([
+        [
+          "./google-auth.js",
+          `export async function getGoogleAccessToken() { return "fixture"; } export class GoogleAuthError extends Error {}`,
+        ],
+      ]),
     );
     await assert.rejects(
       api.updateTask({ listId: "inbox", taskId: "task-1", title: "Updated", notes: "", due: null }),
@@ -370,13 +400,35 @@ test("Google Task metadata failures happen before a task write", async () => {
 
 test("Apple Reminders fixture clears fields and refuses recurring series edits or deletion", async () => {
   const calls = [];
-  const recurring = { ref: { value: "series" }, externalId: null, calendarId: "home", title: "Series", notes: null, due: null, priority: 0, isCompleted: false, completionDate: null, recurrenceRules: [{}] };
-  const ordinary = { ref: { value: "new-ref" }, externalId: "external", calendarId: "home", title: "Updated", notes: null, due: null, priority: 5, isCompleted: false, completionDate: null, recurrenceRules: [] };
+  const recurring = {
+    ref: { value: "series" },
+    externalId: null,
+    calendarId: "home",
+    title: "Series",
+    notes: null,
+    due: null,
+    priority: 0,
+    isCompleted: false,
+    completionDate: null,
+    recurrenceRules: [{}],
+  };
+  const ordinary = {
+    ref: { value: "new-ref" },
+    externalId: "external",
+    calendarId: "home",
+    title: "Updated",
+    notes: null,
+    due: null,
+    priority: 5,
+    isCompleted: false,
+    completionDate: null,
+    recurrenceRules: [],
+  };
   const service = await providerModule(
     "main/services/apple-reminders.ts",
     new Map([
       [
-        "@glaze/core/backend",
+        "dayboard:platform",
         `export const systemPreferences = {}; export const reminders = {
           getCalendars: async () => [{ id: "home", title: "Home" }],
           getReminder: async ({ value }) => value === "series" ? globalThis.__recurring : globalThis.__ordinary,
@@ -390,7 +442,15 @@ test("Apple Reminders fixture clears fields and refuses recurring series edits o
   globalThis.__ordinary = ordinary;
   globalThis.__reminderCalls = calls;
   try {
-    const updated = await service.updateReminder({ ref: "old-ref", title: "Updated", notes: "", dueChanged: true, dueDate: null, dueTime: null, priority: 5 });
+    const updated = await service.updateReminder({
+      ref: "old-ref",
+      title: "Updated",
+      notes: "",
+      dueChanged: true,
+      dueDate: null,
+      dueTime: null,
+      priority: 5,
+    });
     assert.equal(updated.ref, "new-ref");
     assert.deepEqual(calls[0][1].clearFields, ["notes", "due"]);
     globalThis.__ordinary = {
@@ -407,7 +467,15 @@ test("Apple Reminders fixture clears fields and refuses recurring series edits o
     assert.equal(calls[1][1].due, undefined);
     assert.equal(calls[1][1].clearFields.includes("due"), false);
     await assert.rejects(
-      service.updateReminder({ ref: "series", title: "Series", notes: "", dueChanged: true, dueDate: null, dueTime: null, priority: 0 }),
+      service.updateReminder({
+        ref: "series",
+        title: "Series",
+        notes: "",
+        dueChanged: true,
+        dueDate: null,
+        dueTime: null,
+        priority: 0,
+      }),
       /safe one-occurrence edit/,
     );
     await assert.rejects(service.deleteReminder("series"), /safe one-occurrence delete/);

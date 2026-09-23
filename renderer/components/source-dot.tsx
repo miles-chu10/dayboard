@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Text } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import type { SourceId } from "@main/shared-types";
 
 import { COLOR_CLASS, SOURCE_META, useSourceColor } from "../lib/sources";

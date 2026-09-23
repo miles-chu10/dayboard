@@ -44,7 +44,7 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
     const stale = () => requestRef.current !== request;
     setState("starting");
     try {
-      const prefs = window.glazeAPI.systemPreferences;
+      const prefs = window.dayboard.systemPreferences;
       const status = await prefs.getMediaAccessStatus("microphone");
       if (status === "denied" || status === "restricted")
         throw new Error(

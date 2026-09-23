@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, Callout, Dialog, Status, Text } from "@glaze/core/components";
+import { Badge, Button, Callout, Dialog, Status, Text } from "@renderer/ui";
 import { Server } from "lucide-react";
 import type { AssistantMcpCheck, AssistantMcpServerInfo } from "@main/shared-types";
 

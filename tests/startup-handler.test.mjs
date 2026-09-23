@@ -31,12 +31,15 @@ const bundle = await build({
     {
       name: "startup-backend-stub",
       setup(api) {
-        api.onResolve({ filter: /demo-data\.js$/ }, () => ({ path: "demo", namespace: "startup-mode" }));
+        api.onResolve({ filter: /demo-data\.js$/ }, () => ({
+          path: "demo",
+          namespace: "startup-mode",
+        }));
         api.onLoad({ filter: /.*/, namespace: "startup-mode" }, () => ({
           contents: "export const assertNotDemo = () => {}; export const isDemoMode = () => false;",
           loader: "js",
         }));
-        api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
+        api.onResolve({ filter: /(?:^|\/)platform\/index\.(?:js|ts)$/ }, () => ({
           path: "backend",
           namespace: "startup-fixture",
         }));
@@ -52,7 +55,7 @@ const bundle = await build({
 globalThis.__startupState = state;
 globalThis.__startupHandlers = handlers;
 const startup = await import(
-  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`,
+  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`
 );
 startup.registerStartupHandlers();
 

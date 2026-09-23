@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@glaze/core/components";
+import { toast } from "@renderer/ui";
 import { useEffect } from "react";
 
 import { errorMessage, invoke } from "./ipc";
@@ -17,7 +17,7 @@ export function useProfileAvatar() {
   });
 
   useEffect(() => {
-    return window.glazeAPI.glaze.ipc.onNotification("profile:changed", (payload: unknown) => {
+    return window.dayboard.ipc.onNotification("profile:changed", (payload: unknown) => {
       const dataUrl =
         payload &&
         typeof payload === "object" &&

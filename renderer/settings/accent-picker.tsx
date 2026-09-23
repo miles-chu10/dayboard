@@ -1,5 +1,5 @@
-import { Text } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Text } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import type { AccentColor } from "@main/shared-types";
 
 import { ACCENT_OPTIONS } from "../lib/appearance";

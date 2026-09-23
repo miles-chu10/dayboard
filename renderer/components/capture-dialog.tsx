@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -11,7 +11,7 @@ import {
   SegmentedControlItem,
   Status,
   toast,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 
 import { extractJSON, useAITask } from "../lib/ai";
 import { CAPTURE_SYSTEM, buildCapturePrompt } from "../lib/ai-prompts";
@@ -89,11 +89,14 @@ function CaptureDialog({
   const [draft, setDraft] = useState<ItemDraft | null>(null);
 
   const googleConnected = accounts.data?.google.connected ?? false;
-  const available: Record<ItemKind, boolean> = {
-    task: googleConnected && sourceOn(settings, "tasks"),
-    reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
-    event: googleConnected && sourceOn(settings, "calendar"),
-  };
+  const available = useMemo<Record<ItemKind, boolean>>(
+    () => ({
+      task: googleConnected && sourceOn(settings, "tasks"),
+      reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
+      event: googleConnected && sourceOn(settings, "calendar"),
+    }),
+    [accounts.data?.reminders, googleConnected, settings],
+  );
   const nothingAvailable =
     accounts.data !== undefined && !available.task && !available.reminder && !available.event;
   const aiCapture = featureOn(settings, "capture");
@@ -103,13 +106,27 @@ function CaptureDialog({
   useEffect(() => {
     if (!ai.isDone) return;
     const parsed = parseDraft(ai.output, available);
-    if (parsed) setDraft(parsed);
-  }, [ai.isDone, ai.output, available.task, available.reminder, available.event]);
+    if (!parsed) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setDraft(parsed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ai.isDone, ai.output, available]);
 
   // Without AI capture, go straight to the form.
   useEffect(() => {
     if (open && !aiCapture && !draft) {
-      setDraft({ kind: firstAvailable, title: "", notes: "", date: "", time: "", endTime: "" });
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled)
+          setDraft({ kind: firstAvailable, title: "", notes: "", date: "", time: "", endTime: "" });
+      });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [open, aiCapture, draft, firstAvailable]);
 
@@ -240,7 +257,7 @@ function CaptureDialog({
               <SegmentedControl
                 size="small"
                 value={draft.kind}
-                onValueChange={(value) => update({ kind: value as ItemKind })}
+                onValueChange={(value: string) => update({ kind: value as ItemKind })}
                 aria-label="Item type"
               >
                 {(["task", "reminder", "event"] as const).map((kind) => (

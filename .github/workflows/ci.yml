@@ -26,7 +26,26 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      # Fixtures replace Glaze/native integrations. No native install scripts,
-      # personal credentials, or local Glaze SDK are needed for this test suite.
-      - run: npm ci --ignore-scripts
+      # Offline fixtures replace Electron and providers. The native Swift fixture runs
+      # on macOS only; this job never needs account credentials or a local app installation.
+      - run: npm ci --include=dev --ignore-scripts
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
+  billing:
+    name: Offline Stripe license service tests (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: billing/package-lock.json
+      - run: npm --prefix billing ci --include=dev
+      - run: npm --prefix billing run typecheck
+      - run: npm --prefix billing test

@@ -1,3 +1,4 @@
+import { fixtureImport } from "./fixture-imports.mjs";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { URL } from "node:url";
@@ -140,7 +141,7 @@ export function createSerialQueue() {
 
 function providerPlugin() {
   const stubs = new Map([
-    ["@glaze/core/backend", backendStub],
+    ["dayboard:platform", backendStub],
     ["../services/google-api.js", googleStub],
     ["../services/google-auth.js", authStub],
     ["../services/apple-reminders.js", remindersStub],
@@ -151,7 +152,8 @@ function providerPlugin() {
     name: "agenda-offline-fixtures",
     setup(buildApi) {
       buildApi.onResolve({ filter: /.*/ }, (args) => {
-        if (stubs.has(args.path)) return { path: args.path, namespace: "agenda-fixture" };
+        if (stubs.has(fixtureImport(args.path)))
+          return { path: fixtureImport(args.path), namespace: "agenda-fixture" };
         return undefined;
       });
       buildApi.onLoad({ filter: /.*/, namespace: "agenda-fixture" }, (args) => ({
@@ -198,14 +200,32 @@ async function withFixture(run) {
 }
 
 test("stale or unresolved account scope cannot save relationships or complete items", async () => {
-  await withFixture(async state => {
+  await withFixture(async (state) => {
     const invoke = await loadHarness(state);
     const scope = await invoke("agenda:getScope");
     await invoke("agenda:setFocus", { focusKeys: ["task:list-1:task-1"] });
     state.email = "second@example.test";
-    await assert.rejects(invoke("agenda:setFocus", { focusKeys: [], expectedScope: scope }), /account changed/);
-    await assert.rejects(invoke("tasks:setCompleted", { listId: "list-1", taskId: "task-1", completed: true, expectedScope: scope }), /account changed/);
-    await assert.rejects(invoke("reminders:setCompleted", { ref: "reminder-1", completed: true, expectedScope: scope }), /account changed/);
+    await assert.rejects(
+      invoke("agenda:setFocus", { focusKeys: [], expectedScope: scope }),
+      /account changed/,
+    );
+    await assert.rejects(
+      invoke("tasks:setCompleted", {
+        listId: "list-1",
+        taskId: "task-1",
+        completed: true,
+        expectedScope: scope,
+      }),
+      /account changed/,
+    );
+    await assert.rejects(
+      invoke("reminders:setCompleted", {
+        ref: "reminder-1",
+        completed: true,
+        expectedScope: scope,
+      }),
+      /account changed/,
+    );
     state.email = null;
     await assert.rejects(invoke("agenda:getScope"), /identity is still loading/);
     await assert.rejects(invoke("agenda:setFocus", { focusKeys: [] }), /identity is still loading/);
@@ -257,13 +277,21 @@ test("agenda focus is durable and isolated by account scope", async () => {
     const invoke = await loadHarness(state);
     await invoke("agenda:setFocus", { focusKeys: ["task:list-1:task-1"] });
     state.email = "other@example.test";
-    assert.deepEqual((await invoke("agenda:getState")).state, { focusKeys: [], duplicateLinks: [], scheduledBlocks: [] });
+    assert.deepEqual((await invoke("agenda:getState")).state, {
+      focusKeys: [],
+      duplicateLinks: [],
+      scheduledBlocks: [],
+    });
     await invoke("agenda:setFocus", { focusKeys: ["reminder:reminder-1"] });
     state.email = "agenda@example.test";
 
     const afterRestart = await loadHarness(state);
-    assert.deepEqual((await afterRestart("agenda:getState")).state.focusKeys, ["task:list-1:task-1"]);
-    const saved = JSON.parse(await readFile(path.join(state.userData, "agenda-state.json"), "utf8"));
+    assert.deepEqual((await afterRestart("agenda:getState")).state.focusKeys, [
+      "task:list-1:task-1",
+    ]);
+    const saved = JSON.parse(
+      await readFile(path.join(state.userData, "agenda-state.json"), "utf8"),
+    );
     assert.equal(Object.keys(saved.accounts).length, 2);
   });
 });
@@ -285,7 +313,10 @@ test("a transient synthetic remote error leaves a retryable request without dupl
   await withFixture(async (state) => {
     state.failCreateOnce = true;
     const invoke = await loadHarness(state);
-    await assert.rejects(invoke("agenda:createBlock", blockInput()), /synthetic transient remote failure/);
+    await assert.rejects(
+      invoke("agenda:createBlock", blockInput()),
+      /synthetic transient remote failure/,
+    );
     const block = await invoke("agenda:createBlock", blockInput());
     assert.equal(state.calls.creates, 2);
     assert.equal(state.remoteEvents.size, 1);
@@ -295,7 +326,15 @@ test("a transient synthetic remote error leaves a retryable request without dupl
 
 test("calendar conflicts release the pending reservation deterministically", async () => {
   await withFixture(async (state) => {
-    state.calendarItems = [{ id: "fixture-conflict", title: "Fixture meeting", start: "2027-03-14T09:00:00-07:00", end: "2027-03-14T10:00:00-07:00", allDay: false }];
+    state.calendarItems = [
+      {
+        id: "fixture-conflict",
+        title: "Fixture meeting",
+        start: "2027-03-14T09:00:00-07:00",
+        end: "2027-03-14T10:00:00-07:00",
+        allDay: false,
+      },
+    ];
     const invoke = await loadHarness(state);
     await assert.rejects(invoke("agenda:createBlock", blockInput()), /overlaps/);
     state.calendarItems = [];
@@ -319,10 +358,24 @@ test("a local save failure after event creation recovers from the persisted requ
 test("agenda and range handlers reject malformed input before any synthetic write", async () => {
   await withFixture(async (state) => {
     const invoke = await loadHarness(state);
-    await assert.rejects(invoke("calendar:listRange", { startDate: "2026-02-30", days: 1 }), /real date/);
-    await assert.rejects(invoke("calendar:listRange", { startDate: "2026-03-08", days: 32 }), /1 through 31/);
+    await assert.rejects(
+      invoke("calendar:listRange", { startDate: "2026-02-30", days: 1 }),
+      /real date/,
+    );
+    await assert.rejects(
+      invoke("calendar:listRange", { startDate: "2026-03-08", days: 43 }),
+      /1 through 42/,
+    );
     await assert.rejects(invoke("agenda:createBlock", blockInput({ endTime: "09:00" })), /after/);
-    await assert.rejects(invoke("agenda:createBlock", blockInput({ task: { key: "task:list-1:task-1", source: "tasks", listId: "list-1", taskId: "wrong" } })), /does not match/);
+    await assert.rejects(
+      invoke(
+        "agenda:createBlock",
+        blockInput({
+          task: { key: "task:list-1:task-1", source: "tasks", listId: "list-1", taskId: "wrong" },
+        }),
+      ),
+      /does not match/,
+    );
     assert.equal(state.calls.creates, 0);
     assert.equal(state.remoteEvents.size, 0);
   });

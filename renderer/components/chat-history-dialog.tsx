@@ -8,7 +8,7 @@ import {
   DialogDescription,
   Input,
   Text,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import { MessageSquare } from "lucide-react";
 import type { AssistantChat } from "../../shared/assistant-history";
 import { ProviderMark } from "./provider-logo";

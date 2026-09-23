@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import * as React from "react";
-import { SplitView, Status } from "@glaze/core/components";
-import { useTheme, useConnection, useEnvironment } from "@glaze/core/hooks";
+import { SplitView } from "@renderer/ui";
+import { useTheme } from "@renderer/hooks";
 import type { LaunchView } from "@main/shared-types";
 
 import { AppSidebar } from "../components/app-sidebar";
@@ -34,9 +34,6 @@ export function RootView() {
   useAppearanceSync();
   useHistoryShortcuts();
 
-  // IPC connection and environment
-  const connectionQuery = useConnection();
-  const environmentQuery = useEnvironment();
   const settings = useSettings().data;
   const navigate = useNavigate();
   const launched = React.useRef(false);
@@ -48,14 +45,6 @@ export function RootView() {
     const route = LAUNCH_ROUTE[settings.general.launchView];
     if (route !== "/") void navigate({ to: route });
   }, [settings, navigate]);
-
-  // Cleanup IPC connection on unmount
-  React.useEffect(() => {
-    return () => {
-      console.log("[RootView] cleanup - disconnecting IPC client");
-      window.glazeAPI?.glaze?.ipc?.disconnect();
-    };
-  }, []);
 
   return (
     <div className="h-full relative [&:not(:has([data-toolbar]))_.drag-region]:z-50">
@@ -73,15 +62,6 @@ export function RootView() {
           </SplitView>
         </MeetingPrepProvider>
       </CaptureProvider>
-
-      <div className="flex flex-col items-end gap-1 mt-2 fixed bottom-12 right-2">
-        {import.meta.env.DEV ? (
-          <>
-            {connectionQuery.error ? <Status variant="error">Backend disconnected</Status> : null}
-            {environmentQuery.data ? null : <Status variant="error">Dev Server not found</Status>}
-          </>
-        ) : null}
-      </div>
     </div>
   );
 }

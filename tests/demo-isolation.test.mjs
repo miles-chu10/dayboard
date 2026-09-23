@@ -1,3 +1,4 @@
+import { fixtureImport } from "./fixture-imports.mjs";
 import assert from "node:assert/strict";
 import { URL } from "node:url";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -20,7 +21,10 @@ function backendPlugin() {
   return {
     name: "demo-backend",
     setup(api) {
-      api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({ path: "backend", namespace: "demo" }));
+      api.onResolve({ filter: /(?:^|\/)platform\/index\.(?:js|ts)$/ }, () => ({
+        path: "backend",
+        namespace: "demo",
+      }));
       api.onLoad({ filter: /.*/, namespace: "demo" }, () => ({
         contents: `
           export const app = { getPath: () => globalThis.__demoUserData };
@@ -78,16 +82,21 @@ async function loadRendererDemo() {
     platform: "browser",
     write: false,
     logLevel: "silent",
-    plugins: [{
-      name: "renderer-demo-ipc",
-      setup(api) {
-        api.onResolve({ filter: /^\.\/ipc$/ }, () => ({ path: "ipc", namespace: "renderer-demo" }));
-        api.onLoad({ filter: /.*/, namespace: "renderer-demo" }, () => ({
-          contents: `export const invoke = async () => { if (globalThis.__rendererDemoMode instanceof Error) throw globalThis.__rendererDemoMode; return globalThis.__rendererDemoMode; };`,
-          loader: "js",
-        }));
+    plugins: [
+      {
+        name: "renderer-demo-ipc",
+        setup(api) {
+          api.onResolve({ filter: /^\.\/ipc$/ }, () => ({
+            path: "ipc",
+            namespace: "renderer-demo",
+          }));
+          api.onLoad({ filter: /.*/, namespace: "renderer-demo" }, () => ({
+            contents: `export const invoke = async () => { if (globalThis.__rendererDemoMode instanceof Error) throw globalThis.__rendererDemoMode; return globalThis.__rendererDemoMode; };`,
+            loader: "js",
+          }));
+        },
       },
-    }],
+    ],
   });
   return import(moduleUrl(result.outputFiles[0].text));
 }
@@ -104,16 +113,21 @@ async function loadTriagePrompt() {
     platform: "browser",
     write: false,
     logLevel: "silent",
-    plugins: [{
-      name: "triage-prompt-components",
-      setup(api) {
-        api.onResolve({ filter: /^@glaze\/core\/components$/ }, () => ({ path: "components", namespace: "triage-prompt" }));
-        api.onLoad({ filter: /.*/, namespace: "triage-prompt" }, () => ({
-          contents: `export const toast = { error() {} };`,
-          loader: "js",
-        }));
+    plugins: [
+      {
+        name: "triage-prompt-components",
+        setup(api) {
+          api.onResolve({ filter: /^@renderer\/ui$/ }, () => ({
+            path: "components",
+            namespace: "triage-prompt",
+          }));
+          api.onLoad({ filter: /.*/, namespace: "triage-prompt" }, () => ({
+            contents: `export const toast = { error() {} };`,
+            loader: "js",
+          }));
+        },
       },
-    }],
+    ],
   });
   return import(moduleUrl(result.outputFiles[0].text));
 }
@@ -150,7 +164,9 @@ test("renderer demo initialization never reads personal storage and rejects inva
   globalThis.localStorage = {
     getItem(key) {
       reads.push(key);
-      return key === "demo:isolated-v2:dashboard:assistant:v1" ? JSON.stringify([{ id: "sample" }]) : JSON.stringify([{ id: "personal" }]);
+      return key === "demo:isolated-v2:dashboard:assistant:v1"
+        ? JSON.stringify([{ id: "sample" }])
+        : JSON.stringify([{ id: "personal" }]);
     },
     setItem() {},
   };
@@ -182,7 +198,13 @@ test("demo settings are isolated from real settings and keep synthetic sources a
   const userData = await fixture();
   try {
     const real = {
-      general: { launchView: "mail", refreshMinutes: 30, accent: "pink", density: "compact", detailView: "sidebar" },
+      general: {
+        launchView: "mail",
+        refreshMinutes: 30,
+        accent: "pink",
+        density: "compact",
+        detailView: "sidebar",
+      },
       sources: {
         tasks: { enabled: false, color: "red" },
         reminders: { enabled: false, color: "red" },
@@ -205,7 +227,10 @@ test("demo settings are isolated from real settings and keep synthetic sources a
     assert.equal(initial.mcpServer.enabled, false);
     assert.equal(initial.mcpServer.allowWrites, false);
     assert.equal(initial.ai.useMcpInAssistant, false);
-    assert.deepEqual(Object.values(initial.sources).map((source) => source.enabled), [true, true, true, true]);
+    assert.deepEqual(
+      Object.values(initial.sources).map((source) => source.enabled),
+      [true, true, true, true],
+    );
     assert.deepEqual(await settings.getMcpServers(), []);
 
     const next = globalThis.structuredClone(initial);
@@ -216,7 +241,11 @@ test("demo settings are isolated from real settings and keep synthetic sources a
     const demoSaved = JSON.parse(await readFile(path.join(userData, "demo-settings.json"), "utf8"));
     assert.equal(demoSaved.general.accent, "graphite");
     assert.equal(demoSaved.mcpServer.enabled, false);
-    assert.throws(() => settings.saveMcpServer({ name: "live", transport: "http", url: "https://example.test" }), /demo mode/);
+    assert.throws(
+      () =>
+        settings.saveMcpServer({ name: "live", transport: "http", url: "https://example.test" }),
+      /demo mode/,
+    );
   } finally {
     await rm(userData, { recursive: true, force: true });
   }
@@ -243,7 +272,10 @@ test("demo fixture outputs follow the renderer prompt schemas", async () => {
         buildTriagePrompt(messages.map((message, index) => ({ key: `m${index + 1}`, message }))),
       ),
     );
-    assert.deepEqual(triage.emails.map((entry) => entry.key), ["m1", "m2", "m3", "m4", "m5", "m6", "m7"]);
+    assert.deepEqual(
+      triage.emails.map((entry) => entry.key),
+      ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
+    );
     for (const entry of triage.emails) {
       assert.ok(["needs-reply", "fyi", "ignore"].includes(entry.category));
       assert.equal(typeof entry.reason, "string");
@@ -251,17 +283,43 @@ test("demo fixture outputs follow the renderer prompt schemas", async () => {
     }
 
     const priorities = JSON.parse(
-      demo.demoCompletion("You are a productivity coach.", "Open items:\n- task-1 | Task / Work | due today\n- task-2 | Task / Work | due tomorrow"),
+      demo.demoCompletion(
+        "You are a productivity coach.",
+        "Open items:\n- task-1 | Task / Work | due today\n- task-2 | Task / Work | due tomorrow",
+      ),
     );
-    assert.deepEqual(priorities.items.map((item) => item.key), ["task-1", "task-2"]);
     assert.deepEqual(
-      JSON.parse(demo.demoCompletion("You turn one short sentence into a single task, reminder, or calendar event.", 'Sentence: "Call Mom"')),
+      priorities.items.map((item) => item.key),
+      ["task-1", "task-2"],
+    );
+    assert.deepEqual(
+      JSON.parse(
+        demo.demoCompletion(
+          "You turn one short sentence into a single task, reminder, or calendar event.",
+          'Sentence: "Call Mom"',
+        ),
+      ),
       { kind: "task", title: "Call Mom", notes: "", date: "", time: "", endTime: "" },
     );
-    assert.match(demo.demoCompletion("You draft email replies on the user's behalf.", ""), /^Hi Priya,/);
-    assert.match(demo.demoCompletion("You prepare the user for an upcoming meeting", ""), /Sample meeting prep/);
-    assert.match(demo.demoCompletion("You write the user's weekly review", ""), /Sample weekly review/);
-    assert.match(demo.demoCompletion("You are a concise executive assistant writing the user's daily briefing", ""), /Schedule/);
+    assert.match(
+      demo.demoCompletion("You draft email replies on the user's behalf.", ""),
+      /^Hi Priya,/,
+    );
+    assert.match(
+      demo.demoCompletion("You prepare the user for an upcoming meeting", ""),
+      /Sample meeting prep/,
+    );
+    assert.match(
+      demo.demoCompletion("You write the user's weekly review", ""),
+      /Sample weekly review/,
+    );
+    assert.match(
+      demo.demoCompletion(
+        "You are a concise executive assistant writing the user's daily briefing",
+        "",
+      ),
+      /Schedule/,
+    );
   } finally {
     await rm(userData, { recursive: true, force: true });
   }
@@ -276,12 +334,25 @@ test("demo mode blocks the startup-item write before native settings are touched
     name: "demo-startup-boundary",
     setup(api) {
       const stubs = new Map([
-        ["@glaze/core/backend", `export const ipcMain = globalThis.__demoIpc;`],
-        ["../services/demo-data.js", `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": changes are turned off in demo mode."); };`],
-        ["../services/startup-settings.js", `export const getStartAtLogin = () => { globalThis.__startupReads += 1; return { openAtLogin: true }; }; export const setStartAtLogin = () => { globalThis.__startupWrites += 1; return { openAtLogin: true }; };`],
+        ["dayboard:platform", `export const ipcMain = globalThis.__demoIpc;`],
+        [
+          "../services/demo-data.js",
+          `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": changes are turned off in demo mode."); };`,
+        ],
+        [
+          "../services/startup-settings.js",
+          `export const getStartAtLogin = () => { globalThis.__startupReads += 1; return { openAtLogin: true }; }; export const setStartAtLogin = () => { globalThis.__startupWrites += 1; return { openAtLogin: true }; };`,
+        ],
       ]);
-      api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-startup" } : undefined);
-      api.onLoad({ filter: /.*/, namespace: "demo-startup" }, (args) => ({ contents: stubs.get(args.path), loader: "js" }));
+      api.onResolve({ filter: /.*/ }, (args) =>
+        stubs.has(fixtureImport(args.path))
+          ? { path: fixtureImport(args.path), namespace: "demo-startup" }
+          : undefined,
+      );
+      api.onLoad({ filter: /.*/, namespace: "demo-startup" }, (args) => ({
+        contents: stubs.get(args.path),
+        loader: "js",
+      }));
     },
   };
   const result = await build({
@@ -295,34 +366,83 @@ test("demo mode blocks the startup-item write before native settings are touched
   });
   const module = await import(moduleUrl(result.outputFiles[0].text));
   module.registerStartupHandlers();
-  assert.deepEqual(await handlers.get("startup:getLoginItem")(), { openAtLogin: false, status: "not-registered" });
+  assert.deepEqual(await handlers.get("startup:getLoginItem")(), {
+    openAtLogin: false,
+    status: "not-registered",
+  });
   assert.equal(globalThis.__startupReads, 0);
-  assert.throws(
-    () => handlers.get("startup:setLoginItem")({}, { openAtLogin: true }),
-    /demo mode/,
-  );
+  assert.throws(() => handlers.get("startup:setLoginItem")({}, { openAtLogin: true }), /demo mode/);
   assert.equal(globalThis.__startupWrites, 0);
   delete globalThis.__demoIpc;
   delete globalThis.__startupWrites;
   delete globalThis.__startupReads;
 });
 
-test("demo Assistant replies locally without CLI, Glaze AI, or MCP access", async () => {
+test("demo Assistant replies locally without CLI, provider API, or MCP access", async () => {
   globalThis.__demoLiveCalls = 0;
   const plugin = {
     name: "demo-assistant-boundary",
     setup(api) {
       const stubs = new Map([
-        ["@glaze/core/ai", `export class GlazeAIError extends Error {}; export const glaze = () => { globalThis.__demoLiveCalls += 1; }; export const stepCountIs = () => { globalThis.__demoLiveCalls += 1; }; export const streamText = () => { globalThis.__demoLiveCalls += 1; }; export const tool = () => { globalThis.__demoLiveCalls += 1; };`],
-        ["@glaze/core/backend", `export const logger = { error() {} };`],
-        ["../demo-data.js", `export const isDemoMode = () => true; export const demoAssistantReply = () => "local sample";`],
-        ["../settings-store.js", `export const getSettings = async () => { globalThis.__demoLiveCalls += 1; }; export const getMcpServers = async () => { globalThis.__demoLiveCalls += 1; };`],
-        ["./cli-providers.js", `export const runCliCompletion = async () => { globalThis.__demoLiveCalls += 1; };`],
-        ["./assistant-mcp.js", `export const resolveAssistantMcpServers = () => { globalThis.__demoLiveCalls += 1; };`],
-        ["./mcp-client.js", `export const openMcpSession = async () => { globalThis.__demoLiveCalls += 1; };`],
+        [
+          "ai",
+          `export const stepCountIs = () => { globalThis.__demoLiveCalls += 1; }; export const streamText = () => { globalThis.__demoLiveCalls += 1; }; export const tool = () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        ["dayboard:platform", `export const logger = { error() {} };`],
+        [
+          "../demo-data.js",
+          `export const isDemoMode = () => true; export const demoAssistantReply = () => "local sample";`,
+        ],
+        [
+          "../settings-store.js",
+          `export const getSettings = async () => { globalThis.__demoLiveCalls += 1; }; export const getMcpServers = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./cli-providers.js",
+          `export const runCliCompletion = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./assistant-mcp.js",
+          `export const resolveAssistantMcpServers = () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./mcp-client.js",
+          `export const openMcpSession = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./api-keys.js",
+          `export const isApiProvider = () => { globalThis.__demoLiveCalls += 1; return false; };`,
+        ],
+        [
+          "./api-providers.js",
+          `export const apiLanguageModel = () => { globalThis.__demoLiveCalls += 1; }; export const resolveApiModel = apiLanguageModel;`,
+        ],
+        [
+          "./attachments.js",
+          `export const attachmentContext = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./provider-resolution.js",
+          `export const resolveConfiguredProvider = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./codex-models.js",
+          `export const listCodexModels = async () => { globalThis.__demoLiveCalls += 1; };`,
+        ],
+        [
+          "./model-options.js",
+          `export const describeModel = () => { globalThis.__demoLiveCalls += 1; }; export const modelSystemNote = describeModel; export const rememberClaudeModel = describeModel;`,
+        ],
       ]);
-      api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-assistant" } : undefined);
-      api.onLoad({ filter: /.*/, namespace: "demo-assistant" }, (args) => ({ contents: stubs.get(args.path), loader: "js" }));
+      api.onResolve({ filter: /.*/ }, (args) =>
+        stubs.has(fixtureImport(args.path))
+          ? { path: fixtureImport(args.path), namespace: "demo-assistant" }
+          : undefined,
+      );
+      api.onLoad({ filter: /.*/, namespace: "demo-assistant" }, (args) => ({
+        contents: stubs.get(args.path),
+        loader: "js",
+      }));
     },
   };
   const result = await build({
@@ -360,19 +480,77 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
     name: "demo-ai-handler-boundary",
     setup(api) {
       const stubs = new Map([
-        ["@glaze/core/backend", `export const ipcMain = globalThis.__aiIpc; export const logger = { error() {} }; export const clipboard = { writeText() {} };`],
-        ["../services/demo-data.js", `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": demo mode"); }; export const demoCompletion = () => "fixture completion";`],
-        ["../services/ai/assistant.js", `export const runAssistant = async () => { throw new Error("assistant should not run"); };`],
-        ["../services/ai/cli-providers.js", `export const checkCliProvider = async () => { globalThis.__aiCounters.provider += 1; }; export const isCancelled = () => false; export const runCliCompletion = async () => { globalThis.__aiCounters.cli += 1; };`],
-        ["../services/ai/codex-models.js", `export const listCodexModels = async () => { globalThis.__aiCounters.models += 1; };`],
-        ["../services/ai/mcp-client.js", `export const testMcpServer = async () => { throw new Error("MCP should not run"); };`],
-        ["../services/mcp-http-server.js", `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null;`],
-        ["../services/mcp-access-key.js", `export const getMcpAccessKey = async () => { throw new Error("key should not load"); }; export const regenerateMcpAccessKey = async () => { throw new Error("key should not write"); };`],
+        [
+          "dayboard:platform",
+          `export const ipcMain = globalThis.__aiIpc; export const logger = { error() {} }; export const clipboard = { writeText() {} };`,
+        ],
+        [
+          "ai",
+          `export const streamText = () => { globalThis.__aiCounters.provider += 1; throw new Error("live generation forbidden"); };`,
+        ],
+        [
+          "../services/ai/api-keys.js",
+          `export const API_PROVIDERS = ["openai"]; export const isApiProvider = () => false; export const getApiKeyStatuses = () => { globalThis.__aiCounters.provider += 1; }; export const saveApiKey = getApiKeyStatuses; export const clearApiKey = getApiKeyStatuses;`,
+        ],
+        [
+          "../services/ai/api-providers.js",
+          `export const apiLanguageModel = () => { globalThis.__aiCounters.provider += 1; }; export const listApiModels = apiLanguageModel; export const resolveApiModel = apiLanguageModel;`,
+        ],
+        [
+          "../services/ai/attachments.js",
+          `export const pickAttachments = () => { globalThis.__aiCounters.provider += 1; };`,
+        ],
+        [
+          "../services/ai/dictation.js",
+          `export const transcribe = () => { globalThis.__aiCounters.provider += 1; };`,
+        ],
+        [
+          "../services/ai/provider-resolution.js",
+          `export const resolveConfiguredProvider = () => { globalThis.__aiCounters.provider += 1; };`,
+        ],
+        [
+          "../services/demo-data.js",
+          `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": demo mode"); }; export const demoCompletion = () => "fixture completion";`,
+        ],
+        [
+          "../services/ai/assistant.js",
+          `export const runAssistant = async () => { throw new Error("assistant should not run"); };`,
+        ],
+        [
+          "../services/ai/cli-providers.js",
+          `export const checkCliProvider = async () => { globalThis.__aiCounters.provider += 1; }; export const resolveCli = checkCliProvider; export const listGeminiModels = checkCliProvider; export const isCancelled = () => false; export const runCliCompletion = async () => { globalThis.__aiCounters.cli += 1; };`,
+        ],
+        [
+          "../services/ai/codex-models.js",
+          `export const listCodexModels = async () => { globalThis.__aiCounters.models += 1; };`,
+        ],
+        [
+          "../services/ai/mcp-client.js",
+          `export const testMcpServer = async () => { throw new Error("MCP should not run"); };`,
+        ],
+        [
+          "../services/mcp-http-server.js",
+          `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null; export const getActiveAssistantMcpServerConfig = () => null;`,
+        ],
+        [
+          "../services/mcp-access-key.js",
+          `export const getMcpAccessKey = async () => { throw new Error("key should not load"); }; export const regenerateMcpAccessKey = async () => { throw new Error("key should not write"); };`,
+        ],
         ["../services/ai/assistant-mcp.js", `export const resolveAssistantMcpServers = () => [];`],
-        ["../services/settings-store.js", `export const deleteMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const getMcpServers = async () => { globalThis.__aiCounters.settings += 1; }; export const getSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const normalizeMcpServer = () => ({}); export const saveMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const saveSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const settingsAffectData = () => false;`],
+        [
+          "../services/settings-store.js",
+          `export const deleteMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const getMcpServers = async () => { globalThis.__aiCounters.settings += 1; }; export const getSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const normalizeMcpServer = () => ({}); export const saveMcpServer = async () => { globalThis.__aiCounters.settings += 1; }; export const saveSettings = async () => { globalThis.__aiCounters.settings += 1; }; export const settingsAffectData = () => false;`,
+        ],
       ]);
-      api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-ai-handler" } : undefined);
-      api.onLoad({ filter: /.*/, namespace: "demo-ai-handler" }, (args) => ({ contents: stubs.get(args.path), loader: "js" }));
+      api.onResolve({ filter: /.*/ }, (args) =>
+        stubs.has(fixtureImport(args.path))
+          ? { path: fixtureImport(args.path), namespace: "demo-ai-handler" }
+          : undefined,
+      );
+      api.onLoad({ filter: /.*/, namespace: "demo-ai-handler" }, (args) => ({
+        contents: stubs.get(args.path),
+        loader: "js",
+      }));
     },
   };
   const result = await build({
@@ -430,19 +608,45 @@ test("demo MCP endpoints reject before any source service can run", async () => 
     name: "demo-mcp-boundary",
     setup(api) {
       const stubs = new Map([
-        ["@glaze/core/backend", `export const ipcMain = { broadcast() {} }; export const logger = { error() {}, warn() {}, info() {} };`],
+        [
+          "dayboard:platform",
+          `export const ipcMain = { broadcast() {} }; export const logger = { error() {}, warn() {}, info() {} };`,
+        ],
         ["./google-api.js", sourceStub],
-        ["./google-auth.js", `export class GoogleAuthError extends Error {}; export const getGoogleStatus = async () => ({ connected: false, email: null });`],
-        ["./apple-reminders.js", `export const createReminder = async () => { throw new Error("live source called"); }; export const getRemindersAccess = async () => "full-access"; export const listCompletedReminders = createReminder; export const listReminders = createReminder; export const setReminderCompleted = createReminder;`],
+        [
+          "./google-auth.js",
+          `export class GoogleAuthError extends Error {}; export const getGoogleStatus = async () => ({ connected: false, email: null });`,
+        ],
+        [
+          "./apple-reminders.js",
+          `export const createReminder = async () => { throw new Error("live source called"); }; export const getRemindersAccess = async () => "full-access"; export const listCompletedReminders = createReminder; export const listReminders = createReminder; export const setReminderCompleted = createReminder;`,
+        ],
         ["./calendar-range.js", `export const calendarRangeDays = () => 7;`],
+        [
+          "./license/index.js",
+          `export const assertLicenseAccess = async () => { throw new Error("demo must not inspect licensing"); };`,
+        ],
         ["./demo-data.js", `export const isDemoMode = () => true;`],
         ["./mcp-access-key.js", `export const isValidMcpBearer = async () => true;`],
-        ["./settings-store.js", `export const getSettings = async () => ({ mcpServer: { enabled: true, allowWrites: true }, sources: { tasks: { enabled: true }, reminders: { enabled: true }, mail: { enabled: true }, calendar: { enabled: true } }, mail: { maxMessages: 25 }, calendar: { range: "next-7-days", visibility: {} } });`],
-        ["./agenda-store.js", `export const reconcileAgendaKeys = async () => ({ changed: false, state: {} });`],
+        [
+          "./settings-store.js",
+          `export const getSettings = async () => ({ mcpServer: { enabled: true, allowWrites: true }, sources: { tasks: { enabled: true }, reminders: { enabled: true }, mail: { enabled: true }, calendar: { enabled: true } }, mail: { maxMessages: 25 }, calendar: { range: "next-7-days", visibility: {} } });`,
+        ],
+        [
+          "./agenda-store.js",
+          `export const reconcileAgendaKeys = async () => ({ changed: false, state: {} });`,
+        ],
         ["../../shared/agenda-identities.js", `export const replacementAgendaKey = () => null;`],
       ]);
-      api.onResolve({ filter: /.*/ }, (args) => stubs.has(args.path) ? { path: args.path, namespace: "demo-mcp" } : undefined);
-      api.onLoad({ filter: /.*/, namespace: "demo-mcp" }, (args) => ({ contents: stubs.get(args.path), loader: "js" }));
+      api.onResolve({ filter: /.*/ }, (args) =>
+        stubs.has(fixtureImport(args.path))
+          ? { path: fixtureImport(args.path), namespace: "demo-mcp" }
+          : undefined,
+      );
+      api.onLoad({ filter: /.*/, namespace: "demo-mcp" }, (args) => ({
+        contents: stubs.get(args.path),
+        loader: "js",
+      }));
     },
   };
   const result = await build({
@@ -456,12 +660,16 @@ test("demo MCP endpoints reject before any source service can run", async () => 
   });
   const module = await import(moduleUrl(result.outputFiles[0].text));
   const server = module.createMcpHttpServer();
-  await new Promise((resolve, reject) => server.listen(0, "127.0.0.1", (error) => error ? reject(error) : resolve()));
+  await new Promise((resolve, reject) =>
+    server.listen(0, "127.0.0.1", (error) => (error ? reject(error) : resolve())),
+  );
   try {
     const port = server.address().port;
     assert.equal(await rawRequest(port, "/mcp"), 403);
     assert.equal(await rawRequest(port, "/assistant-mcp"), 403);
   } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 });

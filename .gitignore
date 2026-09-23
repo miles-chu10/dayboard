@@ -1,29 +1,21 @@
-# Dependencies
-node_modules/
-
-# Agent context (auto-generated, not worth versioning)
-.glaze_memory/
-
-# App icons (binary, auto-generated)
-app-icon.*
-
-# Google Desktop OAuth client: kept here for Glaze's remote publish builds, never in git
-google-oauth.local.json
-
-# OS files
+node_modules
+out/
+dist/
+release/
 .DS_Store
-Thumbs.db
-
-# Logs
 *.log
-
-# Glaze agent temporary files
-tmp/*
-
-# Glaze-managed external-agent resources
-.claude/rules/
-.cursor/rules/
-GLAZE-APP-GUIDE.md
-GLAZE-AGENT-INSTRUCTIONS.md
-.glaze-runtime-context.md
+google-oauth.local.json
 store-screenshots/
+test-results/
+playwright-report/
+e2e-artifacts/
+resources/bin/
+.env
+.env.*
+!.env.example
+!.env.template
+*.tsbuildinfo
+.workflow/
+billing/.wrangler/
+billing/.dev.vars*
+billing/*.sqlite*

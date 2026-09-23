@@ -1,0 +1,40 @@
+{
+  "entries": [
+    {
+      "name": "@ai-sdk/provider-utils",
+      "version": "4.0.52",
+      "file": "ai-sdk-provider-utils-4.0.52.LICENSE",
+      "sha256": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
+      "sourceRevision": "5d69aa444fe9eb0c1dc1fe45c0993a7b4b27f2ba",
+      "sourceUrl": "https://raw.githubusercontent.com/vercel/ai/5d69aa444fe9eb0c1dc1fe45c0993a7b4b27f2ba/LICENSE"
+    }
+  ],
+  "canonicalTexts": {
+    "MIT": {
+      "file": "SPDX-MIT.txt",
+      "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5",
+      "sourceRevision": "31ba1a50e5397e00a304dbadc76531740e89ee48",
+      "sourceUrl": "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text/MIT.txt"
+    }
+  },
+  "metadataFallbacks": [
+    {
+      "name": "lazy-val",
+      "version": "1.0.5",
+      "license": "MIT",
+      "repository": "develar/lazy-val",
+      "author": "Vladimir Krivosheev",
+      "gitHead": "b69ad4119f1b19bdab13c61ee2fcc88d46b89071",
+      "metadataUrl": "https://registry.npmjs.org/lazy-val/1.0.5"
+    },
+    {
+      "name": "react-remove-scroll-bar",
+      "version": "2.3.8",
+      "license": "MIT",
+      "repository": "https://github.com/theKashey/react-remove-scroll-bar",
+      "author": "Anton Korzunov",
+      "gitHead": "b3b1287aad81def2e2ae707274b74531b61ddbaf",
+      "metadataUrl": "https://registry.npmjs.org/react-remove-scroll-bar/2.3.8"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Field, FieldSet, Input, toast } from "@glaze/core/components";
+import { Button, Field, FieldSet, Input, toast } from "@renderer/ui";
 import type {
   ApiKeyStatuses,
   ApiModelInfo,

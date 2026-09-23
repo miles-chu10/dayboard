@@ -16,8 +16,8 @@ import {
   SidebarListGroup,
   SidebarListItem,
   Text,
-} from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+} from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import { useState } from "react";
 import { CalendarCheck2, CalendarDays, Plus, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId } from "@main/shared-types";
@@ -39,6 +39,7 @@ import {
 } from "./mcp-servers-dialog";
 import { ProviderMark } from "./provider-logo";
 import { GmailLogo } from "./source-logos";
+import { LicenseStatusControl } from "./license-gate";
 
 /** The name from Settings, or one derived from the Google address ("first.last" → "First Last"). */
 export function displayName(settings: AppSettings | undefined, email?: string | null): string {
@@ -214,6 +215,7 @@ export function AppSidebar() {
       }
       footer={
         <SidebarFooter>
+          <LicenseStatusControl />
           <div className="flex flex-col gap-1.5 px-2 py-1.5 min-w-0">
             {nextEvent && sourceOn(settings, "calendar") ? (
               <div
@@ -349,8 +351,8 @@ export function AppSidebar() {
                 icon={<ProviderMark provider={provider} className="size-4" />}
                 title="Assistant"
                 subtitle={
-                  provider === "glaze"
-                    ? PROVIDER_LABEL.glaze
+                  settings?.ai.providerChosen === false
+                    ? "Choose an AI provider in Settings"
                     : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`
                 }
                 selected={pathname === "/assistant"}

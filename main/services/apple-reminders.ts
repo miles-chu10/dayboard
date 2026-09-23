@@ -1,4 +1,4 @@
-import { reminders, systemPreferences } from "@glaze/core/backend";
+import { reminders, systemPreferences } from "../platform/index.js";
 
 import type { CreateReminderInput, ReminderItem, RemindersAccess } from "../shared-types.js";
 import type { UpdateReminderInput } from "../../shared/item-edits.js";

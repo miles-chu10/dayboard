@@ -4,9 +4,6 @@
  * Register all your IPC handlers here
  */
 
-import * as path from "path";
-import { fileURLToPath } from "url";
-
 import { appHandlers } from "./app.js";
 import { registerAIHandlers } from "./ai.js";
 import { registerAssistantHistoryHandlers } from "./assistant-history.js";
@@ -14,14 +11,16 @@ import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
 import { registerProfileHandlers } from "./profile.js";
 import { registerStartupHandlers } from "./startup.js";
-import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
+import { registerLicenseHandlers } from "./license.js";
+import { assertLicenseAccess } from "../services/license/index.js";
+import { setLicenseAccessGuard } from "../platform/ipc.js";
+import { isSettingsTab } from "../../shared/settings-navigation.js";
+import { getSettingsWindow, openSettingsWindow } from "../window.js";
 
-import { ipcMain, logger } from "@glaze/core/backend";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { app, ipcMain, logger } from "../platform/index.js";
 
 export function registerHandlers(): void {
+  setLicenseAccessGuard(assertLicenseAccess);
   logger.info("handlers", "Registering IPC handlers...");
 
   // Register app handlers using ipcMain API
@@ -29,15 +28,22 @@ export function registerHandlers(): void {
     return await appHandlers.getInfo();
   });
 
-  // Return the .glaze project path (used for deep links back to the host)
-  // __dirname = build/main, so two levels up is the app root
+  // Return the installed app root for the existing app information route.
   ipcMain.handle("app:getProjectPath", async () => {
-    return path.join(__dirname, "..", "..");
+    return app.getAppPath();
   });
 
   // Settings window handlers
-  ipcMain.handle("window:openSettings", async (_event) => {
-    await openSettingsWindow();
+  ipcMain.handle("window:openSettings", async (_event, payload?: unknown) => {
+    if (payload === undefined) return void (await openSettingsWindow());
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      !("tab" in payload) ||
+      !isSettingsTab(payload.tab)
+    )
+      throw new Error("Choose a valid Settings tab.");
+    await openSettingsWindow(payload.tab);
   });
 
   ipcMain.handle("window:closeSettings", async (_event) => {
@@ -50,6 +56,7 @@ export function registerHandlers(): void {
   registerAssistantHistoryHandlers();
   registerProfileHandlers();
   registerStartupHandlers();
+  registerLicenseHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 }

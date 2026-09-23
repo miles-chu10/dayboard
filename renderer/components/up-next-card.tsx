@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Callout, Status, Text } from "@glaze/core/components";
+import { Button, Callout, Status, Text } from "@renderer/ui";
 import { Sparkles } from "lucide-react";
 import type { CalendarEventItem, MailItem, SourceId } from "@main/shared-types";
 

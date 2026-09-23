@@ -1,5 +1,5 @@
-import { Button, Field, FieldSet, Status, Switch } from "@glaze/core/components";
-import { cn } from "@glaze/core/utils";
+import { Button, Field, FieldSet, Status, Switch } from "@renderer/ui";
+import { cn } from "@renderer/ui/utils";
 import type { SourceColor } from "@main/shared-types";
 
 import { SourceHeading } from "../components/source-dot";

@@ -20,7 +20,7 @@ import {
   SegmentedControlItem,
   Text,
   toast,
-} from "@glaze/core/components";
+} from "@renderer/ui";
 import { ChevronLeft, ChevronRight, CircleAlert, Search, Sparkles } from "lucide-react";
 import type { CalendarEventItem, MailItem, SourceId } from "@main/shared-types";
 
@@ -418,7 +418,7 @@ export function AgendaView({
                 {calendarRoute ? (
                   <Select
                     value={span === "week" ? "next-7-days" : span}
-                    onValueChange={(value) =>
+                    onValueChange={(value: string) =>
                       updateSearch({ span: value as AgendaSpan, date: undefined })
                     }
                   >
@@ -444,7 +444,7 @@ export function AgendaView({
                           ? "week"
                           : ""
                     }
-                    onValueChange={(value) =>
+                    onValueChange={(value: string) =>
                       updateSearch({
                         span: value === "week" ? "week" : "today",
                         date: undefined,
@@ -572,7 +572,7 @@ export function AgendaView({
                     <Text color="secondary">{summary}</Text>
                   )}
                   {featureOn(settings, "assistant") ? (
-                    <AskAssistantCard provider={settings?.ai.provider ?? "glaze"} />
+                    <AskAssistantCard provider={settings?.ai.provider ?? "claude"} />
                   ) : null}
                 </>
               ) : null}

@@ -133,14 +133,7 @@ export function describeModel(
       ...(tier ? { name: `${model?.name ?? ai.codexModel} · ${tier.name}` } : {}),
     };
   }
-  return {
-    provider: "glaze",
-    name: "Glaze AI (fast)",
-    id: null,
-    fast: false,
-    effort: null,
-    contextWindow: null,
-  };
+  throw new Error(`Unsupported AI provider: ${provider satisfies never}`);
 }
 
 /** Appended to every Assistant system prompt so the model can state what it is. */
@@ -152,7 +145,6 @@ export function modelSystemNote(info: AssistantModelInfo): string {
         codex: "the Codex CLI (the user's ChatGPT subscription)",
         gemini: "Google Antigravity (the user's Gemini subscription)",
         muse: "Meta's Muse Code CLI (the user's Meta account)",
-        glaze: "Glaze AI",
       }[info.provider];
   const exact = info.id
     ? `The exact model ID is "${info.id}".`

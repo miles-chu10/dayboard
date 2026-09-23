@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { Badge, Button, Text } from "@glaze/core/components";
+import { Badge, Button, Text } from "@renderer/ui";
 import { ExternalLink, Sparkles } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 

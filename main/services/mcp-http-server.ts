@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 
-import { ipcMain, logger } from "@glaze/core/backend";
+import { ipcMain, logger } from "../platform/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -36,6 +36,8 @@ import { isDemoMode } from "./demo-data.js";
 import { isValidMcpBearer } from "./mcp-access-key.js";
 import { getSettings } from "./settings-store.js";
 import { trackPendingWrite } from "./pending-writes.js";
+import { assertLicenseAccess } from "./license/index.js";
+import { runAppOperation } from "./runtime-activity.js";
 import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
 import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 
@@ -151,8 +153,10 @@ async function reconcileReminderAgendaState(
 function run<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
   return async (args: A): Promise<ToolResult> => {
     try {
-      await ensureSource(source);
-      return await body(args);
+      return await runAppOperation(async () => {
+        await ensureSource(source);
+        return body(args);
+      });
     } catch (error) {
       if (error instanceof SourceUnavailable) return failure(error.message);
       if (error instanceof GoogleAuthError) {
@@ -173,11 +177,13 @@ const WRITES_OFF_MESSAGE =
 
 /** Write tools re-check the switch per call, so turning changes off applies to open sessions. */
 function runWrite<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
-  const guarded = run(source, body);
-  return async (args: A): Promise<ToolResult> =>
-    trackPendingWrite(async () =>
-      (await getSettings()).mcpServer.allowWrites ? guarded(args) : failure(WRITES_OFF_MESSAGE),
-    );
+  return run(source, (args: A) =>
+    trackPendingWrite(async () => {
+      if (!(await getSettings()).mcpServer.allowWrites) return failure(WRITES_OFF_MESSAGE);
+      await assertLicenseAccess();
+      return body(args);
+    }),
+  );
 }
 
 function capped<T>(items: T[], label: string) {
