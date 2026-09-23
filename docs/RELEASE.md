@@ -23,16 +23,17 @@ macOS updates require the ZIP payload alongside the DMG. Publish both and the ma
 
 The existing Google **Desktop app** client is read from `DAYBOARD_GOOGLE_OAUTH_FILE` or the developer's `~/.config/dayboard/google-oauth.json`. The file contains `clientId` and `clientSecret`, stays outside the repository, and must never contain end-user access or refresh tokens. The installed-app client configuration is embedded in the executable as required by Google's desktop flow. Actual user tokens are encrypted locally after sign-in.
 
-Public Lemon Squeezy metadata is supplied at build time:
+Public license-service configuration is supplied at app build time:
 
-| Variable                             | Value                                      |
-| ------------------------------------ | ------------------------------------------ |
-| `DAYBOARD_LEMONSQUEEZY_STORE_ID`     | Intended merchant store ID                 |
-| `DAYBOARD_LEMONSQUEEZY_PRODUCT_ID`   | DayBoard product ID                        |
-| `DAYBOARD_LEMONSQUEEZY_VARIANT_ID`   | Allowed variant ID, or comma-separated IDs |
-| `DAYBOARD_LEMONSQUEEZY_CHECKOUT_URL` | Verified HTTPS checkout URL                |
+| Variable                       | Value                                                                 |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `DAYBOARD_LICENSE_API_URL`     | Verified HTTPS origin of the DayBoard license service, without a path |
+| `DAYBOARD_STRIPE_PRODUCT_ID`   | Intended Stripe `prod_…` product                                      |
+| `DAYBOARD_LICENSE_ENVIRONMENT` | `test` for staging or `live` for the official release                 |
 
-The app never needs a merchant API secret. Activation first validates ownership of the key, then checks the activation response. A failed local save or mismatched response triggers cleanup of the new activation instance. Network failures preserve the last successful validation time and offline grace. A key from another product cannot unlock DayBoard.
+The app opens `/buy` on that service. Stripe API credentials, webhook signing secrets and license-key encryption secrets are backend-only. Activation first validates ownership of the key, then checks the activation response. The app persists its installation ID before creating a remote activation. A failed local save cleans up only an instance newly created by that request. Retries reuse their existing instance. Network failures preserve the last successful validation time and offline grace. A key from another service, environment or product cannot unlock DayBoard.
+
+The separate `billing/` service creates hosted Checkout Sessions, verifies signed payment webhooks and delivers the license on its authenticated receipt page. Stripe's payment receipt is separate from this key delivery. Product/price, quantity, payment state and test/live mode are verified on the server. Refund/dispute revocation survives out-of-order payment events. Standard Stripe Checkout does not imply merchant-of-record coverage; confirm the seller's tax setup and registrations before enabling automatic tax or accepting live payments. Price, activation limit, support recovery and refund policy require a deliberate launch decision.
 
 ## Verification gates
 

@@ -16,3 +16,6 @@ resources/bin/
 !.env.template
 *.tsbuildinfo
 .workflow/
+billing/.wrangler/
+billing/.dev.vars*
+billing/*.sqlite*

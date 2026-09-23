@@ -14,7 +14,7 @@ Open `http://127.0.0.1:8765/`. Stop the server with Ctrl-C.
 
 ## Release configuration
 
-Edit only `assets/site.js` to set verified HTTPS URLs for `downloadUrl` and `checkoutUrl`. The download page shows an unavailable state until a download URL is supplied. Checkout stays hidden until its URL is supplied. Add a verified public price or trial description through `priceLabel` and `trialLabel` only after those terms exist in the actual merchant flow.
+Edit only `assets/site.js` to set verified HTTPS URLs for `downloadUrl` and `checkoutUrl`. Checkout should point to the deployed DayBoard license service's `/buy` page, which starts Stripe Checkout and provides cookie-authenticated key delivery. The download page shows an unavailable state until a download URL is supplied. Checkout stays hidden until its URL is supplied. Add a verified public price or trial description through `priceLabel` and `trialLabel` only after those terms exist in the actual merchant flow.
 
 Set `screenshotUrl` to a fictional-data image at `assets/<name>` after that image has been reviewed, or to a verified HTTPS image URL. The site keeps a useful fallback if the image is absent or fails to load. The root release workflow will provide the screenshot later.
 

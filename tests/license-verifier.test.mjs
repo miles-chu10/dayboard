@@ -2,207 +2,291 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import path from "node:path";
 import test from "node:test";
-
 import { build } from "esbuild";
 
 const root = new URL("..", import.meta.url).pathname;
-let bundleSequence = 0;
-const META = { store_id: 1, product_id: 4, variant_id: 5 };
-const LICENSE = { status: "active", expires_at: null };
+const API = "https://license.example";
+const KEY = `DAYB_${"A".repeat(43)}`;
+const META = { issuer: API, productId: "prod_abc", environment: "test" };
+const LICENSE = { status: "active", expiresAt: null };
+let sequence = 0;
 
-async function loadVerifier() {
+async function load() {
   const result = await build({
-    entryPoints: [path.join(root, "main/services/license/lemonsqueezy-verifier.ts")],
+    entryPoints: [path.join(root, "main/services/license/dayboard-verifier.ts")],
     bundle: true,
     format: "esm",
     platform: "node",
     write: false,
     logLevel: "silent",
   });
-  const source = `${result.outputFiles[0].text}\n// bundle-${bundleSequence++}`;
-  const url = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
-  return import(url);
+  return import(
+    `data:text/javascript;base64,${Buffer.from(
+      result.outputFiles[0].text + `\n// ${sequence++}`,
+    ).toString("base64")}`
+  );
 }
 
-function fakeFetch(handler) {
+function fetcher(handler) {
   const calls = [];
-  const fn = async (url, init) => {
+  const fetchImpl = async (url, init) => {
     calls.push({ url, init });
     return handler(url, init);
   };
-  fn.calls = calls;
-  return fn;
+  return { calls, fetchImpl };
 }
 
-function jsonResponse(status, body) {
-  return { ok: status >= 200 && status < 300, status, json: async () => body };
-}
-
-test("activate posts license_key + instance_name and returns the instance id", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() =>
-    jsonResponse(200, {
-      activated: true,
-      license_key: LICENSE,
-      instance: { id: "inst-1" },
-      meta: META,
-    }),
-  );
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
-
-  const result = await verifier.activate("LICENSE-KEY", "Test Mac");
-
-  assert.equal(result.activated, true);
-  assert.equal(result.instanceId, "inst-1");
-  assert.equal(result.license?.status, "active");
-  assert.deepEqual(result.meta, { storeId: "1", productId: "4", variantId: "5" });
-  assert.equal(fetchImpl.calls.length, 1);
-  assert.equal(fetchImpl.calls[0].url, "https://api.lemonsqueezy.com/v1/licenses/activate");
-  const body = new URLSearchParams(fetchImpl.calls[0].init.body.toString());
-  assert.equal(body.get("license_key"), "LICENSE-KEY");
-  assert.equal(body.get("instance_name"), "Test Mac");
-});
-
-test("activate surfaces a server-reported error without throwing", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() =>
-    jsonResponse(200, { activated: false, error: "license_key not found." }),
-  );
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
-
-  const result = await verifier.activate("BAD-KEY", "Test Mac");
-
-  assert.equal(result.activated, false);
-  assert.equal(result.error, "license_key not found.");
-});
-
-test("an incomplete successful activation retains its instance ID for cleanup", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() =>
-    jsonResponse(200, { activated: true, instance: { id: "inst-created" } }),
-  );
-  const result = await new LemonSqueezyVerifier({ fetchImpl }).activate("MATCHING-KEY", "Test Mac");
-  assert.equal(result.activated, true);
-  assert.equal(result.instanceId, "inst-created");
-  assert.equal(result.meta, undefined);
-});
-
-test("validate returns valid: true for an active key", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() =>
-    jsonResponse(200, {
-      valid: true,
-      license_key: LICENSE,
-      instance: { id: "inst-1" },
-      meta: META,
-    }),
-  );
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
-
-  const result = await verifier.validate("LICENSE-KEY", "inst-1");
-
-  assert.equal(result.valid, true);
-  assert.equal(result.license?.status, "active");
-  assert.equal(result.instanceId, "inst-1");
-});
-
-test("validate throws when the network is unreachable, distinct from an invalid-key response", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() => {
-    throw new TypeError("fetch failed");
+function response(status, body, headers = {}) {
+  return new Response(typeof body === "string" ? body : JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...headers },
   });
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
+}
 
-  await assert.rejects(verifier.validate("LICENSE-KEY", "inst-1"), /Couldn't reach Lemon Squeezy/);
-});
-
-test("a timed-out request throws without claiming a key is invalid", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(
-    (_url, init) =>
-      new Promise((_resolve, reject) => {
-        init.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-      }),
-  );
-  const verifier = new LemonSqueezyVerifier({ fetchImpl, timeoutMs: 5 });
-  await assert.rejects(verifier.validate("LICENSE-KEY", "inst-1"), /Couldn't reach Lemon Squeezy/);
-});
-
-test("validate throws on a non-JSON response", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() => ({
-    ok: true,
-    status: 200,
-    json: async () => {
-      throw new Error("not json");
+function streamingResponse(status, chunks = [], headers = {}) {
+  let cancellations = 0;
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+      // Stay open to prove the verifier stops unread response bodies.
     },
-  }));
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
+    cancel() {
+      cancellations++;
+    },
+  });
+  return {
+    response: new Response(stream, {
+      status,
+      headers: { "content-type": "application/json", ...headers },
+    }),
+    cancellations: () => cancellations,
+  };
+}
 
-  await assert.rejects(verifier.validate("LICENSE-KEY"), /unexpected response/);
+test("activate posts exact camelCase JSON contract with manual redirects", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const { calls, fetchImpl } = fetcher(() =>
+    response(200, {
+      activated: true,
+      created: true,
+      instanceId: "inst-1",
+      license: LICENSE,
+      meta: META,
+    }),
+  );
+  const verifier = new DayBoardLicenseVerifier(API, fetchImpl);
+  assert.deepEqual(await verifier.activate(KEY, "installation-1", "Test Mac"), {
+    activated: true,
+    created: true,
+    instanceId: "inst-1",
+    license: LICENSE,
+    meta: META,
+  });
+  assert.equal(calls[0].url, `${API}/v1/licenses/activate`);
+  assert.equal(calls[0].init.redirect, "manual");
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    licenseKey: KEY,
+    installationId: "installation-1",
+    instanceName: "Test Mac",
+  });
+  assert.equal(calls[0].init.headers["Content-Type"], "application/json");
 });
 
-test("deactivate posts instance_id and reports the result", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() => jsonResponse(200, { deactivated: true }));
-  const verifier = new LemonSqueezyVerifier({ fetchImpl });
-
-  const result = await verifier.deactivate("LICENSE-KEY", "inst-1");
-
-  assert.equal(result.deactivated, true);
-  const body = new URLSearchParams(fetchImpl.calls[0].init.body.toString());
-  assert.equal(body.get("instance_id"), "inst-1");
+test("validate and deactivate use exact routes and fields", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const { calls, fetchImpl } = fetcher((url) =>
+    response(
+      200,
+      url.endsWith("validate")
+        ? { valid: true, instanceId: "inst-1", license: LICENSE, meta: META }
+        : { deactivated: true },
+    ),
+  );
+  const verifier = new DayBoardLicenseVerifier(API, fetchImpl);
+  assert.equal((await verifier.validate(KEY, "inst-1")).valid, true);
+  assert.equal((await verifier.deactivate(KEY, "inst-1")).deactivated, true);
+  assert.equal(calls[0].url, `${API}/v1/licenses/validate`);
+  assert.deepEqual(JSON.parse(calls[0].init.body), { licenseKey: KEY, instanceId: "inst-1" });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { licenseKey: KEY, instanceId: "inst-1" });
 });
 
-test("rate limits and server failures throw even if a body claims a key is invalid", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  for (const status of [429, 500, 502, 503]) {
-    const fetchImpl = fakeFetch(() => jsonResponse(status, { valid: false, error: "not found" }));
-    await assert.rejects(
-      new LemonSqueezyVerifier({ fetchImpl }).validate("LICENSE-KEY", "inst-1"),
-      /temporarily unavailable/,
+test("well-formed invalid and revoked responses are explicit, with redacted text", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  for (const status of [200, 400, 404, 422]) {
+    const verifier = new DayBoardLicenseVerifier(API, () =>
+      response(status, {
+        valid: false,
+        error: `invalid key ${KEY}`,
+      }),
     );
+    const result = await verifier.validate(KEY);
+    assert.equal(result.valid, false);
+    assert.equal(result.error.includes(KEY), false);
   }
 });
 
-test("well-formed explicit invalid response remains distinct from a transient failure", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  const fetchImpl = fakeFetch(() =>
-    jsonResponse(404, { valid: false, error: "license_key not found." }),
+test("incomplete, wrong type, missing created, and invalid date responses are transient", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  for (const body of [
+    { activated: true, instanceId: "inst-1", license: LICENSE, meta: META },
+    { activated: true, created: "true", instanceId: "inst-1", license: LICENSE, meta: META },
+    { activated: true, created: true, instanceId: "", license: LICENSE, meta: META },
+    {
+      activated: true,
+      created: true,
+      instanceId: "inst-1",
+      license: { ...LICENSE, expiresAt: "bad" },
+      meta: META,
+    },
+    {
+      activated: true,
+      created: true,
+      instanceId: "inst-1",
+      license: LICENSE,
+      meta: { ...META, environment: "wrong" },
+    },
+  ]) {
+    const verifier = new DayBoardLicenseVerifier(API, () => response(200, body));
+    await assert.rejects(verifier.activate(KEY, "id", "Mac"), /temporarily unavailable/);
+  }
+});
+
+test("429, 5xx, malformed JSON, oversized body, and redirects remain transient", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  for (const res of [
+    response(429, { valid: false, error: "rate limited" }),
+    response(503, { valid: false, error: "unavailable" }),
+    response(200, "{"),
+    response(200, "x".repeat(16 * 1024 + 1)),
+    response(302, { valid: false, error: "redirect" }),
+    response(
+      200,
+      { valid: true, instanceId: "other", license: LICENSE, meta: META },
+      { "content-type": "text/html" },
+    ),
+  ]) {
+    const verifier = new DayBoardLicenseVerifier(API, () => res);
+    await assert.rejects(verifier.validate(KEY, "inst-1"), /temporarily unavailable/);
+  }
+});
+
+test("rejected status and content type cancel unread bodies and abort their requests", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  for (const { status, headers } of [
+    { status: 429, headers: {} },
+    { status: 503, headers: {} },
+    { status: 302, headers: {} },
+    { status: 200, headers: { "content-type": "text/html" } },
+    { status: 200, headers: { "content-length": "20000" } },
+  ]) {
+    const streamed = streamingResponse(status, [], headers);
+    let signal;
+    const verifier = new DayBoardLicenseVerifier(
+      API,
+      (_url, init) => {
+        signal = init.signal;
+        return streamed.response;
+      },
+      20,
+    );
+    await assert.rejects(verifier.validate(KEY), /temporarily unavailable/);
+    assert.equal(streamed.cancellations(), 1, `status ${status} should cancel its body`);
+    assert.equal(signal.aborted, true, `status ${status} should abort its request`);
+  }
+});
+
+test("oversized streamed response cancels the active reader and aborts", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const streamed = streamingResponse(200, ["x".repeat(16 * 1024 + 1)]);
+  let signal;
+  const verifier = new DayBoardLicenseVerifier(API, (_url, init) => {
+    signal = init.signal;
+    return streamed.response;
+  });
+  await assert.rejects(verifier.validate(KEY), /temporarily unavailable/);
+  assert.equal(streamed.cancellations(), 1);
+  assert.equal(signal.aborted, true);
+});
+
+test("timeout cancels a stalled response body without returning partial JSON", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const streamed = streamingResponse(200, ['{"valid":true']);
+  let signal;
+  const verifier = new DayBoardLicenseVerifier(
+    API,
+    (_url, init) => {
+      signal = init.signal;
+      return streamed.response;
+    },
+    10,
   );
-  const result = await new LemonSqueezyVerifier({ fetchImpl }).validate("BAD-KEY", "inst-1");
-  assert.deepEqual(result, {
-    valid: false,
-    error: "license_key not found.",
-    license: undefined,
-    meta: undefined,
-    instanceId: undefined,
+  let deadline;
+  try {
+    await assert.rejects(
+      Promise.race([
+        verifier.validate(KEY),
+        new Promise((_resolve, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error("test timed out waiting for body cancellation")),
+            500,
+          );
+        }),
+      ]),
+      /temporarily unavailable/,
+    );
+  } finally {
+    clearTimeout(deadline);
+  }
+  assert.equal(streamed.cancellations(), 1);
+  assert.equal(signal.aborted, true);
+});
+
+test("complete streamed success parses normally", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const bytes = JSON.stringify({ valid: true, instanceId: "inst-1", license: LICENSE, meta: META });
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(bytes.slice(0, 15)));
+      controller.enqueue(new TextEncoder().encode(bytes.slice(15)));
+      controller.close();
+    },
+  });
+  const verifier = new DayBoardLicenseVerifier(
+    API,
+    () => new Response(stream, { status: 200, headers: { "content-type": "application/json" } }),
+  );
+  assert.deepEqual(await verifier.validate(KEY, "inst-1"), {
+    valid: true,
+    instanceId: "inst-1",
+    license: LICENSE,
+    meta: META,
   });
 });
 
-test("malformed positive responses throw instead of granting access", async () => {
-  const { LemonSqueezyVerifier } = await loadVerifier();
-  for (const body of [
-    { valid: true },
-    { valid: true, license_key: LICENSE, instance: { id: "inst-1" } },
-    {
-      valid: true,
-      license_key: LICENSE,
-      instance: { id: "inst-1" },
-      meta: { ...META, variant_id: null },
-    },
-    { valid: true, license_key: { status: "active" }, instance: { id: "inst-1" }, meta: META },
-    { valid: true, license_key: LICENSE, instance: { id: "other" }, meta: META, error: null },
+test("timeout aborts and network exceptions cannot echo key or response body", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const timed = new DayBoardLicenseVerifier(
+    API,
+    (_url, init) =>
+      new Promise((_resolve, reject) =>
+        init.signal.addEventListener("abort", () => reject(new Error(KEY)), { once: true }),
+      ),
+    5,
+  );
+  await assert.rejects(timed.validate(KEY), (error) => !error.message.includes(KEY));
+  const failed = new DayBoardLicenseVerifier(API, () => {
+    throw new Error(`body ${KEY}`);
+  });
+  await assert.rejects(failed.validate(KEY), (error) => !error.message.includes(KEY));
+});
+
+test("HTTPS origin is required", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  for (const candidate of [
+    "http://license.example",
+    "https://license.example/path",
+    "https://license.example/",
   ]) {
-    const fetchImpl = fakeFetch(() => jsonResponse(200, body));
-    if (body.instance?.id === "other") {
-      const result = await new LemonSqueezyVerifier({ fetchImpl }).validate("KEY", "inst-1");
-      assert.equal(result.instanceId, "other", "service checks instance binding");
-    } else {
-      await assert.rejects(
-        new LemonSqueezyVerifier({ fetchImpl }).validate("KEY", "inst-1"),
-        /malformed/,
-      );
-    }
+    assert.throws(() => new DayBoardLicenseVerifier(candidate), /Invalid license service URL/);
   }
 });

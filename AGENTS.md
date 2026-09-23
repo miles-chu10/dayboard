@@ -12,6 +12,7 @@ Standalone macOS Electron app (GPL-3.0-only): Google Tasks, Gmail, Google Calend
 - `tests/` — Node test runner suites (`*.test.mjs`) that bundle backend modules with esbuild; `renderer/lib/agenda.test.ts` runs under tsx. `e2e/` — Playwright Electron specs.
 - `resources/bin/` — build output of the Swift Reminders helper (gitignored), shipped as `Contents/Resources/bin`.
 - `build/` — electron-builder resources (`entitlements.mac.plist`). `electron-builder.yml` — packaging config.
+- `billing/` — separately deployed Cloudflare Worker + D1 for Stripe Checkout, payment fulfillment and license activation. Its dependencies and credentials never ship in the Mac app.
 
 Path aliases (`electron.vite.config.ts`, `tsconfig.*.json`): `@main/*` → `main/*`, `@renderer/*` → `renderer/*`, `@shared/*` → `shared/*`.
 
@@ -24,7 +25,8 @@ Run from the repo root. The shell may export `NODE_ENV=production`, which makes 
 - `npm run typecheck` — `tsc` over `tsconfig.node.json` (main, preload, shared, tests) and `tsconfig.web.json` (renderer).
 - `npm run lint` / `npm run format` (oxfmt, width 100) / `npm run format:check`.
 - `npm test` — unit tests. `npm run test:e2e` — builds, then Playwright Electron E2E.
-- `npm run package:preview` — local unsigned arm64 preview DMG; no publishing.
+- `npm run package:preview` — local unsigned arm64 preview DMG and update ZIP; no publishing.
+- `npm run test:billing` — typecheck and test the separate license backend after installing its dependencies.
 - `npm run package:test` — credential-free unsigned test app.
 - `npm run dist` — unsigned arm64 release candidate in `release/`, requiring complete build configuration; publishing remains disabled. See `docs/RELEASE.md` for signing and external gates.
 - `postinstall` runs `electron-builder install-app-deps` to rebuild node-pty for Electron.
@@ -45,5 +47,5 @@ Run from the repo root. The shell may export `NODE_ENV=production`, which makes 
 
 - Never print, log, or commit secrets, tokens, or API keys. User credentials are stored with `safeStorage` (Keychain) under `userData`, never in plain files.
 - The Google Desktop OAuth client is injected at build time from `DAYBOARD_GOOGLE_OAUTH_FILE` or `~/.config/dayboard/google-oauth.json`. Do not read or print its contents. Ordinary builds without it report Google sign-in as unconfigured; test builds use blank constants; strict release builds reject missing client or merchant configuration.
-- Lemon Squeezy store/product/allowed variant IDs and checkout URL are public build inputs. Never embed merchant API secrets. Demo/source/unconfigured licensing must not read personal license records or contact the merchant.
+- Stripe replaced Lemon Squeezy by the user's explicit choice. The license API HTTPS origin, Stripe product ID and test/live environment are public app build inputs. Stripe API/webhook and key-encryption secrets exist only in the backend's secret store. Demo/community/unconfigured licensing must not read personal license records or contact the license service.
 - Developer secrets go through 1Password (`op run --env-file=.env.template -- <cmd>`); never write plaintext `.env` files.

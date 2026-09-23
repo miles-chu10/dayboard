@@ -45,8 +45,7 @@ export const LICENSE_STATUS_COPY: Record<
   },
   "network-error": {
     label: "Can't verify",
-    description:
-      "DayBoard couldn't reach Lemon Squeezy to confirm your license. Check your connection.",
+    description: "DayBoard couldn't reach its license service. Check your connection.",
   },
 };
 

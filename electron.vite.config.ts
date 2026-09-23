@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { Plugin } from "vite";
+import { parseDesktopLicenseConfig } from "./shared/license-config.js";
 
 const root = import.meta.dirname;
 const fromRoot = (...segments: string[]) => resolve(root, ...segments);
@@ -17,39 +18,30 @@ const alias = {
 
 function licenseDefinitions(): Record<string, string> {
   const testBuild = process.env.DAYBOARD_TEST === "1";
-  const names = ["STORE_ID", "PRODUCT_ID", "VARIANT_ID", "CHECKOUT_URL"] as const;
+  const names = [
+    "DAYBOARD_LICENSE_API_URL",
+    "DAYBOARD_STRIPE_PRODUCT_ID",
+    "DAYBOARD_LICENSE_ENVIRONMENT",
+  ] as const;
   const values = Object.fromEntries(
-    names.map((name) => [
-      name,
-      testBuild ? "" : (process.env[`DAYBOARD_LEMONSQUEEZY_${name}`] ?? "").trim(),
-    ]),
+    names.map((name) => [name, testBuild ? "" : (process.env[name] ?? "").trim()]),
   );
   const disabled = !testBuild && process.env.DAYBOARD_LICENSE === "off";
   if (process.env.DAYBOARD_RELEASE === "1") {
-    let validUrl = false;
-    try {
-      const url = new URL(values.CHECKOUT_URL);
-      validUrl = url.protocol === "https:" && !url.username && !url.password;
-    } catch {
-      /* Missing or malformed public checkout URL. */
-    }
-    const validProduct = [
-      values.STORE_ID,
-      values.PRODUCT_ID,
-      ...values.VARIANT_ID.split(",").map((id) => id.trim()),
-    ].every((id) => /^[1-9]\d*$/.test(id));
-    if (disabled || !validUrl || !validProduct) {
+    const config = parseDesktopLicenseConfig({
+      apiUrl: values.DAYBOARD_LICENSE_API_URL,
+      productId: values.DAYBOARD_STRIPE_PRODUCT_ID,
+      environment: values.DAYBOARD_LICENSE_ENVIRONMENT,
+    });
+    if (testBuild || disabled || !config || config.environment !== "live") {
       throw new Error(
-        "Release packaging requires DAYBOARD_LEMONSQUEEZY_STORE_ID, PRODUCT_ID, VARIANT_ID and CHECKOUT_URL, with licensing enabled.",
+        "Release packaging requires DAYBOARD_LICENSE_API_URL, DAYBOARD_STRIPE_PRODUCT_ID and DAYBOARD_LICENSE_ENVIRONMENT=live, with licensing enabled.",
       );
     }
   }
   return {
     ...Object.fromEntries(
-      names.map((name) => [
-        `process.env.DAYBOARD_LEMONSQUEEZY_${name}`,
-        JSON.stringify(values[name]),
-      ]),
+      names.map((name) => [`process.env.${name}`, JSON.stringify(values[name])]),
     ),
     "process.env.DAYBOARD_LICENSE": JSON.stringify(disabled ? "off" : "on"),
     "process.env.DAYBOARD_RELEASE": JSON.stringify(

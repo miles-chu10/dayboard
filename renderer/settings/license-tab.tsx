@@ -106,6 +106,12 @@ export function LicenseTab() {
         </Field>
       ) : (
         <>
+          <Field>
+            <p className="text-small text-secondary">
+              After checkout, copy your license key from the DayBoard receipt page and activate it
+              here.
+            </p>
+          </Field>
           <KeyEntry busy={activate.isPending} onSubmit={(key) => activate.mutate(key)} />
           {status.state === "network-error" || status.state === "invalid" ? (
             <Field>

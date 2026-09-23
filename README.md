@@ -56,7 +56,7 @@ The source is [GPL-3.0-only](LICENSE). You may build and modify it under that li
 
 Configured official builds provide a 14-day trial, license activation in Settings, and a 30-day offline validation grace period. Data viewing, preferences, and account recovery remain available when a license blocks editing and AI. Demo and unconfigured preview builds never open the personal license store or make licensing requests. AI usage is not included in an app purchase.
 
-Public merchant IDs and the checkout URL are build inputs; merchant API secrets are never included in the app. The normal `dist` command requires complete Google and merchant configuration and leaves publishing disabled. See [release configuration and checks](docs/RELEASE.md).
+Payments use Stripe-hosted Checkout and the separate DayBoard license service in `billing/`. Customers copy a DayBoard key from the authenticated receipt page and activate it in Settings. The app embeds only its license API origin, Stripe product ID and test/live environment. Stripe and webhook credentials stay in the backend's secret store. The normal `dist` command requires complete Google and live license-service configuration and leaves publishing disabled. See [release configuration and checks](docs/RELEASE.md).
 
 GitHub runs the offline test suite on pushes and pull requests. Optional Codex PR reviews use a separate API key and explicit activation; see [GitHub workflows](docs/github-workflows.md).
 

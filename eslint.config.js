@@ -14,6 +14,8 @@ export default defineConfig(
     "playwright-report/",
     "e2e-artifacts/",
     ".workflow/",
+    "billing/dist/",
+    "billing/.wrangler/",
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,
@@ -33,6 +35,14 @@ export default defineConfig(
   {
     files: ["website/**/*.js"],
     languageOptions: { globals: globals.browser },
+  },
+  {
+    files: ["billing/src/**/*.ts"],
+    languageOptions: { globals: globals.worker },
+  },
+  {
+    files: ["billing/tests/**/*.{ts,mjs}", "billing/*.{ts,js,mjs}"],
+    languageOptions: { globals: globals.node },
   },
   {
     files: [

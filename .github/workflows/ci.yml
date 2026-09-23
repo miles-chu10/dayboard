@@ -33,3 +33,19 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+  billing:
+    name: Offline Stripe license service tests (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: billing/package-lock.json
+      - run: npm --prefix billing ci --include=dev
+      - run: npm --prefix billing run typecheck
+      - run: npm --prefix billing test

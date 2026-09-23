@@ -1,30 +1,33 @@
 // Pure license state machine: trial countdown, revalidate-at-most-daily, 30-day offline grace,
-// invalid-key detection. No Electron or Node imports, so tests/license-service.test.mjs can
-// esbuild-bundle and unit-test it directly with an in-memory store and a mocked verifier (see
-// tests/platform-oauth.test.mjs for the same pattern this mirrors).
+// invalid-key detection. No Electron imports, so tests/license-service.test.mjs can
+// esbuild-bundle and unit-test it with an in-memory store and a mocked verifier.
 
 import type { LicenseStatus } from "../../../shared/license.js";
-import type { LicenseProductConfig } from "./config.js";
+import { randomUUID } from "node:crypto";
+import { INSTALLATION_ID_PATTERN, LICENSE_KEY_PATTERN } from "../../../shared/license-contract.js";
 import type {
-  LemonSqueezyLicenseInfo,
-  LemonSqueezyLicenseMeta,
+  LicenseBinding,
+  LicenseInfo,
   LicenseVerifier,
-} from "./lemonsqueezy-verifier.js";
+} from "../../../shared/license-contract.js";
+import type { DesktopLicenseConfig } from "../../../shared/license-config.js";
 
 export type { LicenseStatus } from "../../../shared/license.js";
 
 export interface LicenseRecord {
+  version: 2;
+  installationId: string;
   licenseKey: string | null;
   instanceId: string | null;
   instanceName: string | null;
   /** ISO timestamp of this device's first-ever launch; anchors the trial countdown. */
   firstLaunchAt: string;
-  /** ISO timestamp of the last time we successfully reached Lemon Squeezy, valid or not. */
+  /** ISO timestamp of the last authoritative validation. */
   lastValidationAt: string | null;
   lastValidationValid: boolean | null;
   lastValidationMessage: string | null;
-  /** Proven merchant association from the last successful activation or validation. */
-  productBinding?: LemonSqueezyLicenseMeta | null;
+  /** Proven service association from the last successful activation or validation. */
+  productBinding: LicenseBinding | null;
 }
 
 export interface LicenseStore {
@@ -37,7 +40,7 @@ export interface LicenseServiceOptions {
   revalidateIntervalMs: number;
   offlineGraceDays: number;
   gatingDisabled?: boolean;
-  product?: LicenseProductConfig | null;
+  product?: DesktopLicenseConfig | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,6 +51,8 @@ function keyHint(licenseKey: string): string {
 
 function defaultRecord(now: Date): LicenseRecord {
   return {
+    version: 2,
+    installationId: randomUUID(),
     licenseKey: null,
     instanceId: null,
     instanceName: null,
@@ -66,15 +71,15 @@ export function isLicenseBlocking(status: LicenseStatus): boolean {
   );
 }
 
-function matchesProduct(meta: LemonSqueezyLicenseMeta, expected: LicenseProductConfig): boolean {
+function matchesProduct(meta: LicenseBinding, expected: DesktopLicenseConfig): boolean {
   return (
-    meta.storeId === expected.storeId &&
+    meta.issuer === expected.issuer &&
     meta.productId === expected.productId &&
-    expected.variantIds.includes(meta.variantId)
+    meta.environment === expected.environment
   );
 }
 
-function isUnexpired(license: LemonSqueezyLicenseInfo, now: Date): boolean {
+function isUnexpired(license: LicenseInfo, now: Date): boolean {
   return (
     license.expiresAt === null ||
     (Number.isFinite(Date.parse(license.expiresAt)) &&
@@ -82,11 +87,11 @@ function isUnexpired(license: LemonSqueezyLicenseInfo, now: Date): boolean {
   );
 }
 
-function isUsableLicense(license: LemonSqueezyLicenseInfo, now: Date): boolean {
+function isUsableLicense(license: LicenseInfo, now: Date): boolean {
   return license.status === "active" && isUnexpired(license, now);
 }
 
-function isActivatableLicense(license: LemonSqueezyLicenseInfo, now: Date): boolean {
+function isActivatableLicense(license: LicenseInfo, now: Date): boolean {
   return (
     (license.status === "inactive" || license.status === "active") && isUnexpired(license, now)
   );
@@ -133,6 +138,18 @@ export class LicenseService {
 
     const hint = keyHint(record.licenseKey);
 
+    if (
+      !LICENSE_KEY_PATTERN.test(record.licenseKey) ||
+      !record.productBinding ||
+      !matchesProduct(record.productBinding, this.options.product)
+    ) {
+      return {
+        state: "invalid",
+        keyHint: hint,
+        message: "This saved key needs to be verified for DayBoard.",
+      };
+    }
+
     if (record.lastValidationValid === false) {
       return {
         state: "invalid",
@@ -144,8 +161,7 @@ export class LicenseService {
     if (
       record.lastValidationValid !== true ||
       !record.instanceId ||
-      !record.productBinding ||
-      !matchesProduct(record.productBinding, this.options.product)
+      !INSTALLATION_ID_PATTERN.test(record.installationId)
     ) {
       return {
         state: "invalid",
@@ -182,7 +198,7 @@ export class LicenseService {
   }
 
   /**
-   * Revalidates against Lemon Squeezy at most once per `revalidateIntervalMs`; otherwise returns
+   * Revalidates against the DayBoard service at most once per `revalidateIntervalMs`; otherwise returns
    * the cached status untouched. A network failure leaves the record unchanged (so the 30-day
    * offline grace keeps counting from the last time we actually reached the server) and resolves
    * with the status computed from the stale record rather than rejecting.
@@ -196,6 +212,12 @@ export class LicenseService {
   private async refreshLocked(now: Date): Promise<LicenseStatus> {
     const record = await this.readOrSeed(now);
     if (!record.licenseKey) return this.computeStatus(record, now);
+    if (
+      !LICENSE_KEY_PATTERN.test(record.licenseKey) ||
+      !record.productBinding ||
+      !matchesProduct(record.productBinding, this.options.product!)
+    )
+      return this.computeStatus(record, now);
 
     const due =
       record.lastValidationAt === null ||
@@ -216,6 +238,7 @@ export class LicenseService {
     if (result.valid && (!result.meta || !result.license || !result.instanceId)) {
       return this.computeStatus(record, now);
     }
+    if (!result.valid && !result.error) return this.computeStatus(record, now);
     const valid =
       result.valid &&
       result.instanceId === record.instanceId &&
@@ -229,8 +252,8 @@ export class LicenseService {
         ? null
         : result.valid
           ? "This license key is for another product or is no longer active."
-          : (result.error ?? "This license key is no longer valid."),
-      productBinding: valid ? result.meta : null,
+          : "This license key is no longer valid.",
+      productBinding: valid ? result.meta! : null,
     };
     await this.store.write(next);
     return this.computeStatus(next, now);
@@ -255,14 +278,15 @@ export class LicenseService {
   ): Promise<LicenseStatus> {
     const trimmed = licenseKey.trim();
     if (!trimmed) throw new Error("Enter a license key.");
+    if (!LICENSE_KEY_PATTERN.test(trimmed)) throw new Error("Enter a DayBoard license key.");
 
     // A key-level validation has no instance and consumes no activation slot.
     const preflight = await this.verifier.validate(trimmed);
     if (!preflight.valid) {
-      throw new Error(preflight.error ?? "That license key couldn't be validated.");
+      throw new Error("That license key couldn't be validated.");
     }
     if (!preflight.meta || !preflight.license) {
-      throw new Error("Lemon Squeezy returned an incomplete validation response.");
+      throw new Error("The DayBoard license service returned an incomplete validation response.");
     }
     if (
       !matchesProduct(preflight.meta, this.options.product!) ||
@@ -271,16 +295,28 @@ export class LicenseService {
       throw new Error("That license key is for another product or is no longer active.");
     }
 
-    // Fail on an unreadable store before creating the remote instance.
-    const record = (await this.store.read()) ?? defaultRecord(now);
-    const result = await this.verifier.activate(trimmed, instanceName);
+    // Persist a stable installation identity before any activation request. A lost response can
+    // be retried with the same identity without consuming another slot.
+    const existing = await this.store.read();
+    let record = existing ?? defaultRecord(now);
+    if (record.version !== 2 || !INSTALLATION_ID_PATTERN.test(record.installationId)) {
+      record = { ...defaultRecord(now), firstLaunchAt: record.firstLaunchAt };
+      await this.store.write(record);
+    } else if (!existing) {
+      await this.store.write(record);
+    }
+
+    const result = await this.verifier.activate(trimmed, record.installationId, instanceName);
     if (!result.activated) {
-      throw new Error(result.error ?? "That license key couldn't be activated.");
+      throw new Error("That license key couldn't be activated.");
     }
     if (typeof result.instanceId !== "string" || !result.instanceId.trim()) {
       throw new Error(
-        "Lemon Squeezy did not identify the new activation; it may need manual release.",
+        "The DayBoard service did not identify the activation; it may need manual release.",
       );
+    }
+    if (typeof result.created !== "boolean") {
+      throw new Error("The DayBoard service did not report whether the activation was created.");
     }
     if (
       !result.meta ||
@@ -291,6 +327,7 @@ export class LicenseService {
       return this.rejectCreatedInstance(
         trimmed,
         result.instanceId,
+        result.created === true,
         "The activation response did not match DayBoard",
       );
     }
@@ -310,8 +347,23 @@ export class LicenseService {
       return this.rejectCreatedInstance(
         trimmed,
         result.instanceId,
+        result.created === true,
         "DayBoard could not save the license activation",
       );
+    }
+    if (
+      record.licenseKey &&
+      record.instanceId &&
+      (record.licenseKey !== trimmed || record.instanceId !== result.instanceId) &&
+      LICENSE_KEY_PATTERN.test(record.licenseKey) &&
+      record.productBinding &&
+      matchesProduct(record.productBinding, this.options.product!)
+    ) {
+      try {
+        await this.verifier.deactivate(record.licenseKey, record.instanceId);
+      } catch {
+        /* Local replacement is already committed. */
+      }
     }
     return this.computeStatus(next, now);
   }
@@ -319,8 +371,11 @@ export class LicenseService {
   private async rejectCreatedInstance(
     licenseKey: string,
     instanceId: string,
+    created: boolean,
     reason: string,
   ): Promise<never> {
+    if (!created)
+      throw new Error(`${reason}; retry with the same installation to recover the activation.`);
     let released = false;
     try {
       const cleanup = await this.verifier.deactivate(licenseKey, instanceId);
@@ -336,9 +391,8 @@ export class LicenseService {
   }
 
   /**
-   * Best-effort remote deactivation (frees the Lemon Squeezy activation slot); the key is always
-   * cleared locally afterward, even if the remote call fails, so an offline device isn't stuck
-   * unable to remove a key it can no longer reach the server about.
+   * Commit the local clear before best-effort remote deactivation, so a failed local save
+   * does not discard a valid license or release its remote instance.
    */
   async deactivate(now = new Date()): Promise<LicenseStatus> {
     if (this.options.gatingDisabled)
@@ -350,13 +404,6 @@ export class LicenseService {
 
   private async deactivateLocked(now: Date): Promise<LicenseStatus> {
     const record = await this.readOrSeed(now);
-    if (record.licenseKey && record.instanceId) {
-      try {
-        await this.verifier.deactivate(record.licenseKey, record.instanceId);
-      } catch {
-        // best-effort; fall through to local clear regardless
-      }
-    }
     const next: LicenseRecord = {
       ...record,
       licenseKey: null,
@@ -368,6 +415,19 @@ export class LicenseService {
       productBinding: null,
     };
     await this.store.write(next);
+    if (
+      record.licenseKey &&
+      record.instanceId &&
+      LICENSE_KEY_PATTERN.test(record.licenseKey) &&
+      record.productBinding &&
+      matchesProduct(record.productBinding, this.options.product!)
+    ) {
+      try {
+        await this.verifier.deactivate(record.licenseKey, record.instanceId);
+      } catch {
+        /* Local clear stays committed. */
+      }
+    }
     return this.computeStatus(next, now);
   }
 }

@@ -2,15 +2,25 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import path from "node:path";
 import test from "node:test";
-
 import { build } from "esbuild";
 
 const root = new URL("..", import.meta.url).pathname;
-let bundleSequence = 0;
-const META = { storeId: "1", productId: "4", variantId: "5" };
+const key = (c) => `DAYB_${c.repeat(43)}`;
+const A = key("A");
+const B = key("B");
+const META = { issuer: "https://license.example", productId: "prod_abc", environment: "test" };
 const LICENSE = { status: "active", expiresAt: null };
+const NOW = new Date("2026-01-01T00:00:00Z");
+const DAY = 86_400_000;
+const OPTIONS = {
+  trialDays: 14,
+  revalidateIntervalMs: DAY,
+  offlineGraceDays: 30,
+  product: { ...META, apiUrl: META.issuer },
+};
+let sequence = 0;
 
-async function loadLicenseService() {
+async function load() {
   const result = await build({
     entryPoints: [path.join(root, "main/services/license/license-service.ts")],
     bundle: true,
@@ -19,494 +29,277 @@ async function loadLicenseService() {
     write: false,
     logLevel: "silent",
   });
-  const source = `${result.outputFiles[0].text}\n// bundle-${bundleSequence++}`;
-  const url = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
-  return import(url);
+  return import(
+    `data:text/javascript;base64,${Buffer.from(
+      result.outputFiles[0].text + `\n// ${sequence++}`,
+    ).toString("base64")}`
+  );
 }
 
-function memoryStore(initial = null) {
-  let record = initial;
+function store(initial = null) {
+  let current = initial;
   const calls = { read: 0, write: 0 };
   return {
     calls,
     async read() {
       calls.read++;
-      return record;
+      return current;
     },
     async write(next) {
       calls.write++;
-      record = next;
+      current = structuredClone(next);
     },
-    _current: () => record,
+    current: () => current,
   };
 }
 
-function fakeVerifier(overrides = {}) {
-  const calls = { activate: [], validate: [], deactivate: [] };
+function verifier(overrides = {}) {
+  const calls = { validate: [], activate: [], deactivate: [] };
   return {
     calls,
-    async activate(licenseKey, instanceName) {
-      calls.activate.push({ licenseKey, instanceName });
-      return overrides.activate
-        ? overrides.activate(licenseKey, instanceName)
-        : { activated: true, instanceId: "inst-1", license: LICENSE, meta: META };
-    },
     async validate(licenseKey, instanceId) {
       calls.validate.push({ licenseKey, instanceId });
-      if (!instanceId) {
-        if (overrides.prevalidate) return overrides.prevalidate(licenseKey);
-        return { valid: true, license: LICENSE, meta: META };
-      }
       if (overrides.validate) return overrides.validate(licenseKey, instanceId);
       return { valid: true, instanceId, license: LICENSE, meta: META };
     },
+    async activate(licenseKey, installationId, instanceName) {
+      calls.activate.push({ licenseKey, installationId, instanceName });
+      if (overrides.activate) return overrides.activate(licenseKey, installationId, instanceName);
+      return {
+        activated: true,
+        created: true,
+        instanceId: `inst-${licenseKey.slice(-1)}`,
+        license: LICENSE,
+        meta: META,
+      };
+    },
     async deactivate(licenseKey, instanceId) {
       calls.deactivate.push({ licenseKey, instanceId });
-      return overrides.deactivate
-        ? overrides.deactivate(licenseKey, instanceId)
-        : { deactivated: true };
+      return overrides.deactivate?.(licenseKey, instanceId) ?? { deactivated: true };
     },
   };
 }
 
-const DEFAULT_OPTIONS = {
-  trialDays: 14,
-  revalidateIntervalMs: 24 * 60 * 60 * 1000,
-  offlineGraceDays: 30,
-  product: { storeId: "1", productId: "4", variantIds: ["5", "6"] },
-};
+async function setup(options = OPTIONS, initial = null, overrides = {}) {
+  const { LicenseService } = await load();
+  const s = store(initial);
+  const v = verifier(overrides);
+  return { service: new LicenseService(v, s, options), s, v };
+}
 
-test("a brand-new install starts a 14-day trial from first launch", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const service = new LicenseService(fakeVerifier(), store, DEFAULT_OPTIONS);
-  const now = new Date("2026-01-01T00:00:00Z");
-
-  const status = await service.getStatus(now);
-
-  assert.deepEqual(status, { state: "trial", daysLeft: 14 });
-});
-
-test("trial days left counts down and expires after 14 days", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const service = new LicenseService(fakeVerifier(), store, DEFAULT_OPTIONS);
-  const start = new Date("2026-01-01T00:00:00Z");
-  await service.getStatus(start);
-
-  const midTrial = await service.getStatus(new Date("2026-01-08T00:00:00Z"));
-  assert.deepEqual(midTrial, { state: "trial", daysLeft: 7 });
-
-  const afterTrial = await service.getStatus(new Date("2026-01-16T00:00:00Z"));
-  assert.deepEqual(afterTrial, { state: "expired" });
-});
-
-test("activate stores the key and reports licensed with a masked hint", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier();
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  const now = new Date("2026-01-01T00:00:00Z");
-
-  const status = await service.activate("ABCD-1234-EFGH-5678", "Test Mac", now);
-
-  assert.deepEqual(status, { state: "licensed", keyHint: "5678" });
-  assert.equal(verifier.calls.activate.length, 1);
-  assert.deepEqual(verifier.calls.validate, [
-    { licenseKey: "ABCD-1234-EFGH-5678", instanceId: undefined },
-  ]);
-  assert.equal(verifier.calls.activate[0].instanceName, "Test Mac");
-  assert.equal(store._current().instanceId, "inst-1");
-  assert.deepEqual(store._current().productBinding, META);
-});
-
-test("activate throws with the server's message and does not store an invalid key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    activate: () => ({ activated: false, error: "license_key not found." }),
+test("14-day trial expires at boundary and deactivation keeps installation identity", async () => {
+  const { service, s } = await setup();
+  assert.deepEqual(await service.getStatus(NOW), { state: "trial", daysLeft: 14 });
+  assert.deepEqual(await service.getStatus(new Date(+NOW + 13 * DAY)), {
+    state: "trial",
+    daysLeft: 1,
   });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-
-  await assert.rejects(
-    service.activate("BAD-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-    /license_key not found/,
-  );
-  assert.equal(store._current(), null);
+  assert.deepEqual(await service.getStatus(new Date(+NOW + 14 * DAY)), { state: "expired" });
+  await service.activate(A, "Mac", NOW);
+  const id = s.current().installationId;
+  await service.deactivate(new Date(+NOW + DAY));
+  assert.equal(s.current().installationId, id);
+  assert.equal(s.current().licenseKey, null);
 });
 
-test("foreign, missing-metadata, and expired keys stop at validation without consuming an activation", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const cases = [
-    { meta: { ...META, storeId: "99" } },
-    { meta: { ...META, productId: "99" } },
-    { meta: { ...META, variantId: "99" } },
-    { meta: undefined },
-    { license: { status: "disabled", expiresAt: null } },
+test("invalid key formats never reach the network or store, including legacy and Stripe keys", async () => {
+  const { service, s, v } = await setup();
+  for (const candidate of ["OLD-LEMON-KEY", "sk_live_secret", "pk_test_secret", "DAYB_short"]) {
+    await assert.rejects(service.activate(candidate, "Mac", NOW), /DayBoard license key/);
+  }
+  assert.deepEqual(s.calls, { read: 0, write: 0 });
+  assert.equal(v.calls.validate.length, 0);
+});
+
+test("preflight rejects foreign issuer, product, mode and expired key without consuming a slot", async () => {
+  for (const candidate of [
+    { meta: { ...META, issuer: "https://other.example" } },
+    { meta: { ...META, productId: "prod_other" } },
+    { meta: { ...META, environment: "live" } },
+    { license: { status: "revoked", expiresAt: null } },
     { license: { status: "active", expiresAt: "2025-12-31T00:00:00Z" } },
-  ];
-  for (const candidate of cases) {
-    const store = memoryStore();
-    const verifier = fakeVerifier({
-      prevalidate: () => ({ valid: true, license: LICENSE, meta: META, ...candidate }),
+  ]) {
+    const { service, s, v } = await setup(OPTIONS, null, {
+      validate: () => ({ valid: true, license: LICENSE, meta: META, ...candidate }),
     });
-    const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-    await assert.rejects(
-      service.activate("FOREIGN-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-    );
-    assert.equal(verifier.calls.validate.length, 1);
-    assert.equal(verifier.calls.activate.length, 0);
-    assert.equal(verifier.calls.deactivate.length, 0);
-    assert.deepEqual(store.calls, { read: 0, write: 0 });
+    await assert.rejects(service.activate(A, "Mac", NOW));
+    assert.equal(v.calls.activate.length, 0);
+    assert.deepEqual(s.calls, { read: 0, write: 0 });
   }
 });
 
-test("an inactive matching key validates and then activates", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    prevalidate: () => ({
-      valid: true,
-      license: { status: "inactive", expiresAt: null },
+test("installation identity is durable before remote activation and is reused after a lost response", async () => {
+  const { service, s, v } = await setup(OPTIONS, null, {
+    activate: () => {
+      throw new Error("lost");
+    },
+  });
+  await assert.rejects(service.activate(A, "Mac", NOW), /lost/);
+  assert.equal(s.current().version, 2);
+  assert.match(s.current().installationId, /^[a-f0-9-]{36}$/);
+  assert.equal(s.current().licenseKey, null);
+  await assert.rejects(service.activate(A, "Mac", NOW), /lost/);
+  assert.equal(v.calls.activate[0].installationId, v.calls.activate[1].installationId);
+});
+
+test("retry returning created:false never compensates on a failed save", async () => {
+  const { LicenseService } = await load();
+  const s = store();
+  const v = verifier({
+    activate: () => ({
+      activated: true,
+      created: false,
+      instanceId: "inst-A",
+      license: LICENSE,
       meta: META,
     }),
   });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  const status = await service.activate("NEW-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  assert.equal(status.state, "licensed");
-  assert.deepEqual(verifier.calls.validate, [{ licenseKey: "NEW-KEY", instanceId: undefined }]);
-  assert.equal(verifier.calls.activate.length, 1);
-  assert.equal(verifier.calls.deactivate.length, 0);
+  const write = s.write;
+  let writes = 0;
+  s.write = async (record) => {
+    if (++writes > 1) throw new Error("disk: " + A);
+    return write(record);
+  };
+  const service = new LicenseService(v, s, OPTIONS);
+  await assert.rejects(
+    service.activate(A, "Mac", NOW),
+    (error) =>
+      !error.message.includes(A) && error.message.includes("retry with the same installation"),
+  );
+  assert.equal(v.calls.deactivate.length, 0);
+  assert.equal(s.current().licenseKey, null);
 });
 
-test("a bad activation response releases the newly created instance", async () => {
-  const { LicenseService } = await loadLicenseService();
-  for (const candidate of [
-    { meta: { ...META, variantId: "99" } },
-    { meta: undefined },
-    { license: { status: "inactive", expiresAt: null } },
-  ]) {
-    const store = memoryStore();
-    const verifier = fakeVerifier({
+test("created activation is compensated after save failure; prior valid state remains", async () => {
+  const { LicenseService } = await load();
+  const s = store();
+  const v = verifier();
+  const service = new LicenseService(v, s, OPTIONS);
+  await service.activate(A, "Mac", NOW);
+  const prior = structuredClone(s.current());
+  s.write = async () => {
+    throw new Error("disk: " + B);
+  };
+  await assert.rejects(
+    service.activate(B, "Mac", NOW),
+    (error) => error.message.includes("released") && !error.message.includes(B),
+  );
+  assert.deepEqual(s.current(), prior);
+  assert.deepEqual(v.calls.deactivate, [{ licenseKey: B, instanceId: "inst-B" }]);
+});
+
+test("mismatched created activation is compensated, but reused activation is never released", async () => {
+  for (const created of [true, false]) {
+    const { service, v } = await setup(OPTIONS, null, {
       activate: () => ({
         activated: true,
-        instanceId: "inst-created",
+        created,
+        instanceId: "inst-A",
         license: LICENSE,
-        meta: META,
-        ...candidate,
+        meta: { ...META, environment: "live" },
       }),
     });
-    const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-    await assert.rejects(
-      service.activate("MATCHING-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-      /new activation was released/,
-    );
-    assert.deepEqual(verifier.calls.deactivate, [
-      { licenseKey: "MATCHING-KEY", instanceId: "inst-created" },
-    ]);
-    assert.equal(store._current(), null);
+    await assert.rejects(service.activate(A, "Mac", NOW));
+    assert.equal(v.calls.deactivate.length, created ? 1 : 0);
   }
 });
 
-test("a local save failure releases the new activation and preserves the old key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const old = {
-    licenseKey: "OLD-KEY",
-    instanceId: "old-instance",
-    instanceName: "Old Mac",
-    firstLaunchAt: "2025-12-01T00:00:00Z",
-    lastValidationAt: "2026-01-01T00:00:00Z",
-    lastValidationValid: true,
-    lastValidationMessage: null,
-    productBinding: META,
+test("replacement releases old instance only after successful local commit", async () => {
+  const { service, s, v } = await setup();
+  await service.activate(A, "Mac", NOW);
+  await service.activate(B, "Mac", new Date(+NOW + DAY));
+  assert.equal(s.current().licenseKey, B);
+  assert.deepEqual(v.calls.deactivate, [{ licenseKey: A, instanceId: "inst-A" }]);
+});
+
+test("daily validation, revoked response, and offline grace are authoritative at boundaries", async () => {
+  let offline = false;
+  let revoked = false;
+  const { service, s, v } = await setup(OPTIONS, null, {
+    validate: (_key, instanceId) => {
+      if (!instanceId) return { valid: true, license: LICENSE, meta: META };
+      if (offline) throw new Error("offline");
+      if (revoked) return { valid: false, error: "revoked" };
+      return { valid: true, instanceId, license: LICENSE, meta: META };
+    },
+  });
+  await service.activate(A, "Mac", NOW);
+  await service.refresh(new Date(+NOW + DAY - 1));
+  assert.equal(v.calls.validate.length, 1);
+  offline = true;
+  assert.equal((await service.refresh(new Date(+NOW + 30 * DAY))).state, "licensed");
+  assert.equal(s.current().lastValidationAt, NOW.toISOString());
+  assert.equal((await service.refresh(new Date(+NOW + 30 * DAY + 1))).state, "network-error");
+  offline = false;
+  revoked = true;
+  assert.equal((await service.refresh(new Date(+NOW + 31 * DAY))).state, "invalid");
+});
+
+test("wrong binding cache never grants access or contacts the new service", async () => {
+  const { service, s, v } = await setup();
+  await service.activate(A, "Mac", NOW);
+  const switched = new (await load()).LicenseService(v, s, {
+    ...OPTIONS,
+    product: { ...OPTIONS.product, environment: "live" },
+  });
+  assert.equal((await switched.getStatus(NOW)).state, "invalid");
+  assert.equal((await switched.refresh(new Date(+NOW + DAY))).state, "invalid");
+  assert.equal(v.calls.validate.length, 1);
+});
+
+test("malformed success is transient and leaves offline clock untouched", async () => {
+  let malformed = false;
+  const { service, s } = await setup(OPTIONS, null, {
+    validate: (_key, instanceId) =>
+      malformed && instanceId
+        ? { valid: true }
+        : { valid: true, instanceId, license: LICENSE, meta: META },
+  });
+  await service.activate(A, "Mac", NOW);
+  malformed = true;
+  assert.equal((await service.refresh(new Date(+NOW + DAY))).state, "licensed");
+  assert.equal(s.current().lastValidationAt, NOW.toISOString());
+});
+
+test("deactivation save failure preserves old key and does not release remote slot", async () => {
+  const { service, s, v } = await setup();
+  await service.activate(A, "Mac", NOW);
+  s.write = async () => {
+    throw new Error("disk failed");
   };
-  let writeAttempts = 0;
-  const store = {
-    async read() {
-      return old;
-    },
-    async write() {
-      writeAttempts++;
-      throw new Error("disk failed: SECRET-KEY");
-    },
-  };
-  const verifier = fakeVerifier({
-    activate: () => ({ activated: true, instanceId: "inst-created", license: LICENSE, meta: META }),
+  await assert.rejects(service.deactivate(), /disk failed/);
+  assert.equal(s.current().licenseKey, A);
+  assert.equal(v.calls.deactivate.length, 0);
+});
+
+test("serialized refresh cannot restore a key after concurrent deactivation", async () => {
+  let release;
+  const wait = new Promise((resolve) => {
+    release = resolve;
   });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await assert.rejects(
-    service.activate("SECRET-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-    (error) =>
-      error.message.includes("new activation was released") &&
-      !error.message.includes("SECRET-KEY"),
-  );
-  assert.equal(writeAttempts, 1);
-  assert.deepEqual(verifier.calls.deactivate, [
-    { licenseKey: "SECRET-KEY", instanceId: "inst-created" },
-  ]);
-  assert.equal((await store.read()).licenseKey, "OLD-KEY");
-});
-
-test("cleanup failure reports an occupied slot without revealing the key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    activate: () => ({
-      activated: true,
-      instanceId: "inst-created",
-      license: LICENSE,
-      meta: { ...META, productId: "99" },
-    }),
-    deactivate: () => {
-      throw new Error("cleanup failed for SECRET-KEY");
-    },
+  const { service, s } = await setup(OPTIONS, null, {
+    validate: (_key, instanceId) =>
+      instanceId ? wait : { valid: true, license: LICENSE, meta: META },
   });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await assert.rejects(
-    service.activate("SECRET-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-    (error) =>
-      error.message.includes("may still occupy a slot") && !error.message.includes("SECRET-KEY"),
-  );
-  assert.equal(verifier.calls.deactivate.length, 1);
-  assert.equal(store._current(), null);
+  await service.activate(A, "Mac", NOW);
+  const refresh = service.refresh(new Date(+NOW + DAY));
+  const deactivate = service.deactivate(new Date(+NOW + DAY + 1));
+  release({ valid: true, instanceId: "inst-A", license: LICENSE, meta: META });
+  await Promise.all([refresh, deactivate]);
+  assert.equal(s.current().licenseKey, null);
 });
 
-test("refresh does not call validate again within the same day, but does after it elapses", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier();
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  const day1 = new Date("2026-01-01T00:00:00Z");
-  await service.activate("KEY-0001", "Test Mac", day1);
-  assert.equal(verifier.calls.validate.length, 1, "key is checked before creating an instance");
-
-  await service.refresh(new Date("2026-01-01T12:00:00Z"));
-  assert.equal(verifier.calls.validate.length, 1, "still within the daily window, no network call");
-
-  await service.refresh(new Date("2026-01-02T01:00:00Z"));
-  assert.equal(verifier.calls.validate.length, 2, "a day has passed, so refresh revalidates");
-});
-
-test("refresh flips to invalid when the server rejects the key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    validate: () => ({ valid: false, error: "This license has been revoked." }),
-  });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  const status = await service.refresh(new Date("2026-01-02T01:00:00Z"));
-
-  assert.equal(status.state, "invalid");
-  assert.equal(status.message, "This license has been revoked.");
-});
-
-test("a network failure during refresh keeps the license working within the 30-day offline grace", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    validate: () => {
-      throw new Error("Couldn't reach Lemon Squeezy to validate this license.");
-    },
-  });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  const status = await service.refresh(new Date("2026-01-10T00:00:00Z"));
-
-  assert.deepEqual(status, { state: "licensed", keyHint: "0001" });
-});
-
-test("network errors beyond the 30-day offline grace surface as network-error", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    validate: () => {
-      throw new Error("offline");
-    },
-  });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  // Keep attempting daily refreshes that all fail; none of them should reset the grace clock.
-  const start = new Date("2026-01-01T00:00:00Z").getTime();
-  const dayMs = 24 * 60 * 60 * 1000;
-  let status;
-  for (let day = 1; day <= 32; day++) {
-    status = await service.refresh(new Date(start + day * dayMs));
-  }
-
-  assert.equal(status.state, "network-error");
-  assert.equal(status.keyHint, "0001");
-});
-
-test("deactivate clears the local key even when the remote call fails", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const verifier = fakeVerifier({
-    deactivate: () => {
-      throw new Error("offline");
-    },
-  });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  const status = await service.deactivate(new Date("2026-01-02T00:00:00Z"));
-
-  assert.equal(status.state, "trial");
-  assert.equal(store._current().licenseKey, null);
-});
-
-test("gatingDisabled always reports disabled, even with a stored key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const service = new LicenseService(fakeVerifier(), store, {
-    ...DEFAULT_OPTIONS,
-    gatingDisabled: true,
-  });
-
-  const status = await service.getStatus(new Date("2026-01-01T00:00:00Z"));
-
-  assert.deepEqual(status, { state: "disabled" });
-  assert.deepEqual(store.calls, { read: 0, write: 0 });
-});
-
-test("unconfigured builds cannot accept keys or open the personal store", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore({ licenseKey: "PERSONAL-KEY", firstLaunchAt: "2026-01-01T00:00:00Z" });
-  const verifier = fakeVerifier();
-  const service = new LicenseService(verifier, store, { ...DEFAULT_OPTIONS, product: null });
-
-  assert.deepEqual(await service.getStatus(), { state: "unconfigured" });
-  assert.deepEqual(await service.refresh(), { state: "unconfigured" });
-  await assert.rejects(service.activate("RANDOM-KEY", "Test Mac"), /not configured/);
-  await assert.rejects(service.deactivate(), /not configured/);
-  assert.deepEqual(store.calls, { read: 0, write: 0 });
-  assert.deepEqual(verifier.calls, { activate: [], validate: [], deactivate: [] });
-});
-
-test("activation requires matching store, product, allowed variant, active status and instance", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const cases = [
-    { meta: { ...META, storeId: "99" } },
-    { meta: { ...META, productId: "99" } },
-    { meta: { ...META, variantId: "99" } },
-    { meta: undefined },
-    { license: { status: "expired", expiresAt: null } },
-    { license: { status: "active", expiresAt: "2025-12-31T00:00:00Z" } },
-    { instanceId: undefined },
-  ];
-  for (const candidate of cases) {
-    const store = memoryStore();
-    const verifier = fakeVerifier({
-      activate: () => ({
-        activated: true,
-        instanceId: "inst-1",
-        license: LICENSE,
-        meta: META,
-        ...candidate,
-      }),
-    });
-    const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-    await assert.rejects(
-      service.activate("FOREIGN-KEY", "Test Mac", new Date("2026-01-01T00:00:00Z")),
-    );
-    assert.equal(store.calls.write, 0, "rejected activations must not persist a key");
-  }
-});
-
-test("validation refuses a foreign product and a response for another instance", async () => {
-  const { LicenseService } = await loadLicenseService();
-  for (const result of [
-    { valid: true, meta: { ...META, variantId: "99" }, instanceId: "inst-1", license: LICENSE },
-    { valid: true, meta: META, instanceId: "other-instance", license: LICENSE },
+test("disabled and unconfigured service paths have zero store and network touches", async () => {
+  for (const options of [
+    { ...OPTIONS, gatingDisabled: true },
+    { ...OPTIONS, product: null },
   ]) {
-    const store = memoryStore();
-    const service = new LicenseService(
-      fakeVerifier({ validate: () => result }),
-      store,
-      DEFAULT_OPTIONS,
-    );
-    await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-    const status = await service.refresh(new Date("2026-01-02T01:00:00Z"));
-    assert.equal(status.state, "invalid");
-    assert.equal(store._current().lastValidationValid, false);
-    assert.equal(store._current().productBinding, null);
+    const { service, s, v } = await setup(options);
+    await service.getStatus();
+    await service.refresh();
+    await assert.rejects(service.activate(A, "Mac"));
+    await assert.rejects(service.deactivate());
+    assert.deepEqual(s.calls, { read: 0, write: 0 });
+    assert.deepEqual(v.calls, { validate: [], activate: [], deactivate: [] });
   }
-});
-
-test("an old saved personal key remains untrusted until matching metadata is revalidated", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore({
-    licenseKey: "PERSONAL-KEY",
-    instanceId: "inst-1",
-    instanceName: "Old Mac",
-    firstLaunchAt: "2026-01-01T00:00:00Z",
-    lastValidationAt: "2026-01-02T00:00:00Z",
-    lastValidationValid: true,
-    lastValidationMessage: null,
-  });
-  const service = new LicenseService(fakeVerifier(), store, DEFAULT_OPTIONS);
-  assert.equal((await service.getStatus(new Date("2026-01-02T01:00:00Z"))).state, "invalid");
-  assert.equal((await service.refresh(new Date("2026-01-02T01:00:00Z"))).state, "licensed");
-  assert.deepEqual(store._current().productBinding, META);
-});
-
-test("transient malformed validation preserves the last valid timestamp and 30-day grace", async () => {
-  const { LicenseService } = await loadLicenseService();
-  const store = memoryStore();
-  const service = new LicenseService(
-    fakeVerifier({ validate: () => ({ valid: true }) }),
-    store,
-    DEFAULT_OPTIONS,
-  );
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-  assert.equal((await service.refresh(new Date("2026-01-02T00:00:00Z"))).state, "licensed");
-  assert.equal(store._current().lastValidationAt, "2026-01-01T00:00:00.000Z");
-  assert.equal((await service.refresh(new Date("2026-02-02T00:00:00Z"))).state, "network-error");
-});
-
-test("a delayed refresh cannot restore a key after deactivation or replacement", async () => {
-  const { LicenseService } = await loadLicenseService();
-  let release;
-  const pendingValidation = new Promise((resolve) => {
-    release = resolve;
-  });
-  const store = memoryStore();
-  const service = new LicenseService(
-    fakeVerifier({ validate: () => pendingValidation }),
-    store,
-    DEFAULT_OPTIONS,
-  );
-  await service.activate("KEY-0001", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-  const refresh = service.refresh(new Date("2026-01-02T00:00:00Z"));
-  const remove = service.deactivate(new Date("2026-01-02T00:01:00Z"));
-  release({ valid: true, instanceId: "inst-1", license: LICENSE, meta: META });
-  await Promise.all([refresh, remove]);
-  assert.equal(store._current().licenseKey, null);
-  assert.equal((await service.getStatus(new Date("2026-01-02T00:02:00Z"))).state, "trial");
-
-  await service.activate("KEY-0002", "Test Mac", new Date("2026-01-02T00:03:00Z"));
-  assert.equal(store._current().licenseKey, "KEY-0002");
-});
-
-test("a delayed refresh cannot overwrite a concurrently replaced key", async () => {
-  const { LicenseService } = await loadLicenseService();
-  let release;
-  const pendingValidation = new Promise((resolve) => {
-    release = resolve;
-  });
-  const store = memoryStore();
-  const verifier = fakeVerifier({ validate: () => pendingValidation });
-  const service = new LicenseService(verifier, store, DEFAULT_OPTIONS);
-  await service.activate("KEY-OLD1", "Test Mac", new Date("2026-01-01T00:00:00Z"));
-
-  const refresh = service.refresh(new Date("2026-01-02T00:00:00Z"));
-  const replace = service.activate("KEY-NEW2", "Test Mac", new Date("2026-01-02T00:01:00Z"));
-  release({ valid: true, instanceId: "inst-1", license: LICENSE, meta: META });
-  await Promise.all([refresh, replace]);
-  assert.equal(store._current().licenseKey, "KEY-NEW2");
-  assert.equal((await service.getStatus(new Date("2026-01-02T00:02:00Z"))).state, "licensed");
 });

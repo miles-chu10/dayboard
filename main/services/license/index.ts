@@ -1,9 +1,8 @@
 // Public entry point for licensing. Handlers call the functions below instead of touching
-// LicenseService/LemonSqueezyVerifier/FileLicenseStore directly. The Electron-backed store is
+// LicenseService/DayBoardLicenseVerifier/FileLicenseStore directly. The Electron-backed store is
 // loaded lazily (see license-store.ts) so importing this module stays side-effect-free for tests.
 
 import {
-  DAYBOARD_LEMONSQUEEZY_CHECKOUT_URL,
   OFFLINE_GRACE_DAYS,
   REVALIDATE_INTERVAL_MS,
   TRIAL_DAYS,
@@ -11,7 +10,7 @@ import {
   isLicenseGatingDisabled,
 } from "./config.js";
 import { isDemoMode } from "../demo-data.js";
-import { LemonSqueezyVerifier } from "./lemonsqueezy-verifier.js";
+import { DayBoardLicenseVerifier } from "./dayboard-verifier.js";
 import { LicenseService } from "./license-service.js";
 import { createLicenseOperations } from "./license-operations.js";
 
@@ -21,13 +20,15 @@ export { isLicenseBlocking } from "./license-service.js";
 let servicePromise: Promise<LicenseService> | undefined;
 
 function getService(): Promise<LicenseService> {
+  const product = configuredLicenseProduct();
+  if (!product) throw new Error("License activation is not configured for this build.");
   servicePromise ??= import("./license-store.js").then(
     ({ createDefaultLicenseStore }) =>
-      new LicenseService(new LemonSqueezyVerifier(), createDefaultLicenseStore(), {
+      new LicenseService(new DayBoardLicenseVerifier(product.apiUrl), createDefaultLicenseStore(), {
         trialDays: TRIAL_DAYS,
         revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
         offlineGraceDays: OFFLINE_GRACE_DAYS,
-        product: configuredLicenseProduct(),
+        product,
       }),
   );
   return servicePromise;
@@ -43,7 +44,7 @@ const operations = createLicenseOperations({
           ? "configured"
           : "unconfigured",
   getService,
-  checkoutUrl: DAYBOARD_LEMONSQUEEZY_CHECKOUT_URL,
+  checkoutUrl: configuredLicenseProduct()?.apiUrl.concat("/buy") ?? "",
 });
 
 export const getLicenseStatus = operations.getStatus;
