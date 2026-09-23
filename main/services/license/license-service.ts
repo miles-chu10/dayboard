@@ -180,7 +180,7 @@ export class LicenseService {
 
     const graceMs = this.options.offlineGraceDays * DAY_MS;
     const ageMs = now.getTime() - Date.parse(record.lastValidationAt);
-    if (!Number.isFinite(ageMs) || ageMs > graceMs) {
+    if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > graceMs) {
       return {
         state: "network-error",
         keyHint: hint,
@@ -224,6 +224,7 @@ export class LicenseService {
       !Number.isFinite(Date.parse(record.lastValidationAt)) ||
       !record.instanceId ||
       !record.productBinding ||
+      now.getTime() - Date.parse(record.lastValidationAt) < 0 ||
       now.getTime() - Date.parse(record.lastValidationAt) >= this.options.revalidateIntervalMs;
     if (!due) return this.computeStatus(record, now);
 

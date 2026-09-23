@@ -46,7 +46,7 @@ function upsellCopy(status: LicenseStatus): {
       return {
         title: "Can't verify your license",
         description:
-          "DayBoard hasn't been able to reach Lemon Squeezy in a while. Check your connection, then open Settings → License.",
+          "The DayBoard license service hasn't been reachable for a while. Check your connection, then open Settings → License.",
       };
     default:
       return {

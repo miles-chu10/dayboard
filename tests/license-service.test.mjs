@@ -235,6 +235,62 @@ test("daily validation, revoked response, and offline grace are authoritative at
   assert.equal((await service.refresh(new Date(+NOW + 31 * DAY))).state, "invalid");
 });
 
+test("ordinary same-day cache skips validation and grants licensed access", async () => {
+  const { service, s, v } = await setup();
+  await service.activate(A, "Mac", NOW);
+  const sameDay = new Date(+NOW + DAY - 1);
+  assert.deepEqual(await service.getStatus(sameDay), { state: "licensed", keyHint: "AAAA" });
+  assert.deepEqual(await service.refresh(sameDay), { state: "licensed", keyHint: "AAAA" });
+  assert.equal(v.calls.validate.length, 1);
+  assert.equal(s.current().lastValidationAt, NOW.toISOString());
+});
+
+test("future validation timestamp fails closed and refreshes after clock rollback", async () => {
+  const rollback = new Date(+NOW - 60 * 60 * 1000);
+  for (const outcome of ["valid", "revoked", "transient"]) {
+    let mode = "valid";
+    const { service, s, v } = await setup(OPTIONS, null, {
+      validate: (_key, instanceId) => {
+        if (instanceId && mode === "transient") throw new Error("offline");
+        if (instanceId && mode === "revoked") return { valid: false, error: "revoked" };
+        return { valid: true, instanceId, license: LICENSE, meta: META };
+      },
+    });
+    await service.activate(A, "Mac", NOW);
+    mode = outcome;
+    assert.deepEqual(await service.getStatus(rollback), {
+      state: "network-error",
+      keyHint: "AAAA",
+      lastValidatedAt: NOW.toISOString(),
+    });
+    assert.equal(v.calls.validate.length, 1, outcome);
+
+    const refreshed = await service.refresh(rollback);
+    assert.equal(v.calls.validate.length, 2, outcome);
+    assert.equal(
+      refreshed.state,
+      outcome === "valid" ? "licensed" : outcome === "revoked" ? "invalid" : "network-error",
+      outcome,
+    );
+    assert.equal(
+      s.current().lastValidationAt,
+      outcome === "transient" ? NOW.toISOString() : rollback.toISOString(),
+      outcome,
+    );
+    assert.equal(s.current().lastValidationValid, outcome !== "revoked", outcome);
+
+    if (outcome === "transient") {
+      assert.equal((await service.refresh(rollback)).state, "network-error");
+      assert.equal(v.calls.validate.length, 3);
+      assert.equal(s.current().lastValidationAt, NOW.toISOString());
+    } else if (outcome === "valid") {
+      assert.equal((await service.getStatus(rollback)).state, "licensed");
+      assert.equal((await service.refresh(rollback)).state, "licensed");
+      assert.equal(v.calls.validate.length, 2);
+    }
+  }
+});
+
 test("wrong binding cache never grants access or contacts the new service", async () => {
   const { service, s, v } = await setup();
   await service.activate(A, "Mac", NOW);

@@ -187,6 +187,13 @@ test("gate blocks expired and invalid statuses and opens License Settings", () =
   }
 });
 
+test("network error names the DayBoard license service and withholds protected content", () => {
+  const html = gate(status("network-error"));
+  assert.match(html, /DayBoard license service/);
+  assert.doesNotMatch(html, /Lemon Squeezy|PRIVATE ACTION CONTENT/);
+  assert.match(html, /Open License Settings/);
+});
+
 test("demo and unconfigured Settings never expose activation or checkout", () => {
   for (const state of ["demo", "unconfigured"]) {
     const html = render(LicenseTab, status(state));
