@@ -1,8 +1,19 @@
 // Public destinations live here. Point betaSignupUrl at the deployed DayBoard service's
-// /v1/beta-signup endpoint; the signup forms stay closed until it is a valid HTTPS URL.
+// /v1/beta-signup endpoint, and set contactEmail to the private address people use to ask for
+// removal. The signup forms stay closed until both are set.
 const SITE_CONFIG = Object.freeze({
   betaSignupUrl: "",
+  contactEmail: "",
 });
+
+const contactEmail = /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(SITE_CONFIG.contactEmail)
+  ? SITE_CONFIG.contactEmail
+  : null;
+for (const link of document.querySelectorAll("a[data-contact]")) {
+  if (!contactEmail) continue;
+  link.href = `mailto:${contactEmail}`;
+  link.textContent = contactEmail;
+}
 
 const MESSAGES = {
   invalid: "Enter a valid email address.",
@@ -40,12 +51,13 @@ function setupSignup(form, endpoint) {
   const status = form.querySelector(".signup-status");
   const note = form.querySelector(".signup-note");
 
-  if (!endpoint) {
-    input.disabled = true;
-    button.disabled = true;
+  // Controls ship disabled so the form can't submit without this script.
+  if (!endpoint || !contactEmail) {
     note.textContent = "Beta signups open soon. Check back shortly.";
     return;
   }
+  input.disabled = false;
+  button.disabled = false;
 
   const fail = (message) => {
     status.dataset.tone = "error";

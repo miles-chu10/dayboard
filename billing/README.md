@@ -21,7 +21,7 @@ For a visual-only preview, run `node --import tsx scripts/preview-billing.mjs` f
 
 ## Beta signups
 
-`POST /v1/beta-signup` stores email addresses from the website's beta forms in the `beta_signups` table (`migrations/0002_beta_signups.sql`). It works before any Stripe setup. It needs only the D1 binding, `SERVICE_ORIGIN`, `HASH_SECRET`, and `SITE_ORIGIN`: the website's exact HTTPS origin, the only origin allowed to call it (CORS). If any of these is missing, it answers `503 signup_unconfigured`.
+`POST /v1/beta-signup` stores email addresses from the website's beta forms in the `beta_signups` table (`migrations/0002_beta_signups.sql`). It works before any Stripe setup. It needs only the D1 binding, `SERVICE_ORIGIN`, `HASH_SECRET`, and `SITE_ORIGIN`: the website's exact HTTPS origin. Browsers can call the endpoint only from that origin (CORS). Scripts can send any `Origin` header, so the check doesn't stop them; the rate limit and hidden field only slow automated signups, and nothing confirms that an address belongs to the person who entered it. If any of these is missing, it answers `503 signup_unconfigured`.
 
 - The request body is `{"email": "...", "company": ""}` as JSON, 1 KB at most. Addresses are trimmed and lowercased.
 - New and already-listed addresses get the same `200 {"ok": true}`, so the form can't reveal who signed up. A filled `company` field (hidden from people) is treated as a bot: it gets the same answer and nothing is stored.

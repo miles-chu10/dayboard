@@ -139,8 +139,9 @@
           <h2>Your email</h2>
           <p>
             We use your email only to send beta invites and major beta news. It's stored by
-            DayBoard's own signup service, never sold or shared, and you can ask to be removed at
-            any time by replying to any beta email.
+            DayBoard's own signup service and never sold or shared. To be removed at any time, email
+            <a data-contact>the DayBoard team</a>. Details are in the
+            <a href="privacy.html">privacy policy</a>.
           </p>
         </div>
 
@@ -148,11 +149,12 @@
           <span class="eyebrow">Save your spot</span>
           <h2 id="join-title">Get your invite.</h2>
           <p>One email when your invite is ready. No spam.</p>
-          <form class="signup" id="join" data-signup novalidate>
+          <form class="signup" id="join" data-signup method="post" novalidate>
             <div class="signup-row">
               <label class="visually-hidden" for="email-beta">Email address</label>
               <input
                 id="email-beta"
+                disabled
                 name="email"
                 type="email"
                 autocomplete="email"
@@ -164,7 +166,7 @@
                 <label for="company-beta">Leave this empty</label
                 ><input id="company-beta" name="company" tabindex="-1" autocomplete="off" />
               </div>
-              <button class="button" type="submit">Join the beta</button>
+              <button class="button" type="submit" disabled>Join the beta</button>
             </div>
             <p class="signup-note">
               Free during the beta. Use your Google account's address if you'll connect Google.
@@ -183,7 +185,7 @@
         >
         <nav class="footer-links" aria-label="Footer">
           <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a href="license.html">License</a
+          ><a href="privacy.html">Privacy</a><a href="license.html">License</a
           ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </nav>
         <p class="fine">

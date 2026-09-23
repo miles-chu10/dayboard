@@ -73,11 +73,12 @@
               DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail together in
               one calm Mac app — with an optional AI assistant that already knows your schedule.
             </p>
-            <form class="signup rise" style="--i: 3" id="join" data-signup novalidate>
+            <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
               <div class="signup-row">
                 <label class="visually-hidden" for="email-hero">Email address</label>
                 <input
                   id="email-hero"
+                  disabled
                   name="email"
                   type="email"
                   autocomplete="email"
@@ -89,7 +90,7 @@
                   <label for="company-hero">Leave this empty</label
                   ><input id="company-hero" name="company" tabindex="-1" autocomplete="off" />
                 </div>
-                <button class="button" type="submit">Join the beta</button>
+                <button class="button" type="submit" disabled>Join the beta</button>
               </div>
               <p class="signup-note">
                 Free during the beta. One email when your invite is ready — no spam.
@@ -574,11 +575,12 @@
             ></span>
             <h2 id="cta-title">Get your day <em>on the board.</em></h2>
             <p>Join the beta and be one of the first to try DayBoard on your Mac.</p>
-            <form class="signup" data-signup novalidate>
+            <form class="signup" data-signup method="post" novalidate>
               <div class="signup-row">
                 <label class="visually-hidden" for="email-cta">Email address</label>
                 <input
                   id="email-cta"
+                  disabled
                   name="email"
                   type="email"
                   autocomplete="email"
@@ -590,7 +592,7 @@
                   <label for="company-cta">Leave this empty</label
                   ><input id="company-cta" name="company" tabindex="-1" autocomplete="off" />
                 </div>
-                <button class="button" type="submit">Join the beta</button>
+                <button class="button" type="submit" disabled>Join the beta</button>
               </div>
               <p class="signup-note">
                 We only use your email for beta invites and major beta news.
@@ -610,7 +612,7 @@
         >
         <nav class="footer-links" aria-label="Footer">
           <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a href="license.html">License</a
+          ><a href="privacy.html">Privacy</a><a href="license.html">License</a
           ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </nav>
         <p class="fine">

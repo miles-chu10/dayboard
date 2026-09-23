@@ -80,10 +80,15 @@ Hi Product Hunt! I built DayBoard because my day was split across four apps: Goo
 
 No paid ads planned. Known costs: Apple Developer Program ($99/year), a CASA assessment if Gmail ships at launch (get quotes), a domain, and optionally an email sending tool.
 
-## Decisions for Miles
+## Decisions
 
-1. Launch 1.0 (recommended) or the free beta.
-2. Gmail at launch with CASA, or ship Calendar, Tasks and Reminders first.
-3. Weekday or weekend launch.
-4. Launch offer (needs pricing).
-5. Email sending tool for the list.
+Made (2026-09-23):
+
+- **Hold the launch** until Miles approves the website.
+- **Gmail ships after 1.0.** The 1.0 build must stop requesting `gmail.modify` at sign-in, so Google verifies only the Calendar and Tasks scopes (no security assessment). Before submitting for verification, change the website so Gmail reads as coming later, and record a demo video for Calendar and Tasks only. Beta testers keep Gmail while the consent screen stays in Testing.
+
+Open:
+
+1. Weekday or weekend launch.
+2. Launch offer (needs pricing).
+3. Email sending tool for the list.
