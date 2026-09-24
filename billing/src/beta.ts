@@ -65,10 +65,26 @@ export async function betaSignup(request: Request, env: Env): Promise<Response> 
   const email = normalizeEmail(body.email);
   if (!email) return reply(400, { error: "invalid_email" });
   // New and existing addresses get the same answer, so the form can't reveal who signed up.
-  await env.DB.prepare(
+  const inserted = await env.DB.prepare(
     "INSERT INTO beta_signups (email, created_at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
   )
     .bind(email, Date.now())
     .run();
+  if (inserted.meta.changes === 1) await notify(env, site, email);
   return reply(200, { ok: true });
+}
+
+// Emails the owner about each new address. Failures are logged, never shown to the visitor.
+async function notify(env: Env, site: string, email: string): Promise<void> {
+  if (!env.SIGNUP_EMAIL || !env.SIGNUP_NOTIFY_TO) return;
+  try {
+    await env.SIGNUP_EMAIL.send({
+      from: { name: "DayBoard signups", email: `signups@${new URL(site).hostname}` },
+      to: env.SIGNUP_NOTIFY_TO,
+      subject: "New DayBoard beta signup",
+      text: `${email} joined the DayBoard beta list.`,
+    });
+  } catch (error) {
+    console.error("Signup notification failed", error);
+  }
 }

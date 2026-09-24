@@ -11,6 +11,8 @@ export interface Env {
   ENCRYPTION_KEY: string;
   HASH_SECRET: string;
   SITE_ORIGIN?: string;
+  SIGNUP_EMAIL?: SendEmail;
+  SIGNUP_NOTIFY_TO?: string;
 }
 
 export interface Config {

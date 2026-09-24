@@ -161,6 +161,42 @@ test("drops rate-limit buckets from earlier minutes", async () => {
   assert.match(plan.join("\n"), /USING (COVERING )?INDEX rate_limits_window_start/);
 });
 
+test("emails the owner about new signups only", async () => {
+  const sent: { to: string; subject: string; text: string; from: { email: string } }[] = [];
+  const { signup, rows } = setup({
+    SIGNUP_NOTIFY_TO: "owner@example.com",
+    SIGNUP_EMAIL: {
+      send: async (message: never) => void sent.push(message),
+    } as unknown as SendEmail,
+  });
+  assert.equal((await signup({ email: "Alex@Example.com" })).status, 200);
+  assert.equal((await signup({ email: "alex@example.com" }, { ip: "203.0.113.8" })).status, 200);
+  assert.equal(
+    (await signup({ email: "bot@example.com", company: "Acme" }, { ip: "203.0.113.9" })).status,
+    200,
+  );
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, "owner@example.com");
+  assert.equal(sent[0].from.email, "signups@dayboard.example.test");
+  assert.match(sent[0].text, /alex@example\.com/);
+  assert.deepEqual(rows(), ["alex@example.com"]);
+});
+
+test("keeps a signup when the owner email fails", async () => {
+  const { signup, rows } = setup({
+    SIGNUP_NOTIFY_TO: "owner@example.com",
+    SIGNUP_EMAIL: {
+      send: async () => {
+        throw new Error("send failed");
+      },
+    } as unknown as SendEmail,
+  });
+  const response = await signup({ email: "a@example.com" });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.deepEqual(rows(), ["a@example.com"]);
+});
+
 test("fails closed when signup configuration is missing or wrong", async () => {
   for (const overrides of [
     { SITE_ORIGIN: undefined },
