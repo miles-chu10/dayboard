@@ -1,0 +1,18 @@
+{
+  // Serves ../website as static assets on getdayboard.com. Deploy from this folder: npx wrangler deploy
+  "name": "dayboard-website",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-22",
+  "assets": {
+    "directory": "../website",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true,
+  },
+  "routes": [
+    { "pattern": "getdayboard.com", "custom_domain": true },
+    { "pattern": "www.getdayboard.com", "custom_domain": true },
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+}
