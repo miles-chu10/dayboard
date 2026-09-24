@@ -20,3 +20,4 @@ billing/.wrangler/
 billing/.dev.vars*
 billing/*.sqlite*
 billing/wrangler.jsonc
+website-worker/.wrangler/

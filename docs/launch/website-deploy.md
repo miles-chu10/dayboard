@@ -8,7 +8,6 @@ Take the beta website and its signup API live on Cloudflare once the domain is b
 | `<site-origin>`               | `https://<domain>`, the website                         |
 | `<api-origin>`                | `https://api.<domain>`, the signup Worker               |
 | `<database>`                  | Name of the D1 database, for example `dayboard-signups` |
-| `<pages-project>`             | Name of the Pages project, for example `dayboard`       |
 | `op://<vault>/<item>/<field>` | 1Password reference to the `HASH_SECRET` value          |
 
 Origins are exact: `https://` and the host, with no path and no trailing slash. With a trailing slash, `SITE_ORIGIN` makes signups answer `503 signup_unconfigured` and `SERVICE_ORIGIN` makes every signup request answer `403 origin_mismatch`.
@@ -19,7 +18,7 @@ Worker, D1 and secret commands run in `billing/`, where `npx wrangler` runs the 
 
 Decide:
 
-- **Domain:** bought, with its zone active on the Cloudflare account that will hold the Pages project and the Worker. The apex custom domain for Pages and the Worker's custom domain both need the zone on that account.
+- **Domain:** bought, with its zone active on the Cloudflare account that will hold both Workers. The site's and the signup Worker's custom domain both need the zone on that account.
 - **Contact address:** a private address for removal requests. The site publishes it on the privacy, support and beta pages, and the forms stay closed until it's set.
 - **Invites:** how you'll send them. The service only stores addresses; it sends no email.
 
@@ -127,7 +126,7 @@ Make these edits in `website/`, then preview the site (see `website/README.md`).
   ```
 
 - Make every `og:image` absolute, `https://<domain>/assets/og-image.png`, so link previews work. `grep -n og:image website/*.html` lists them.
-- If you want canonical links, add `<link rel="canonical">` to each page with the address Pages serves: `<site-origin>/`, `<site-origin>/beta`, `<site-origin>/privacy` and so on. Pages redirects `/page.html` to `/page`.
+- If you want canonical links, add `<link rel="canonical">` to each page with the address the site serves: `<site-origin>/`, `<site-origin>/beta`, `<site-origin>/privacy` and so on. Pages redirects `/page.html` to `/page`.
 - Add `Sitemap: <site-origin>/sitemap.xml` to `robots.txt` only if you also add a `sitemap.xml`.
 - `_headers` needs no change for the API: its Content-Security-Policy's `connect-src` allows any HTTPS origin.
 - If you changed a page's inline `<script>`, recompute the hashes and update the `script-src` of the Content-Security-Policy in `_headers`:
@@ -139,22 +138,16 @@ Make these edits in `website/`, then preview the site (see `website/README.md`).
 
 Commit these edits so the repository matches the live site.
 
-## 4. Deploy the site with direct upload
+## 4. Deploy the site
+
+The site is a Worker with static assets (Cloudflare now steers new static sites to Workers instead of Pages). `website-worker/wrangler.jsonc` serves `website/`, applies `_headers`, answers unknown paths with `404.html` and status 404, and routes `<domain>` and `www.<domain>` as custom domains. `website-worker/worker.js` redirects `http://` and `www.` requests to `<site-origin>` with 301, keeping the path and query. Set the two custom-domain patterns in `website-worker/wrangler.jsonc` to `<domain>` and `www.<domain>`, then:
 
 ```sh
-# repository root, once
-npx --prefix billing wrangler pages project create <pages-project> --production-branch main
-
-# repository root, each time you publish
-npx --prefix billing wrangler pages deploy website --project-name <pages-project> --branch main
+# website-worker/, each time you publish
+npx --prefix ../billing wrangler deploy
 ```
 
-Direct upload publishes every file in `website/` on this Mac except `.DS_Store` files, and only when you run the command. That includes `README.md` and `LICENSE.txt`: `license.html` links the license, and the README says nothing the public repository doesn't. The alternative is Git integration: create the project by connecting the GitHub repository in the dashboard (build output directory `website`, no build command) instead of running `pages project create`; then every merge to `main` publishes the site. The deploy prints a `*.pages.dev` address; the pages load there, but the signup form works only on `<site-origin>`.
-
-Then, in the Cloudflare dashboard:
-
-1. **Workers & Pages → `<pages-project>` → Custom domains:** add `<domain>`, then `www.<domain>`. Do this before creating any DNS records for them. With the zone on the same account, Cloudflare adds the records itself; a CNAME made by hand first can leave the domain answering 522. Wait until both show Active.
-2. **The `<domain>` zone's Rules:** create a redirect rule that sends `www.<domain>` to the apex with 301, keeping the path and query: wildcard pattern, request URL `https://www.<domain>/*`, target URL `https://<domain>/${1}`, status code 301, Preserve query string on. The signup form works only on `<site-origin>`, so www visitors must land there.
+With the zone on the same account, Cloudflare creates the DNS records and certificates for both hostnames. The deploy publishes every file in `website/` except `.DS_Store`, and only when you run the command.
 
 ## 5. Verify the live site
 
@@ -163,7 +156,7 @@ Then, in the Cloudflare dashboard:
 node scripts/verify-website.mjs --site <site-origin> --api <api-origin> --www --rate-limit --database <database>
 ```
 
-This adds checks of the pages, security headers, 404 page, HTTPS and www redirects and `SITE_CONFIG`, and a rate-limit check that sends invalid attempts until the service answers 429. That blocks your network for about a minute. If "http redirects to https" fails, turn on Always Use HTTPS for the zone (SSL/TLS → Edge Certificates).
+This adds checks of the pages, security headers, 404 page, HTTPS and www redirects and `SITE_CONFIG`, and a rate-limit check that sends invalid attempts until the service answers 429. That blocks your network for about a minute.
 
 Then wait a minute, open `<site-origin>/` in Safari, and join with an address you control; the form should say "You're on the list." Read back the newest rows:
 
@@ -192,8 +185,8 @@ npx wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups 
   From then on the endpoint answers `503 signup_unconfigured` and stores nothing, and the form says it couldn't reach the signup service. For the "Beta signups open soon" message instead, also set `betaSignupUrl` to `""` and redeploy the site (section 4); that alone closes only the form, because scripts can still post to the endpoint. To reopen, pipe the same 1Password value into `secret put` again. Delete the secret only while the Worker is signup-only: with licensing on, `HASH_SECRET` also keys license lookups.
 
 - **Roll back the Worker:** from `billing/`, `npx wrangler deployments list`, then `npx wrangler rollback <version-id>`. Without an ID it picks the version of the previous deployment. `secret put` and `secret delete` each create a deployment too, so right after one of them a plain `rollback` undoes that secret change; Wrangler warns when the secrets differ. A rollback doesn't touch D1. After any rollback, rerun the section 2 check. If it answers `503 signup_unconfigured`, the version you rolled back to predates `HASH_SECRET`: roll back again to a version deployed after the secret was set. Piping the secret in again won't work while an older version is live, because `secret put` refuses to run then.
-- **Roll back the site:** in Workers & Pages → `<pages-project>` → Deployments, roll back to an earlier production deployment. `npx --prefix billing wrangler pages deployment list --project-name <pages-project>` lists them from the repository root.
-- **Costs:** Pages static requests are free. Workers Free covers 100,000 requests a day per account, and D1 has a free tier. The domain is the only fixed cost.
+- **Roll back the site:** from `website-worker/`, `npx --prefix ../billing wrangler deployments list`, then `npx --prefix ../billing wrangler rollback <version-id>`.
+- **Costs:** Static asset requests are free; the site Worker runs first on each request to handle redirects, which counts toward Workers Free. Workers Free covers 100,000 requests a day per account, and D1 has a free tier. The domain is the only fixed cost.
 
 ## After go-live: Google verification
 

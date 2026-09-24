@@ -1,6 +1,6 @@
 # DayBoard website
 
-Static, dependency-free pages for the DayBoard beta: a landing page with the beta signup, a beta page with install steps, a guide, support and license pages. There is no build step; the `website/` folder is deployed as-is to Cloudflare Pages.
+Static, dependency-free pages for the DayBoard beta: a landing page with the beta signup, a beta page with install steps, a guide, support and license pages. There is no build step; the `website/` folder is deployed as-is by the Worker in `website-worker/` to https://getdayboard.com.
 
 ## Preview
 
@@ -10,7 +10,7 @@ From the repository root:
 python3 -m http.server 8765 --directory website --bind 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8765/`. Stop the server with Ctrl-C. Pages follow the visitor's light or dark setting, and the screenshots switch with it. This server ignores `_headers` and `404.html`; only Pages applies them.
+Open `http://127.0.0.1:8765/`. Stop the server with Ctrl-C. Pages follow the visitor's light or dark setting, and the screenshots switch with it. This server ignores `_headers` and `404.html`; the deployed site applies them.
 
 ## Beta signup
 
@@ -29,12 +29,12 @@ Browsers accept the endpoint only when the service's `SITE_ORIGIN` setting match
 
 ## Publishing
 
-Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SITE_CONFIG`, makes each `og:image` absolute, publishes this folder to Cloudflare Pages and verifies the result. Before that:
+Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SITE_CONFIG`, makes each `og:image` absolute, publishes this folder with the site Worker in `website-worker/` and verifies the result. Before that:
 
 - Review `privacy.html` (a draft, not legal advice); Google's verification needs it linked from the consent screen.
 - Check that the copy still matches the shipped app, especially the requirements and install steps on `beta.html`.
 
-## Cloudflare Pages files
+## Cloudflare files
 
 - `_headers` sets security headers, including a Content-Security-Policy whose `script-src` allows each page's inline head script by its sha256 hash. After editing a page's inline `<script>`, recompute the hashes from the repository root and update `_headers`:
 
@@ -42,7 +42,7 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
   node -e 'const c=require("crypto"),fs=require("fs");for(const f of process.argv.slice(1)){const m=fs.readFileSync(f,"utf8").match(/<script>([\s\S]*?)<\/script>/);console.log(f,"sha256-"+c.createHash("sha256").update(m[1]).digest("base64"))}' website/*.html
   ```
 
-- `404.html` is what Pages serves, with status 404, for unknown paths; without it, Pages would answer them with `index.html` and status 200. It uses root-absolute URLs (`/assets/site.css`) because Pages serves it at any depth.
+- `404.html` is what the site serves, with status 404, for unknown paths (`not_found_handling` in `website-worker/wrangler.jsonc`). It uses root-absolute URLs (`/assets/site.css`) because it's served at any depth.
 - `robots.txt` is the crawler policy. Add a `Sitemap:` line only together with a `sitemap.xml`.
 
 ## Assets

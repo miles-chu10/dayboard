@@ -2,8 +2,8 @@
 // /v1/beta-signup endpoint, and set contactEmail to the private address people use to ask for
 // removal. The signup forms stay closed until both are set.
 const SITE_CONFIG = Object.freeze({
-  betaSignupUrl: "",
-  contactEmail: "",
+  betaSignupUrl: "https://api.getdayboard.com/v1/beta-signup",
+  contactEmail: "hello@getdayboard.com",
 });
 
 const contactEmail = /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(SITE_CONFIG.contactEmail)
