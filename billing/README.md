@@ -26,7 +26,7 @@ For a visual-only preview, run `node --import tsx scripts/preview-billing.mjs` f
 - The request body is `{"email": "...", "company": ""}` as JSON, 1 KB at most. Addresses are trimmed and lowercased.
 - New and already-listed addresses get the same `200 {"ok": true}`, so the form can't reveal who signed up. A filled `company` field (hidden from people) is treated as a bot: it gets the same answer and nothing is stored.
 - Invalid addresses get `400 invalid_email`. More than five attempts per minute from one network get `429 rate_limited`.
-- The service stores only the address and time, and sends no email.
+- The service stores only the address and time. With the optional `SIGNUP_EMAIL` binding and `SIGNUP_NOTIFY_TO` (an address verified in the zone's Email Routing), it emails that address once per new signup from `signups@<site host>`; duplicates and hidden-field submissions send nothing, and a failed email doesn't fail the signup.
 
 For a signup-only deployment, start from `wrangler.signup.example.jsonc` (copy it to the git-ignored `wrangler.jsonc`) and follow `docs/launch/website-deploy.md`.
 

@@ -16,8 +16,13 @@
       "migrations_dir": "migrations",
     },
   ],
+  // Optional: email each new signup to an address verified in the zone's Email Routing.
+  "send_email": [
+    { "name": "SIGNUP_EMAIL", "destination_address": "REPLACE_WITH_VERIFIED_ADDRESS" },
+  ],
   "vars": {
     "SERVICE_ORIGIN": "REPLACE_WITH_API_HTTPS_ORIGIN",
     "SITE_ORIGIN": "REPLACE_WITH_WEBSITE_HTTPS_ORIGIN",
+    "SIGNUP_NOTIFY_TO": "REPLACE_WITH_VERIFIED_ADDRESS",
   },
 }
