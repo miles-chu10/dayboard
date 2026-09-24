@@ -43,6 +43,7 @@ import {
 import { calendarRangeDays } from "../services/calendar-range.js";
 import {
   trackPendingWrite as trackProductivityWrite,
+  trackAccountChange,
   drainPendingWrites,
   hasPendingWrites,
 } from "../services/pending-writes.js";
@@ -97,14 +98,14 @@ const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
 let accountChanging = false;
 
 async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
-  if (accountChanging || hasPendingWrites())
-    throw new Error("Wait for the current save or account connection to finish, then try again.");
-  accountChanging = true;
-  try {
-    await operation();
-  } finally {
-    accountChanging = false;
-  }
+  await trackAccountChange(async () => {
+    accountChanging = true;
+    try {
+      await operation();
+    } finally {
+      accountChanging = false;
+    }
+  });
 }
 /** Used by normal quit to avoid ending an acknowledged provider write mid-flight. */
 export const hasPendingProductivityWrites = hasPendingWrites;

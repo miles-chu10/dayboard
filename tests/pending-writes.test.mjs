@@ -36,3 +36,64 @@ test("pending write drain waits for all writes and releases synchronous failures
   await drain;
   assert.equal(pendingWrites.hasPendingWrites(), false);
 });
+
+test("account changes exclude later writes and normal quit waits for the change", async () => {
+  let finish;
+  let providerCalls = 0;
+  const changing = pendingWrites.trackAccountChange(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  assert.equal(pendingWrites.hasPendingWrites(), true);
+  await assert.rejects(
+    pendingWrites.trackPendingWrite(async () => {
+      providerCalls++;
+    }),
+    /account connection/,
+  );
+  await assert.rejects(
+    pendingWrites.trackAccountChange(async () => {}),
+    /account connection/,
+  );
+  let drained = false;
+  const drain = pendingWrites.drainPendingWrites().then(() => {
+    drained = true;
+  });
+  await Promise.resolve();
+  assert.equal(drained, false);
+  assert.equal(providerCalls, 0);
+  finish();
+  await changing;
+  await drain;
+  assert.equal(drained, true);
+  assert.equal(
+    await pendingWrites.trackPendingWrite(async () => "new-account-write"),
+    "new-account-write",
+  );
+});
+
+test("an existing provider write prevents account replacement and failure releases the gate", async () => {
+  let finish;
+  const saving = pendingWrites.trackPendingWrite(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await assert.rejects(
+    pendingWrites.trackAccountChange(async () => {}),
+    /current save/,
+  );
+  finish();
+  await saving;
+  await assert.rejects(
+    pendingWrites.trackAccountChange(async () => {
+      throw new Error("cancelled");
+    }),
+    /cancelled/,
+  );
+  assert.equal(pendingWrites.hasPendingWrites(), false);
+  assert.equal(await pendingWrites.trackPendingWrite(async () => "still-usable"), "still-usable");
+});

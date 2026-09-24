@@ -173,11 +173,11 @@ const WRITES_OFF_MESSAGE =
 
 /** Write tools re-check the switch per call, so turning changes off applies to open sessions. */
 function runWrite<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
-  const guarded = run(source, body);
-  return async (args: A): Promise<ToolResult> =>
+  return run(source, (args: A) =>
     trackPendingWrite(async () =>
-      (await getSettings()).mcpServer.allowWrites ? guarded(args) : failure(WRITES_OFF_MESSAGE),
-    );
+      (await getSettings()).mcpServer.allowWrites ? body(args) : failure(WRITES_OFF_MESSAGE),
+    ),
+  );
 }
 
 function capped<T>(items: T[], label: string) {
