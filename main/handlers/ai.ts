@@ -247,7 +247,13 @@ export function registerAIHandlers(): void {
   });
 
   // API keys (OpenAI, Anthropic, Gemini). Keys are write-only from the renderer.
-  ipcMain.handle("apiKeys:status", () => getApiKeyStatuses());
+  ipcMain.handle("apiKeys:status", () =>
+    isDemoMode()
+      ? Object.fromEntries(
+          API_PROVIDERS.map((provider) => [provider, { configured: false, hint: null }]),
+        )
+      : getApiKeyStatuses(),
+  );
   ipcMain.handle("apiKeys:save", (_event, payload: unknown) => {
     const channel = "apiKeys:save";
     assertNotDemo(channel);
@@ -272,6 +278,18 @@ export function registerAIHandlers(): void {
 
   /** Which providers can run now: installed subscription CLIs and saved API keys. */
   ipcMain.handle("ai:availability", async (): Promise<ProviderAvailability> => {
+    if (isDemoMode())
+      return {
+        glaze: true,
+        claude: false,
+        codex: false,
+        gemini: false,
+        muse: false,
+        ...(Object.fromEntries(API_PROVIDERS.map((provider) => [provider, false])) as Record<
+          ApiProviderId,
+          boolean
+        >),
+      };
     const [claude, codex, gemini, muse, keys] = await Promise.all([
       resolveCli("claude"),
       resolveCli("codex"),
