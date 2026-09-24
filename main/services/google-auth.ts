@@ -178,6 +178,9 @@ export async function getGoogleAccessToken(): Promise<string> {
     throw new GoogleAuthError("needs-setup", "Google sign-in isn't configured in this build.");
   }
   const oauth = getService(client);
+  // A never-connected account isn't an expired session: say so, and don't log a refresh failure.
+  if (!(await oauth.getTokens().catch(() => null)))
+    throw new GoogleAuthError("not-connected", "Google account is not connected.");
   try {
     return await oauth.getAccessToken();
   } catch (error) {
