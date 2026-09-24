@@ -9,14 +9,16 @@ export const ACCENT_OPTIONS: {
   label: string;
   light: string;
   dark: string;
+  /** Label on light fills that are too bright for white text; defaults to accentLabelColor(). */
+  lightLabel?: "#000000";
 }[] = [
   { value: "system", label: "System", light: "", dark: "" },
   { value: "blue", label: "Blue", light: "#007AFF", dark: "#0A84FF" },
   { value: "purple", label: "Purple", light: "#9A44D6", dark: "#BF5AF2" },
   { value: "pink", label: "Pink", light: "#E6336F", dark: "#FF4F86" },
   { value: "red", label: "Red", light: "#E0352B", dark: "#FF453A" },
-  { value: "orange", label: "Orange", light: "#EE7A00", dark: "#FF9F0A" },
-  { value: "yellow", label: "Yellow", light: "#E0A800", dark: "#FFD60A" },
+  { value: "orange", label: "Orange", light: "#DC7100", dark: "#FF9F0A", lightLabel: "#000000" },
+  { value: "yellow", label: "Yellow", light: "#B48700", dark: "#FFD60A", lightLabel: "#000000" },
   { value: "green", label: "Green", light: "#1F9D45", dark: "#30D158" },
   { value: "teal", label: "Teal", light: "#0A9CB0", dark: "#40C8E0" },
   { value: "graphite", label: "Graphite", light: "#7C7C82", dark: "#98989D" },
@@ -55,9 +57,9 @@ export function applyAccent(accent: AccentColor): void {
       style.id = STYLE_ID;
       document.head.appendChild(style);
     }
-    const rule = (hex: string) =>
-      `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${accentLabelColor(hex)} !important;`;
-    style.textContent = `:root:root { ${rule(option.light)} } :root.dark:root { ${rule(option.dark)} }`;
+    const rule = (hex: string, label = accentLabelColor(hex)) =>
+      `--theme-accent: ${hex} !important; --accent: ${hex} !important; --accent-contrast: ${label} !important;`;
+    style.textContent = `:root:root { ${rule(option.light, option.lightLabel)} } :root.dark:root { ${rule(option.dark)} }`;
   }
   localStorage.setItem(storedKey(CACHE_KEY), accent);
 }

@@ -22,9 +22,25 @@ const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math
 
 test("every accent option keeps its button label at 3:1 or better in both schemes", () => {
   for (const option of ACCENT_OPTIONS.filter((item) => item.value !== "system")) {
-    for (const hex of [option.light, option.dark]) {
-      assert.ok(contrast(hex, accentLabelColor(hex)) >= 3, `${option.label} ${hex}`);
+    const lightLabel = option.lightLabel ?? accentLabelColor(option.light);
+    assert.ok(contrast(option.light, lightLabel) >= 3, `${option.label} ${option.light}`);
+    assert.ok(contrast(option.dark, accentLabelColor(option.dark)) >= 3, `${option.label} ${option.dark}`);
+  }
+});
+
+test("light accent fills stay at 3:1 or better against light surfaces", () => {
+  for (const option of ACCENT_OPTIONS.filter((item) => item.value !== "system")) {
+    for (const surface of ["#ffffff", "#fcfcfc"]) {
+      assert.ok(contrast(option.light, surface) >= 3, `${option.label} on ${surface}`);
     }
+  }
+});
+
+test("darkened orange and yellow keep black labels at 4.5:1 or better", () => {
+  for (const value of ["orange", "yellow"]) {
+    const option = ACCENT_OPTIONS.find((item) => item.value === value);
+    assert.equal(option.lightLabel, "#000000");
+    assert.ok(contrast(option.light, option.lightLabel) >= 4.5, value);
   }
 });
 
