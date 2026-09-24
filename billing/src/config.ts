@@ -10,6 +10,7 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string;
   ENCRYPTION_KEY: string;
   HASH_SECRET: string;
+  SITE_ORIGIN?: string;
 }
 
 export interface Config {

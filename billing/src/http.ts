@@ -80,5 +80,9 @@ export async function limit(
     RETURNING hits`)
       .bind(bucket, windowStart)
       .first<{ hits: number }>();
+  // Buckets from earlier minutes no longer limit anything. Dropping them whenever a bucket
+  // starts a new minute keeps the table from growing with every new client address.
+  if (row?.hits === 1)
+    await env.DB.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(windowStart).run();
   return (row?.hits ?? 9999) <= threshold;
 }

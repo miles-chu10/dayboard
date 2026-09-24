@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export class LocalDb {
@@ -7,9 +7,11 @@ export class LocalDb {
   failAtBatchStatement = 0;
   constructor() {
     this.sql.exec("PRAGMA foreign_keys=ON");
-    this.sql.exec(
-      readFileSync(fileURLToPath(new URL("../migrations/0001_init.sql", import.meta.url)), "utf8"),
-    );
+    const dir = fileURLToPath(new URL("../migrations/", import.meta.url));
+    for (const file of readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort())
+      this.sql.exec(readFileSync(`${dir}${file}`, "utf8"));
   }
   prepare(query: string) {
     const sql = this.sql;

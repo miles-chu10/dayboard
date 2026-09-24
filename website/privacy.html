@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy — DayBoard</title>
+    <meta
+      name="description"
+      content="What DayBoard and this website collect, where your calendar, tasks, reminders and mail go, and how Google user data is handled."
+    />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/hanken-grotesk.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <script src="assets/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <div class="nav-links">
+          <a href="index.html#features">Features</a><a href="index.html#privacy">Privacy</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </div>
+        <a class="button" href="beta.html">Join the beta</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <header class="page-head">
+        <div class="wrap">
+          <span class="eyebrow">Privacy policy</span>
+          <h1>Privacy, <em>plainly.</em></h1>
+          <p>
+            DayBoard keeps your calendar, tasks, reminders and mail between your Mac and the
+            services you connect. This page explains what goes where. Last updated September 23,
+            2026.
+          </p>
+        </div>
+      </header>
+
+      <div class="wrap">
+        <article class="prose">
+          <h2>The DayBoard app</h2>
+          <ul>
+            <li>
+              <strong>No tracking.</strong> The app has no analytics, advertising or tracking, and
+              DayBoard has no server that receives your calendar, tasks, reminders or mail.
+            </li>
+            <li>
+              <strong>On your Mac:</strong> settings, linked items and Assistant history are stored
+              locally. Google sign-in tokens are encrypted with macOS's built-in protection.
+            </li>
+            <li>
+              <strong>Google:</strong> when you sign in, DayBoard asks for access to Google
+              Calendar, Google Tasks and, in the beta, Gmail. It talks to Google's APIs directly
+              from your Mac to show and change those items for you. Signing out deletes your Google
+              sign-in tokens from your Mac and asks Google to revoke DayBoard's access.
+            </li>
+            <li>
+              <strong>Apple Reminders:</strong> read and changed on your Mac through macOS, with
+              your permission.
+            </li>
+            <li>
+              <strong>AI (optional):</strong> nothing goes to an AI provider until you choose one.
+              AI features send data to the provider you chose, through its app on your Mac (such as
+              Claude Code or Codex) or with your API key. With each message, the Assistant sends a
+              snapshot of up to 60 events, 80 open tasks and reminders, and your 30 latest emails
+              (sender, subject and a short preview), and it can look up more as it answers. Other
+              features, such as the daily briefing, send the items they cover. If you turn on the
+              automatic briefing, it runs the first time you open DayBoard each day, without a
+              click. That provider handles the data under its own terms. Dictation sends your
+              recording to OpenAI for transcription, only when you use it.
+            </li>
+            <li>
+              <strong>MCP server (optional):</strong> off by default. When you turn it on, it runs
+              only on your Mac, and clients need the access key shown in Settings. Apps you connect
+              to it can read your calendar, tasks, reminders and mail, make changes if you allow
+              them, and may send what they read to their own AI providers.
+            </li>
+            <li>
+              <strong>Official builds:</strong> activating a license sends your license key, a
+              random installation ID and the label "DayBoard on macOS" to DayBoard's license
+              service. Checking for updates contacts GitHub. Beta builds do neither.
+            </li>
+          </ul>
+
+          <h2 id="google">Google user data</h2>
+          <p>
+            DayBoard's use and transfer of information received from Google APIs to any other app
+            will adhere to the
+            <a href="https://developers.google.com/terms/api-services-user-data-policy"
+              >Google API Services User Data Policy</a
+            >, including the Limited Use requirements.
+          </p>
+          <p>
+            DayBoard uses Google data only to show and change your calendar, tasks and mail inside
+            the app, and, when you ask, to send the relevant items to the AI provider you chose. It
+            doesn't sell Google data, use it for advertising, or use it to develop or train AI
+            models.
+          </p>
+
+          <h2 id="website">This website</h2>
+          <ul>
+            <li>
+              <strong>Beta signups:</strong> if you join the beta, we store your email address and
+              the time you signed up in DayBoard's signup database. We use it only to send beta
+              invites and major beta news, and we never sell or share it. We keep it until the beta
+              ends or you ask us to delete it.
+            </li>
+            <li>
+              <strong>Abuse protection:</strong> to limit repeated signup attempts, the signup
+              service keeps a keyed hash of your IP address, not the address itself.
+            </li>
+            <li>
+              <strong>No cookies or trackers:</strong> this site sets no cookies and runs no
+              analytics. Fonts and images are served from this site. Our hosting provider processes
+              basic request data, such as IP addresses, to deliver the site and block abuse.
+            </li>
+          </ul>
+
+          <h2 id="contact">Removal and questions</h2>
+          <p>
+            To have your email removed, or to ask about this policy, email
+            <a data-contact>the DayBoard team</a>. If this policy changes, we'll update this page
+            and the date above.
+          </p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-grid">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <nav class="footer-links" aria-label="Footer">
+          <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="privacy.html">Privacy</a><a href="license.html">License</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </nav>
+        <p class="fine">
+          © 2026 DayBoard. Source licensed under GPL-3.0. Google Calendar, Google Tasks and Gmail
+          are trademarks of Google LLC; Apple Reminders and macOS are trademarks of Apple Inc.
+          DayBoard isn't affiliated with Google or Apple.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

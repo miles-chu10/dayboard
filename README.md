@@ -71,7 +71,7 @@ npm run test:e2e   # credential-free build; isolated demo/empty-profile Electron
 npm run package:preview  # local ad-hoc-signed DMG and update ZIP (not notarized); does not publish
 ```
 
-Development requires Node.js 24+ and an existing Xcode command line toolchain for the Swift helper. `main/` owns backend services; `main/platform/` implements native boundaries; `electron/preload.ts` exposes a narrow sandboxed bridge; `renderer/` owns the UI; `native/` holds the Reminders helper; `e2e/` tests the built app. `website/` is the static direct-download site.
+Development requires Node.js 24+ and an existing Xcode command line toolchain for the Swift helper. `main/` owns backend services; `main/platform/` implements native boundaries; `electron/preload.ts` exposes a narrow sandboxed bridge; `renderer/` owns the UI; `native/` holds the Reminders helper; `e2e/` tests the built app. `website/` is the static site with the beta signup.
 
 ## Official builds and community builds
 

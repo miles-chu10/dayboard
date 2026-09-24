@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { betaSignup } from "./beta.ts";
 import { checkout } from "./checkout.ts";
 import { config, type Env } from "./config.ts";
 import { error } from "./http.ts";
@@ -14,6 +15,15 @@ export function createWorker(
 ) {
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
+      const requestUrl = new URL(request.url);
+      if (requestUrl.pathname === "/v1/beta-signup") {
+        if (requestUrl.origin !== env.SERVICE_ORIGIN) return error(403, "origin_mismatch");
+        try {
+          return await betaSignup(request, env);
+        } catch {
+          return error(503, "service_unavailable");
+        }
+      }
       let cfg;
       try {
         cfg = config(env);

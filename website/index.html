@@ -3,165 +3,623 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101315" />
+    <title>DayBoard — Your whole day, on one board</title>
     <meta
       name="description"
-      content="DayBoard is a Mac dashboard for your agenda, tasks, reminders, email, and calendar. Public downloads are in preparation."
+      content="DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail into one calm Mac app. Join the free beta."
     />
-    <title>DayBoard — Your day, together</title>
-    <link rel="icon" type="image/jpeg" href="assets/dayboard-icon.jpg" />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="DayBoard — Your whole day, on one board" />
+    <meta
+      property="og:description"
+      content="Google Calendar, Google Tasks, Apple Reminders and Gmail in one calm Mac app. Join the free beta."
+    />
+    <meta property="og:image" content="assets/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/hanken-grotesk.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="stylesheet" href="assets/site.css" />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
     <script src="assets/site.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
-      <nav class="nav wrap" aria-label="Main navigation">
+      <nav class="nav wrap" aria-label="Main">
         <a class="brand" href="index.html"
-          ><img src="assets/dayboard-icon.jpg" alt="" width="38" height="38" />DayBoard</a
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html" aria-current="page">Overview</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-source" href="https://github.com/miles-chu10/dayboard">Source ↗</a>
+          <a href="#how">How it works</a><a href="#features">Features</a
+          ><a href="#privacy">Privacy</a><a href="#faq">FAQ</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </div>
+        <a class="button" href="#join">Join the beta</a>
       </nav>
     </header>
+
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <img class="hero-art" src="assets/dayboard-icon.jpg" alt="" width="1024" height="1024" />
-        <div class="hero-inner wrap">
+        <div class="wrap">
           <div class="hero-copy">
-            <span class="eyebrow">A Mac app in development</span>
-            <h1 id="hero-title">DayBoard</h1>
-            <p class="lead">
-              Your agenda, tasks, reminders, email, and calendar in one calm place on your Mac.
+            <span class="pill rise" style="--i: 0"
+              ><span class="dots" aria-hidden="true"
+                ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
+                ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
+              ><span><strong>Free public beta</strong> · for Apple Silicon Macs</span></span
+            >
+            <h1 id="hero-title" class="rise" style="--i: 1">
+              Your whole day, <em>on one board.</em>
+            </h1>
+            <p class="lead rise" style="--i: 2">
+              DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail together in
+              one calm Mac app — with an optional AI assistant that already knows your schedule.
             </p>
-            <div class="actions">
-              <a class="button button-primary" href="download.html">Download details</a
-              ><a class="button button-secondary" href="https://github.com/miles-chu10/dayboard"
-                >Source repository ↗</a
-              >
+            <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
+              <div class="signup-row">
+                <label class="visually-hidden" for="email-hero">Email address</label>
+                <input
+                  id="email-hero"
+                  disabled
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="you@example.com"
+                  required
+                  maxlength="254"
+                />
+                <div class="trap" aria-hidden="true">
+                  <label for="company-hero">Leave this empty</label
+                  ><input id="company-hero" name="company" tabindex="-1" autocomplete="off" />
+                </div>
+                <button class="button" type="submit" disabled>Join the beta</button>
+              </div>
+              <p class="signup-note">
+                Free during the beta. One email when your invite is ready — no spam.
+              </p>
+              <p class="signup-status" role="status" aria-live="polite"></p>
+              <noscript><p class="signup-note">Turn on JavaScript to join the beta.</p></noscript>
+            </form>
+            <p class="works-with rise" style="--i: 4">
+              <span class="label">Works with</span>
+              <span class="c-calendar"><span class="dot"></span>Google Calendar</span>
+              <span class="c-tasks"><span class="dot"></span>Google Tasks</span>
+              <span class="c-reminders"><span class="dot"></span>Apple Reminders</span>
+              <span class="c-mail"><span class="dot"></span>Gmail</span>
+            </p>
+          </div>
+
+          <div class="board rise" style="--i: 3">
+            <div class="window window-back" aria-hidden="true">
+              <picture>
+                <source
+                  srcset="assets/screens/dark-calendar-month.png"
+                  media="(prefers-color-scheme: dark)"
+                />
+                <img
+                  src="assets/screens/light-calendar-month.png"
+                  alt=""
+                  width="1600"
+                  height="1025"
+                />
+              </picture>
             </div>
-            <p class="hero-note" data-release-note>
-              Public downloads and checkout are not available yet.
-            </p>
+            <div class="window">
+              <picture>
+                <source
+                  srcset="assets/screens/dark-agenda.png"
+                  media="(prefers-color-scheme: dark)"
+                />
+                <img
+                  src="assets/screens/light-agenda.png"
+                  alt="DayBoard's Agenda: today's calendar events, Google Tasks and Apple Reminders in one list, with unread Gmail below (fictional sample data)"
+                  width="1600"
+                  height="1025"
+                  fetchpriority="high"
+                />
+              </picture>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
+            <div class="note note-1 c-calendar" style="--i: 0" aria-hidden="true">
+              <small><span class="dot"></span>Calendar · 3:00 PM</small><b>Q4 roadmap sync</b>
+            </div>
+            <div class="note note-2 c-tasks" style="--i: 1" aria-hidden="true">
+              <small><span class="dot"></span>Google Tasks · Today</small
+              ><b>Finalize launch announcement</b>
+            </div>
+            <div class="note note-3 c-reminders" style="--i: 2" aria-hidden="true">
+              <small><span class="dot"></span>Reminders · 5:30 PM</small><b>Pick up dry cleaning</b>
+            </div>
+            <div class="note note-4 c-mail" style="--i: 3" aria-hidden="true">
+              <small><span class="dot"></span>Gmail · Priya Shah</small
+              ><b>Launch announcement — final copy?</b>
+            </div>
           </div>
         </div>
       </section>
-      <div class="status-strip">
-        <div class="wrap status-content">
-          <span class="status-dot" aria-hidden="true"></span
-          ><span data-release-status>Official macOS build in preparation</span>
+
+      <section class="section" id="how" aria-labelledby="how-title">
+        <div class="wrap">
+          <div class="section-head" data-reveal>
+            <span class="eyebrow">Four apps, one board</span>
+            <h2 id="how-title">Stop opening <em>four apps</em> to plan one day.</h2>
+            <p>
+              DayBoard gathers what's scheduled, due and waiting from the services you already use,
+              then lays it out as a single agenda in time order.
+            </p>
+          </div>
+          <div class="merge" aria-label="How DayBoard combines four sources into one agenda">
+            <div class="sources">
+              <div class="source-card c-calendar" style="--i: 0">
+                <h3>Google Calendar</h3>
+                <p>9:30 · Team standup</p>
+                <p>3:00 · Q4 roadmap sync</p>
+              </div>
+              <div class="source-card c-tasks" style="--i: 1">
+                <h3>Google Tasks</h3>
+                <p>Finalize launch announcement</p>
+                <p>Review pull request</p>
+              </div>
+              <div class="source-card c-reminders" style="--i: 2">
+                <h3>Apple Reminders</h3>
+                <p>Pick up dry cleaning</p>
+                <p>Call Mom</p>
+              </div>
+              <div class="source-card c-mail" style="--i: 3">
+                <h3>Gmail</h3>
+                <p>Priya: final copy?</p>
+                <p>Jordan: 1:1 agenda</p>
+              </div>
+            </div>
+            <div class="merge-arrow" aria-hidden="true">→</div>
+            <div class="today-card">
+              <h3>Today</h3>
+              <ol>
+                <li class="c-calendar" style="--i: 0">
+                  <span class="when">9:30 AM</span><span class="dot"></span>Team standup
+                </li>
+                <li class="c-tasks" style="--i: 1">
+                  <span class="when">Today</span><span class="dot"></span>Finalize launch
+                  announcement
+                </li>
+                <li class="c-calendar" style="--i: 2">
+                  <span class="when">3:00 PM</span><span class="dot"></span>Q4 roadmap sync
+                </li>
+                <li class="c-reminders" style="--i: 3">
+                  <span class="when">5:30 PM</span><span class="dot"></span>Pick up dry cleaning
+                </li>
+                <li class="c-reminders" style="--i: 4">
+                  <span class="when">7:00 PM</span><span class="dot"></span>Call Mom
+                </li>
+                <li class="c-mail" style="--i: 5">
+                  <span class="when">Unread</span><span class="dot"></span>Priya: final copy?
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="band" id="features">
+        <div class="wrap">
+          <section class="feature" aria-labelledby="calendar-title" data-reveal>
+            <div class="feature-copy c-calendar">
+              <span class="eyebrow"><span class="dot"></span>Calendar</span>
+              <h2 id="calendar-title">A calendar that also shows <em>what's due.</em></h2>
+              <p>
+                Month, week and schedule views put your events, tasks and reminders on the same
+                grid, so a crowded Thursday looks crowded before you get there.
+              </p>
+              <ul class="ticks">
+                <li>Month, week and schedule layouts</li>
+                <li>Tasks and reminders on their due dates</li>
+                <li>Open any item in a pop-up, inline, or a side panel</li>
+              </ul>
+              <div class="tabs" role="tablist" aria-label="Calendar layout">
+                <button
+                  type="button"
+                  role="tab"
+                  id="tab-week"
+                  aria-controls="shot-week"
+                  aria-selected="true"
+                >
+                  Week</button
+                ><button
+                  type="button"
+                  role="tab"
+                  id="tab-month"
+                  aria-controls="shot-month"
+                  aria-selected="false"
+                  tabindex="-1"
+                >
+                  Month
+                </button>
+              </div>
+            </div>
+            <div class="window">
+              <div class="shot" id="shot-week" role="tabpanel" aria-labelledby="tab-week">
+                <picture>
+                  <source
+                    srcset="assets/screens/dark-calendar-week.png"
+                    media="(prefers-color-scheme: dark)"
+                  />
+                  <img
+                    src="assets/screens/light-calendar-week.png"
+                    alt="Calendar week view with timed events color-coded by calendar (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                    loading="lazy"
+                  />
+                </picture>
+              </div>
+              <div class="shot" id="shot-month" role="tabpanel" aria-labelledby="tab-month" hidden>
+                <picture>
+                  <source
+                    srcset="assets/screens/dark-calendar-month.png"
+                    media="(prefers-color-scheme: dark)"
+                  />
+                  <img
+                    src="assets/screens/light-calendar-month.png"
+                    alt="Calendar month grid with events, tasks and reminders, and today's schedule beside it (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                  />
+                </picture>
+              </div>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
+          </section>
+
+          <section class="feature flip" aria-labelledby="todos-title" data-reveal>
+            <div class="feature-copy c-tasks">
+              <span class="eyebrow"
+                ><span class="dots"
+                  ><span class="dot c-tasks"></span><span class="dot c-reminders"></span></span
+                >Tasks &amp; Reminders</span
+              >
+              <h2 id="todos-title">Tasks and Reminders, <em>finally together.</em></h2>
+              <p>
+                Keep work in Google Tasks and errands in Apple Reminders, and see both in one list.
+                Found the same to-do in both? Link them, and checking off one completes the other.
+              </p>
+              <ul class="ticks">
+                <li>Edit titles, notes and due dates without leaving DayBoard</li>
+                <li>Linked duplicates show up once in your Agenda</li>
+                <li>Every change syncs back to Google and Apple</li>
+              </ul>
+              <div class="tabs" role="tablist" aria-label="To-do source">
+                <button
+                  type="button"
+                  role="tab"
+                  id="tab-tasks"
+                  aria-controls="shot-tasks"
+                  aria-selected="true"
+                >
+                  Google Tasks</button
+                ><button
+                  type="button"
+                  role="tab"
+                  id="tab-reminders"
+                  aria-controls="shot-reminders"
+                  aria-selected="false"
+                  tabindex="-1"
+                >
+                  Apple Reminders
+                </button>
+              </div>
+            </div>
+            <div class="window">
+              <div class="shot" id="shot-tasks" role="tabpanel" aria-labelledby="tab-tasks">
+                <picture>
+                  <source
+                    srcset="assets/screens/dark-tasks.png"
+                    media="(prefers-color-scheme: dark)"
+                  />
+                  <img
+                    src="assets/screens/light-tasks.png"
+                    alt="Google Tasks grouped into Work and Personal lists with due dates (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                    loading="lazy"
+                  />
+                </picture>
+              </div>
+              <div
+                class="shot"
+                id="shot-reminders"
+                role="tabpanel"
+                aria-labelledby="tab-reminders"
+                hidden
+              >
+                <picture>
+                  <source
+                    srcset="assets/screens/dark-reminders.png"
+                    media="(prefers-color-scheme: dark)"
+                  />
+                  <img
+                    src="assets/screens/light-reminders.png"
+                    alt="Apple Reminders grouped by list, with times and dates (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                  />
+                </picture>
+              </div>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
+          </section>
+
+          <section class="feature" aria-labelledby="mail-title" data-reveal>
+            <div class="feature-copy c-mail">
+              <span class="eyebrow"><span class="dot"></span>Inbox</span>
+              <h2 id="mail-title">Mail that sits <em>next to your plans.</em></h2>
+              <p>
+                Your recent Gmail is one click from your agenda. Open a message beside the list, and
+                if you turn on AI, let it sort what actually needs a reply.
+              </p>
+              <ul class="ticks">
+                <li>Recent Gmail with unread messages at a glance</li>
+                <li>Optional AI sorting: Needs reply, FYI and Ignorable</li>
+                <li>Reply drafts saved straight to Gmail</li>
+              </ul>
+            </div>
+            <div class="window">
+              <picture>
+                <source
+                  srcset="assets/screens/dark-mail.png"
+                  media="(prefers-color-scheme: dark)"
+                />
+                <img
+                  src="assets/screens/light-mail.png"
+                  alt="Inbox with a message open in the side panel (fictional sample data)"
+                  width="1600"
+                  height="1025"
+                  loading="lazy"
+                />
+              </picture>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
+          </section>
+
+          <section class="feature flip" aria-labelledby="assistant-title" data-reveal>
+            <div class="feature-copy">
+              <span class="eyebrow">Assistant · optional</span>
+              <h2 id="assistant-title">An assistant that <em>knows your day.</em></h2>
+              <p>
+                Ask what to focus on, prep for a meeting, or turn a sentence into a task. Use the
+                Claude or ChatGPT account you already have through Claude Code or Codex, or bring
+                your own API key.
+              </p>
+              <ul class="ticks">
+                <li>Off until you choose a provider</li>
+                <li>Suggested changes wait for your confirmation</li>
+                <li>A built-in MCP server lets your own AI tools read your day (off by default)</li>
+              </ul>
+            </div>
+            <div class="window">
+              <picture>
+                <source
+                  srcset="assets/screens/dark-assistant.png"
+                  media="(prefers-color-scheme: dark)"
+                />
+                <img
+                  src="assets/screens/light-assistant.png"
+                  alt="The Assistant answering what to focus on for a launch announcement (fictional sample answer)"
+                  width="1600"
+                  height="1025"
+                  loading="lazy"
+                />
+              </picture>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
+          </section>
         </div>
       </div>
-      <section class="section wrap" aria-labelledby="features-title">
-        <div class="section-intro">
-          <span class="eyebrow">A daily workspace</span>
-          <h2 id="features-title">See the day. Get it done.</h2>
-          <p>
-            DayBoard brings the sources you already use into one desktop view, so the next useful
-            action is easier to find.
-          </p>
-        </div>
-        <div class="grid-three">
-          <article class="feature">
-            <span class="feature-num">01 / Agenda</span>
-            <h3>A single view of today</h3>
-            <p>
-              See Google Calendar events alongside Google Tasks and Apple Reminders. Choose your
-              sources and move between today and the week ahead.
-            </p>
-          </article>
-          <article class="feature">
-            <span class="feature-num">02 / Connected work</span>
-            <h3>Mail and calendar nearby</h3>
-            <p>
-              Read Gmail, check upcoming meetings, and work with tasks and reminders without hopping
-              between windows.
-            </p>
-          </article>
-          <article class="feature">
-            <span class="feature-num">03 / Your choice</span>
-            <h3>Optional AI and MCP</h3>
-            <p>
-              Use supported AI providers for briefs, drafts, and assistance, or leave AI off. An
-              optional local MCP server can connect desktop clients.
-            </p>
-          </article>
-        </div>
-      </section>
-      <section class="section alt" aria-labelledby="preview-title">
-        <div class="wrap overview">
-          <div>
-            <span class="eyebrow">Designed for the Mac</span>
-            <h2 id="preview-title">One place to start.</h2>
-            <p class="subtle">
-              A running standalone DayBoard preview, shown with fictional sample data. Public
-              downloads will follow the release checks.
-            </p>
-            <ul class="overview-list">
-              <li><strong>Agenda</strong> for the day's events and to-dos</li>
-              <li><strong>Source controls</strong> for a focused view</li>
-              <li><strong>Optional intelligence</strong> when you choose to use it</li>
-            </ul>
+
+      <section class="section privacy" id="privacy" aria-labelledby="privacy-title">
+        <div class="wrap">
+          <div class="section-head" data-reveal>
+            <span class="eyebrow">Privacy</span>
+            <h2 id="privacy-title">Your day stays <em>between you and your Mac.</em></h2>
+            <p>There's no DayBoard server that sees your calendar, tasks, reminders or mail.</p>
           </div>
-          <div class="preview" data-screenshot>
-            <div class="preview-fallback">
-              <img src="assets/dayboard-icon.jpg" alt="" width="96" height="96" /><strong
-                >Product preview in preparation</strong
-              >
-              <p>A verified example will appear here before release.</p>
+          <div class="grid-3" data-reveal>
+            <div>
+              <h3>Stored on your Mac</h3>
+              <p>
+                Settings, linked items and Assistant history are saved locally. Sign-in tokens are
+                encrypted with macOS's built-in protection.
+              </p>
+            </div>
+            <div>
+              <h3>Straight to the source</h3>
+              <p>
+                DayBoard talks directly to Google's APIs, and to Apple Reminders through macOS.
+                Nothing passes through a service of ours.
+              </p>
+            </div>
+            <div>
+              <h3>AI on your terms</h3>
+              <p>
+                AI stays off until you pick a provider. When you use it, only the context that
+                request needs goes to that provider.
+                <a href="docs.html#data">Read the data guide</a>
+              </p>
             </div>
           </div>
         </div>
       </section>
-      <section class="section wrap split" aria-labelledby="ownership-title">
-        <div>
-          <span class="eyebrow">Open source</span>
-          <h2 id="ownership-title">Open code. An official build.</h2>
-          <p>
-            The standalone source is licensed under GPL-3.0-only. Once that release is published,
-            you can inspect and build it yourself. A paid official build is planned to fund
-            packaging and ongoing work.
-          </p>
-          <a class="inline-link" href="license.html">How the license works ↗</a>
-        </div>
-        <div>
-          <span class="eyebrow">Clear data boundaries</span>
-          <h2>Your accounts stay yours.</h2>
-          <p>
-            The app keeps local settings and history on your Mac. Using Google services sends
-            requests to Google; Apple Reminders uses macOS access. Optional AI sends selected
-            context to your chosen provider when you use it.
-          </p>
-          <a class="inline-link" href="docs.html#data">Read the data guide ↗</a>
+
+      <section class="section" id="pricing" aria-labelledby="pricing-title">
+        <div class="wrap">
+          <div class="section-head" data-reveal>
+            <span class="eyebrow">Open source, fairly priced</span>
+            <h2 id="pricing-title">Free during the beta. <em>Open source for good.</em></h2>
+          </div>
+          <div class="split" data-reveal>
+            <div class="panel c-calendar">
+              <span class="stamp">Beta</span>
+              <h3>Try everything, free</h3>
+              <p>
+                Beta testers get every feature at no cost. When DayBoard launches, a signed official
+                build will be a paid download that funds its development.
+              </p>
+            </div>
+            <div class="panel c-tasks">
+              <span class="stamp">GPL-3.0</span>
+              <h3>Read the code, or build it</h3>
+              <p>
+                DayBoard's source is on GitHub under GPL-3.0. See exactly how it handles your data,
+                or build it yourself.
+              </p>
+              <p><a href="https://github.com/miles-chu10/dayboard">View DayBoard on GitHub ↗</a></p>
+            </div>
+          </div>
         </div>
       </section>
-      <section class="section alt" aria-labelledby="next-title">
+
+      <section class="section band" id="faq" aria-labelledby="faq-title">
+        <div class="wrap faq">
+          <div class="section-head" data-reveal>
+            <span class="eyebrow">FAQ</span>
+            <h2 id="faq-title">Questions, <em>answered.</em></h2>
+            <p>
+              More in the <a href="support.html">support page</a> and <a href="docs.html">guide</a>.
+            </p>
+          </div>
+          <div class="faq-list" data-reveal>
+            <details>
+              <summary>Is the beta free?</summary>
+              <p>
+                Yes. Beta testers get every feature at no cost. The official build will be a paid
+                download after launch, and the source stays open under GPL-3.0.
+              </p>
+            </details>
+            <details>
+              <summary>Which Macs does it run on?</summary>
+              <p>
+                Macs with Apple silicon (M1 or later) running macOS 14 Sonoma or later. Intel Macs
+                aren't supported yet.
+              </p>
+            </details>
+            <details>
+              <summary>How do I get the beta?</summary>
+              <p>
+                Join the list with your email. If you'll connect Google, use that Google account's
+                address. When your invite is ready, you'll get a link to download the DayBoard
+                installer.
+              </p>
+            </details>
+            <details>
+              <summary>Why does macOS ask before opening it?</summary>
+              <p>
+                Beta builds aren't notarized by Apple yet, so the first launch needs one extra step:
+                open System Settings → Privacy &amp; Security and choose <b>Open Anyway</b>. The
+                <a href="beta.html#install">beta guide</a> walks you through it.
+              </p>
+            </details>
+            <details>
+              <summary>Why isn't it on the Mac App Store?</summary>
+              <p>
+                DayBoard can use the Claude Code and Codex apps already on your Mac for its AI
+                features, which apps from the App Store aren't allowed to do. Downloading it
+                directly keeps those features.
+              </p>
+            </details>
+            <details>
+              <summary>Do I need all four services?</summary>
+              <p>
+                No. Turn on only the sources you use. Google services need a Google sign-in, and
+                Apple Reminders asks for macOS permission.
+              </p>
+            </details>
+            <details>
+              <summary>Do I have to use AI?</summary>
+              <p>No. Every AI feature is optional and stays off until you choose a provider.</p>
+            </details>
+            <details>
+              <summary>Can I build it myself?</summary>
+              <p>
+                Yes. The source is on
+                <a href="https://github.com/miles-chu10/dayboard">GitHub</a> under GPL-3.0, with
+                build instructions in the README.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="cta-title">
         <div class="wrap">
-          <span class="eyebrow">Release status</span>
-          <h2 id="next-title">Ready when the build is.</h2>
-          <p class="subtle">
-            The public download and purchase links will appear after the app, distribution, and
-            support details are verified.
-          </p>
-          <div class="actions">
-            <a class="button button-primary" href="download.html">Check download status</a
-            ><a class="button button-secondary" href="docs.html">Read the guide</a>
+          <div class="cta" data-reveal>
+            <span class="dots" aria-hidden="true"
+              ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
+              ><span class="dot c-reminders"></span><span class="dot c-mail"></span
+            ></span>
+            <h2 id="cta-title">Get your day <em>on the board.</em></h2>
+            <p>Join the beta and be one of the first to try DayBoard on your Mac.</p>
+            <form class="signup" data-signup method="post" novalidate>
+              <div class="signup-row">
+                <label class="visually-hidden" for="email-cta">Email address</label>
+                <input
+                  id="email-cta"
+                  disabled
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="you@example.com"
+                  required
+                  maxlength="254"
+                />
+                <div class="trap" aria-hidden="true">
+                  <label for="company-cta">Leave this empty</label
+                  ><input id="company-cta" name="company" tabindex="-1" autocomplete="off" />
+                </div>
+                <button class="button" type="submit" disabled>Join the beta</button>
+              </div>
+              <p class="signup-note">
+                We only use your email for beta invites and major beta news.
+              </p>
+              <p class="signup-status" role="status" aria-live="polite"></p>
+              <noscript><p class="signup-note">Turn on JavaScript to join the beta.</p></noscript>
+            </form>
           </div>
         </div>
       </section>
     </main>
+
     <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <p>DayBoard for macOS. Source licensed under GPL-3.0-only.</p>
-        <div class="footer-links">
-          <a href="index.html">Overview</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="license.html">License</a
-          ><a href="support.html">Support</a
-          ><a href="https://github.com/miles-chu10/dayboard">GitHub ↗</a>
-        </div>
+      <div class="wrap footer-grid">
+        <a class="brand" href="index.html"
+          ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
+        >
+        <nav class="footer-links" aria-label="Footer">
+          <a href="beta.html">Beta</a><a href="docs.html">Guide</a><a href="support.html">Support</a
+          ><a href="privacy.html">Privacy</a><a href="license.html">License</a
+          ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+        </nav>
+        <p class="fine">
+          © 2026 DayBoard. Source licensed under GPL-3.0. Google Calendar, Google Tasks and Gmail
+          are trademarks of Google LLC; Apple Reminders and macOS are trademarks of Apple Inc.
+          DayBoard isn't affiliated with Google or Apple.
+        </p>
       </div>
     </footer>
   </body>
