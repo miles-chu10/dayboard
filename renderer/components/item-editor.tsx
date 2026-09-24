@@ -459,6 +459,7 @@ function ItemEditor({
                 value={fields.title}
                 onChange={(event) => setField("title", event.target.value)}
                 disabled={demo || loadingEvent}
+                aria-label="Title"
                 aria-invalid={!title}
                 autoFocus
               />
@@ -468,6 +469,7 @@ function ItemEditor({
                 value={fields.notes}
                 onChange={(event) => setField("notes", event.target.value)}
                 disabled={demo || loadingEvent}
+                aria-label={kind === "event" ? "Description" : "Notes"}
                 rows={4}
               />
             </Field>
@@ -486,6 +488,7 @@ function ItemEditor({
                       value={fields.dueDate}
                       onChange={(event) => setField("dueDate", event.target.value)}
                       disabled={demo || loadingEvent}
+                      aria-label="Deadline"
                     />
                     {fields.dueDate ? (
                       <Button
@@ -510,6 +513,7 @@ function ItemEditor({
                         value={fields.dueTime}
                         onChange={(event) => setField("dueTime", event.target.value)}
                         disabled={demo || !fields.dueDate}
+                        aria-label="Time"
                       />
                     </Field>
                     <Field label="Priority" orientation="vertical">
@@ -518,7 +522,7 @@ function ItemEditor({
                         onValueChange={(value) => setField("priority", value)}
                         disabled={demo || loadingEvent}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger aria-label="Priority">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -554,6 +558,7 @@ function ItemEditor({
                     value={fields.start}
                     onChange={(event) => setField("start", event.target.value)}
                     disabled={demo || loadingEvent}
+                    aria-label={fields.allDay ? "Start date" : "Start"}
                     aria-invalid={!fields.start}
                   />
                 </Field>
@@ -569,6 +574,7 @@ function ItemEditor({
                     min={fields.start || undefined}
                     onChange={(event) => setField("end", event.target.value)}
                     disabled={demo || loadingEvent}
+                    aria-label={fields.allDay ? "End date" : "End"}
                     aria-invalid={!eventTimesValid}
                   />
                 </Field>
@@ -577,6 +583,7 @@ function ItemEditor({
                     value={fields.location}
                     onChange={(event) => setField("location", event.target.value)}
                     disabled={demo || loadingEvent}
+                    aria-label="Location"
                   />
                 </Field>
               </>
