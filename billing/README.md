@@ -39,7 +39,7 @@ npx wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups 
 
 ## Configuration required before launch
 
-Copy `wrangler.example.jsonc` to `wrangler.jsonc` (git-ignored) in the intended deploy checkout and replace every placeholder. Do not use the example as a live configuration. These are public, server-side Worker variables:
+Copy `wrangler.example.jsonc` to `wrangler.jsonc` (git-ignored) in the intended deploy checkout and replace every placeholder. Do not use the example as a live configuration. The example enables Workers tracing at 5% head sampling (`observability.traces.head_sampling_rate: 0.05`); per Cloudflare's span attribute list, traces record full request and subrequest URLs (checkout order IDs, Stripe object IDs) and D1 SQL text (placeholders only, since every query uses bound parameters), but not `Authorization` headers or request/response bodies, so Stripe keys and license keys stay out of traces. These are public, server-side Worker variables:
 
 | Variable           | Meaning                                                                   |
 | ------------------ | ------------------------------------------------------------------------- |
