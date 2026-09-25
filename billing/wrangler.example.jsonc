@@ -4,6 +4,12 @@
   "main": "dist/worker.js",
   "compatibility_date": "2026-09-22",
   "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05,
+    },
+  },
   "routes": [{ "pattern": "REPLACE_WITH_BILLING_DOMAIN/*", "zone_name": "REPLACE_WITH_ZONE" }],
   "d1_databases": [
     {
