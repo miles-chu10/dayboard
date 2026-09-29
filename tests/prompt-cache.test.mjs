@@ -32,14 +32,6 @@ async function load(file, { fixtures = false, exposeCli = false, mcpDiscovery = 
     {
       name: "cache-fixtures",
       setup(api) {
-        api.onResolve({ filter: /^\.\/sources$/ }, () => ({
-          path: "sources",
-          namespace: "fixture",
-        }));
-        api.onLoad({ filter: /^sources$/, namespace: "fixture" }, () => ({
-          contents: `export const SOURCE_META={tasks:{label:'Google Tasks'},reminders:{label:'Apple Reminders'},mail:{label:'Gmail'},calendar:{label:'Calendar'}};`,
-          loader: "js",
-        }));
         api.onResolve({ filter: /^@glaze\/core\/ai$/ }, () => ({
           path: "ai",
           namespace: "fixture",
