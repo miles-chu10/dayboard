@@ -1251,14 +1251,16 @@ const providerStreams = {
 async function withProviderFetch(operation, respond) {
   const original = globalThis.fetch;
   const requests = [];
+  const urls = [];
   globalThis.fetch = async (url, options) => {
+    urls.push(String(url));
     // Model listings are GETs; every generation request is a POST.
     if (options?.method !== "POST") return globalThis.Response.json({ data: [], models: [] });
     requests.push({ url: String(url), body: JSON.parse(options.body) });
     return respond(requests.length - 1, String(url), requests.at(-1).body);
   };
   try {
-    return { value: await operation(), requests };
+    return { value: await operation(), requests, urls };
   } finally {
     globalThis.fetch = original;
   }
@@ -2049,4 +2051,42 @@ test("one-shot totals are unknown when a step reported no usage", async () => {
     ),
   );
   assert.deepEqual(counts(run.value.usage), unknownCounts);
+});
+test("direct Anthropic route ignores an inherited ANTHROPIC_BASE_URL", async () => {
+  const answer = () =>
+    providerStreams.anthropic("claude-fixture", {
+      start: { input_tokens: 1, output_tokens: 1 },
+      delta: { output_tokens: 1 },
+    });
+  const official = (run) => {
+    assert.equal(run.value.text, "Fixture answer");
+    assert.equal(run.requests[0].url, "https://api.anthropic.com/v1/messages");
+    // The model listing carries the API key too, so it must stay on the official host as well.
+    assert.ok(
+      run.urls.every((url) => url.startsWith("https://api.anthropic.com/")),
+      `requests went to ${run.urls.join(", ")}`,
+    );
+  };
+  const inherited = process.env.ANTHROPIC_BASE_URL;
+  process.env.ANTHROPIC_BASE_URL = "https://gateway.invalid/v1";
+  try {
+    official(await assistantRun("anthropic", "claude-fixture", answer));
+    fixture("claude-fixture", [], "anthropic");
+    const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+    handlers.registerAIHandlers();
+    official(
+      await withProviderFetch(
+        () =>
+          globalThis.__cacheFixture.handlers["ai:run"](
+            { system: "policy", prompt: "question" },
+            () => {},
+            { signal: new globalThis.AbortController().signal },
+          ),
+        answer,
+      ),
+    );
+  } finally {
+    if (inherited === undefined) delete process.env.ANTHROPIC_BASE_URL;
+    else process.env.ANTHROPIC_BASE_URL = inherited;
+  }
 });
