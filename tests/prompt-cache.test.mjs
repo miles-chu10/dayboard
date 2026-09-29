@@ -10,12 +10,12 @@ const temporary = await mkdtemp(path.join(tmpdir(), "dayboard-cache-fixtures-"))
 after(() => rm(temporary, { recursive: true, force: true }));
 const root = fileURLToPath(new URL("../", import.meta.url));
 const stubs = {
-  "api-keys.js": `export const API_PROVIDERS = ['openai','anthropic','xai']; export const isApiProvider = p => API_PROVIDERS.includes(p); export const getApiKey = async () => 'synthetic-key'; export const clearApiKey = async()=>{}; export const saveApiKey=async()=>{}; export const getApiKeyStatuses=async()=>({});`,
+  "api-keys.js": `export const API_PROVIDERS = ['openai','anthropic','google','xai']; export const isApiProvider = p => API_PROVIDERS.includes(p); export const getApiKey = async () => 'synthetic-key'; export const clearApiKey = async()=>{}; export const saveApiKey=async()=>{}; export const getApiKeyStatuses=async()=>({});`,
   "settings-store.js": `export const getSettings=async()=>globalThis.__cacheFixture.settings; export const getMcpServers=async()=>[]; export const deleteMcpServer=()=>{}; export const normalizeMcpServer=x=>x; export const saveMcpServer=()=>{}; export const saveSettings=()=>{}; export const settingsAffectData=()=>false;`,
   "demo-data.js": `export const isDemoMode=()=>false; export const assertNotDemo=()=>{}; export const demoAssistantReply=()=>''; export const demoCompletion=()=>'';`,
   "attachments.js": `export const attachmentContext=async()=>''; export const pickAttachments=async()=>[];`,
   "codex-models.js": `export const listCodexModels=async()=>[];`,
-  "cli-providers.js": `export const runCliCompletion=async()=>{throw Error('CLI must not run')}; export const checkCliProvider=()=>{}; export const isCancelled=()=>false; export const listGeminiModels=()=>[]; export const resolveCli=async()=>null;`,
+  "cli-providers.js": `export const runCliCompletion=async(options)=>{const run=globalThis.__cacheFixture.cli; if(!run) throw Error('CLI must not run'); return run(options)}; export const checkCliProvider=()=>{}; export const isCancelled=()=>false; export const listGeminiModels=()=>[]; export const resolveCli=async()=>null;`,
   "assistant-mcp.js": `export const resolveAssistantMcpServers=()=>globalThis.__cacheFixture.tools.length ? [{}] : [];`,
   "mcp-client.js": `export const testMcpServer=async()=>({}); export const openMcpSession=async()=>({tools:globalThis.__cacheFixture.tools,errors:[],close:async()=>{globalThis.__cacheFixture.closed++}});`,
   "provider-resolution.js": `export const resolveConfiguredProvider=async p=>p;`,
@@ -25,11 +25,39 @@ const stubs = {
 };
 const backend = `export const app={getPath:()=>'/nonexistent-fixture'}; export const logger={error:()=>{},warn:()=>{}}; export const clipboard={}; export const ipcMain={handle:()=>{},broadcast:()=>{},handleStream:(name,handler)=>{globalThis.__cacheFixture.handlers[name]=handler}};`;
 let sequence = 0;
-async function load(file, { fixtures = false, exposeCli = false, mcpDiscovery = false } = {}) {
+async function load(
+  file,
+  { fixtures = false, exposeCli = false, mcpDiscovery = false, aggregateUsage = false } = {},
+) {
   const plugins = [
     {
       name: "cache-fixtures",
       setup(api) {
+        if (aggregateUsage) {
+          // AI SDK 7 hosts expose `result.usage` as the all-steps aggregate, which has no `raw`.
+          api.onResolve({ filter: /^ai$/ }, (args) =>
+            args.namespace === "aggregate-usage"
+              ? undefined
+              : { path: "ai", namespace: "aggregate-usage" },
+          );
+          api.onLoad({ filter: /.*/, namespace: "aggregate-usage" }, () => ({
+            contents: `
+              import { streamText as real } from "ai";
+              export * from "ai";
+              export const streamText = (options) => {
+                const result = real(options);
+                return new Proxy(result, {
+                  get(target, key) {
+                    if (key === "usage") return target.totalUsage;
+                    const value = Reflect.get(target, key, target);
+                    return typeof value === "function" ? value.bind(target) : value;
+                  },
+                });
+              };`,
+            loader: "js",
+            resolveDir: root,
+          }));
+        }
         api.onResolve({ filter: /^\.\/sources$/ }, () => ({
           path: "sources",
           namespace: "fixture",
@@ -94,7 +122,7 @@ async function load(file, { fixtures = false, exposeCli = false, mcpDiscovery = 
         }
         if (exposeCli) {
           api.onLoad({ filter: /cli-providers\.ts$/ }, async (args) => ({
-            contents: `${await readFile(args.path, "utf8")}\nexport {handleCodexLine, createState};`,
+            contents: `${await readFile(args.path, "utf8")}\nexport {handleCodexLine, handleClaudeLine, handleGeminiLine, createState};`,
             loader: "ts",
             resolveDir: root + "main/services/ai",
           }));
@@ -254,7 +282,12 @@ test("nullable usage preserves zero and raw omission and costs require all compo
       {
         inputTokens: 100,
         inputTokenDetails: { cacheReadTokens: 40, cacheWriteTokens: 10 },
-        raw: { input_tokens: 50, cache_read_input_tokens: 40 },
+        raw: {
+          input_tokens: 50,
+          cache_read_input_tokens: 40,
+          cache_creation_input_tokens: 10,
+          output_tokens: 5,
+        },
       },
       "anthropic",
     ).cacheReadTokens,
@@ -281,20 +314,338 @@ test("nullable usage preserves zero and raw omission and costs require all compo
     ),
     null,
   );
-  const total = usage.tokenUsage({ inputTokens: 150, outputTokens: 8 });
-  const steps = [
-    usage.tokenUsage({ inputTokens: 100, cacheReadTokens: 40, cacheWriteTokens: 10 }),
-    usage.tokenUsage({ inputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 }),
-  ];
-  assert.deepEqual(usage.withCacheTotals(total, steps), {
-    ...total,
+});
+const unknownCounts = {
+  inputTokens: null,
+  outputTokens: null,
+  cacheReadTokens: null,
+  cacheWriteTokens: null,
+  totalTokens: null,
+};
+const counts = (record) => ({
+  inputTokens: record.inputTokens,
+  outputTokens: record.outputTokens,
+  cacheReadTokens: record.cacheReadTokens,
+  cacheWriteTokens: record.cacheWriteTokens,
+  totalTokens: record.totalTokens,
+});
+test("Gemini counters come from usageMetadata: a sent zero is kept, absent or null is unknown", () => {
+  // The SDK fills every counter Gemini omitted with 0 (promptTokenCount ?? 0, and so on).
+  const sdk = (input, output, cached = 0, thoughts = 0) => ({
+    inputTokens: input,
+    outputTokens: output + thoughts,
+    inputTokenDetails: { noCacheTokens: input - cached, cacheReadTokens: cached },
+  });
+  const derive = (view, raw) => counts(usage.tokenUsage({ ...view, raw }, "google"));
+  assert.deepEqual(
+    derive(sdk(100, 5, 40, 7), {
+      promptTokenCount: 100,
+      candidatesTokenCount: 5,
+      cachedContentTokenCount: 40,
+      thoughtsTokenCount: 7,
+    }),
+    {
+      inputTokens: 100,
+      outputTokens: 12,
+      cacheReadTokens: 40,
+      cacheWriteTokens: null,
+      totalTokens: 112,
+    },
+  );
+  assert.equal(
+    derive(sdk(100, 5), {
+      promptTokenCount: 100,
+      candidatesTokenCount: 5,
+      cachedContentTokenCount: 0,
+    }).cacheReadTokens,
+    0,
+  );
+  // Absent: the reproduction from review, where the SDK reports a cache read of 0.
+  assert.deepEqual(derive(sdk(100, 5), { promptTokenCount: 100, candidatesTokenCount: 5 }), {
+    inputTokens: 100,
+    outputTokens: 5,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    totalTokens: 105,
+  });
+  assert.deepEqual(derive(sdk(0, 0), {}), unknownCounts);
+  assert.equal(derive(sdk(100, 0), { promptTokenCount: 100 }).outputTokens, null);
+  assert.equal(derive(sdk(0, 5), { candidatesTokenCount: 5 }).inputTokens, null);
+  assert.deepEqual(
+    derive(sdk(0, 0), {
+      promptTokenCount: null,
+      candidatesTokenCount: null,
+      cachedContentTokenCount: null,
+      thoughtsTokenCount: null,
+    }),
+    unknownCounts,
+  );
+});
+test("Anthropic counters come from usage: input needs all three parts and omitted cache fields stay unknown", () => {
+  // The SDK reports 0 for omitted cache counters and totals what remains.
+  const sdk = (raw) => {
+    const create = raw.cache_creation_input_tokens ?? 0;
+    const read = raw.cache_read_input_tokens ?? 0;
+    return {
+      inputTokens: raw.input_tokens + create + read,
+      outputTokens: raw.output_tokens,
+      inputTokenDetails: {
+        noCacheTokens: raw.input_tokens,
+        cacheReadTokens: read,
+        cacheWriteTokens: create,
+      },
+    };
+  };
+  const derive = (raw) => counts(usage.tokenUsage({ ...sdk(raw), raw }, "anthropic"));
+  assert.deepEqual(
+    derive({
+      input_tokens: 50,
+      cache_read_input_tokens: 40,
+      cache_creation_input_tokens: 10,
+      output_tokens: 5,
+    }),
+    {
+      inputTokens: 100,
+      outputTokens: 5,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10,
+      totalTokens: 105,
+    },
+  );
+  assert.deepEqual(
+    derive({
+      input_tokens: 50,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      output_tokens: 5,
+    }),
+    { inputTokens: 50, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 55 },
+  );
+  const withoutCache = {
+    inputTokens: null,
+    outputTokens: 5,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    totalTokens: null,
+  };
+  assert.deepEqual(derive({ input_tokens: 50, output_tokens: 5 }), withoutCache);
+  assert.deepEqual(
+    derive({
+      input_tokens: 50,
+      output_tokens: 5,
+      cache_read_input_tokens: null,
+      cache_creation_input_tokens: null,
+    }),
+    withoutCache,
+  );
+  assert.deepEqual(derive({ input_tokens: 50, cache_read_input_tokens: 40, output_tokens: 5 }), {
+    ...withoutCache,
     cacheReadTokens: 40,
-    cacheWriteTokens: 10,
+  });
+  assert.deepEqual(derive({ output_tokens: 5 }), withoutCache);
+});
+test("OpenAI Responses counters come from input_tokens_details: a sent zero is kept, absent or null is unknown", () => {
+  const sdk = (raw) => ({
+    inputTokens: raw.input_tokens,
+    outputTokens: raw.output_tokens,
+    inputTokenDetails: {
+      cacheReadTokens: raw.input_tokens_details?.cached_tokens ?? 0,
+      cacheWriteTokens: raw.input_tokens_details?.cache_write_tokens,
+    },
+  });
+  const derive = (raw) => counts(usage.tokenUsage({ ...sdk(raw), raw }, "openai"));
+  assert.deepEqual(
+    derive({
+      input_tokens: 100,
+      output_tokens: 4,
+      input_tokens_details: { cached_tokens: 40, cache_write_tokens: 10 },
+    }),
+    {
+      inputTokens: 100,
+      outputTokens: 4,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10,
+      totalTokens: 104,
+    },
+  );
+  assert.deepEqual(
+    derive({ input_tokens: 100, output_tokens: 4, input_tokens_details: { cached_tokens: 0 } }),
+    {
+      inputTokens: 100,
+      outputTokens: 4,
+      cacheReadTokens: 0,
+      cacheWriteTokens: null,
+      totalTokens: 104,
+    },
+  );
+  const withoutCache = {
+    inputTokens: 100,
+    outputTokens: 4,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    totalTokens: 104,
+  };
+  assert.deepEqual(derive({ input_tokens: 100, output_tokens: 4 }), withoutCache);
+  assert.deepEqual(
+    derive({ input_tokens: 100, output_tokens: 4, input_tokens_details: {} }),
+    withoutCache,
+  );
+  assert.deepEqual(
+    derive({
+      input_tokens: 100,
+      output_tokens: 4,
+      input_tokens_details: { cached_tokens: null, cache_write_tokens: null },
+    }),
+    withoutCache,
+  );
+  assert.deepEqual(derive({}), unknownCounts);
+});
+test("OpenAI-compatible chat counters come from prompt_tokens_details, even when prompt_tokens is missing", () => {
+  // The SDK reports 0 for prompt_tokens, completion_tokens and cached_tokens when omitted.
+  const sdk = (raw) => ({
+    inputTokens: raw.prompt_tokens ?? 0,
+    outputTokens: raw.completion_tokens ?? 0,
+    inputTokenDetails: {
+      cacheReadTokens: raw.prompt_tokens_details?.cached_tokens ?? 0,
+      cacheWriteTokens: raw.prompt_tokens_details?.cache_write_tokens,
+    },
+  });
+  for (const provider of ["xai", "mistral", "deepseek", "groq", "openrouter"]) {
+    const derive = (raw) => counts(usage.tokenUsage({ ...sdk(raw), raw }, provider));
+    assert.deepEqual(
+      derive({
+        prompt_tokens: 100,
+        completion_tokens: 4,
+        prompt_tokens_details: { cached_tokens: 40, cache_write_tokens: 10 },
+      }),
+      {
+        inputTokens: 100,
+        outputTokens: 4,
+        cacheReadTokens: 40,
+        cacheWriteTokens: 10,
+        totalTokens: 104,
+      },
+      provider,
+    );
+    assert.deepEqual(
+      derive({
+        prompt_tokens: 100,
+        completion_tokens: 4,
+        prompt_tokens_details: { cached_tokens: 0 },
+      }),
+      {
+        inputTokens: 100,
+        outputTokens: 4,
+        cacheReadTokens: 0,
+        cacheWriteTokens: null,
+        totalTokens: 104,
+      },
+      provider,
+    );
+    // Absent, including raw usage with no prompt_tokens at all.
+    assert.deepEqual(
+      derive({ completion_tokens: 4 }),
+      { ...unknownCounts, outputTokens: 4 },
+      provider,
+    );
+    assert.deepEqual(
+      derive({ prompt_tokens: 100 }),
+      { ...unknownCounts, inputTokens: 100 },
+      provider,
+    );
+    assert.deepEqual(
+      derive({
+        prompt_tokens: 100,
+        completion_tokens: null,
+        prompt_tokens_details: { cached_tokens: null, cache_write_tokens: null },
+      }),
+      { ...unknownCounts, inputTokens: 100 },
+      provider,
+    );
+  }
+  // Without raw usage there is nothing to derive from, so the given counters are used as before.
+  assert.equal(
+    usage.tokenUsage({ inputTokens: 5, inputTokenDetails: { cacheReadTokens: 1 } }, "google")
+      .cacheReadTokens,
+    1,
+  );
+  assert.equal(
+    usage.tokenUsage({ inputTokens: 5, cacheReadTokens: 1, raw: { promptTokenCount: 5 } })
+      .cacheReadTokens,
+    1,
+  );
+});
+test("Claude-format usage totals input only from all three counters and reports the known part", () => {
+  assert.deepEqual(
+    usage.claudeFormatUsage({
+      input_tokens: 100,
+      cache_read_input_tokens: 50,
+      cache_creation_input_tokens: 10,
+      output_tokens: 5,
+    }),
+    {
+      inputTokens: 160,
+      outputTokens: 5,
+      cacheReadTokens: 50,
+      cacheWriteTokens: 10,
+      knownInputTokens: 160,
+    },
+  );
+  assert.deepEqual(usage.claudeFormatUsage({ input_tokens: 100, output_tokens: 5 }), {
+    inputTokens: null,
+    outputTokens: 5,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    knownInputTokens: 100,
   });
   assert.equal(
-    usage.withCacheTotals(total, [...steps, usage.tokenUsage({})]).cacheReadTokens,
+    usage.claudeFormatUsage({ input_tokens: 100, cache_read_input_tokens: 50 }).knownInputTokens,
+    150,
+  );
+  assert.equal(usage.claudeFormatUsage({ output_tokens: 5 }).knownInputTokens, null);
+  assert.equal(
+    usage.claudeFormatUsage({
+      input_tokens: "100",
+      cache_read_input_tokens: null,
+      cache_creation_input_tokens: -1,
+    }).knownInputTokens,
     null,
   );
+});
+test("step totals count a counter only when every step reported it", () => {
+  const step = (input, output, read, write) =>
+    usage.tokenUsage({
+      inputTokens: input,
+      outputTokens: output,
+      cacheReadTokens: read,
+      cacheWriteTokens: write,
+    });
+  const first = step(100, 4, 40, 10);
+  assert.deepEqual(usage.aggregateStepUsage([first, step(100, 4, 0, 0)]), {
+    inputTokens: 200,
+    outputTokens: 8,
+    cacheReadTokens: 40,
+    cacheWriteTokens: 10,
+    totalTokens: 208,
+  });
+  assert.deepEqual(usage.aggregateStepUsage([first]), first);
+  // A step missing one counter makes that total unknown; the other totals survive.
+  assert.deepEqual(usage.aggregateStepUsage([first, step(100, null, 0, 0)]), {
+    inputTokens: 200,
+    outputTokens: null,
+    cacheReadTokens: 40,
+    cacheWriteTokens: 10,
+    totalTokens: null,
+  });
+  assert.deepEqual(usage.aggregateStepUsage([first, step(null, 4, null, null)]), {
+    inputTokens: null,
+    outputTokens: 8,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    totalTokens: null,
+  });
+  assert.deepEqual(usage.aggregateStepUsage([first, usage.tokenUsage({})]), unknownCounts);
+  assert.deepEqual(usage.aggregateStepUsage([]), unknownCounts);
 });
 test("tool order, nested schema order and collision assignment ignore randomized discovery", async () => {
   const handles = ["A B", "A_B", "A B"].map((server, index) => ({
@@ -328,15 +679,15 @@ test("tool order, nested schema order and collision assignment ignore randomized
   assert.equal(new Set(expected.map((tool) => tool.qualifiedName)).size, 3);
 });
 
-function fixture(model = "gpt-6-sol", handles = []) {
+function fixture(model = "gpt-6-sol", handles = [], provider = "openai") {
   globalThis.__cacheFixture = {
     settings: {
       ai: {
         enabled: true,
         providerChosen: true,
-        provider: "openai",
-        assistantProvider: "openai",
-        apiModels: { openai: model },
+        provider,
+        assistantProvider: provider,
+        apiModels: { [provider]: model },
         useMcpInAssistant: handles.length > 0,
       },
     },
@@ -659,4 +1010,484 @@ test("parallel MCP connections finalize stable names and schemas before exposing
     await session.close();
     assert.equal(globalThis.__cacheDiscoveryClosed, 2);
   }
+});
+
+const sseResponse = (list) =>
+  new globalThis.Response(
+    list
+      .map(
+        ({ event, data }) =>
+          `${event ? `event: ${event}\n` : ""}data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`,
+      )
+      .join(""),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+const providerStreams = {
+  anthropic(model, { start, delta }) {
+    return sseResponse([
+      {
+        event: "message_start",
+        data: {
+          type: "message_start",
+          message: {
+            id: "msg_fixture",
+            type: "message",
+            role: "assistant",
+            model,
+            content: [],
+            stop_reason: null,
+            stop_sequence: null,
+            usage: start,
+          },
+        },
+      },
+      {
+        event: "content_block_start",
+        data: {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "text", text: "" },
+        },
+      },
+      {
+        event: "content_block_delta",
+        data: {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: "Fixture answer" },
+        },
+      },
+      { event: "content_block_stop", data: { type: "content_block_stop", index: 0 } },
+      {
+        event: "message_delta",
+        data: {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: delta,
+        },
+      },
+      { event: "message_stop", data: { type: "message_stop" } },
+    ]);
+  },
+  google(model, usageMetadata) {
+    return sseResponse([
+      {
+        data: {
+          candidates: [
+            {
+              content: { role: "model", parts: [{ text: "Fixture answer" }] },
+              finishReason: "STOP",
+              index: 0,
+            },
+          ],
+          usageMetadata,
+          modelVersion: model,
+        },
+      },
+    ]);
+  },
+  chat(model, usageRecord, toolName) {
+    const chunk = (delta, finish = null) => ({
+      id: "chatcmpl-fixture",
+      object: "chat.completion.chunk",
+      created: 1,
+      model,
+      choices: [{ index: 0, delta, finish_reason: finish }],
+    });
+    const parts = toolName
+      ? [
+          chunk({
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_fixture",
+                type: "function",
+                function: { name: toolName, arguments: "{}" },
+              },
+            ],
+          }),
+          chunk({}, "tool_calls"),
+        ]
+      : [chunk({ role: "assistant", content: "Fixture answer" }), chunk({}, "stop")];
+    return sseResponse([
+      ...parts.map((data) => ({ data })),
+      {
+        data: {
+          id: "chatcmpl-fixture",
+          object: "chat.completion.chunk",
+          created: 1,
+          model,
+          choices: [],
+          usage: usageRecord,
+        },
+      },
+      { data: "[DONE]" },
+    ]);
+  },
+};
+async function withProviderFetch(operation, respond) {
+  const original = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    // Model listings are GETs; every generation request is a POST.
+    if (options?.method !== "POST") return globalThis.Response.json({ data: [], models: [] });
+    requests.push({ url: String(url), body: JSON.parse(options.body) });
+    return respond(requests.length - 1, String(url), requests.at(-1).body);
+  };
+  try {
+    return { value: await operation(), requests };
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+async function assistantRun(provider, model, respond, { handles = [], content = "hello" } = {}) {
+  fixture(model, handles, provider);
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const chunks = [];
+  const run = await withProviderFetch(
+    () =>
+      assistant.runAssistant(
+        { system: "stable policy", messages: [{ role: "user", content }] },
+        (chunk) => chunks.push(chunk),
+        new globalThis.AbortController().signal,
+      ),
+    respond,
+  );
+  return { ...run, chunks };
+}
+test("Gemini requests record only the counters Gemini sent", async () => {
+  const full = { cacheWriteTokens: null, inputTokens: 100, outputTokens: 5, totalTokens: 105 };
+  const cases = [
+    [
+      "sent",
+      { promptTokenCount: 100, candidatesTokenCount: 5, cachedContentTokenCount: 40 },
+      { ...full, cacheReadTokens: 40 },
+    ],
+    [
+      "zero",
+      { promptTokenCount: 100, candidatesTokenCount: 5, cachedContentTokenCount: 0 },
+      { ...full, cacheReadTokens: 0 },
+    ],
+    [
+      "absent",
+      { promptTokenCount: 100, candidatesTokenCount: 5 },
+      { ...full, cacheReadTokens: null },
+    ],
+    [
+      "null",
+      { promptTokenCount: 100, candidatesTokenCount: null, cachedContentTokenCount: null },
+      { ...full, outputTokens: null, cacheReadTokens: null, totalTokens: null },
+    ],
+  ];
+  for (const [label, metadata, expected] of cases) {
+    const run = await assistantRun("google", "gemini-fixture", () =>
+      providerStreams.google("gemini-fixture", metadata),
+    );
+    assert.deepEqual(counts(run.value.usage), expected, label);
+    assert.equal(run.value.usage.route, "google", label);
+    assert.equal(run.requests.length, 1, label);
+  }
+});
+test("Anthropic requests record only the counters Anthropic sent", async () => {
+  const cases = [
+    [
+      "sent",
+      { input_tokens: 50, cache_read_input_tokens: 40, cache_creation_input_tokens: 10 },
+      { inputTokens: 100, cacheReadTokens: 40, cacheWriteTokens: 10, totalTokens: 105 },
+    ],
+    [
+      "zero",
+      { input_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      { inputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 55 },
+    ],
+    [
+      "absent",
+      { input_tokens: 50 },
+      { inputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, totalTokens: null },
+    ],
+    [
+      "null",
+      { input_tokens: 50, cache_read_input_tokens: null, cache_creation_input_tokens: null },
+      { inputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, totalTokens: null },
+    ],
+  ];
+  for (const [label, start, expected] of cases) {
+    const run = await assistantRun("anthropic", "claude-fixture", () =>
+      providerStreams.anthropic("claude-fixture", {
+        start: { ...start, output_tokens: 1 },
+        delta: { output_tokens: 5 },
+      }),
+    );
+    assert.deepEqual(counts(run.value.usage), { outputTokens: 5, ...expected }, label);
+    assert.equal(run.value.usage.route, "anthropic", label);
+  }
+});
+test("OpenAI-compatible chat requests record only the counters the provider sent", async () => {
+  const cases = [
+    [
+      "sent",
+      {
+        prompt_tokens: 100,
+        completion_tokens: 4,
+        prompt_tokens_details: { cached_tokens: 40, cache_write_tokens: 10 },
+      },
+      {
+        inputTokens: 100,
+        outputTokens: 4,
+        cacheReadTokens: 40,
+        cacheWriteTokens: 10,
+        totalTokens: 104,
+      },
+    ],
+    [
+      "zero",
+      {
+        prompt_tokens: 100,
+        completion_tokens: 4,
+        prompt_tokens_details: { cached_tokens: 0 },
+      },
+      {
+        inputTokens: 100,
+        outputTokens: 4,
+        cacheReadTokens: 0,
+        cacheWriteTokens: null,
+        totalTokens: 104,
+      },
+    ],
+    [
+      "absent",
+      { completion_tokens: 4 },
+      {
+        inputTokens: null,
+        outputTokens: 4,
+        cacheReadTokens: null,
+        cacheWriteTokens: null,
+        totalTokens: null,
+      },
+    ],
+    [
+      "null",
+      {
+        prompt_tokens: 100,
+        completion_tokens: null,
+        prompt_tokens_details: { cached_tokens: null, cache_write_tokens: null },
+      },
+      {
+        inputTokens: 100,
+        outputTokens: null,
+        cacheReadTokens: null,
+        cacheWriteTokens: null,
+        totalTokens: null,
+      },
+    ],
+  ];
+  for (const [label, sent, expected] of cases) {
+    const run = await assistantRun("xai", "grok-fixture", () =>
+      providerStreams.chat("grok-fixture", sent),
+    );
+    assert.deepEqual(counts(run.value.usage), expected, label);
+    assert.equal(run.value.usage.route, "xai", label);
+  }
+});
+test("Assistant tool steps total a counter only when every step reported it", async () => {
+  const handles = [
+    {
+      server: "fixture",
+      tool: "lookup",
+      qualifiedName: "lookup",
+      description: "fixture lookup",
+      inputSchema: { type: "object", properties: {} },
+      call: async () => "synthetic result",
+    },
+  ];
+  const details = { cached_tokens: 40, cache_write_tokens: 10 };
+  const stepUsage = [
+    { prompt_tokens: 100, completion_tokens: 4, prompt_tokens_details: details },
+    // The second step never reports its completion tokens.
+    { prompt_tokens: 100, prompt_tokens_details: details },
+  ];
+  const run = await assistantRun(
+    "xai",
+    "grok-fixture",
+    (index) =>
+      providerStreams.chat("grok-fixture", stepUsage[index], index === 0 ? "lookup" : undefined),
+    { handles, content: "Use lookup" },
+  );
+  assert.equal(run.requests.length, 2);
+  assert.deepEqual(counts(run.value.usage), {
+    inputTokens: 200,
+    outputTokens: null,
+    cacheReadTokens: 80,
+    cacheWriteTokens: 20,
+    totalTokens: null,
+  });
+  assert.equal(run.chunks.filter((chunk) => chunk.type === "usage").length, 1);
+  assert.equal(globalThis.__cacheFixture.closed, 1);
+});
+test("one-shot usage comes from each step's raw usage even when the SDK aggregate has none", async () => {
+  fixture();
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true, aggregateUsage: true });
+  handlers.registerAIHandlers();
+  const run = (counters) =>
+    withFetch(
+      () =>
+        globalThis.__cacheFixture.handlers["ai:run"](
+          { system: "policy", prompt: "question" },
+          () => {},
+          { signal: new globalThis.AbortController().signal },
+        ),
+      { counters },
+    );
+  const sent = await run({ cached_tokens: 40, cache_write_tokens: 10 });
+  assert.deepEqual(counts(sent.value.usage), {
+    inputTokens: 100,
+    outputTokens: 4,
+    cacheReadTokens: 40,
+    cacheWriteTokens: 10,
+    totalTokens: 104,
+  });
+  const omitted = await run({});
+  assert.deepEqual(counts(omitted.value.usage), {
+    inputTokens: 100,
+    outputTokens: 4,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    totalTokens: 104,
+  });
+  assert.equal(omitted.value.usage.modelId, "gpt-6-sol");
+  assert.equal(omitted.value.usage.requestedModelId, "gpt-6-sol");
+});
+function cliFixture(provider, ai, run) {
+  fixture("unused", [], provider);
+  Object.assign(globalThis.__cacheFixture.settings.ai, ai);
+  globalThis.__cacheFixture.cli = run;
+}
+test("one-shot CLI usage records the configured model id and the model the CLI reported", async () => {
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  const run = async (provider, ai) => {
+    cliFixture(provider, ai, async (options) => {
+      options.onModel?.(`${provider}-resolved`);
+      options.onUsage?.({ inputTokens: 10, outputTokens: 2 });
+      return "ok";
+    });
+    handlers.registerAIHandlers();
+    const chunks = [];
+    const result = await globalThis.__cacheFixture.handlers["ai:run"](
+      { system: "policy", prompt: "question" },
+      (chunk) => chunks.push(chunk),
+      { signal: new globalThis.AbortController().signal },
+    );
+    assert.equal(
+      chunks.find((chunk) => chunk.type === "usage").usage.modelId,
+      `${provider}-resolved`,
+    );
+    return result.usage;
+  };
+  const gemini = await run("gemini", { geminiModel: "gemini-configured" });
+  assert.equal(gemini.requestedModelId, "gemini-configured");
+  assert.equal(gemini.modelId, "gemini-resolved");
+  assert.equal(
+    (await run("muse", { museModel: "muse-configured" })).requestedModelId,
+    "muse-configured",
+  );
+  assert.equal(
+    (await run("codex", { codexModel: "codex-configured" })).requestedModelId,
+    "codex-configured",
+  );
+  // Nothing configured means nothing was requested, so no model id is claimed.
+  assert.equal((await run("gemini", { geminiModel: "" })).requestedModelId, null);
+  assert.equal((await run("codex", { codexModel: "" })).requestedModelId, null);
+});
+test("Claude-format CLI usage keeps a null input total but reports the known input for display", async () => {
+  const cli = await load("main/services/ai/cli-providers.ts", { exposeCli: true });
+  const records = [];
+  const options = {
+    onUsage: (record) => records.push(record),
+    onDelta: () => {},
+    onTool: () => {},
+  };
+  const claude = (usageRecord) =>
+    cli.handleClaudeLine(
+      JSON.stringify({ type: "result", usage: usageRecord, result: "ok" }),
+      cli.createState(),
+      options,
+    );
+  claude({ input_tokens: 100, output_tokens: 5 });
+  claude({ input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 5 });
+  claude({
+    input_tokens: 100,
+    cache_read_input_tokens: 50,
+    cache_creation_input_tokens: 10,
+    output_tokens: 5,
+  });
+  claude({ output_tokens: 5 });
+  // Antigravity prints the same result event and shares the parser.
+  cli.handleGeminiLine(
+    JSON.stringify({ type: "result", usage: { input_tokens: 70, output_tokens: 5 } }),
+    cli.createState(),
+    options,
+  );
+  assert.deepEqual(
+    records.map((record) => record.inputTokens),
+    [null, null, 160, null, null],
+  );
+  assert.deepEqual(
+    records.map((record) => record.displayInputTokens),
+    [100, 150, 160, undefined, 70],
+  );
+  assert.deepEqual(
+    records.map((record) => record.cacheReadTokens),
+    [null, 50, 50, null, null],
+  );
+  assert.deepEqual(
+    records.map((record) => record.outputTokens),
+    [5, 5, 5, 5, 5],
+  );
+});
+test("legacy display tokens use the known input count while the measured record stays null", async () => {
+  const report = (options) => {
+    options.onUsage?.({ inputTokens: null, outputTokens: 5, displayInputTokens: 150 });
+    return "ok";
+  };
+  cliFixture("gemini", {}, async (options) => report(options));
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const chunks = [];
+  const reply = await assistant.runAssistant(
+    { system: "stable policy", messages: [{ role: "user", content: "hello" }] },
+    (chunk) => chunks.push(chunk),
+    new globalThis.AbortController().signal,
+  );
+  const assistantChunk = chunks.find((chunk) => chunk.type === "usage");
+  assert.equal(assistantChunk.inputTokens, 150);
+  assert.equal(assistantChunk.outputTokens, 5);
+  assert.equal(assistantChunk.usage.inputTokens, null);
+  assert.equal(reply.usage.inputTokens, null);
+  cliFixture("gemini", {}, async (options) => report(options));
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const oneShot = [];
+  const result = await globalThis.__cacheFixture.handlers["ai:run"](
+    { system: "policy", prompt: "question" },
+    (chunk) => oneShot.push(chunk),
+    { signal: new globalThis.AbortController().signal },
+  );
+  const oneShotChunk = oneShot.find((chunk) => chunk.type === "usage");
+  assert.equal(oneShotChunk.inputTokens, 150);
+  assert.equal(oneShotChunk.usage.inputTokens, null);
+  assert.equal(result.usage.inputTokens, null);
+  // With no known input at all the display stays 0 and the record stays null.
+  cliFixture("gemini", {}, async (options) => {
+    options.onUsage?.({ inputTokens: null, outputTokens: 5 });
+    return "ok";
+  });
+  handlers.registerAIHandlers();
+  const bare = [];
+  await globalThis.__cacheFixture.handlers["ai:run"](
+    { system: "policy", prompt: "question" },
+    (chunk) => bare.push(chunk),
+    { signal: new globalThis.AbortController().signal },
+  );
+  assert.equal(bare.find((chunk) => chunk.type === "usage").inputTokens, 0);
 });

@@ -18,6 +18,66 @@ export function knownTokenCount(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * Claude-format usage (Anthropic API, Claude Code, Antigravity). `input_tokens` excludes cache
+ * reads and writes, so the input total exists only when all three counters were sent.
+ * `knownInputTokens` is what the sent counters add up to, for display when the total is unknown.
+ */
+export function claudeFormatUsage(raw: Record<string, unknown>) {
+  const fresh = knownTokenCount(raw.input_tokens);
+  const read = knownTokenCount(raw.cache_read_input_tokens);
+  const write = knownTokenCount(raw.cache_creation_input_tokens);
+  const sent = [fresh, read, write].filter((count): count is number => count !== null);
+  return {
+    inputTokens: fresh !== null && read !== null && write !== null ? fresh + read + write : null,
+    outputTokens: knownTokenCount(raw.output_tokens),
+    cacheReadTokens: read,
+    cacheWriteTokens: write,
+    knownInputTokens: sent.length ? sent.reduce((total, count) => total + count, 0) : null,
+  };
+}
+
+const OPENAI_FORMAT = ["openai", "xai", "mistral", "deepseek", "groq", "openrouter"];
+
+/**
+ * The AI SDK reports 0 for a counter the provider left out (Gemini's promptTokenCount, Anthropic's
+ * cache fields, chat prompt_tokens), so these come from what the provider actually sent.
+ */
+function sentCounters(
+  provider: string,
+  raw: Record<string, unknown>,
+): Omit<TokenUsage, "totalTokens"> | null {
+  if (provider === "anthropic") {
+    const { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens } = claudeFormatUsage(raw);
+    return { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens };
+  }
+  if (provider === "google") {
+    const candidates = knownTokenCount(raw.candidatesTokenCount);
+    return {
+      inputTokens: knownTokenCount(raw.promptTokenCount),
+      // Gemini reports thinking tokens separately; they are billed as output.
+      outputTokens:
+        candidates === null ? null : candidates + (knownTokenCount(raw.thoughtsTokenCount) ?? 0),
+      cacheReadTokens: knownTokenCount(raw.cachedContentTokenCount),
+      cacheWriteTokens: null,
+    };
+  }
+  if (OPENAI_FORMAT.includes(provider)) {
+    const details = asRecord(raw.input_tokens_details ?? raw.prompt_tokens_details);
+    return {
+      inputTokens: knownTokenCount(raw.input_tokens ?? raw.prompt_tokens),
+      outputTokens: knownTokenCount(raw.output_tokens ?? raw.completion_tokens),
+      cacheReadTokens: knownTokenCount(details?.cached_tokens),
+      cacheWriteTokens: knownTokenCount(details?.cache_write_tokens),
+    };
+  }
+  return null;
+}
+
 export function tokenUsage(
   value: {
     inputTokens?: unknown;
@@ -30,29 +90,16 @@ export function tokenUsage(
   },
   provider?: string,
 ): TokenUsage {
-  const input = knownTokenCount(value.inputTokens);
-  const output = knownTokenCount(value.outputTokens);
-  const raw =
-    typeof value.raw === "object" && value.raw !== null
-      ? (value.raw as Record<string, unknown>)
-      : null;
-  const openaiRaw =
-    raw &&
-    ["openai", "xai", "mistral", "deepseek", "groq", "openrouter"].includes(provider ?? "") &&
-    ("input_tokens" in raw || "prompt_tokens" in raw);
-  const details = openaiRaw ? (raw.input_tokens_details ?? raw.prompt_tokens_details) : null;
-  const rawDetails =
-    typeof details === "object" && details !== null ? (details as Record<string, unknown>) : {};
-  let read = knownTokenCount(
-    openaiRaw
-      ? rawDetails.cached_tokens
-      : (value.inputTokenDetails?.cacheReadTokens ?? value.cacheReadTokens),
-  );
-  let write = knownTokenCount(
-    openaiRaw
-      ? rawDetails.cache_write_tokens
-      : (value.inputTokenDetails?.cacheWriteTokens ?? value.cacheWriteTokens),
-  );
+  const raw = asRecord(value.raw);
+  const sent = provider && raw ? sentCounters(provider, raw) : null;
+  const input = sent ? sent.inputTokens : knownTokenCount(value.inputTokens);
+  const output = sent ? sent.outputTokens : knownTokenCount(value.outputTokens);
+  let read = sent
+    ? sent.cacheReadTokens
+    : knownTokenCount(value.inputTokenDetails?.cacheReadTokens ?? value.cacheReadTokens);
+  let write = sent
+    ? sent.cacheWriteTokens
+    : knownTokenCount(value.inputTokenDetails?.cacheWriteTokens ?? value.cacheWriteTokens);
   if (input !== null) {
     if (read !== null && read > input) read = null;
     if (write !== null && write > input) write = null;
@@ -63,8 +110,9 @@ export function tokenUsage(
     outputTokens: output,
     cacheReadTokens: read,
     cacheWriteTokens: write,
+    // An SDK total adds a missing counter as 0, so a total derived from raw usage is recomputed.
     totalTokens:
-      knownTokenCount(value.totalTokens) ??
+      (sent ? null : knownTokenCount(value.totalTokens)) ??
       (input !== null && output !== null ? input + output : null),
   };
 }
@@ -113,15 +161,17 @@ export function inputCost(
   );
 }
 
-/** Unknown on any step stays unknown; finish totals already include all steps. */
-export function withCacheTotals(total: TokenUsage, steps: TokenUsage[]): TokenUsage {
-  const sum = (key: "cacheReadTokens" | "cacheWriteTokens") =>
+/** A total is known only when every step reported it; a missing step is never counted as 0. */
+export function aggregateStepUsage(steps: TokenUsage[]): TokenUsage {
+  const sum = (key: keyof TokenUsage) =>
     steps.length && steps.every((step) => step[key] !== null)
       ? steps.reduce((count, step) => count + (step[key] ?? 0), 0)
       : null;
-  return tokenUsage({
-    ...total,
+  return {
+    inputTokens: sum("inputTokens"),
+    outputTokens: sum("outputTokens"),
     cacheReadTokens: sum("cacheReadTokens"),
     cacheWriteTokens: sum("cacheWriteTokens"),
-  });
+    totalTokens: sum("totalTokens"),
+  };
 }

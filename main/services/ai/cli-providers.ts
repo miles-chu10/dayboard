@@ -1,4 +1,4 @@
-import { knownTokenCount, type TokenUsage } from "../../../shared/ai-usage.js";
+import { claudeFormatUsage, knownTokenCount, type TokenUsage } from "../../../shared/ai-usage.js";
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs/promises";
@@ -30,6 +30,11 @@ export interface ToolEvent {
   status: ToolCallStatus;
 }
 
+/** `displayInputTokens` is the input the CLI did report, for display when the total is unknown. */
+export interface CliUsage extends Partial<TokenUsage> {
+  displayInputTokens?: number;
+}
+
 export interface CliRunOptions {
   provider: CliProvider;
   system: string;
@@ -41,7 +46,7 @@ export interface CliRunOptions {
   onTool: (event: ToolEvent) => void;
   /** Exact model ID reported by the CLI at the start of a run. */
   onModel?: (id: string) => void;
-  onUsage?: (usage: Partial<TokenUsage>) => void;
+  onUsage?: (usage: CliUsage) => void;
   /** Codex model slug to pass explicitly instead of the saved setting. */
   codexModel?: string;
 }
@@ -419,22 +424,8 @@ function handleClaudeLine(line: string, state: ParseState, options: CliRunOption
     }
   } else if (event.type === "result") {
     if (isRecord(event.usage)) {
-      const usage = event.usage;
-      const count = (key: string) => knownTokenCount(usage[key]);
-      options.onUsage?.({
-        inputTokens: [
-          "input_tokens",
-          "cache_read_input_tokens",
-          "cache_creation_input_tokens",
-        ].every((key) => count(key) !== null)
-          ? (count("input_tokens") ?? 0) +
-            (count("cache_read_input_tokens") ?? 0) +
-            (count("cache_creation_input_tokens") ?? 0)
-          : null,
-        outputTokens: count("output_tokens"),
-        cacheReadTokens: knownTokenCount(usage.cache_read_input_tokens),
-        cacheWriteTokens: knownTokenCount(usage.cache_creation_input_tokens),
-      });
+      const { knownInputTokens, ...counts } = claudeFormatUsage(event.usage);
+      options.onUsage?.({ ...counts, displayInputTokens: knownInputTokens ?? undefined });
     }
     if (typeof event.result === "string") state.final = event.result;
     if (event.is_error)

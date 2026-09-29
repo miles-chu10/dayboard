@@ -1,4 +1,9 @@
-import { tokenUsage, type RequestUsage } from "../../shared/ai-usage.js";
+import {
+  aggregateStepUsage,
+  tokenUsage,
+  type RequestUsage,
+  type TokenUsage,
+} from "../../shared/ai-usage.js";
 import { apiPromptOptions } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "../platform/index.js";
 
@@ -22,6 +27,7 @@ import {
   runCliCompletion,
 } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
+import { describeModel } from "../services/ai/model-options.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
@@ -389,17 +395,29 @@ export function registerAIHandlers(): void {
             abortSignal: context.signal,
           });
           let text = "";
-          for await (const part of result.fullStream) {
+          const steps: TokenUsage[] = [];
+          let resolvedModelId: string | null = null;
+          for await (const rawPart of result.fullStream) {
+            const part = rawPart as {
+              type: string;
+              text?: string;
+              error?: unknown;
+              usage?: Parameters<typeof tokenUsage>[0];
+              response?: { modelId?: string };
+            };
             if (part.type === "error") throw part.error;
             if (part.type === "text-delta") {
-              text += part.text;
-              sendChunk({ type: "delta", text: part.text });
+              text += part.text ?? "";
+              sendChunk({ type: "delta", text: part.text ?? "" });
+            }
+            if (part.type === "finish-step") {
+              if (part.usage) steps.push(tokenUsage(part.usage, provider));
+              if (part.response?.modelId) resolvedModelId = part.response.modelId;
             }
           }
-          const response = await result.response;
           const usage: RequestUsage = {
-            ...tokenUsage(await result.usage, provider),
-            modelId: response.modelId ?? null,
+            ...aggregateStepUsage(steps),
+            modelId: resolvedModelId,
             requestedModelId: model.id,
             route: provider,
             durationMs: Date.now() - startedAt,
@@ -416,6 +434,8 @@ export function registerAIHandlers(): void {
         }
         let usage: RequestUsage | undefined;
         let modelId: string | null = null;
+        // Only a configured model is requested here; without one the CLI picks its own default.
+        const requestedModelId = describeModel(settings.ai, [], provider).id;
         const text = await runCliCompletion({
           provider,
           system,
@@ -432,14 +452,14 @@ export function registerAIHandlers(): void {
             usage = {
               ...tokenUsage(counts),
               modelId,
-              requestedModelId: null,
+              requestedModelId,
               route: provider,
               durationMs: Date.now() - startedAt,
             };
             sendChunk({
               type: "usage",
               ...usage,
-              inputTokens: usage.inputTokens ?? 0,
+              inputTokens: usage.inputTokens ?? counts.displayInputTokens ?? 0,
               outputTokens: usage.outputTokens ?? 0,
               usage,
               contextWindow: null,
