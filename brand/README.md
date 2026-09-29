@@ -2,11 +2,11 @@
 
 The logo is a Fraunces serif "D" in paper color (`#f6f2ea`) on ink (`#1d1b17`). Inside the letter sit three dots in the source colors: Calendar green `#22a23f`, Tasks blue `#007aff` and Reminders orange `#d07900`. It uses the website's display font and palette.
 
-| File | Use |
-|---|---|
-| `dayboard-icon.svg`, `dayboard-icon-1024.png` | macOS app icon master: a squircle on Apple's 1024 grid (824 px body, 100 px margin, soft shadow). Source of `app-icon.png` and of the 64 px and larger `app-icon.icns` sizes |
-| `dayboard-icon-small.svg`, `dayboard-icon-small-1024.png` | The same mark with a larger D and dots, for 32 px and smaller: the 16/32 `.icns` sizes, the favicon and the website header icon |
-| `dayboard-icon-square.svg`, `dayboard-icon-square-1024.png` | Full-bleed square for surfaces that apply their own mask: the Apple touch icon, the Glaze app icon, social avatars and the Google OAuth consent-screen logo |
+| File                                                        | Use                                                                                                                                                                          |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dayboard-icon.svg`, `dayboard-icon-1024.png`               | macOS app icon master: a squircle on Apple's 1024 grid (824 px body, 100 px margin, soft shadow). Source of `app-icon.png` and of the 64 px and larger `app-icon.icns` sizes |
+| `dayboard-icon-small.svg`, `dayboard-icon-small-1024.png`   | The same mark with a larger D and dots, for 32 px and smaller: the 16/32 `.icns` sizes, the favicon and the website header icon                                              |
+| `dayboard-icon-square.svg`, `dayboard-icon-square-1024.png` | Full-bleed square for surfaces that apply their own mask: the Apple touch icon, the Glaze app icon, social avatars and the Google OAuth consent-screen logo                  |
 
 The SVGs embed Fraunces (SIL Open Font License, `website/assets/fonts/OFL-Fraunces.txt`) so they render without the font installed.
 
