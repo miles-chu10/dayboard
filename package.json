@@ -49,7 +49,7 @@
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "@vitejs/plugin-react": "^6.0.1",
-    "ai": "^6.0.288",
+    "ai": "7.0.16",
     "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.2",

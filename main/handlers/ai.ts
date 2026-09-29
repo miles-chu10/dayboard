@@ -1,4 +1,9 @@
-import { tokenUsage, type RequestUsage } from "../../shared/ai-usage.js";
+import {
+  tokenUsage,
+  withCacheTotals,
+  type RequestUsage,
+  type TokenUsage,
+} from "../../shared/ai-usage.js";
 import { apiPromptOptions } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "@glaze/core/backend";
 
@@ -387,16 +392,22 @@ export function registerAIHandlers(): void {
             abortSignal: context.signal,
           });
           let text = "";
+          const steps: TokenUsage[] = [];
+          let total: Parameters<typeof tokenUsage>[0] = {};
           for await (const part of result.fullStream) {
             if (part.type === "error") throw part.error;
             if (part.type === "text-delta") {
               text += part.text;
               sendChunk({ type: "delta", text: part.text });
             }
+            // Only step usage keeps the provider's raw counters. The aggregate drops them, so an
+            // omitted cache read would be reported as the SDK's synthesized zero.
+            if (part.type === "finish-step") steps.push(tokenUsage(part.usage, provider));
+            if (part.type === "finish") total = part.totalUsage;
           }
           const response = await result.response;
           const usage: RequestUsage = {
-            ...tokenUsage(await result.usage, provider),
+            ...withCacheTotals(tokenUsage(total), steps),
             modelId: response.modelId ?? null,
             requestedModelId: model.id,
             route: provider,

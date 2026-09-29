@@ -89,6 +89,23 @@ export function normalizeRequestUsage(value: unknown): RequestUsage | undefined 
   };
 }
 
+/**
+ * The Glaze route only has the host's result: no raw provider payload and no resolved model, so
+ * counters are recorded exactly as reported and everything else stays unknown.
+ */
+export function glazeRequestUsage(
+  usage: Parameters<typeof tokenUsage>[0] | null | undefined,
+  durationMs: number,
+): RequestUsage {
+  return {
+    ...tokenUsage(usage ?? {}, "glaze"),
+    modelId: null,
+    requestedModelId: null,
+    route: "glaze",
+    durationMs,
+  };
+}
+
 /** API input cost only; callers must supply current, explicit rates and every component. */
 export function inputCost(
   usage: {

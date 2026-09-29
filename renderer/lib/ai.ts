@@ -1,4 +1,4 @@
-import type { RequestUsage } from "../../shared/ai-usage";
+import { glazeRequestUsage, type RequestUsage } from "../../shared/ai-usage";
 import { useEffect, useRef, useState } from "react";
 import { useGlazeAI } from "@glaze/core/hooks";
 import type { AIStreamChunk } from "@main/shared-types";
@@ -54,13 +54,16 @@ export function useAITask() {
   async function runGlaze(options: RunOptions) {
     const controller = new AbortController();
     abortRef.current = controller;
+    const startedAt = Date.now();
     try {
-      await glazeAI.streamText({
+      const result = await glazeAI.streamText({
         model: "fast",
         ...options,
         abortSignal: controller.signal,
         onTextDelta: (delta) => setOutput((current) => current + delta),
       });
+      if (!controller.signal.aborted)
+        setUsage(glazeRequestUsage(result.usage, Date.now() - startedAt));
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       if (err instanceof Error && "state" in err && err.state === "host-unavailable") {

@@ -296,6 +296,45 @@ test("nullable usage preserves zero and raw omission and costs require all compo
     null,
   );
 });
+test("Glaze route records only the usage the host result reports", () => {
+  // The result crosses IPC as JSON: undefined counters arrive absent, and there is no raw payload.
+  const reported = JSON.parse(
+    JSON.stringify({
+      inputTokens: 120,
+      inputTokenDetails: {
+        noCacheTokens: undefined,
+        cacheReadTokens: undefined,
+        cacheWriteTokens: undefined,
+      },
+      outputTokens: 30,
+      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+      totalTokens: 150,
+    }),
+  );
+  assert.deepEqual(usage.glazeRequestUsage(reported, 42), {
+    inputTokens: 120,
+    outputTokens: 30,
+    totalTokens: 150,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    modelId: null,
+    requestedModelId: null,
+    route: "glaze",
+    durationMs: 42,
+  });
+  const cached = usage.glazeRequestUsage(
+    { inputTokens: 120, inputTokenDetails: { cacheReadTokens: 100, cacheWriteTokens: 0 } },
+    1,
+  );
+  assert.equal(cached.cacheReadTokens, 100);
+  assert.equal(cached.cacheWriteTokens, 0);
+  const none = usage.glazeRequestUsage(undefined, 1);
+  assert.deepEqual(
+    [none.inputTokens, none.outputTokens, none.totalTokens, none.cacheReadTokens],
+    [null, null, null, null],
+  );
+  assert.equal(none.cacheWriteTokens, null);
+});
 test("tool order, nested schema order and collision assignment ignore randomized discovery", async () => {
   const handles = ["A B", "A_B", "A B"].map((server, index) => ({
     server,
@@ -355,7 +394,8 @@ function sse(model, counters, toolName) {
     usage: {
       input_tokens: 100,
       output_tokens: 4,
-      input_tokens_details: counters,
+      // null leaves input_tokens_details out; undefined would fall back to withFetch's default.
+      ...(counters === null ? {} : { input_tokens_details: counters }),
       output_tokens_details: { reasoning_tokens: 0 },
     },
   };
@@ -547,25 +587,58 @@ test("actual one-shot handler sends explicit policy boundary and returns usage; 
   assert.equal(old.value.usage.cacheReadTokens, 0);
   assert.equal(old.value.usage.cacheWriteTokens, null);
 });
-test("one-shot omitted usage counters remain unknown and failed requests do not claim usage", async () => {
+const runOneShot = (chunks) =>
+  globalThis.__cacheFixture.handlers["ai:run"](
+    { system: "policy", prompt: "question" },
+    (chunk) => chunks.push(chunk),
+    { signal: new globalThis.AbortController().signal },
+  );
+// The provider SDK reports zero for omitted cache reads, so both shapes an API can omit them in
+// must stay unknown: an empty input_tokens_details object and no object at all.
+const omittedCounterCases = [
+  ["empty input_tokens_details", {}],
+  ["absent input_tokens_details", null],
+];
+function assertCacheUnknown(record, chunks) {
+  assert.equal(record.inputTokens, 100);
+  assert.equal(record.cacheReadTokens, null);
+  assert.equal(record.cacheWriteTokens, null);
+  const streamed = chunks.filter((chunk) => chunk.type === "usage");
+  assert.equal(streamed.length, 1);
+  assert.deepEqual(streamed[0].usage, record);
+}
+for (const [label, counters] of omittedCounterCases) {
+  test(`one-shot route keeps omitted cache counters unknown (${label})`, async () => {
+    fixture();
+    const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+    handlers.registerAIHandlers();
+    const chunks = [];
+    const { value } = await withFetch(() => runOneShot(chunks), { counters });
+    assertCacheUnknown(value.usage, chunks);
+  });
+  test(`Assistant route keeps omitted cache counters unknown (${label})`, async () => {
+    fixture();
+    const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+    const chunks = [];
+    const { value } = await withFetch(
+      () =>
+        assistant.runAssistant(
+          { system: "policy", messages: [{ role: "user", content: "question" }] },
+          (chunk) => chunks.push(chunk),
+          new globalThis.AbortController().signal,
+        ),
+      { counters },
+    );
+    assertCacheUnknown(value.usage, chunks);
+  });
+}
+test("failed one-shot requests do not claim usage", async () => {
   fixture();
   const handlers = await load("main/handlers/ai.ts", { fixtures: true });
   handlers.registerAIHandlers();
-  const run = (chunks) =>
-    globalThis.__cacheFixture.handlers["ai:run"](
-      { system: "policy", prompt: "question" },
-      (chunk) => chunks.push(chunk),
-      { signal: new globalThis.AbortController().signal },
-    );
-  const missing = await withFetch(() => run([]), { counters: undefined });
-  // Explicit empty details exercise the provider SDK's zero fallback.
-  const empty = await withFetch(() => run([]), { counters: {} });
-  assert.equal(empty.value.usage.cacheReadTokens, null);
-  assert.equal(empty.value.usage.cacheWriteTokens, null);
-  assert.equal(missing.value.usage.inputTokens, 100);
   const chunks = [];
   await assert.rejects(
-    withFetch(() => run(chunks), { fail: true }),
+    withFetch(() => runOneShot(chunks), { fail: true }),
     /synthetic bad request/,
   );
   assert.equal(
