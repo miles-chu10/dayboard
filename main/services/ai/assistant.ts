@@ -70,7 +70,8 @@ export async function runAssistant(
     if (!signal.aborted) send({ type: "delta", text });
     return { text };
   }
-  const startedAt = Date.now();
+  // Reset immediately before the provider call, so setup work is not counted in durationMs.
+  let startedAt = Date.now();
   const settings = await getSettings();
   const provider = settings.ai.assistantProvider || settings.ai.provider;
   const codexModels = provider === "codex" ? await listCodexModels().catch(() => []) : [];
@@ -123,6 +124,7 @@ export async function runAssistant(
     provider === "gemini" ||
     provider === "muse"
   ) {
+    startedAt = Date.now();
     const text = await runCliCompletion({
       provider,
       system: system + mcpNote(null, servers.length),
@@ -159,11 +161,13 @@ export async function runAssistant(
       ]),
     );
 
+    const languageModel =
+      apiModel && isApiProvider(provider)
+        ? await apiLanguageModel(provider, apiModel.id)
+        : glaze("fast");
+    startedAt = Date.now();
     const result = streamText({
-      model:
-        apiModel && isApiProvider(provider)
-          ? await apiLanguageModel(provider, apiModel.id)
-          : glaze("fast"),
+      model: languageModel,
       ...apiPromptOptions(
         provider,
         apiModel?.id ?? "",

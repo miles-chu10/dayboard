@@ -5,6 +5,7 @@ import test, { after } from "node:test";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { setTimeout } from "node:timers";
 import { build } from "esbuild";
 
 const temporary = await mkdtemp(path.join(tmpdir(), "dayboard-cache-fixtures-"));
@@ -12,13 +13,13 @@ after(() => rm(temporary, { recursive: true, force: true }));
 const root = fileURLToPath(new URL("../", import.meta.url));
 const stubs = {
   "api-keys.js": `export const API_PROVIDERS = ['openai','anthropic','google','xai']; export const isApiProvider = p => API_PROVIDERS.includes(p); export const getApiKey = async () => 'synthetic-key'; export const clearApiKey = async()=>{}; export const saveApiKey=async()=>{}; export const getApiKeyStatuses=async()=>({});`,
-  "settings-store.js": `export const getSettings=async()=>globalThis.__cacheFixture.settings; export const getMcpServers=async()=>[]; export const deleteMcpServer=()=>{}; export const normalizeMcpServer=x=>x; export const saveMcpServer=()=>{}; export const saveSettings=()=>{}; export const settingsAffectData=()=>false;`,
+  "settings-store.js": `export const getSettings=async()=>{const f=globalThis.__cacheFixture; if(f.settingsDelay) await new Promise(r=>setTimeout(r,f.settingsDelay)); return f.settings}; export const getMcpServers=async()=>[]; export const deleteMcpServer=()=>{}; export const normalizeMcpServer=x=>x; export const saveMcpServer=()=>{}; export const saveSettings=()=>{}; export const settingsAffectData=()=>false;`,
   "demo-data.js": `export const isDemoMode=()=>false; export const assertNotDemo=()=>{}; export const demoAssistantReply=()=>''; export const demoCompletion=()=>'';`,
   "attachments.js": `export const attachmentContext=async()=>''; export const pickAttachments=async()=>[];`,
   "codex-models.js": `export const listCodexModels=async()=>[];`,
   "cli-providers.js": `export const runCliCompletion=async(options)=>{const run=globalThis.__cacheFixture.cli; if(!run) throw Error('CLI must not run'); return run(options)}; export const checkCliProvider=()=>{}; export const isCancelled=()=>false; export const listGeminiModels=()=>[]; export const resolveCli=async()=>null;`,
   "assistant-mcp.js": `export const resolveAssistantMcpServers=()=>globalThis.__cacheFixture.tools.length ? [{}] : [];`,
-  "mcp-client.js": `export const testMcpServer=async()=>({}); export const openMcpSession=async()=>({tools:globalThis.__cacheFixture.tools,errors:[],close:async()=>{globalThis.__cacheFixture.closed++}});`,
+  "mcp-client.js": `export const testMcpServer=async()=>({}); export const openMcpSession=async()=>{const f=globalThis.__cacheFixture; if(f.mcpDelay) await new Promise(r=>setTimeout(r,f.mcpDelay)); return {tools:f.tools,errors:[],close:async()=>{f.closed++}}};`,
   "provider-resolution.js": `export const resolveConfiguredProvider=async p=>p;`,
   "dictation.js": `export const transcribe=async()=>{throw Error('Transcription must not run')};`,
   "mcp-http-server.js": `export const checkAssistantMcpConnection=()=>{}; export const getActiveAssistantMcpServerConfig=()=>null; export const getAssistantMcpStatus=()=>({}); export const getExternalMcpUrl=()=>'';`,
@@ -788,15 +789,18 @@ async function withFetch(
     toolFirst = false,
     fail = false,
     failure,
+    modelsDelay = 0,
   } = {},
 ) {
   const original = globalThis.fetch;
   const bodies = [];
   globalThis.fetch = async (url, options) => {
-    if (String(url).endsWith("/models"))
+    if (String(url).endsWith("/models")) {
+      if (modelsDelay) await new Promise((resolve) => setTimeout(resolve, modelsDelay));
       return globalThis.Response.json({
         data: [{ id: globalThis.__cacheFixture.settings.ai.apiModels.openai, created: 1 }],
       });
+    }
     assert.equal(String(url), "https://api.openai.com/v1/responses", "unexpected network request");
     const body = JSON.parse(options.body);
     bodies.push(body);
@@ -1743,4 +1747,77 @@ test("one-shot route surfaces the message of a provider error that arrives after
     chunks.some((chunk) => chunk.type === "delta"),
     "output started before the failure",
   );
+});
+// The provider answers at once; everything below is synthetic setup that must not be counted.
+const SETUP_DELAY_MS = 400;
+const providerOnly = (record, what) =>
+  assert.ok(
+    record.durationMs >= 0 && record.durationMs < 250,
+    `durationMs ${record.durationMs} includes ${SETUP_DELAY_MS} ms of ${what}`,
+  );
+test("Assistant API durationMs covers the provider request, not MCP discovery", async () => {
+  fixture("gpt-6-sol", [
+    {
+      server: "fixture",
+      tool: "lookup",
+      qualifiedName: "lookup",
+      description: "fixture lookup",
+      inputSchema: { type: "object", properties: {} },
+      call: async () => "synthetic result",
+    },
+  ]);
+  globalThis.__cacheFixture.mcpDelay = SETUP_DELAY_MS;
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const run = await withFetch(() =>
+    assistant.runAssistant(
+      { system: "policy", messages: [{ role: "user", content: "hello" }] },
+      () => {},
+      new globalThis.AbortController().signal,
+    ),
+  );
+  providerOnly(run.value.usage, "MCP discovery");
+});
+test("Assistant CLI durationMs covers the CLI run, not settings load", async () => {
+  cliFixture("gemini", {}, async (options) => {
+    options.onUsage?.({ inputTokens: 10, outputTokens: 2 });
+    return "ok";
+  });
+  globalThis.__cacheFixture.settingsDelay = SETUP_DELAY_MS;
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const reply = await assistant.runAssistant(
+    { system: "policy", messages: [{ role: "user", content: "hello" }] },
+    () => {},
+    new globalThis.AbortController().signal,
+  );
+  providerOnly(reply.usage, "settings load");
+});
+test("one-shot API durationMs covers the provider request, not model listing", async () => {
+  fixture();
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const run = await withFetch(
+    () =>
+      globalThis.__cacheFixture.handlers["ai:run"](
+        { system: "policy", prompt: "question" },
+        () => {},
+        { signal: new globalThis.AbortController().signal },
+      ),
+    { modelsDelay: SETUP_DELAY_MS },
+  );
+  providerOnly(run.value.usage, "model listing");
+});
+test("one-shot CLI durationMs covers the CLI run, not settings load", async () => {
+  cliFixture("gemini", {}, async (options) => {
+    options.onUsage?.({ inputTokens: 10, outputTokens: 2 });
+    return "ok";
+  });
+  globalThis.__cacheFixture.settingsDelay = SETUP_DELAY_MS;
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const result = await globalThis.__cacheFixture.handlers["ai:run"](
+    { system: "policy", prompt: "question" },
+    () => {},
+    { signal: new globalThis.AbortController().signal },
+  );
+  providerOnly(result.usage, "settings load");
 });

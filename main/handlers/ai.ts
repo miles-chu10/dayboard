@@ -374,15 +374,16 @@ export function registerAIHandlers(): void {
         if (!context.signal.aborted) sendChunk({ type: "delta", text });
         return { text };
       }
-      const startedAt = Date.now();
       const settings = await getSettings();
       const provider = settings.ai.provider;
       if (provider === "glaze") throw new Error("Glaze AI requests run in the app window.");
       try {
         if (isApiProvider(provider)) {
           const model = await resolveApiModel(provider, settings.ai);
+          const languageModel = await apiLanguageModel(provider, model.id);
+          const startedAt = Date.now();
           const result = streamText({
-            model: await apiLanguageModel(provider, model.id),
+            model: languageModel,
             ...apiPromptOptions(
               provider,
               model.id,
@@ -435,6 +436,7 @@ export function registerAIHandlers(): void {
         let modelId: string | null = null;
         // Only a configured model is requested here; without one the CLI picks its own default.
         const requestedModelId = describeModel(settings.ai, [], provider).id;
+        const startedAt = Date.now();
         const text = await runCliCompletion({
           provider,
           system,
