@@ -77,8 +77,6 @@ export async function runAssistant(
     if (!signal.aborted) send({ type: "delta", text });
     return { text };
   }
-  // Reset immediately before the provider call, so setup work is not counted in durationMs.
-  let startedAt = Date.now();
   const settings = await getSettings();
   const provider = settings.ai.assistantProvider || settings.ai.provider;
   const codexModels = provider === "codex" ? await listCodexModels().catch(() => []) : [];
@@ -99,7 +97,8 @@ export async function runAssistant(
   const messages = withCurrentSnapshot(params.messages, params.snapshot);
   let requestUsage: RequestUsage | undefined;
   let resolvedModelId: string | null = null;
-  const reportUsage = (usage: CliUsage) => {
+  // Each route starts its clock immediately before the provider call, so setup work is not counted.
+  const reportUsage = (usage: CliUsage, startedAt: number) => {
     requestUsage = {
       ...tokenUsage(usage),
       modelId: resolvedModelId,
@@ -131,7 +130,7 @@ export async function runAssistant(
     provider === "gemini" ||
     provider === "muse"
   ) {
-    startedAt = Date.now();
+    const startedAt = Date.now();
     const text = await runCliCompletion({
       provider,
       system: system + (servers.length ? `\n\n${MCP_HINT}` : ""),
@@ -141,7 +140,7 @@ export async function runAssistant(
         resolvedModelId = id;
         send({ type: "meta", model: { ...model, id } });
       },
-      onUsage: reportUsage,
+      onUsage: (usage) => reportUsage(usage, startedAt),
       prompt: transcript(messages),
       mcpServers: servers,
       signal,
@@ -172,7 +171,7 @@ export async function runAssistant(
       apiModel && isApiProvider(provider)
         ? await apiLanguageModel(provider, apiModel.id)
         : glaze("fast");
-    startedAt = Date.now();
+    const startedAt = Date.now();
     const result = streamText({
       model: languageModel,
       ...apiPromptOptions(
@@ -233,7 +232,7 @@ export async function runAssistant(
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
           break;
         case "finish":
-          reportUsage(aggregateStepUsage(steps));
+          reportUsage(aggregateStepUsage(steps), startedAt);
           break;
         case "error":
           throw asError(part.error);

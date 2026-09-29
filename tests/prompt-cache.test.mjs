@@ -134,6 +134,7 @@ const cache = await load("main/services/ai/prompt-cache.ts");
 const usage = await load("shared/ai-usage.ts");
 const prompts = await load("renderer/lib/ai-prompts.ts");
 const tools = await load("main/services/ai/mcp-tools.ts");
+const streamErrors = await load("main/services/ai/stream-error.ts");
 
 const baseInput = {
   todos: [],
@@ -2089,4 +2090,29 @@ test("direct Anthropic route ignores an inherited ANTHROPIC_BASE_URL", async () 
     if (inherited === undefined) delete process.env.ANTHROPIC_BASE_URL;
     else process.env.ANTHROPIC_BASE_URL = inherited;
   }
+});
+test("asError keeps an Error, prefers a message, and describes an object that has none", () => {
+  const original = new Error("boom");
+  assert.equal(streamErrors.asError(original), original);
+  assert.equal(
+    streamErrors.asError({ message: "provider said no", code: "E1" }).message,
+    "provider said no",
+  );
+  assert.equal(streamErrors.asError({ message: 42 }).message, "42");
+  // Without a message the object is described, never shown as "[object Object]".
+  const described = streamErrors.asError({ type: "server_error", code: "E1", statusCode: 500 });
+  assert.ok(described instanceof Error);
+  assert.equal(described.message, '{"type":"server_error","code":"E1","statusCode":500}');
+  assert.equal(streamErrors.asError({}).message, "{}");
+  assert.equal(streamErrors.asError([1, "two"]).message, '[1,"two"]');
+  // An object that cannot be serialized still becomes an Error instead of throwing.
+  const circular = { code: "loop" };
+  circular.self = circular;
+  assert.equal(streamErrors.asError(circular).message, "[object Object]");
+  assert.equal(streamErrors.asError({ size: 10n }).message, "[object Object]");
+  assert.equal(streamErrors.asError({ toJSON: () => undefined }).message, "[object Object]");
+  // Anything that is not an object keeps its string form.
+  assert.equal(streamErrors.asError("plain text").message, "plain text");
+  assert.equal(streamErrors.asError(null).message, "null");
+  assert.equal(streamErrors.asError(undefined).message, "undefined");
 });
