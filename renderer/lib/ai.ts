@@ -1,3 +1,4 @@
+import type { RequestUsage } from "../../shared/ai-usage";
 import { useEffect, useRef, useState } from "react";
 import type { AIStreamChunk } from "@main/shared-types";
 
@@ -22,6 +23,7 @@ interface CliState {
 /** One streaming AI request using the provider chosen in Settings, run through the backend. */
 export function useAITask() {
   const [output, setOutput] = useState("");
+  const [usage, setUsage] = useState<RequestUsage | null>(null);
   const [cli, setCli] = useState<CliState>({ status: "idle", error: null });
   const streamRef = useRef<string | null>(null);
 
@@ -43,14 +45,16 @@ export function useAITask() {
   async function run(options: RunOptions) {
     stop();
     setOutput("");
+    setUsage(null);
     const id = crypto.randomUUID();
     streamRef.current = id;
     setCli({ status: "loading", error: null });
     try {
-      await window.dayboard.ipc.stream<AIStreamChunk, { text: string }>(
+      await window.dayboard.ipc.stream<AIStreamChunk, { text: string; usage?: RequestUsage }>(
         "ai:run",
         { system: options.system, prompt: options.prompt },
         (chunk) => {
+          if (streamRef.current === id && chunk.type === "usage") setUsage(chunk.usage);
           if (streamRef.current === id && chunk.type === "delta")
             setOutput((current) => current + chunk.text);
         },
@@ -69,11 +73,13 @@ export function useAITask() {
   function clear() {
     stop();
     setOutput("");
+    setUsage(null);
     setCli({ status: "idle", error: null });
   }
 
   return {
     output,
+    usage,
     run,
     stop,
     clear,

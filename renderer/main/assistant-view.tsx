@@ -33,7 +33,7 @@ import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { BLOCKED_MESSAGE } from "../lib/ai";
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
 import { isRendererDemoMode } from "../lib/demo";
-import { buildAssistantSystem } from "../lib/ai-prompts";
+import { buildAssistantSnapshot, buildAssistantSystem } from "../lib/ai-prompts";
 import {
   ASSISTANT_SUGGESTIONS,
   loadLegacyConversation,
@@ -341,7 +341,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     const permission = settings?.ai.assistantPermission ?? "ask";
 
     const googleConnected = accounts.data?.google.connected ?? false;
-    const system = buildAssistantSystem({
+    const promptInput = {
       todos: buildTodos(tasks.data, reminders.data),
       todosAvailable: tasks.data?.state === "ok" || reminders.data?.state === "ok",
       calendar: calendar.data,
@@ -355,7 +355,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
         event: googleConnected && sourceOn(settings, "calendar"),
       },
-    });
+    };
+    const system = buildAssistantSystem(promptInput);
+    const snapshot = buildAssistantSnapshot(promptInput);
 
     const cancellationId = crypto.randomUUID();
     cancelRef.current = cancellationId;
@@ -369,6 +371,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         {
           messages: requestMessages,
           system,
+          snapshot,
           attachments: sentAttachments.map((item) => item.id),
         },
         (chunk) => {
@@ -381,6 +384,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
             return;
           }
           if (chunk.type === "usage") {
+            patchMessage(assistantId, (message) => ({ ...message, usage: chunk.usage }));
             setUsage({
               inputTokens: chunk.inputTokens,
               contextWindow: chunk.contextWindow,

@@ -411,3 +411,30 @@ test("malformed and failed saves preserve the last acknowledged file", async () 
     );
   });
 });
+
+test("request usage survives durable history with unknown and zero cache counters", async () => {
+  await withStore(async () => {
+    const store = await load();
+    const usage = {
+      inputTokens: 100,
+      outputTokens: 5,
+      totalTokens: 105,
+      cacheReadTokens: 0,
+      cacheWriteTokens: null,
+      modelId: null,
+      requestedModelId: "gpt-6-sol",
+      route: "openai",
+      durationMs: 50,
+    };
+    await store.saveAssistantChat(
+      "google:fixture-cache",
+      chat("cache-chat", "2026-09-28T09:00:00.000Z", [
+        { ...message("cache-reply"), role: "assistant", usage },
+      ]),
+    );
+    const reloaded = await load();
+    const history = await reloaded.getAssistantHistory("google:fixture-cache");
+    assert.deepEqual(history.chats[0].messages[0].usage, usage);
+    assert.equal(history.chats[0].messages[0].content, "Hello");
+  });
+});

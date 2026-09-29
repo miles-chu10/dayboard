@@ -3,6 +3,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { logger } from "../../platform/index.js";
 
+import { orderMcpTools } from "./mcp-tools.js";
+
 import type { McpServerConfig, McpTestResult } from "../../shared-types.js";
 import { getToolEnv, toStringEnv } from "../shell-env.js";
 
@@ -106,15 +108,10 @@ function formatToolResult(result: unknown): string {
   return record.isError ? `Tool error: ${text}` : text || "(no output)";
 }
 
-function safeName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
 export async function openMcpSession(servers: McpServerConfig[]): Promise<McpSession> {
   const connections: McpConnection[] = [];
-  const tools: McpToolHandle[] = [];
+  const discovered: (Omit<McpToolHandle, "qualifiedName"> & { serverId: string })[] = [];
   const errors: string[] = [];
-  const used = new Set<string>();
 
   await Promise.all(
     servers.map(async (server) => {
@@ -128,14 +125,10 @@ export async function openMcpSession(servers: McpServerConfig[]): Promise<McpSes
           `Timed out listing tools from ${server.name}.`,
         );
         for (const tool of listed.tools) {
-          let qualifiedName = safeName(`${server.name}_${tool.name}`).slice(0, 60) || "tool";
-          for (let suffix = 2; used.has(qualifiedName); suffix++)
-            qualifiedName = `${qualifiedName.slice(0, 56)}_${suffix}`;
-          used.add(qualifiedName);
-          tools.push({
+          discovered.push({
+            serverId: server.id,
             server: server.name,
             tool: tool.name,
-            qualifiedName,
             description: tool.description ?? "",
             inputSchema: {
               type: "object",
@@ -167,8 +160,8 @@ export async function openMcpSession(servers: McpServerConfig[]): Promise<McpSes
   );
 
   return {
-    tools,
-    errors,
+    tools: orderMcpTools(discovered),
+    errors: errors.sort(),
     close: async () => {
       await Promise.all(connections.map((connection) => connection.close()));
     },

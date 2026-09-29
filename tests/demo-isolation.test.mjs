@@ -525,6 +525,10 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
           `export const listCodexModels = async () => { globalThis.__aiCounters.models += 1; };`,
         ],
         [
+          "../services/ai/model-options.js",
+          `export const describeModel = () => { globalThis.__aiCounters.provider += 1; };`,
+        ],
+        [
           "../services/ai/mcp-client.js",
           `export const testMcpServer = async () => { throw new Error("MCP should not run"); };`,
         ],

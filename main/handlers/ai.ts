@@ -1,3 +1,10 @@
+import {
+  aggregateStepUsage,
+  tokenUsage,
+  type RequestUsage,
+  type TokenUsage,
+} from "../../shared/ai-usage.js";
+import { apiPromptOptions } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "../platform/index.js";
 
 import type {
@@ -20,6 +27,7 @@ import {
   runCliCompletion,
 } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
+import { describeModel } from "../services/ai/model-options.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
@@ -352,7 +360,7 @@ export function registerAIHandlers(): void {
   });
 
   // One-shot generation through the selected CLI or API provider.
-  ipcMain.handleStream<unknown, AIStreamChunk, { text: string }>(
+  ipcMain.handleStream<unknown, AIStreamChunk, { text: string; usage?: RequestUsage }>(
     "ai:run",
     async (payload, sendChunk, context) => {
       const channel = "ai:run";
@@ -364,6 +372,7 @@ export function registerAIHandlers(): void {
         if (!context.signal.aborted) sendChunk({ type: "delta", text });
         return { text };
       }
+      const startedAt = Date.now();
       const settings = await getSettings();
       if (!settings.ai.enabled || !settings.ai.providerChosen)
         throw new Error("Choose and enable an AI provider in Settings → AI first.");
@@ -375,18 +384,58 @@ export function registerAIHandlers(): void {
           const model = await resolveApiModel(provider, settings.ai);
           const result = streamText({
             model: await apiLanguageModel(provider, model.id),
-            system,
-            prompt,
+            ...apiPromptOptions(
+              provider,
+              model.id,
+              system,
+              [{ role: "user", content: prompt }],
+              "explicit",
+            ),
             maxOutputTokens: 4000,
             abortSignal: context.signal,
           });
           let text = "";
-          for await (const delta of result.textStream) {
-            text += delta;
-            sendChunk({ type: "delta", text: delta });
+          const steps: TokenUsage[] = [];
+          let resolvedModelId: string | null = null;
+          for await (const rawPart of result.fullStream) {
+            const part = rawPart as {
+              type: string;
+              text?: string;
+              error?: unknown;
+              usage?: Parameters<typeof tokenUsage>[0];
+              response?: { modelId?: string };
+            };
+            if (part.type === "error") throw part.error;
+            if (part.type === "text-delta") {
+              text += part.text ?? "";
+              sendChunk({ type: "delta", text: part.text ?? "" });
+            }
+            if (part.type === "finish-step") {
+              if (part.usage) steps.push(tokenUsage(part.usage, provider));
+              if (part.response?.modelId) resolvedModelId = part.response.modelId;
+            }
           }
-          return { text };
+          const usage: RequestUsage = {
+            ...aggregateStepUsage(steps),
+            modelId: resolvedModelId,
+            requestedModelId: model.id,
+            route: provider,
+            durationMs: Date.now() - startedAt,
+          };
+          sendChunk({
+            type: "usage",
+            ...usage,
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+            usage,
+            contextWindow: model.contextWindow,
+          });
+          return { text, usage };
         }
+        let usage: RequestUsage | undefined;
+        let modelId: string | null = null;
+        // Only a configured model is requested here; without one the CLI picks its own default.
+        const requestedModelId = describeModel(settings.ai, [], provider).id;
         const text = await runCliCompletion({
           provider,
           system,
@@ -396,8 +445,28 @@ export function registerAIHandlers(): void {
           timeoutMs: RUN_TIMEOUT_MS,
           onDelta: (text) => sendChunk({ type: "delta", text }),
           onTool: () => undefined,
+          onModel: (id) => {
+            modelId = id;
+          },
+          onUsage: (counts) => {
+            usage = {
+              ...tokenUsage(counts),
+              modelId,
+              requestedModelId,
+              route: provider,
+              durationMs: Date.now() - startedAt,
+            };
+            sendChunk({
+              type: "usage",
+              ...usage,
+              inputTokens: usage.inputTokens ?? counts.displayInputTokens ?? 0,
+              outputTokens: usage.outputTokens ?? 0,
+              usage,
+              contextWindow: null,
+            });
+          },
         });
-        return { text };
+        return { text, usage };
       } catch (error) {
         if (!isCancelled(error))
           logger.error("ai", "ai:run failed", {
@@ -417,6 +486,8 @@ export function registerAIHandlers(): void {
         {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
+          snapshot:
+            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

@@ -1,3 +1,4 @@
+import { claudeFormatUsage, knownTokenCount, type TokenUsage } from "../../../shared/ai-usage.js";
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs/promises";
@@ -29,6 +30,11 @@ export interface ToolEvent {
   status: ToolCallStatus;
 }
 
+/** `displayInputTokens` is the input the CLI did report, for display when the total is unknown. */
+export interface CliUsage extends Partial<TokenUsage> {
+  displayInputTokens?: number;
+}
+
 export interface CliRunOptions {
   provider: CliProvider;
   system: string;
@@ -40,7 +46,7 @@ export interface CliRunOptions {
   onTool: (event: ToolEvent) => void;
   /** Exact model ID reported by the CLI at the start of a run. */
   onModel?: (id: string) => void;
-  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void;
+  onUsage?: (usage: CliUsage) => void;
   /** Codex model slug to pass explicitly instead of the saved setting. */
   codexModel?: string;
 }
@@ -418,15 +424,8 @@ function handleClaudeLine(line: string, state: ParseState, options: CliRunOption
     }
   } else if (event.type === "result") {
     if (isRecord(event.usage)) {
-      const usage = event.usage;
-      const count = (key: string) => (typeof usage[key] === "number" ? (usage[key] as number) : 0);
-      options.onUsage?.({
-        inputTokens:
-          count("input_tokens") +
-          count("cache_read_input_tokens") +
-          count("cache_creation_input_tokens"),
-        outputTokens: count("output_tokens"),
-      });
+      const { knownInputTokens, ...counts } = claudeFormatUsage(event.usage);
+      options.onUsage?.({ ...counts, displayInputTokens: knownInputTokens ?? undefined });
     }
     if (typeof event.result === "string") state.final = event.result;
     if (event.is_error)
@@ -576,8 +575,10 @@ function handleCodexLine(line: string, state: ParseState, options: CliRunOptions
   } else if (type === "turn.completed" && isRecord(msg.usage)) {
     const usage = msg.usage;
     options.onUsage?.({
-      inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : 0,
-      outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : 0,
+      inputTokens: knownTokenCount(usage.input_tokens),
+      outputTokens: knownTokenCount(usage.output_tokens),
+      cacheReadTokens: knownTokenCount(usage.cached_input_tokens),
+      cacheWriteTokens: knownTokenCount(usage.cache_write_tokens),
     });
   } else if (type === "error" || type === "turn.failed" || type === "stream_error") {
     const detail = isRecord(msg.error) ? msg.error.message : msg.message;
@@ -795,8 +796,8 @@ function handleMuseLine(line: string, state: MuseState, options: CliRunOptions) 
   } else if (method === "turn/completed") {
     if (isRecord(params.usage)) {
       options.onUsage?.({
-        inputTokens: Number(params.usage.inputTokens ?? 0),
-        outputTokens: Number(params.usage.outputTokens ?? 0),
+        inputTokens: knownTokenCount(params.usage.inputTokens),
+        outputTokens: knownTokenCount(params.usage.outputTokens),
       });
     }
     if (isRecord(params.error) && typeof params.error.message === "string")
