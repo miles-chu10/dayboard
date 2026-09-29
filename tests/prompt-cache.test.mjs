@@ -27,7 +27,17 @@ const stubs = {
 };
 const backend = `export const app={getPath:()=>'/nonexistent-fixture'}; export const logger={error:()=>{},warn:()=>{}}; export const clipboard={}; export const ipcMain={handle:()=>{},broadcast:()=>{},handleStream:(name,handler)=>{globalThis.__cacheFixture.handlers[name]=handler}};`;
 let sequence = 0;
-async function load(file, { fixtures = false, exposeCli = false, mcpDiscovery = false } = {}) {
+// Replaces the model call with the parts a test puts in `globalThis.__cacheFixture.parts`.
+const STREAM_PARTS_SHIM = `
+  export const streamText = () => ({
+    fullStream: (async function* () {
+      for (const part of globalThis.__cacheFixture.parts) yield part;
+    })(),
+  });`;
+async function load(
+  file,
+  { fixtures = false, exposeCli = false, mcpDiscovery = false, streamParts = false } = {},
+) {
   const plugins = [
     {
       name: "cache-fixtures",
@@ -37,7 +47,7 @@ async function load(file, { fixtures = false, exposeCli = false, mcpDiscovery = 
           namespace: "fixture",
         }));
         api.onLoad({ filter: /^ai$/, namespace: "fixture" }, () => ({
-          contents: `export {streamText,stepCountIs,tool} from 'ai'; export class GlazeAIError extends Error {}; export const glaze=()=>{throw Error('Glaze provider must not run')};`,
+          contents: `export {stepCountIs,tool} from 'ai'; export class GlazeAIError extends Error {}; export const glaze=()=>{throw Error('Glaze provider must not run')}; ${streamParts ? STREAM_PARTS_SHIM : "export {streamText} from 'ai';"}`,
           loader: "js",
           resolveDir: root,
         }));
@@ -1987,4 +1997,56 @@ test("an aborted Assistant request emits no usage chunk and returns no usage rec
   assert.equal(result.text, "Partial ");
   assert.equal(chunks.filter((chunk) => chunk.type === "usage").length, 0);
   assert.equal(result.usage, undefined);
+});
+// A step the provider reported no usage for must make the totals unknown, not vanish from them.
+const usageParts = [
+  { type: "start" },
+  { type: "start-step" },
+  { type: "text-delta", id: "text-1", text: "Step one" },
+  // The first step arrives without any usage.
+  { type: "finish-step", response: { modelId: "gpt-6-sol" } },
+  { type: "start-step" },
+  { type: "text-delta", id: "text-2", text: "Step two" },
+  {
+    type: "finish-step",
+    response: { modelId: "gpt-6-sol" },
+    usage: {
+      raw: {
+        input_tokens: 100,
+        output_tokens: 4,
+        input_tokens_details: { cached_tokens: 40, cache_write_tokens: 10 },
+      },
+    },
+  },
+  { type: "finish" },
+];
+test("Assistant totals are unknown when a step reported no usage", async () => {
+  fixture();
+  globalThis.__cacheFixture.parts = usageParts;
+  const assistant = await load("main/services/ai/assistant.ts", {
+    fixtures: true,
+    streamParts: true,
+  });
+  const run = await withFetch(() =>
+    assistant.runAssistant(
+      { system: "policy", messages: [{ role: "user", content: "hello" }] },
+      () => {},
+      new globalThis.AbortController().signal,
+    ),
+  );
+  assert.deepEqual(counts(run.value.usage), unknownCounts);
+});
+test("one-shot totals are unknown when a step reported no usage", async () => {
+  fixture();
+  globalThis.__cacheFixture.parts = usageParts;
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true, streamParts: true });
+  handlers.registerAIHandlers();
+  const run = await withFetch(() =>
+    globalThis.__cacheFixture.handlers["ai:run"](
+      { system: "policy", prompt: "question" },
+      () => {},
+      { signal: new globalThis.AbortController().signal },
+    ),
+  );
+  assert.deepEqual(counts(run.value.usage), unknownCounts);
 });

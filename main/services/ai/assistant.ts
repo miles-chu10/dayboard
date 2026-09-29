@@ -229,7 +229,7 @@ export async function runAssistant(
           send({ type: "tool", id: part.toolCallId ?? "", status: "error" });
           break;
         case "finish-step":
-          if (part.usage) steps.push(tokenUsage(part.usage, provider));
+          steps.push(tokenUsage(part.usage ?? {}, provider));
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
           break;
         case "finish":

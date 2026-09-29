@@ -412,7 +412,7 @@ export function registerAIHandlers(): void {
               sendChunk({ type: "delta", text: part.text ?? "" });
             }
             if (part.type === "finish-step") {
-              if (part.usage) steps.push(tokenUsage(part.usage, provider));
+              steps.push(tokenUsage(part.usage ?? {}, provider));
               if (part.response?.modelId) resolvedModelId = part.response.modelId;
             }
             // An aborted request ends with an "abort" part instead, so it records no usage.
