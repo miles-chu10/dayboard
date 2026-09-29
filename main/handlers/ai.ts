@@ -395,6 +395,7 @@ export function registerAIHandlers(): void {
             abortSignal: context.signal,
           });
           let text = "";
+          let requestUsage: RequestUsage | undefined;
           const steps: TokenUsage[] = [];
           let resolvedModelId: string | null = null;
           for await (const rawPart of result.fullStream) {
@@ -414,23 +415,26 @@ export function registerAIHandlers(): void {
               if (part.usage) steps.push(tokenUsage(part.usage, provider));
               if (part.response?.modelId) resolvedModelId = part.response.modelId;
             }
+            // An aborted request ends with an "abort" part instead, so it records no usage.
+            if (part.type === "finish") {
+              requestUsage = {
+                ...aggregateStepUsage(steps),
+                modelId: resolvedModelId,
+                requestedModelId: model.id,
+                route: provider,
+                durationMs: Date.now() - startedAt,
+              };
+              sendChunk({
+                type: "usage",
+                ...requestUsage,
+                inputTokens: requestUsage.inputTokens ?? 0,
+                outputTokens: requestUsage.outputTokens ?? 0,
+                usage: requestUsage,
+                contextWindow: model.contextWindow,
+              });
+            }
           }
-          const usage: RequestUsage = {
-            ...aggregateStepUsage(steps),
-            modelId: resolvedModelId,
-            requestedModelId: model.id,
-            route: provider,
-            durationMs: Date.now() - startedAt,
-          };
-          sendChunk({
-            type: "usage",
-            ...usage,
-            inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0,
-            usage,
-            contextWindow: model.contextWindow,
-          });
-          return { text, usage };
+          return { text, usage: requestUsage };
         }
         let usage: RequestUsage | undefined;
         let modelId: string | null = null;

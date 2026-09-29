@@ -709,6 +709,44 @@ function fixture(model = "gpt-6-sol", handles = [], provider = "openai") {
     closed: 0,
   };
 }
+// One delta, then silence until the caller aborts, like a request cancelled while it streams.
+function hangingStream(model, signal) {
+  const item = {
+    type: "message",
+    id: "fixture-message",
+    role: "assistant",
+    status: "in_progress",
+    content: [],
+  };
+  const events = [
+    {
+      type: "response.created",
+      response: { id: "fixture-response", created_at: 1, model, status: "in_progress", output: [] },
+    },
+    { type: "response.output_item.added", output_index: 0, item },
+    {
+      type: "response.output_text.delta",
+      item_id: item.id,
+      output_index: 0,
+      content_index: 0,
+      delta: "Partial ",
+    },
+  ];
+  const bytes = new globalThis.TextEncoder().encode(
+    events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""),
+  );
+  return new globalThis.Response(
+    new globalThis.ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes);
+        signal.addEventListener("abort", () =>
+          controller.error(new globalThis.DOMException("This operation was aborted", "AbortError")),
+        );
+      },
+    }),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+}
 function sse(model, counters, toolName, failure) {
   const response = {
     id: "fixture-response",
@@ -782,6 +820,7 @@ async function withFetch(
     fail = false,
     failure,
     modelsDelay = 0,
+    hang = false,
   } = {},
 ) {
   const original = globalThis.fetch;
@@ -796,6 +835,7 @@ async function withFetch(
     assert.equal(String(url), "https://api.openai.com/v1/responses", "unexpected network request");
     const body = JSON.parse(options.body);
     bodies.push(body);
+    if (hang) return hangingStream(body.model, options.signal);
     if (fail)
       return globalThis.Response.json(
         { error: { message: "synthetic bad request", type: "invalid_request_error" } },
@@ -1906,4 +1946,45 @@ test("CLI runs keep the MCP hint in the system prompt and never in the snapshot"
     /stable policy[\s\S]*\n\nMCP tools are connected; use them when they help\.$/,
   );
   assert.doesNotMatch(await systemFor([]), /MCP tools are connected/);
+});
+// Aborts as soon as the first delta arrives, then reports what the request produced.
+async function abortedAfterFirstDelta(start) {
+  const controller = new globalThis.AbortController();
+  const chunks = [];
+  const run = await withFetch(
+    () =>
+      start((chunk) => {
+        chunks.push(chunk);
+        if (chunk.type === "delta") controller.abort();
+      }, controller.signal),
+    { hang: true },
+  );
+  return { chunks, result: run.value };
+}
+test("an aborted one-shot request emits no usage chunk and returns no usage record", async () => {
+  fixture();
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const { chunks, result } = await abortedAfterFirstDelta((send, signal) =>
+    globalThis.__cacheFixture.handlers["ai:run"]({ system: "policy", prompt: "question" }, send, {
+      signal,
+    }),
+  );
+  assert.equal(result.text, "Partial ");
+  assert.equal(chunks.filter((chunk) => chunk.type === "usage").length, 0);
+  assert.equal(result.usage, undefined);
+});
+test("an aborted Assistant request emits no usage chunk and returns no usage record", async () => {
+  fixture();
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const { chunks, result } = await abortedAfterFirstDelta((send, signal) =>
+    assistant.runAssistant(
+      { system: "policy", messages: [{ role: "user", content: "hello" }] },
+      send,
+      signal,
+    ),
+  );
+  assert.equal(result.text, "Partial ");
+  assert.equal(chunks.filter((chunk) => chunk.type === "usage").length, 0);
+  assert.equal(result.usage, undefined);
 });
