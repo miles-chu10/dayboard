@@ -1,3 +1,4 @@
+import type { RequestUsage } from "../../shared/ai-usage";
 import { useEffect, useRef, useState } from "react";
 import { useGlazeAI } from "@glaze/core/hooks";
 import type { AIStreamChunk } from "@main/shared-types";
@@ -36,6 +37,7 @@ export function useAITask() {
   const provider = useSettings().data?.ai.provider ?? "glaze";
   const glazeAI = useGlazeAI();
   const [output, setOutput] = useState("");
+  const [usage, setUsage] = useState<RequestUsage | null>(null);
   const [runProvider, setRunProvider] = useState(provider);
   const [cli, setCli] = useState<CliState>({ status: "idle", error: null });
   const abortRef = useRef<AbortController | null>(null);
@@ -72,10 +74,11 @@ export function useAITask() {
     streamRef.current = id;
     setCli({ status: "loading", error: null });
     try {
-      await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, { text: string }>(
+      await window.glazeAPI.glaze.ipc.stream<AIStreamChunk, { text: string; usage?: RequestUsage }>(
         "ai:run",
         { system: options.system, prompt: options.prompt },
         (chunk) => {
+          if (streamRef.current === id && chunk.type === "usage") setUsage(chunk.usage);
           if (streamRef.current === id && chunk.type === "delta")
             setOutput((current) => current + chunk.text);
         },
@@ -103,6 +106,7 @@ export function useAITask() {
   async function run(options: RunOptions) {
     stop();
     setOutput("");
+    setUsage(null);
     setRunProvider(provider);
     if (demo || provider !== "glaze") await runCli(options);
     else await runGlaze(options);
@@ -111,6 +115,7 @@ export function useAITask() {
   function clear() {
     stop();
     setOutput("");
+    setUsage(null);
     if (!demo) glazeAI.reset();
     setCli({ status: "idle", error: null });
   }
@@ -126,6 +131,7 @@ export function useAITask() {
 
   return {
     output,
+    usage,
     run,
     stop,
     clear,

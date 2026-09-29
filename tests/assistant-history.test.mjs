@@ -297,17 +297,25 @@ test("a history reload cannot overtake a save awaiting account resolution", asyn
   globalThis.__assistantHistoryCalls = [];
   globalThis.__assistantHistoryTrack = (operation) => operation();
   let release;
-  const scope = new Promise((resolve) => { release = resolve; });
+  const scope = new Promise((resolve) => {
+    release = resolve;
+  });
   globalThis.__assistantHistoryScopes = [scope, "local", "local"];
   try {
     (await loadHandlers()).registerAssistantHistoryHandlers();
-    const saving = globalThis.__assistantHistoryHandlers.get("assistant:saveChat")({}, { expectedScope: "local", chat: {} });
+    const saving = globalThis.__assistantHistoryHandlers.get("assistant:saveChat")(
+      {},
+      { expectedScope: "local", chat: {} },
+    );
     const reading = globalThis.__assistantHistoryHandlers.get("assistant:getHistory")({});
     await Promise.resolve();
     assert.deepEqual(globalThis.__assistantHistoryCalls, []);
     release("local");
     await Promise.all([saving, reading]);
-    assert.deepEqual(globalThis.__assistantHistoryCalls.map((call) => call[0]), ["save", "get"]);
+    assert.deepEqual(
+      globalThis.__assistantHistoryCalls.map((call) => call[0]),
+      ["save", "get"],
+    );
   } finally {
     delete globalThis.__assistantHistoryHandlers;
     delete globalThis.__assistantHistoryCalls;
@@ -401,5 +409,32 @@ test("malformed and failed saves preserve the last acknowledged file", async () 
       recovered.chats.map((entry) => entry.id),
       ["saved"],
     );
+  });
+});
+
+test("request usage survives durable history with unknown and zero cache counters", async () => {
+  await withStore(async () => {
+    const store = await load();
+    const usage = {
+      inputTokens: 100,
+      outputTokens: 5,
+      totalTokens: 105,
+      cacheReadTokens: 0,
+      cacheWriteTokens: null,
+      modelId: null,
+      requestedModelId: "gpt-6-sol",
+      route: "openai",
+      durationMs: 50,
+    };
+    await store.saveAssistantChat(
+      "google:fixture-cache",
+      chat("cache-chat", "2026-09-28T09:00:00.000Z", [
+        { ...message("cache-reply"), role: "assistant", usage },
+      ]),
+    );
+    const reloaded = await load();
+    const history = await reloaded.getAssistantHistory("google:fixture-cache");
+    assert.deepEqual(history.chats[0].messages[0].usage, usage);
+    assert.equal(history.chats[0].messages[0].content, "Hello");
   });
 });
