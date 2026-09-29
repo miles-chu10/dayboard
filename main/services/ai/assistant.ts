@@ -1,6 +1,6 @@
 import {
+  aggregateStepUsage,
   tokenUsage,
-  withCacheTotals,
   type RequestUsage,
   type TokenUsage,
 } from "../../../shared/ai-usage.js";
@@ -14,7 +14,7 @@ import { getMcpServers, getSettings } from "../settings-store.js";
 import { isApiProvider } from "./api-keys.js";
 import { apiLanguageModel, resolveApiModel } from "./api-providers.js";
 import { attachmentContext } from "./attachments.js";
-import { runCliCompletion } from "./cli-providers.js";
+import { runCliCompletion, type CliUsage } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
 import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
@@ -90,7 +90,7 @@ export async function runAssistant(
   const messages = withCurrentSnapshot(params.messages, params.snapshot);
   let requestUsage: RequestUsage | undefined;
   let resolvedModelId: string | null = null;
-  const reportUsage = (usage: Partial<TokenUsage>) => {
+  const reportUsage = (usage: CliUsage) => {
     requestUsage = {
       ...tokenUsage(usage),
       modelId: resolvedModelId,
@@ -101,7 +101,7 @@ export async function runAssistant(
     send({
       type: "usage",
       ...requestUsage,
-      inputTokens: requestUsage.inputTokens ?? 0,
+      inputTokens: requestUsage.inputTokens ?? usage.displayInputTokens ?? 0,
       outputTokens: requestUsage.outputTokens ?? 0,
       usage: requestUsage,
       contextWindow: model.contextWindow,
@@ -190,7 +190,6 @@ export async function runAssistant(
         toolName?: string;
         error?: unknown;
         usage?: Parameters<typeof tokenUsage>[0];
-        totalUsage?: Parameters<typeof tokenUsage>[0];
         response?: { modelId?: string };
       };
       switch (part.type) {
@@ -225,7 +224,7 @@ export async function runAssistant(
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
           break;
         case "finish":
-          if (part.totalUsage) reportUsage(withCacheTotals(tokenUsage(part.totalUsage), steps));
+          reportUsage(aggregateStepUsage(steps));
           break;
         case "error":
           throw part.error instanceof Error ? part.error : new Error(String(part.error));
