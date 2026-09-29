@@ -48,6 +48,6 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
 ## Assets
 
 - `assets/screens/` is a copy of `docs/screenshots/`, captured by `npm run screenshots` from the fictional demo. After recapturing, recompress and copy the images here.
-- `assets/og-image.png` (1200×630) is the link preview image, rendered from the site's fonts and the Agenda screenshot.
-- `assets/icon-*.png` are resized from the repository's `app-icon.png` (JPEG data despite the name).
+- `assets/og-image.png` (1200×630) is the link preview image, rendered from the site's fonts, the logo and the Agenda screenshot.
+- `assets/icon-32.png` and `assets/icon-96.png` are the small-size logo, and `assets/icon-180.png` (Apple touch icon) is the full-bleed square logo. Sources and regeneration steps are in `brand/README.md`.
 - `assets/fonts/` holds self-hosted Fraunces and Hanken Grotesk under the SIL Open Font License; their license texts sit beside them. No page loads third-party resources.
