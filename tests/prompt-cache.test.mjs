@@ -716,7 +716,7 @@ function fixture(model = "gpt-6-sol", handles = [], provider = "openai") {
     closed: 0,
   };
 }
-function sse(model, counters, toolName) {
+function sse(model, counters, toolName, failure) {
   const response = {
     id: "fixture-response",
     created_at: 1,
@@ -769,11 +769,13 @@ function sse(model, counters, toolName) {
         content_index: 0,
         delta: "Fixture answer",
       },
-      { type: "response.output_item.done", output_index: 0, item },
     );
+    // A failure ends the stream mid-output, after a delta was already sent.
+    if (failure) events.push({ type: "error", sequence_number: 4, message: failure });
+    else events.push({ type: "response.output_item.done", output_index: 0, item });
     response.output = [item];
   }
-  events.push({ type: "response.completed", response });
+  if (!failure) events.push({ type: "response.completed", response });
   return new globalThis.Response(
     events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""),
     { headers: { "content-type": "text/event-stream" } },
@@ -785,6 +787,7 @@ async function withFetch(
     counters = { cached_tokens: 40, cache_write_tokens: 10 },
     toolFirst = false,
     fail = false,
+    failure,
   } = {},
 ) {
   const original = globalThis.fetch;
@@ -802,7 +805,12 @@ async function withFetch(
         { error: { message: "synthetic bad request", type: "invalid_request_error" } },
         { status: 400 },
       );
-    return sse(body.model, counters, toolFirst && bodies.length === 1 ? "lookup" : undefined);
+    return sse(
+      body.model,
+      counters,
+      toolFirst && bodies.length === 1 ? "lookup" : undefined,
+      failure,
+    );
   };
   try {
     return { value: await operation(), bodies };
@@ -1683,4 +1691,56 @@ test("direct OpenAI route ignores an inherited OPENAI_BASE_URL", async () => {
     if (inherited === undefined) delete process.env.OPENAI_BASE_URL;
     else process.env.OPENAI_BASE_URL = inherited;
   }
+});
+const midStreamFailure = "synthetic mid-stream failure";
+const surfacesMidStreamFailure = (error) => {
+  assert.ok(
+    error instanceof Error,
+    `expected an Error, got ${Object.prototype.toString.call(error)}`,
+  );
+  assert.match(error.message, /synthetic mid-stream failure/);
+  return true;
+};
+test("Assistant surfaces the message of a provider error that arrives after output started", async () => {
+  fixture();
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const chunks = [];
+  await assert.rejects(
+    withFetch(
+      () =>
+        assistant.runAssistant(
+          { system: "policy", messages: [{ role: "user", content: "hello" }] },
+          (chunk) => chunks.push(chunk),
+          new globalThis.AbortController().signal,
+        ),
+      { failure: midStreamFailure },
+    ),
+    surfacesMidStreamFailure,
+  );
+  assert.ok(
+    chunks.some((chunk) => chunk.type === "delta"),
+    "output started before the failure",
+  );
+});
+test("one-shot route surfaces the message of a provider error that arrives after output started", async () => {
+  fixture();
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const chunks = [];
+  await assert.rejects(
+    withFetch(
+      () =>
+        globalThis.__cacheFixture.handlers["ai:run"](
+          { system: "policy", prompt: "question" },
+          (chunk) => chunks.push(chunk),
+          { signal: new globalThis.AbortController().signal },
+        ),
+      { failure: midStreamFailure },
+    ),
+    surfacesMidStreamFailure,
+  );
+  assert.ok(
+    chunks.some((chunk) => chunk.type === "delta"),
+    "output started before the failure",
+  );
 });

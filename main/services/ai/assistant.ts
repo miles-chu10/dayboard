@@ -19,6 +19,7 @@ import { listCodexModels } from "./codex-models.js";
 import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
+import { asError } from "./stream-error.js";
 
 const ASSISTANT_TIMEOUT_MS = 5 * 60_000;
 
@@ -227,7 +228,7 @@ export async function runAssistant(
           reportUsage(aggregateStepUsage(steps));
           break;
         case "error":
-          throw part.error instanceof Error ? part.error : new Error(String(part.error));
+          throw asError(part.error);
       }
     }
     return { text, usage: requestUsage };

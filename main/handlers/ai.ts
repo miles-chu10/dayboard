@@ -40,6 +40,7 @@ import {
 import { apiLanguageModel, listApiModels, resolveApiModel } from "../services/ai/api-providers.js";
 import { streamText } from "@glaze/core/ai";
 import { testMcpServer } from "../services/ai/mcp-client.js";
+import { asError } from "../services/ai/stream-error.js";
 import {
   checkAssistantMcpConnection,
   getActiveAssistantMcpServerConfig,
@@ -403,7 +404,7 @@ export function registerAIHandlers(): void {
               usage?: Parameters<typeof tokenUsage>[0];
               response?: { modelId?: string };
             };
-            if (part.type === "error") throw part.error;
+            if (part.type === "error") throw asError(part.error);
             if (part.type === "text-delta") {
               text += part.text ?? "";
               sendChunk({ type: "delta", text: part.text ?? "" });
