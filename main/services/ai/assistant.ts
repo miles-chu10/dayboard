@@ -1,3 +1,10 @@
+import {
+  tokenUsage,
+  withCacheTotals,
+  type RequestUsage,
+  type TokenUsage,
+} from "../../../shared/ai-usage.js";
+import { apiPromptOptions, withCurrentSnapshot } from "./prompt-cache.js";
 import { stepCountIs, streamText, tool } from "ai";
 
 import { logger } from "../../platform/index.js";
@@ -53,6 +60,7 @@ export async function runAssistant(
   params: {
     messages: AssistantMessageInput[];
     system: string;
+    snapshot?: string;
     attachments?: string[];
   },
   send: (chunk: AIStreamChunk) => void,
@@ -63,6 +71,7 @@ export async function runAssistant(
     if (!signal.aborted) send({ type: "delta", text });
     return { text };
   }
+  const startedAt = Date.now();
   const settings = await getSettings();
   if (!settings.ai.enabled || !settings.ai.providerChosen) return { blocked: "not-configured" };
   const provider = await resolveConfiguredProvider(
@@ -84,8 +93,26 @@ export async function runAssistant(
     };
   }
   const system = params.system + modelSystemNote(model);
-  const reportUsage = (usage: { inputTokens: number; outputTokens: number }) =>
-    send({ type: "usage", ...usage, contextWindow: model.contextWindow });
+  const messages = withCurrentSnapshot(params.messages, params.snapshot);
+  let requestUsage: RequestUsage | undefined;
+  let resolvedModelId: string | null = null;
+  const reportUsage = (usage: Partial<TokenUsage>) => {
+    requestUsage = {
+      ...tokenUsage(usage),
+      modelId: resolvedModelId,
+      requestedModelId: model.id,
+      route: provider,
+      durationMs: Date.now() - startedAt,
+    };
+    send({
+      type: "usage",
+      ...requestUsage,
+      inputTokens: requestUsage.inputTokens ?? 0,
+      outputTokens: requestUsage.outputTokens ?? 0,
+      usage: requestUsage,
+      contextWindow: model.contextWindow,
+    });
+  };
   // Antigravity and Muse have no per-run MCP configuration, so they answer from the snapshot alone.
   const servers =
     provider === "gemini" || provider === "muse"
@@ -107,17 +134,18 @@ export async function runAssistant(
       codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
+        resolvedModelId = id;
         send({ type: "meta", model: { ...model, id } });
       },
       onUsage: reportUsage,
-      prompt: transcript(params.messages),
+      prompt: transcript(messages),
       mcpServers: servers,
       signal,
       timeoutMs: ASSISTANT_TIMEOUT_MS,
       onDelta: (text) => send({ type: "delta", text }),
       onTool: (event) => send({ type: "tool", ...event }),
     });
-    return { text };
+    return { text, usage: requestUsage };
   }
 
   const session = servers.length ? await openMcpSession(servers) : null;
@@ -141,8 +169,16 @@ export async function runAssistant(
       throw new Error(`No model available for ${provider}.`);
     const result = streamText({
       model: await apiLanguageModel(provider, apiModel.id),
-      system: system + mcpNote(session, 0),
-      messages: params.messages,
+      ...apiPromptOptions(
+        provider,
+        apiModel?.id ?? "",
+        system,
+        withCurrentSnapshot(
+          params.messages,
+          [params.snapshot, mcpNote(session, 0)].filter(Boolean).join("\n\n"),
+        ),
+        "implicit",
+      ),
       tools,
       stopWhen: stepCountIs(8),
       maxOutputTokens: 4000,
@@ -150,6 +186,7 @@ export async function runAssistant(
     });
 
     let text = "";
+    const steps: TokenUsage[] = [];
     for await (const rawPart of result.fullStream) {
       const part = rawPart as {
         type: string;
@@ -158,7 +195,9 @@ export async function runAssistant(
         toolCallId?: string;
         toolName?: string;
         error?: unknown;
-        totalUsage?: { inputTokens?: number; outputTokens?: number };
+        usage?: Parameters<typeof tokenUsage>[0];
+        totalUsage?: Parameters<typeof tokenUsage>[0];
+        response?: { modelId?: string };
       };
       switch (part.type) {
         case "text-delta": {
@@ -187,18 +226,18 @@ export async function runAssistant(
         case "tool-error":
           send({ type: "tool", id: part.toolCallId ?? "", status: "error" });
           break;
+        case "finish-step":
+          if (part.usage) steps.push(tokenUsage(part.usage, provider));
+          if (part.response?.modelId) resolvedModelId = part.response.modelId;
+          break;
         case "finish":
-          if (part.totalUsage)
-            reportUsage({
-              inputTokens: part.totalUsage.inputTokens ?? 0,
-              outputTokens: part.totalUsage.outputTokens ?? 0,
-            });
+          if (part.totalUsage) reportUsage(withCacheTotals(tokenUsage(part.totalUsage), steps));
           break;
         case "error":
           throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
     }
-    return { text };
+    return { text, usage: requestUsage };
   } catch (error) {
     logger.error("ai", "Assistant request failed", error);
     throw error;

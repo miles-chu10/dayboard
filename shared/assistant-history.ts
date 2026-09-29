@@ -1,3 +1,5 @@
+import type { RequestUsage } from "./ai-usage.js";
+
 /** Durable Assistant chat data shared by the renderer and backend. */
 
 export const ASSISTANT_PROVIDERS = [
@@ -48,6 +50,7 @@ export interface AssistantMessage {
   provider?: AssistantProvider;
   /** Model that wrote the reply, e.g. "GPT-5.6 Sol · gpt-5.6-sol · Fast". */
   modelLabel?: string;
+  usage?: RequestUsage;
 }
 
 export interface AssistantChat {

@@ -1,3 +1,4 @@
+import { normalizeRequestUsage } from "../../shared/ai-usage.js";
 import * as path from "node:path";
 
 import { app } from "../platform/index.js";
@@ -107,6 +108,7 @@ function normalizeMessage(value: unknown): AssistantMessage {
     throw new Error("Assistant history contains an invalid message role.");
   if (!Array.isArray(value.tools) || !Array.isArray(value.actions))
     throw new Error("Assistant history contains an invalid message payload.");
+  const usage = normalizeRequestUsage(value.usage);
   const provider = value.provider;
   if (provider !== undefined && !ASSISTANT_PROVIDERS.includes(provider as AssistantProvider))
     throw new Error("Assistant history contains an invalid message provider.");
@@ -119,6 +121,7 @@ function normalizeMessage(value: unknown): AssistantMessage {
     error: optionalString(value.error, "message error", 20_000),
     blocked: optionalString(value.blocked, "message block", 20_000),
     ...(provider ? { provider: provider as AssistantProvider } : {}),
+    ...(usage ? { usage } : {}),
     ...(typeof value.modelLabel === "string" && value.modelLabel
       ? { modelLabel: value.modelLabel.slice(0, 160) }
       : {}),

@@ -1,3 +1,5 @@
+import { tokenUsage, type RequestUsage } from "../../shared/ai-usage.js";
+import { apiPromptOptions } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "../platform/index.js";
 
 import type {
@@ -352,7 +354,7 @@ export function registerAIHandlers(): void {
   });
 
   // One-shot generation through the selected CLI or API provider.
-  ipcMain.handleStream<unknown, AIStreamChunk, { text: string }>(
+  ipcMain.handleStream<unknown, AIStreamChunk, { text: string; usage?: RequestUsage }>(
     "ai:run",
     async (payload, sendChunk, context) => {
       const channel = "ai:run";
@@ -364,6 +366,7 @@ export function registerAIHandlers(): void {
         if (!context.signal.aborted) sendChunk({ type: "delta", text });
         return { text };
       }
+      const startedAt = Date.now();
       const settings = await getSettings();
       if (!settings.ai.enabled || !settings.ai.providerChosen)
         throw new Error("Choose and enable an AI provider in Settings → AI first.");
@@ -375,18 +378,44 @@ export function registerAIHandlers(): void {
           const model = await resolveApiModel(provider, settings.ai);
           const result = streamText({
             model: await apiLanguageModel(provider, model.id),
-            system,
-            prompt,
+            ...apiPromptOptions(
+              provider,
+              model.id,
+              system,
+              [{ role: "user", content: prompt }],
+              "explicit",
+            ),
             maxOutputTokens: 4000,
             abortSignal: context.signal,
           });
           let text = "";
-          for await (const delta of result.textStream) {
-            text += delta;
-            sendChunk({ type: "delta", text: delta });
+          for await (const part of result.fullStream) {
+            if (part.type === "error") throw part.error;
+            if (part.type === "text-delta") {
+              text += part.text;
+              sendChunk({ type: "delta", text: part.text });
+            }
           }
-          return { text };
+          const response = await result.response;
+          const usage: RequestUsage = {
+            ...tokenUsage(await result.usage, provider),
+            modelId: response.modelId ?? null,
+            requestedModelId: model.id,
+            route: provider,
+            durationMs: Date.now() - startedAt,
+          };
+          sendChunk({
+            type: "usage",
+            ...usage,
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+            usage,
+            contextWindow: model.contextWindow,
+          });
+          return { text, usage };
         }
+        let usage: RequestUsage | undefined;
+        let modelId: string | null = null;
         const text = await runCliCompletion({
           provider,
           system,
@@ -396,8 +425,28 @@ export function registerAIHandlers(): void {
           timeoutMs: RUN_TIMEOUT_MS,
           onDelta: (text) => sendChunk({ type: "delta", text }),
           onTool: () => undefined,
+          onModel: (id) => {
+            modelId = id;
+          },
+          onUsage: (counts) => {
+            usage = {
+              ...tokenUsage(counts),
+              modelId,
+              requestedModelId: null,
+              route: provider,
+              durationMs: Date.now() - startedAt,
+            };
+            sendChunk({
+              type: "usage",
+              ...usage,
+              inputTokens: usage.inputTokens ?? 0,
+              outputTokens: usage.outputTokens ?? 0,
+              usage,
+              contextWindow: null,
+            });
+          },
         });
-        return { text };
+        return { text, usage };
       } catch (error) {
         if (!isCancelled(error))
           logger.error("ai", "ai:run failed", {
@@ -417,6 +466,8 @@ export function registerAIHandlers(): void {
         {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
+          snapshot:
+            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

@@ -1,3 +1,5 @@
+import type { RequestUsage } from "../shared/ai-usage.js";
+
 // Types shared by the backend handlers and the renderer (renderer imports these type-only).
 
 export type RemindersAccess =
@@ -382,10 +384,11 @@ export type AIStreamChunk =
       inputTokens: number;
       outputTokens: number;
       contextWindow: number | null;
+      usage: RequestUsage;
     }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
-export type AssistantResult = { text: string } | { blocked: string };
+export type AssistantResult = { text: string; usage?: RequestUsage } | { blocked: string };
 
 export interface AssistantModelInfo {
   provider: AIProvider;
