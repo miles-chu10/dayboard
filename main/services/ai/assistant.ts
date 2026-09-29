@@ -4,7 +4,8 @@ import {
   type RequestUsage,
   type TokenUsage,
 } from "../../../shared/ai-usage.js";
-import { apiPromptOptions, withCurrentSnapshot } from "./prompt-cache.js";
+import { oneLine } from "../../../shared/ai-snapshot.js";
+import { apiPromptOptions, insertIntoSnapshot, withCurrentSnapshot } from "./prompt-cache.js";
 import { GlazeAIError, glaze, stepCountIs, streamText, tool } from "@glaze/core/ai";
 import { logger } from "@glaze/core/backend";
 
@@ -47,12 +48,18 @@ function transcript(messages: AssistantMessageInput[]): string {
   return `${lines.length ? `Conversation so far:\n${lines.join("\n\n")}\n\n` : ""}User's latest message:\n${latest?.content ?? ""}`;
 }
 
-function mcpNote(session: McpSession | null, cliServers: number): string {
-  if (session?.errors.length)
-    return `\n\nSome MCP servers could not be reached: ${session.errors.join("; ")}`;
-  if (session?.tools.length || cliServers)
-    return "\n\nMCP tools are connected; use them when they help.";
-  return "";
+const MCP_HINT = "MCP tools are connected; use them when they help.";
+
+/** MCP errors quote remote servers, so they are untrusted text inside the snapshot block. */
+function mcpErrorSection(errors: string[]): string {
+  return `## MCP servers\nCould not be reached (text reported by the servers): ${errors.map(oneLine).join("; ")}`;
+}
+
+/** The snapshot for an API request, with the MCP status folded in. */
+function apiSnapshot(snapshot: string | undefined, session: McpSession | null): string | undefined {
+  if (session?.errors.length) return insertIntoSnapshot(snapshot, mcpErrorSection(session.errors));
+  if (session?.tools.length) return [snapshot, MCP_HINT].filter(Boolean).join("\n\n");
+  return snapshot;
 }
 
 export async function runAssistant(
@@ -127,7 +134,7 @@ export async function runAssistant(
     startedAt = Date.now();
     const text = await runCliCompletion({
       provider,
-      system: system + mcpNote(null, servers.length),
+      system: system + (servers.length ? `\n\n${MCP_HINT}` : ""),
       codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
@@ -172,10 +179,7 @@ export async function runAssistant(
         provider,
         apiModel?.id ?? "",
         system,
-        withCurrentSnapshot(
-          params.messages,
-          [params.snapshot, mcpNote(session, 0)].filter(Boolean).join("\n\n"),
-        ),
+        withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
         "implicit",
       ),
       tools,

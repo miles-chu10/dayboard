@@ -1,3 +1,4 @@
+import { SNAPSHOT_END, SNAPSHOT_START } from "../../../shared/ai-snapshot.js";
 import type { AssistantMessageInput } from "../../shared-types.js";
 
 /** Intentionally excludes unknown future families, specialty variants and compatible gateways. */
@@ -41,4 +42,14 @@ export function withCurrentSnapshot(
   return messages.map((message, index) =>
     index === latest ? { ...message, content: `${snapshot}\n\n${message.content}` } : message,
   );
+}
+
+/**
+ * Text quoted from outside sources goes inside the snapshot block, ahead of its end marker, so the
+ * rule that snapshot content is untrusted data covers it. A snapshot without that block gets one.
+ */
+export function insertIntoSnapshot(snapshot: string | undefined, section: string): string {
+  const end = `\n${SNAPSHOT_END}`;
+  if (snapshot?.endsWith(end)) return `${snapshot.slice(0, -end.length)}\n\n${section}${end}`;
+  return [snapshot, `${SNAPSHOT_START}\n${section}${end}`].filter(Boolean).join("\n\n");
 }
