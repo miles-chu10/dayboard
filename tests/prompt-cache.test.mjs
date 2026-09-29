@@ -198,11 +198,19 @@ test("stable policy excludes changing source data, while fresh snapshot remains 
   ];
   const first = cache.withCurrentSnapshot(messages, "snapshot one");
   const second = cache.withCurrentSnapshot(messages, "snapshot two");
-  assert.deepEqual(first.slice(0, 2), messages.slice(0, 2));
-  assert.deepEqual(second.slice(0, 2), first.slice(0, 2));
-  assert.equal(second.at(-2).content, "snapshot two");
-  assert.equal(second.at(-1).content, "latest");
-  assert.equal(messages.length, 3);
+  // The snapshot leads the latest user message, so it adds no turn of its own.
+  assert.equal(first.length, messages.length);
+  assert.deepEqual(first.slice(0, -1), messages.slice(0, -1));
+  assert.deepEqual(second.slice(0, -1), first.slice(0, -1));
+  assert.deepEqual(first.at(-1), { role: "user", content: "snapshot one\n\nlatest" });
+  assert.deepEqual(second.at(-1), { role: "user", content: "snapshot two\n\nlatest" });
+  // Saved messages stay snapshot-free, and no snapshot leaves the request untouched.
+  assert.deepEqual(
+    messages.map((message) => message.content),
+    ["old request", "old answer", "latest"],
+  );
+  assert.equal(cache.withCurrentSnapshot(messages, undefined), messages);
+  assert.equal(cache.withCurrentSnapshot(messages, ""), messages);
 });
 test("explicit cache gate excludes old, gateway, unknown and specialty models", () => {
   for (const id of [
@@ -818,10 +826,23 @@ test("actual Assistant request uses stable boundary, latest snapshot and aggrega
   assert.deepEqual(first.bodies[0].input[0].content[0].prompt_cache_breakpoint, {
     mode: "explicit",
   });
-  assert.deepEqual(first.bodies[0].input.slice(1, 3), second.bodies[0].input.slice(1, 3));
-  assert.equal(first.bodies[0].input.at(-2).content[0].text, "fresh snapshot one");
-  assert.equal(second.bodies[0].input.at(-2).content[0].text, "fresh snapshot two");
-  assert.equal(first.bodies[0].input.at(-1).content[0].text, "latest request");
+  // System policy and saved history are identical; only the latest user message changes.
+  const roles = first.bodies[0].input.map((item) => item.role);
+  assert.ok(["system", "developer"].includes(roles[0]));
+  assert.deepEqual(roles.slice(1), ["user", "assistant", "user"]);
+  assert.deepEqual(first.bodies[0].input.slice(0, 3), second.bodies[0].input.slice(0, 3));
+  assert.equal(
+    first.bodies[0].input.at(-1).content[0].text,
+    "fresh snapshot one\n\nlatest request",
+  );
+  assert.equal(
+    second.bodies[0].input.at(-1).content[0].text,
+    "fresh snapshot two\n\nlatest request",
+  );
+  assert.deepEqual(
+    messages.map((message) => message.content),
+    ["earlier", "old answer", "latest request"],
+  );
   assert.equal(first.value.text, "Fixture answer");
   assert.equal(first.value.usage.cacheReadTokens, 40);
   assert.equal(first.value.usage.cacheWriteTokens, 10);
@@ -1142,14 +1163,19 @@ async function withProviderFetch(operation, respond) {
     globalThis.fetch = original;
   }
 }
-async function assistantRun(provider, model, respond, { handles = [], content = "hello" } = {}) {
+async function assistantRun(
+  provider,
+  model,
+  respond,
+  { handles = [], content = "hello", messages, snapshot } = {},
+) {
   fixture(model, handles, provider);
   const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
   const chunks = [];
   const run = await withProviderFetch(
     () =>
       assistant.runAssistant(
-        { system: "stable policy", messages: [{ role: "user", content }] },
+        { system: "stable policy", messages: messages ?? [{ role: "user", content }], snapshot },
         (chunk) => chunks.push(chunk),
         new globalThis.AbortController().signal,
       ),
@@ -1490,4 +1516,124 @@ test("legacy display tokens use the known input count while the measured record 
     { signal: new globalThis.AbortController().signal },
   );
   assert.equal(bare.find((chunk) => chunk.type === "usage").inputTokens, 0);
+});
+const savedTurns = [
+  { role: "user", content: "earlier" },
+  { role: "assistant", content: "old answer" },
+  { role: "user", content: "latest request" },
+];
+test("the snapshot rides in the latest user turn on Gemini, Anthropic and compatible chat wires", async () => {
+  const wires = {
+    google: [
+      "gemini-fixture",
+      () =>
+        providerStreams.google("gemini-fixture", { promptTokenCount: 1, candidatesTokenCount: 1 }),
+    ],
+    anthropic: [
+      "claude-fixture",
+      () =>
+        providerStreams.anthropic("claude-fixture", {
+          start: { input_tokens: 1, output_tokens: 1 },
+          delta: { output_tokens: 1 },
+        }),
+    ],
+    xai: ["grok-fixture", () => providerStreams.chat("grok-fixture", {})],
+  };
+  const sent = async (provider, snapshot) => {
+    const [model, respond] = wires[provider];
+    const run = await assistantRun(provider, model, respond, { messages: savedTurns, snapshot });
+    assert.equal(run.requests.length, 1, provider);
+    return run.requests[0].body;
+  };
+  const latest = (snapshot) => `${snapshot}\n\nlatest request`;
+  for (const [provider, turns, roles, lastTurn] of [
+    [
+      "google",
+      (body) => body.contents,
+      ["user", "model", "user"],
+      (turn, snapshot) => assert.deepEqual(turn.parts, [{ text: latest(snapshot) }]),
+    ],
+    [
+      "anthropic",
+      (body) => body.messages,
+      ["user", "assistant", "user"],
+      (turn, snapshot) =>
+        assert.deepEqual(turn.content, [{ type: "text", text: latest(snapshot) }]),
+    ],
+    [
+      "xai",
+      (body) => body.messages,
+      ["system", "user", "assistant", "user"],
+      (turn, snapshot) => assert.equal(turn.content, latest(snapshot)),
+    ],
+  ]) {
+    const one = turns(await sent(provider, "snapshot one"));
+    const two = turns(await sent(provider, "snapshot two"));
+    // No adjacent user turns, and everything before the latest user turn is byte-identical.
+    assert.deepEqual(
+      one.map((turn) => turn.role),
+      roles,
+      provider,
+    );
+    assert.deepEqual(one.slice(0, -1), two.slice(0, -1), provider);
+    lastTurn(one.at(-1), "snapshot one");
+    lastTurn(two.at(-1), "snapshot two");
+  }
+});
+test("CLI transcript places the snapshot immediately before the latest user text", async () => {
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const promptFor = async (snapshot) => {
+    let prompt;
+    cliFixture("gemini", {}, async (options) => {
+      prompt = options.prompt;
+      return "ok";
+    });
+    await assistant.runAssistant(
+      { system: "stable policy", messages: savedTurns, snapshot },
+      () => {},
+      new globalThis.AbortController().signal,
+    );
+    return prompt;
+  };
+  const first = await promptFor("snapshot one");
+  const second = await promptFor("snapshot two");
+  assert.equal(
+    first,
+    "Conversation so far:\nUser: earlier\n\nAssistant: old answer\n\nUser's latest message:\nsnapshot one\n\nlatest request",
+  );
+  assert.equal(second, first.replace("snapshot one", "snapshot two"));
+  assert.deepEqual(
+    savedTurns.map((turn) => turn.content),
+    ["earlier", "old answer", "latest request"],
+  );
+});
+test("direct OpenAI route ignores an inherited OPENAI_BASE_URL", async () => {
+  fixture();
+  const assistant = await load("main/services/ai/assistant.ts", { fixtures: true });
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  handlers.registerAIHandlers();
+  const inherited = process.env.OPENAI_BASE_URL;
+  process.env.OPENAI_BASE_URL = "https://gateway.invalid/v1";
+  try {
+    // withFetch fails on any request that is not https://api.openai.com/v1/responses.
+    const reply = await withFetch(() =>
+      assistant.runAssistant(
+        { system: "policy", messages: [{ role: "user", content: "hello" }] },
+        () => {},
+        new globalThis.AbortController().signal,
+      ),
+    );
+    assert.equal(reply.value.text, "Fixture answer");
+    const oneShot = await withFetch(() =>
+      globalThis.__cacheFixture.handlers["ai:run"](
+        { system: "policy", prompt: "question" },
+        () => {},
+        { signal: new globalThis.AbortController().signal },
+      ),
+    );
+    assert.equal(oneShot.value.text, "Fixture answer");
+  } finally {
+    if (inherited === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = inherited;
+  }
 });

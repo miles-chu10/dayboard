@@ -16,6 +16,9 @@ export const API_LABEL: Record<ApiProviderId, string> = {
   openrouter: "OpenRouter",
 };
 
+/** Set explicitly: an inherited OPENAI_BASE_URL would otherwise make the direct route a gateway. */
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
+
 type CompatibleProvider = Exclude<ApiProviderId, "openai" | "anthropic" | "google">;
 
 /** Providers with OpenAI-compatible chat completions and `/models` listing. */
@@ -72,7 +75,7 @@ export async function listApiModels(
   const key = await requireKey(provider);
   let models: ApiModelInfo[];
   if (provider === "openai") {
-    const body = await fetchJson("https://api.openai.com/v1/models", {
+    const body = await fetchJson(`${OPENAI_BASE_URL}/models`, {
       Authorization: `Bearer ${key}`,
     });
     models = records(body, "data")
@@ -163,7 +166,7 @@ export async function resolveApiModel(
 
 export async function apiLanguageModel(provider: ApiProviderId, modelId: string) {
   const apiKey = await requireKey(provider);
-  if (provider === "openai") return createOpenAI({ apiKey })(modelId);
+  if (provider === "openai") return createOpenAI({ apiKey, baseURL: OPENAI_BASE_URL })(modelId);
   if (provider === "anthropic") return createAnthropic({ apiKey })(modelId);
   if (isCompatible(provider))
     return createOpenAI({
