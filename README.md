@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://getdayboard.com">Website &amp; beta signup</a> ·
+  <a href="https://getdayboard.com">Website &amp; waitlist</a> ·
   <a href="#getting-started">Getting started</a> ·
   <a href="#development">Development</a> ·
   <a href="LICENSE">GPL-3.0-only</a>
@@ -24,7 +24,7 @@ see the week ahead, and act on your work from one dashboard. An optional AI assi
 briefings, prioritization, capture, and meeting preparation using a provider you choose.
 
 > **Beta preview:** the current source version is **1.3.0-beta.8**, targeting **macOS 14+ on Apple
-> Silicon**. Join the beta at [getdayboard.com](https://getdayboard.com). Preview packages are ad-hoc
+> Silicon**. Join the waitlist at [getdayboard.com](https://getdayboard.com/waitlist). Preview packages are ad-hoc
 > signed and are not notarized. Public downloads and purchases depend on the checks in the
 > [release guide](docs/RELEASE.md).
 
@@ -43,7 +43,7 @@ briefings, prioritization, capture, and meeting preparation using a provider you
 
 The current packaged app requires **an Apple Silicon Mac running macOS 14 or later**.
 
-1. **Join the beta** at [getdayboard.com](https://getdayboard.com), or
+1. **Join the waitlist** at [getdayboard.com](https://getdayboard.com/waitlist), or
    [build from source](#development).
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
    Calendar; connect Apple Reminders when you are ready to grant its macOS permission.
@@ -172,7 +172,7 @@ pull requests and pushes to `main`. Native app and packaged-build checks run on 
 | [`shared/`](shared/)                                            | Shared types and IPC protocol.                          |
 | [`tests/`](tests/) and [`e2e/`](e2e/)                           | Offline fixtures and isolated Electron tests.           |
 | [`billing/`](billing/)                                          | Separate Stripe Checkout and license service.           |
-| [`website/`](website/) and [`website-worker/`](website-worker/) | Product site, beta signup UI, and site hosting.         |
+| [`website/`](website/) and [`website-worker/`](website-worker/) | Product site, waitlist signup UI, and site hosting.     |
 | [`brand/`](brand/)                                              | App icon sources and regeneration instructions.         |
 
 ### Demo and test isolation

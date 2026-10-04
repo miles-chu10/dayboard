@@ -1,7 +1,7 @@
 import type { Env } from "./config.ts";
 import { limit, object, readJson, securityHeaders } from "./http.ts";
 
-// Beta signups work before Stripe is configured: they need only D1, HASH_SECRET (rate limiting)
+// Waitlist signups work before Stripe is configured: they need only D1, HASH_SECRET (rate limiting)
 // and SITE_ORIGIN, the website allowed to post here.
 function siteOrigin(env: Env): string | null {
   try {
@@ -24,7 +24,14 @@ export function normalizeEmail(value: unknown): string | null {
   return email;
 }
 
-export async function betaSignup(request: Request, env: Env): Promise<Response> {
+// Workers pass an execution context; direct calls (unit tests) omit it.
+export type WaitUntil = { waitUntil(promise: Promise<unknown>): void };
+
+export async function waitlistSignup(
+  request: Request,
+  env: Env,
+  ctx?: WaitUntil,
+): Promise<Response> {
   const site = siteOrigin(env);
   const headers = {
     ...securityHeaders,
@@ -35,6 +42,11 @@ export async function betaSignup(request: Request, env: Env): Promise<Response> 
   };
   const reply = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers });
+  // Database errors can quote the address, so the log gets only a generic message.
+  const unavailable = () => {
+    console.error("Waitlist signup failed");
+    return reply(503, { error: "service_unavailable" });
+  };
 
   if (!site || !env.DB || !env.HASH_SECRET || env.HASH_SECRET.length < 32)
     return reply(503, { error: "signup_unconfigured" });
@@ -51,40 +63,53 @@ export async function betaSignup(request: Request, env: Env): Promise<Response> 
     });
   }
   if (request.method !== "POST") return reply(405, { error: "method_not_allowed" });
-  if (!(await limit(request, env, "beta:signup", 5))) return reply(429, { error: "rate_limited" });
-
-  let body: unknown;
   try {
-    body = await readJson(request, 1024);
+    // Both routes share the original bucket, so the alias can't double the per-network limit.
+    if (!(await limit(request, env, "beta:signup", 5)))
+      return reply(429, { error: "rate_limited" });
+    const body = await readJson(request, 1024).catch(() => null);
+    // Old clients may omit the hidden company field, but a present one must be a string.
+    if (!object(body) || (body.company !== undefined && typeof body.company !== "string"))
+      return reply(400, { error: "invalid_body" });
+    // A filled hidden field means a bot; answer as usual so it learns nothing.
+    if (typeof body.company === "string" && body.company.trim()) return reply(200, { ok: true });
+    const email = normalizeEmail(body.email);
+    if (!email) return reply(400, { error: "invalid_email" });
+    // New and existing addresses get the same answer, so the form can't reveal who signed up.
+    // Only the address and time are written, so a request can't choose its cohort or review
+    // label: a new row takes the migration 0004 defaults, an unreviewed waitlist entry.
+    const inserted = await env.DB.prepare(
+      "INSERT INTO beta_signups (email, created_at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+    )
+      .bind(email, Date.now())
+      .run();
+    // D1 normally throws on failure; an unconfirmed write is still never reported as saved.
+    if (!inserted.success) return unavailable();
+    if (inserted.meta.changes === 1) {
+      // After the reply when possible, so a new address isn't slower to answer than a listed one.
+      const sent = notify(env, site, email);
+      if (ctx) ctx.waitUntil(sent);
+      else await sent;
+    }
+    return reply(200, { ok: true });
   } catch {
-    return reply(400, { error: "invalid_body" });
+    // The address may not be stored, so never answer ok. The page keeps its retry path.
+    return unavailable();
   }
-  if (!object(body)) return reply(400, { error: "invalid_body" });
-  // A filled hidden field means a bot; answer as usual so it learns nothing.
-  if (typeof body.company === "string" && body.company.trim()) return reply(200, { ok: true });
-  const email = normalizeEmail(body.email);
-  if (!email) return reply(400, { error: "invalid_email" });
-  // New and existing addresses get the same answer, so the form can't reveal who signed up.
-  const inserted = await env.DB.prepare(
-    "INSERT INTO beta_signups (email, created_at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-  )
-    .bind(email, Date.now())
-    .run();
-  if (inserted.meta.changes === 1) await notify(env, site, email);
-  return reply(200, { ok: true });
 }
 
-// Emails the owner about each new address. Failures are logged, never shown to the visitor.
+// Emails the owner once per new address. A failure is only logged, generically: the signup is
+// already stored, and the error could quote addresses.
 async function notify(env: Env, site: string, email: string): Promise<void> {
   if (!env.SIGNUP_EMAIL || !env.SIGNUP_NOTIFY_TO) return;
   try {
     await env.SIGNUP_EMAIL.send({
       from: { name: "DayBoard signups", email: `signups@${new URL(site).hostname}` },
       to: env.SIGNUP_NOTIFY_TO,
-      subject: "New DayBoard beta signup",
-      text: `${email} joined the DayBoard beta list.`,
+      subject: "New DayBoard waitlist signup",
+      text: `${email} joined the DayBoard waitlist.`,
     });
-  } catch (error) {
-    console.error("Signup notification failed", error);
+  } catch {
+    console.error("Waitlist owner notification failed");
   }
 }

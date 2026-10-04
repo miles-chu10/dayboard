@@ -1,12 +1,21 @@
-// Post-deploy check for the website on Cloudflare Pages and its beta signup API. It signs up one
-// synthetic address and ends by printing the D1 commands that confirm and delete that row.
+// Post-deploy check for the website and its waitlist API. It signs up one synthetic address through
+// /v1/waitlist, repeats it through the legacy /v1/beta-signup alias, and ends by printing the D1
+// commands that confirm and delete that row.
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 
 const USAGE =
   "Usage: node scripts/verify-website.mjs --site <site-origin> --api <api-origin> [--skip-pages] [--www] [--rate-limit] [--email <address>] [--database <d1-name>]";
 const LOOPBACK = ["localhost", "127.0.0.1", "[::1]"];
-const PAGES = ["/", "/beta.html", "/docs.html", "/support.html", "/privacy.html", "/license.html"];
+const PAGES = [
+  "/",
+  "/waitlist.html",
+  "/beta.html",
+  "/docs.html",
+  "/support.html",
+  "/privacy.html",
+  "/license.html",
+];
 const OTHER_ORIGIN = "https://verify.example.invalid";
 // Asset kind, file extensions, plausible content types.
 const KINDS = [
@@ -64,7 +73,9 @@ function origin(flag) {
 const site = origin("site");
 const api = origin("api");
 const SITE = site.origin;
-const ENDPOINT = `${api.origin}/v1/beta-signup`;
+const ENDPOINT = `${api.origin}/v1/waitlist`;
+// Pages cached before the rename still post here; the service keeps it as an alias.
+const LEGACY_ENDPOINT = `${api.origin}/v1/beta-signup`;
 const stamp = Date.now();
 const email = (args.email ?? `dayboard-verify+${stamp}@example.com`).trim().toLowerCase();
 // A narrow character set keeps the printed SQL and shell commands safe to paste.
@@ -153,7 +164,7 @@ const HINTS = new Map([
   ["service_unavailable", "the Worker failed; check that every billing/migrations file is applied"],
   [
     "service_unconfigured",
-    "the deployed Worker has no beta signup route; deploy the current billing/ Worker",
+    "the deployed Worker has no waitlist route; deploy the current billing/ Worker",
   ],
 ]);
 function explain(res) {
@@ -423,9 +434,9 @@ async function checkPages() {
   }
   const value = (key) =>
     new RegExp(`["']?${key}["']?\\s*:\\s*(["'\`])(.*?)\\1`).exec(config)?.[2] ?? "";
-  const signupUrl = value("betaSignupUrl");
+  const signupUrl = value("waitlistUrl");
   check(
-    "site.js betaSignupUrl",
+    "site.js waitlistUrl",
     signupUrl === ENDPOINT,
     signupUrl === ENDPOINT
       ? signupUrl
@@ -446,15 +457,17 @@ async function checkPages() {
 
 async function checkApi() {
   // Browsers can't follow a redirected preflight, so a redirect here is a failure, not a hop.
-  const call = (init) => send(ENDPOINT, { redirect: "manual", ...init });
-  const post = (from, payload) =>
+  const call = ({ url = ENDPOINT, ...init }) => send(url, { redirect: "manual", ...init });
+  const post = (from, payload, url) =>
     call({
+      url,
       method: "POST",
       headers: { Origin: from, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-  const preflight = (from) =>
+  const preflight = (from, url) =>
     call({
+      url,
       method: "OPTIONS",
       headers: {
         Origin: from,
@@ -487,6 +500,8 @@ async function checkApi() {
         ? `Allow-Origin ${allowedOrigin(res) ?? "missing"}, Allow-Methods ${res.headers.get("access-control-allow-methods") ?? "missing"}, Allow-Headers ${res.headers.get("access-control-allow-headers") ?? "missing"}`
         : explain(res),
   );
+  res = await preflight(SITE, LEGACY_ENDPOINT);
+  expect("API legacy route preflight", res, res.status === 204 && allowedOrigin(res) === SITE);
   res = await preflight(OTHER_ORIGIN);
   expect(
     "API preflight from another origin",
@@ -525,8 +540,8 @@ async function checkApi() {
         ? `Access-Control-Allow-Origin is ${allowedOrigin(res) ?? "missing"}, expected ${SITE}`
         : explain(res),
   );
-  res = await post(SITE, { email: `  ${email.toUpperCase()}  `, company: "" });
-  expect("API duplicate signup", res, res.status === 200 && res.json.ok === true);
+  res = await post(SITE, { email: `  ${email.toUpperCase()}  `, company: "" }, LEGACY_ENDPOINT);
+  expect("API duplicate via legacy route", res, res.status === 200 && res.json.ok === true);
 
   if (!args["rate-limit"]) {
     warn(
@@ -564,10 +579,10 @@ const d1 = (sql) =>
   `npx wrangler d1 execute ${args.database ?? "<database>"} --remote --command "${sql}"`;
 // Matching lower(trim(email)) also finds a row stored from the duplicate check's upper-case,
 // padded address, which would mean the Worker stopped normalizing addresses.
-console.log(`\nFrom billing/, confirm D1 holds exactly one row, ${email}, and no honeypot row:`);
+console.log(`\nFrom billing/, confirm D1 holds one waitlist row, ${email}, and no honeypot row:`);
 console.log(
   d1(
-    `SELECT email, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups WHERE lower(trim(email)) IN ('${email}', '${honeypot}')`,
+    `SELECT email, cohort, classification, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups WHERE lower(trim(email)) IN ('${email}', '${honeypot}')`,
   ),
 );
 console.log("Then delete the synthetic row:");
