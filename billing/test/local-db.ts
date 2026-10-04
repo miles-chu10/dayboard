@@ -23,7 +23,7 @@ export class LocalDb {
           },
           async run() {
             const result = sql.prepare(query).run(...(params as []));
-            return { meta: { changes: Number(result.changes) } };
+            return { success: true, meta: { changes: Number(result.changes) } };
           },
         };
       },

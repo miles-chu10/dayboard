@@ -3,18 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Beta install guide — DayBoard</title>
+    <title>Join the waitlist — DayBoard</title>
     <meta
       name="description"
-      content="For invited DayBoard beta testers: what you need and how to install a beta build on an Apple Silicon Mac. Not invited yet? Join the waitlist."
+      content="Join the DayBoard waitlist for Apple Silicon Macs. Early access opens in small invited groups, with no set dates."
     />
     <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="DayBoard beta install guide" />
+    <meta property="og:title" content="Join the DayBoard waitlist" />
     <meta
       property="og:description"
-      content="How invited testers install the DayBoard beta on an Apple Silicon Mac. Not invited yet? Join the waitlist."
+      content="Google Calendar, Google Tasks, Apple Reminders and Gmail in one calm Mac app. Join the waitlist for early access."
     />
     <meta property="og:image" content="https://getdayboard.com/assets/screens/light-agenda.png" />
     <meta property="og:image:width" content="1600" />
@@ -55,7 +55,7 @@
           ><a href="docs.html">Guide</a><a href="support.html">Support</a
           ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </div>
-        <a class="button" href="waitlist.html">Join the waitlist</a>
+        <a class="button" href="#join" aria-current="page">Join the waitlist</a>
       </nav>
     </header>
 
@@ -66,77 +66,45 @@
             ><span class="dots" aria-hidden="true"
               ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
               ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
-            ><span><strong>Invited testers</strong> · macOS 14 or later</span></span
+            ><span><strong>Early access by invite</strong> · macOS 14 or later</span></span
           >
-          <h1 class="rise" style="--i: 1">Install the DayBoard <em>beta.</em></h1>
+          <h1 class="rise" style="--i: 1">Join the DayBoard <em>waitlist.</em></h1>
           <p class="rise" style="--i: 2">
-            This page is for people we've invited to test DayBoard. Not invited yet?
-            <a href="waitlist.html">Join the waitlist</a>.
+            DayBoard is in early access. Join the waitlist to tell us you're interested, and we'll
+            invite people in small groups as we're ready for more testers.
           </p>
         </div>
       </header>
 
       <div class="wrap two-col">
         <div class="prose">
-          <h2>What beta testers get</h2>
+          <h2>How the waitlist works</h2>
           <ul>
-            <li><strong>Every feature, free</strong> for the whole beta.</li>
             <li>
-              <strong>New builds as they're ready,</strong> with the download link sent by email.
+              <strong>Joining is a request, not a reservation.</strong> It tells us you'd like to
+              try DayBoard. It doesn't create an account or download anything.
             </li>
             <li>
-              <strong>A say in what's next.</strong> Report bugs and ideas on
-              <a href="https://github.com/miles-chu10/dayboard/issues">GitHub Issues</a>.
+              <strong>Invitations go out in small groups,</strong> as DayBoard is ready for more
+              testers. There's no set date, and joining doesn't guarantee an invitation.
+            </li>
+            <li>
+              <strong>If you're invited,</strong> we'll email this address with a download link and
+              install steps. Until then, there's nothing to install.
             </li>
           </ul>
 
-          <h2>What you need</h2>
+          <h2>What you'll need</h2>
           <ul>
             <li>A Mac with Apple silicon (M1 or later) running macOS 14 Sonoma or later.</li>
             <li>A Google account for Google Calendar, Google Tasks and Gmail, if you use them.</li>
             <li>Apple Reminders works through macOS, with your permission.</li>
-            <li>
-              For the optional AI features: Claude Code, the Codex app or CLI, or an API key from
-              your AI provider.
-            </li>
           </ul>
 
-          <h2 id="install">Installing a beta build</h2>
+          <h2>Already invited?</h2>
           <p>
-            Beta builds aren't notarized by Apple yet, so macOS asks you to confirm the first time
-            you open DayBoard. It takes a minute, and you only do it once per install.
-          </p>
-          <ol class="steps">
-            <li>
-              Open the <strong>.dmg</strong> from your invite email and drag DayBoard into your
-              <strong>Applications</strong> folder.
-            </li>
-            <li>
-              Open DayBoard. macOS says it can't verify the app and doesn't open it. Close that
-              message. Don't move DayBoard to the Trash.
-            </li>
-            <li>
-              Open <strong>System Settings → Privacy &amp; Security</strong>. Under
-              <strong>Security</strong>, click <strong>Open Anyway</strong> next to DayBoard.
-            </li>
-            <li>
-              Confirm with your password or Touch ID. DayBoard opens, and macOS won't ask again.
-            </li>
-            <li>
-              To connect Google, go to <strong>Settings → Sources</strong> and click
-              <strong>Sign in with Google</strong>. DayBoard isn't verified by Google yet, so Google
-              shows <strong>"Google hasn't verified this app"</strong>. Click
-              <strong>Continue</strong> to allow access.
-            </li>
-          </ol>
-          <p>
-            During the beta, Google only lets invited accounts sign in to DayBoard, so connect the
-            Google account you signed up with. Your Google sign-in also expires after 7 days while
-            DayBoard is in beta, so you'll sign in again every week.
-          </p>
-          <p>
-            Only install DayBoard from the link in your invite email. Notarized builds, which open
-            without these steps, are on the way.
+            Follow the <a href="beta.html#install">install steps for beta testers</a>, using the
+            download link from your invite email.
           </p>
 
           <h2>Your email</h2>
@@ -148,14 +116,33 @@
           </p>
         </div>
 
-        <aside class="aside-card" id="join" aria-labelledby="join-title">
-          <span class="eyebrow">Not invited yet?</span>
-          <h2 id="join-title">Join the waitlist.</h2>
-          <p>
-            We invite people in small groups, with no set dates. Joining tells us you're interested
-            and doesn't guarantee an invite.
-          </p>
-          <a class="button" href="waitlist.html">Join the waitlist</a>
+        <aside class="aside-card" aria-labelledby="join-title">
+          <span class="eyebrow">Waitlist</span>
+          <h2 id="join-title">Ask for early access.</h2>
+          <p>Joining doesn't guarantee an invitation or a date. No spam.</p>
+          <form class="signup" id="join" data-signup method="post" novalidate>
+            <div class="signup-row">
+              <label class="visually-hidden" for="email-waitlist">Email address</label>
+              <input
+                id="email-waitlist"
+                disabled
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+                maxlength="254"
+              />
+              <div class="trap" aria-hidden="true">
+                <label for="company-waitlist">Leave this empty</label
+                ><input id="company-waitlist" name="company" tabindex="-1" autocomplete="off" />
+              </div>
+              <button class="button" type="submit" disabled>Join the waitlist</button>
+            </div>
+            <p class="signup-note">If you'll connect Google, use that account's address.</p>
+            <p class="signup-status" role="status" aria-live="polite"></p>
+            <noscript><p class="signup-note">Turn on JavaScript to join the list.</p></noscript>
+          </form>
         </aside>
       </div>
     </main>

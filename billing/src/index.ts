@@ -1,10 +1,13 @@
 import Stripe from "stripe";
-import { betaSignup } from "./beta.ts";
+import { waitlistSignup, type WaitUntil } from "./beta.ts";
 import { checkout } from "./checkout.ts";
 import { config, type Env } from "./config.ts";
 import { error } from "./http.ts";
 import { licenses } from "./licenses.ts";
 import { webhook } from "./webhook.ts";
+
+// /v1/beta-signup is the legacy alias of /v1/waitlist, kept for pages cached before the rename.
+const SIGNUP_PATHS = ["/v1/waitlist", "/v1/beta-signup"];
 
 export type StripeFactory = (env: Env) => Stripe;
 export function createWorker(
@@ -14,12 +17,12 @@ export function createWorker(
     }),
 ) {
   return {
-    async fetch(request: Request, env: Env): Promise<Response> {
+    async fetch(request: Request, env: Env, ctx?: WaitUntil): Promise<Response> {
       const requestUrl = new URL(request.url);
-      if (requestUrl.pathname === "/v1/beta-signup") {
+      if (SIGNUP_PATHS.includes(requestUrl.pathname)) {
         if (requestUrl.origin !== env.SERVICE_ORIGIN) return error(403, "origin_mismatch");
         try {
-          return await betaSignup(request, env);
+          return await waitlistSignup(request, env, ctx);
         } catch {
           return error(503, "service_unavailable");
         }
