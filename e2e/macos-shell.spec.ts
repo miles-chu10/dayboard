@@ -132,17 +132,22 @@ test("Calendar compact rows retain titles and restore focus after the selected-d
     await expect(selectedDay).toBeVisible();
     const titles = selectedDay.locator("[data-agenda-title]");
     await expect.poll(() => titles.count()).toBeGreaterThan(2);
-    const geometry = await titles.evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        width: node.clientWidth,
-        overflow: node.scrollWidth > node.clientWidth,
-        fontSize: (
-          globalThis as unknown as { getComputedStyle(node: unknown): { fontSize: string } }
-        ).getComputedStyle(node).fontSize,
-      })),
-    );
-    expect(geometry.every(({ width, overflow }) => width >= 96 && !overflow)).toBe(true);
-    expect(geometry.every(({ fontSize }) => fontSize === "13px")).toBe(true);
+    await expect
+      .poll(() =>
+        titles.evaluateAll((nodes) =>
+          nodes.every(
+            (node) =>
+              node.clientWidth >= 96 &&
+              node.scrollWidth <= node.clientWidth &&
+              (
+                globalThis as unknown as {
+                  getComputedStyle(node: unknown): { fontSize: string };
+                }
+              ).getComputedStyle(node).fontSize === "13px",
+          ),
+        ),
+      )
+      .toBe(true);
     const event = selectedDay.getByRole("group", { name: /^Lunch with Sam,/ });
     await event.focus();
     await demo.page.keyboard.press("Enter");
