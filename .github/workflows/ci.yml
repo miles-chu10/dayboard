@@ -46,6 +46,22 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --include=dev
+      - name: Seed existing artifacts for the isolation regression
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdir, readFile, writeFile } from "node:fs/promises";
+          import path from "node:path";
+          const { version } = JSON.parse(await readFile("package.json", "utf8"));
+          for (const file of [
+            "out/main/index.js",
+            `release/DayBoard-${version}-arm64.dmg`,
+            `release/DayBoard-${version}-arm64-mac.zip`,
+            "resources/bin/reminders-helper",
+          ]) {
+            await mkdir(path.dirname(file), { recursive: true });
+            await writeFile(file, "existing artifact preservation sentinel\n", { flag: "wx" });
+          }
+          NODE
       # Synthetic client only; no credential access, uploads, releases or live sign-in.
       - run: npm run test:packaging
   billing:

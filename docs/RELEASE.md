@@ -9,7 +9,7 @@
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
 - `npm run build:beta`: Google-enabled community beta. It uses the existing Desktop OAuth client and fails if that configuration is missing or invalid; test mode is rejected.
-- `npm run test:packaging`: macOS-only integration coverage for that exact packaging path, with a synthetic client. These fixture artifacts must never be distributed.
+- `npm run test:packaging`: macOS-only integration coverage for that exact packaging path, with a synthetic client. It copies tracked working-tree source and installed dependencies into a temporary workspace, builds there and deletes the workspace on success or failure. Existing `out/`, `release/` and `resources/bin/` are checked for changes. Stage new source files before this test; ignored local configuration is not copied. Fixture artifacts must never be distributed.
 
 Beta packaging is self-contained; no earlier `build:beta` invocation or inherited flags are
 needed. It rejects test/release mode conflicts. A non-sensitive build proof records successful
