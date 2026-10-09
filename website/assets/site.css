@@ -498,6 +498,13 @@ p {
   font-weight: 600;
 }
 
+.works-with .app-icon {
+  width: 18px;
+  height: 18px;
+  fill: var(--c-ink);
+  flex: none;
+}
+
 .works-with .label {
   color: var(--ink-soft);
   font-weight: 500;
