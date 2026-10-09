@@ -5,10 +5,25 @@
 - `npm run build`: compile the native helper and app. Missing Google configuration produces a clearly unconfigured app.
 - `npm run test:e2e`: builds with `DAYBOARD_TEST=1`; OAuth/merchant constants are blank and tests use temporary profiles. Real source integrations are disabled in the empty-profile test.
 - `npm run package:test`: create an ad-hoc-signed test `.app` with no OAuth/merchant configuration.
-- `npm run package:preview`: create an ad-hoc-signed preview DMG and ZIP, using available local build configuration. No publishing occurs.
+- `npm run package:beta` (also `npm run package:preview`): rebuild with `build:beta`, then create and verify the ad-hoc-signed beta app, DMG and ZIP. Missing/invalid Google configuration fails the build; licensing and in-app updates stay disabled. No publishing occurs.
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
 - `npm run build:beta`: Google-enabled community beta. It uses the existing Desktop OAuth client and fails if that configuration is missing or invalid; test mode is rejected.
+- `npm run test:packaging`: macOS-only integration coverage for that exact packaging path, with a synthetic client. These fixture artifacts must never be distributed.
+
+Beta packaging is self-contained; no earlier `build:beta` invocation or inherited flags are
+needed. It rejects test/release mode conflicts. A non-sensitive build proof records successful
+Google injection and the effective licensing/update/test definitions, bound to hashes of the
+emitted main-process code. Packaging verifies it from `app.asar` before creating archives,
+then extracts the ZIP and mounts the DMG read-only to verify their signatures, configuration
+and identical `app.asar` hashes. Diagnostics never print client values. An ordinary build
+without this proof cannot be packaged through the beta command.
+
+To recheck existing artifacts without rebuilding, run
+`node scripts/verify-beta-package.mjs <DayBoard.app> <beta.dmg> <beta.zip>` on macOS.
+Older artifacts without a build proof cannot pass this check and must be rebuilt. This
+verification establishes embedded configuration, not real sign-in, audience eligibility or
+account continuity. Keep the approved invited audience and manual distribution route.
 
 Test builds embed a startup isolation requirement. Test/demo launches require an absolute
 `DAYBOARD_USER_DATA` pointing to an existing empty directory or a previously marked profile of

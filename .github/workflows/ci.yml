@@ -33,6 +33,21 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+  beta-package:
+    name: Beta app, DMG and ZIP configuration
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --include=dev
+      # Synthetic client only; no credential access, uploads, releases or live sign-in.
+      - run: npm run test:packaging
   billing:
     name: Offline Stripe license service tests (Node 24)
     runs-on: ubuntu-latest

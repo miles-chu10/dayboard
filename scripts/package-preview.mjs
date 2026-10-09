@@ -1,8 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { signAsync } from "@electron/osx-sign";
 import { Arch, Platform, build } from "electron-builder";
+import { verifyBetaApp, verifyBetaArtifacts, verifyBetaBuild } from "./verify-beta-package.mjs";
 
 export function assertAdHocSignature(details) {
   if (
@@ -21,6 +23,7 @@ export async function packagePreview(testOnly = false) {
   if (process.platform !== "darwin") throw new Error("Preview packaging requires macOS.");
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const app = path.join(root, "release", "mac-arm64", "DayBoard.app");
+  if (!testOnly) verifyBetaBuild((name) => readFileSync(path.join(root, "out", "main", name)));
   const options = {
     projectDir: root,
     publish: "never",
@@ -32,6 +35,7 @@ export async function packagePreview(testOnly = false) {
     },
   };
   await build({ ...options, targets: Platform.MAC.createTarget("dir", Arch.arm64) });
+  if (!testOnly) verifyBetaApp(app);
 
   // Sign only after packaging/fuse edits, and before either archive is assembled.
   // identityValidation:false passes the literal '-' directly to codesign, without a keychain search.
@@ -60,11 +64,12 @@ export async function packagePreview(testOnly = false) {
   assertAdHocSignature(signature.stderr);
 
   if (!testOnly) {
-    await build({
+    const artifacts = await build({
       ...options,
       prepackaged: app,
       targets: Platform.MAC.createTarget(["dmg", "zip"], Arch.arm64),
     });
+    verifyBetaArtifacts(app, artifacts);
   }
 }
 

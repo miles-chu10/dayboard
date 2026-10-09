@@ -5,6 +5,7 @@ interface GoogleOAuthBuildOptions {
   file: string;
   required: boolean;
   testBuild: boolean;
+  onConfigured?: () => void;
 }
 
 export function createGoogleOAuthClientPlugin(options: GoogleOAuthBuildOptions): Plugin {
@@ -41,6 +42,7 @@ export function createGoogleOAuthClientPlugin(options: GoogleOAuthBuildOptions):
         return null;
       }
       this.addWatchFile(options.file);
+      options.onConfigured?.();
       return (
         `export const GOOGLE_APP_CLIENT_ID = ${JSON.stringify(client.clientId)};\n` +
         `export const GOOGLE_APP_CLIENT_SECRET = ${JSON.stringify(client.clientSecret)};\n`
