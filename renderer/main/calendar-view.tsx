@@ -157,6 +157,7 @@ function CalendarGrid({
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const detailView = settings?.general.detailView ?? "dialog";
   const root = useRef<HTMLDivElement>(null);
+  const openedFromSelectedDay = useRef(false);
   const returnFocusKey = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
     const key = returnFocusKey.current;
@@ -185,12 +186,16 @@ function CalendarGrid({
         : addDays(selected, direction * 7);
     update({ date: next === today ? undefined : next, item: undefined });
   }
-  const openItem = (key: string) => update({ item: search.item === key ? undefined : key });
+  function openItem(key: string, fromSelectedDay = false) {
+    openedFromSelectedDay.current = fromSelectedDay;
+    update({ item: search.item === key ? undefined : key });
+  }
 
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
   function closePanel() {
-    returnFocusKey.current = search.item;
+    returnFocusKey.current = openedFromSelectedDay.current ? search.item : undefined;
+    openedFromSelectedDay.current = false;
     update({ item: undefined });
   }
   const closeDialog = () => update({ item: undefined });
@@ -261,8 +266,8 @@ function CalendarGrid({
                       ]}
                       now={now}
                       focusKeys={planning.data?.focusKeys ?? []}
-                      onOpen={(todo) => openItem(todo.key)}
-                      onOpenEvent={(event) => openItem(eventKey(event))}
+                      onOpen={(todo) => openItem(todo.key, true)}
+                      onOpenEvent={(event) => openItem(eventKey(event), true)}
                       onPin={() => undefined}
                     />
                   ) : (

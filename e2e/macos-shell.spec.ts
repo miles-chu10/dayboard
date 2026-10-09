@@ -136,9 +136,13 @@ test("Calendar compact rows retain titles and restore focus after the selected-d
       nodes.map((node) => ({
         width: node.clientWidth,
         overflow: node.scrollWidth > node.clientWidth,
+        fontSize: (
+          globalThis as unknown as { getComputedStyle(node: unknown): { fontSize: string } }
+        ).getComputedStyle(node).fontSize,
       })),
     );
     expect(geometry.every(({ width, overflow }) => width >= 96 && !overflow)).toBe(true);
+    expect(geometry.every(({ fontSize }) => fontSize === "13px")).toBe(true);
     const event = selectedDay.getByRole("group", { name: /^Lunch with Sam,/ });
     await event.focus();
     await demo.page.keyboard.press("Enter");
@@ -157,6 +161,16 @@ test("Calendar compact rows retain titles and restore focus after the selected-d
     ).toBeFocused();
     await demo.page.keyboard.press("Escape");
     await expect(todo).toBeFocused();
+    const chip = demo.page
+      .getByRole("grid", { name: "Month", exact: true })
+      .locator('[role="gridcell"][aria-selected="false"]')
+      .getByRole("button")
+      .first();
+    await chip.focus();
+    await demo.page.keyboard.press("Enter");
+    await expect(demo.page.locator("[data-inspector]").getByRole("region")).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(chip).toBeFocused();
     await demo.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].setContentSize(800, 600),
     );
