@@ -1,7 +1,7 @@
 import { Button } from "@renderer/ui";
-import { Plus, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 
-import { useOpenCapture } from "./capture-dialog";
+import { NewItemButton } from "./new-item-button";
 
 export function ViewActions({
   onRefresh,
@@ -10,17 +10,9 @@ export function ViewActions({
   onRefresh: () => void;
   refreshing?: boolean;
 }) {
-  const openCapture = useOpenCapture();
   return (
     <>
-      <Button
-        iconOnly
-        aria-label="New task, reminder, or event"
-        title="New item"
-        onClick={openCapture}
-      >
-        <Plus />
-      </Button>
+      <NewItemButton />
       <Button
         iconOnly
         aria-label="Refresh"

@@ -19,7 +19,7 @@ import {
 } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
 import { useState } from "react";
-import { CalendarCheck2, CalendarDays, Plus, Server, Settings, Video } from "lucide-react";
+import { CalendarCheck2, CalendarDays, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId } from "@main/shared-types";
 
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
@@ -30,7 +30,7 @@ import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../li
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, SOURCE_META, sourceColor, sourceColorVar } from "../lib/sources";
 import { buildTodos } from "../lib/todos";
-import { useOpenCapture } from "./capture-dialog";
+import { NewItemButton } from "./new-item-button";
 import { EventDetail } from "./event-detail";
 import {
   McpServersDialog,
@@ -81,7 +81,6 @@ export function AppSidebar() {
     select: (state) => state.location.pathname,
   });
   const navigate = useNavigate();
-  const openCapture = useOpenCapture();
   const settings = useSettings().data;
   const accounts = useAccounts();
   const tasks = useTasks();
@@ -203,16 +202,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      actions={
-        <Button
-          iconOnly
-          aria-label="New task, reminder, or event"
-          title="New item"
-          onClick={openCapture}
-        >
-          <Plus />
-        </Button>
-      }
+      actions={<NewItemButton />}
       footer={
         <SidebarFooter>
           <LicenseStatusControl />

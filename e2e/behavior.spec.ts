@@ -203,3 +203,40 @@ test("focus selection persists in the disposable demo profile", async ({
     else if (demo.app.process().exitCode === null) await demo.close();
   }
 });
+
+test("⌘N opens New Item from any view and does not stack over another dialog", async ({
+  playwright: _playwright,
+}) => {
+  const demo = await launchDemo();
+  try {
+    const newItem = demo.page.getByRole("dialog", { name: "New Item" });
+    for (const route of ["Tasks", "Calendar", "Assistant"]) {
+      await navigate(demo.page, route);
+      await expect(newItem).toHaveCount(0);
+      await demo.page.keyboard.press("Meta+N");
+      await expect(newItem).toBeVisible();
+      // A second press with the dialog open must not open another one.
+      await demo.page.keyboard.press("Meta+N");
+      await expect(demo.page.getByRole("dialog")).toHaveCount(1);
+      await demo.page.keyboard.press("Escape");
+      await expect(newItem).toHaveCount(0);
+    }
+
+    // Other modifier combinations are left alone.
+    await demo.page.keyboard.press("Meta+Shift+N");
+    await expect(newItem).toHaveCount(0);
+
+    // The sidebar + works with the mouse, including in views whose toolbar has no + button,
+    // and its tooltip shows the shortcut. (The top drag region used to cover it.)
+    await navigate(demo.page, "Inbox");
+    const plus = demo.page.getByRole("button", { name: "New task, reminder, or event" });
+    await expect(plus).toHaveCount(1);
+    await plus.hover();
+    await expect(demo.page.getByRole("tooltip")).toContainText("New item");
+    await plus.click();
+    await expect(newItem).toBeVisible();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
