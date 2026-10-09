@@ -28,6 +28,7 @@ export interface ScrollAreaProps extends Omit<
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   leading?: React.ReactNode;
+  headerSize?: "compact" | "page";
   footer?: React.ReactNode;
   viewportClassName?: string;
   fadeEdges?: boolean;
@@ -49,6 +50,7 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
       subtitle,
       actions,
       leading,
+      headerSize = "compact",
       footer,
       className,
       viewportClassName,
@@ -120,13 +122,31 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
     const resolvedToolbar =
       toolbar ??
       (title || subtitle || actions || leading ? (
-        <Toolbar>
-          <ToolbarRow>
+        <Toolbar
+          inset={headerSize === "page" ? "none" : "windowControls"}
+          data-page-header={headerSize === "page" ? "" : undefined}
+          className={headerSize === "page" ? "page-header" : undefined}
+        >
+          <ToolbarRow className={headerSize === "page" ? "page-header-row" : undefined}>
             {leading}
             {title || subtitle ? (
               <ToolbarContent>
-                {title ? <ToolbarTitle>{title}</ToolbarTitle> : null}
-                {subtitle ? <ToolbarDescription>{subtitle}</ToolbarDescription> : null}
+                {title ? (
+                  <ToolbarTitle
+                    as={headerSize === "page" ? "h1" : "h2"}
+                    className={headerSize === "page" ? "page-title" : undefined}
+                  >
+                    {title}
+                  </ToolbarTitle>
+                ) : null}
+                {subtitle ? (
+                  <ToolbarDescription
+                    className={headerSize === "page" ? "page-description" : undefined}
+                    title={typeof subtitle === "string" ? subtitle : undefined}
+                  >
+                    {subtitle}
+                  </ToolbarDescription>
+                ) : null}
               </ToolbarContent>
             ) : null}
             {actions ? <ToolbarActions>{actions}</ToolbarActions> : null}

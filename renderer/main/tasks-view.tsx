@@ -5,7 +5,6 @@ import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
-import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import { todayISO } from "../lib/dates";
 import { useMail, useTasks } from "../lib/queries";
@@ -56,14 +55,15 @@ export function TasksView() {
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
-            leading={<HistoryNav />}
+            headerSize="page"
+            viewportClassName="[&>div]:block!"
             title={<SourceHeading source="tasks" />}
             subtitle={tasks.data?.state === "ok" ? `${open} open` : undefined}
             actions={
               <ViewActions onRefresh={() => void tasks.refetch()} refreshing={tasks.isFetching} />
             }
           >
-            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-4xl mx-auto">
+            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
               <SourceGate query={tasks} label="Google Tasks">
                 {(items) => (
                   <TodoGroups

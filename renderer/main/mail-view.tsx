@@ -15,7 +15,6 @@ import { MailDetail } from "../components/mail-detail";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
 import { ListCard } from "../components/section-card";
-import { HistoryNav } from "../components/history-nav";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { useMail } from "../lib/queries";
@@ -67,7 +66,8 @@ export function MailView() {
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
-            leading={<HistoryNav />}
+            headerSize="page"
+            viewportClassName="[&>div]:block!"
             title={<SourceHeading source="mail">Gmail</SourceHeading>}
             subtitle={messages ? `${messages.length} recent · ${unread} unread` : "Gmail"}
             actions={
@@ -95,7 +95,7 @@ export function MailView() {
               </>
             }
           >
-            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-1 w-full max-w-4xl mx-auto">
+            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
               <SourceGate query={mail} label="Gmail inbox">
                 {(items) => {
                   const filtered =

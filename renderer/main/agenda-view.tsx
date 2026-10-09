@@ -36,7 +36,6 @@ import { ReplyDialog } from "../components/reply-dialog";
 import { RowsSkeleton, SectionCard, ListCard, InlineHint } from "../components/section-card";
 import { SourceIcon } from "../components/source-dot";
 import { UpNextCard } from "../components/up-next-card";
-import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import { buildAgenda } from "../lib/agenda";
 import {
@@ -413,7 +412,7 @@ export function AgendaView({
             // Radix's display:table content wrapper grows to the widest unwrapped row; block lets
             // the column shrink so rows truncate and controls wrap within the visible width.
             viewportClassName="[&>div]:block!"
-            leading={<HistoryNav />}
+            headerSize="page"
             title={calendarRoute ? "Calendar" : "Agenda"}
             actions={
               <ViewActions
@@ -425,95 +424,103 @@ export function AgendaView({
             }
           >
             <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
-              <div className="flex flex-col gap-1">
-                {/* Keep the font token on the child so class merging retains the heading size. */}
-                <Text asChild variant="heading1">
-                  <h1 className="text-heading1 text-balance [overflow-wrap:anywhere]">
-                    {rangeHeading(startDate, days, now)}
-                  </h1>
-                </Text>
-                {todayOverview && !featureOn(settings, "briefing") && summary ? (
-                  <Text color="secondary">{summary}</Text>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {modeSwitch}
-                  {calendarRoute ? (
-                    <Select
-                      value={span === "week" ? "next-7-days" : span}
-                      onValueChange={(value: string) =>
-                        updateSearch({ span: value as AgendaSpan, date: undefined })
-                      }
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Text asChild variant="heading2">
+                    <h2
+                      data-agenda-range
+                      className="text-heading2 text-balance [overflow-wrap:anywhere]"
                     >
-                      <SelectTrigger size="small" aria-label="Calendar range">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CALENDAR_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <SegmentedControl
-                      size="small"
-                      allowEmpty
-                      value={
-                        span === "today"
-                          ? "day"
-                          : span === "week" || span === "next-7-days"
-                            ? "week"
-                            : ""
-                      }
-                      onValueChange={(value: string) =>
-                        updateSearch({
-                          span: value === "week" ? "week" : "today",
-                          date: undefined,
-                        })
-                      }
-                      aria-label="Agenda range"
-                    >
-                      <SegmentedControlItem value="day">Day</SegmentedControlItem>
-                      <SegmentedControlItem value="week">Next 7 days</SegmentedControlItem>
-                    </SegmentedControl>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      iconOnly
-                      size="small"
-                      variant="transparent"
-                      aria-label="Previous date"
-                      onClick={() => updateSearch({ date: addDays(startDate, -days) })}
-                    >
-                      <ChevronLeft />
-                    </Button>
-                    <Button size="small" onClick={() => updateSearch({ date: undefined })}>
-                      Today
-                    </Button>
-                    <Button
-                      iconOnly
-                      size="small"
-                      variant="transparent"
-                      aria-label="Next date"
-                      onClick={() => updateSearch({ date: addDays(startDate, days) })}
-                    >
-                      <ChevronRight />
-                    </Button>
-                  </div>
+                      {rangeHeading(startDate, days, now)}
+                    </h2>
+                  </Text>
+                  {todayOverview && !featureOn(settings, "briefing") && summary ? (
+                    <Text color="secondary">{summary}</Text>
+                  ) : null}
                 </div>
-                <div className="flex items-center gap-2 flex-1 min-w-40">
-                  <Search className="size-4 text-tertiary shrink-0" />
-                  <Input
-                    ref={inputRef}
-                    size="small"
-                    aria-label={calendarRoute ? "Search calendar" : "Search agenda"}
-                    placeholder="Search tasks, notes, events…"
-                    value={search.q ?? ""}
-                    onChange={(event) => updateSearch({ q: event.target.value || undefined })}
-                  />
+                <div className="flex min-w-0 flex-[1_1_20rem] flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {modeSwitch}
+                    {calendarRoute ? (
+                      <Select
+                        value={span === "week" ? "next-7-days" : span}
+                        onValueChange={(value: string) =>
+                          updateSearch({ span: value as AgendaSpan, date: undefined })
+                        }
+                      >
+                        <SelectTrigger size="small" aria-label="Calendar range">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CALENDAR_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <SegmentedControl
+                        size="small"
+                        allowEmpty
+                        value={
+                          span === "today"
+                            ? "day"
+                            : span === "week" || span === "next-7-days"
+                              ? "week"
+                              : ""
+                        }
+                        onValueChange={(value: string) =>
+                          updateSearch({
+                            span: value === "week" ? "week" : "today",
+                            date: undefined,
+                          })
+                        }
+                        aria-label="Agenda range"
+                      >
+                        <SegmentedControlItem value="day">Day</SegmentedControlItem>
+                        <SegmentedControlItem value="week">Next 7 days</SegmentedControlItem>
+                      </SegmentedControl>
+                    )}
+                    <div
+                      role="group"
+                      aria-label="Date navigation"
+                      className="flex items-center gap-1 rounded-full bg-control-subtle p-0.5"
+                    >
+                      <Button
+                        iconOnly
+                        size="small"
+                        variant="transparent"
+                        aria-label="Previous date"
+                        onClick={() => updateSearch({ date: addDays(startDate, -days) })}
+                      >
+                        <ChevronLeft />
+                      </Button>
+                      <Button size="small" onClick={() => updateSearch({ date: undefined })}>
+                        Today
+                      </Button>
+                      <Button
+                        iconOnly
+                        size="small"
+                        variant="transparent"
+                        aria-label="Next date"
+                        onClick={() => updateSearch({ date: addDays(startDate, days) })}
+                      >
+                        <ChevronRight />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-40">
+                    <Search className="size-4 text-tertiary shrink-0" />
+                    <Input
+                      ref={inputRef}
+                      size="small"
+                      aria-label={calendarRoute ? "Search calendar" : "Search agenda"}
+                      placeholder="Search tasks, notes, events…"
+                      value={search.q ?? ""}
+                      onChange={(event) => updateSearch({ q: event.target.value || undefined })}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

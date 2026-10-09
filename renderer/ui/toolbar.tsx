@@ -70,9 +70,16 @@ export function ToolbarContent({ className, ...props }: React.ComponentProps<"di
   );
 }
 
-export function ToolbarTitle({ className, ...props }: React.ComponentProps<"h2">) {
+export function ToolbarTitle({
+  as: Component = "h2",
+  className,
+  ...props
+}: React.ComponentProps<"h2"> & { as?: "h1" | "h2" }) {
   return (
-    <h2 className={cn("truncate text-[15px] font-medium text-primary", className)} {...props} />
+    <Component
+      className={cn("truncate text-[15px] font-medium text-primary", className)}
+      {...props}
+    />
   );
 }
 

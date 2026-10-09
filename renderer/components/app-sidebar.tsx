@@ -39,7 +39,6 @@ import {
   useAssistantMcpServers,
 } from "./mcp-servers-dialog";
 import { ProviderMark } from "./provider-logo";
-import { GmailLogo } from "./source-logos";
 import { LicenseStatusControl } from "./license-gate";
 import { sourceStatusShort } from "./source-gate";
 
@@ -93,6 +92,18 @@ const MAIN_NAV: { id: MainNavId; title: string; route: string }[] = [
   { id: "tasks", title: "Tasks", route: "/tasks" },
   { id: "reminders", title: "Reminders", route: "/reminders" },
 ];
+
+function SidebarSymbol({ children, className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("app-sidebar-symbol text-secondary", className)}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+}
 
 export function AppSidebar() {
   const pathname = useRouterState({
@@ -184,14 +195,22 @@ export function AppSidebar() {
   }
 
   function navIcon(id: MainNavId) {
-    if (id === "agenda") return <CalendarDays className="size-4" />;
-    if (id === "mail") {
+    if (id === "agenda")
       return (
-        <GmailLogo className={cn("size-4", COLOR_CLASS[sourceColor(settings, "mail")].text)} />
+        <SidebarSymbol>
+          <CalendarDays className="size-[18px]" strokeWidth={1.75} />
+        </SidebarSymbol>
       );
-    }
     const Icon = SOURCE_META[id].icon;
-    return <Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />;
+    const color = sourceColor(settings, id);
+    return (
+      <SidebarSymbol
+        className={COLOR_CLASS[color].text}
+        style={{ background: `color-mix(in srgb, ${sourceColorVar(color)} 12%, transparent)` }}
+      >
+        <Icon className="size-[18px]" />
+      </SidebarSymbol>
+    );
   }
 
   function navSelected(id: MainNavId, route: string): boolean {
@@ -207,7 +226,10 @@ export function AppSidebar() {
   function navAccessory(id: MainNavId) {
     if (id === "agenda") {
       return agendaLate ? (
-        <span className="text-support-red tabular-nums" title={plural(agendaLate, "overdue item")}>
+        <span
+          className="app-sidebar-badge text-support-red tabular-nums"
+          title={plural(agendaLate, "overdue item")}
+        >
           {agendaLate}
         </span>
       ) : agendaDue ? (
@@ -220,7 +242,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      actions={<NewItemButton />}
+      className="app-sidebar"
+      toolbar={
+        <div className="drag-region flex h-12 shrink-0 items-center justify-end pr-3">
+          <NewItemButton />
+        </div>
+      }
       footer={
         <SidebarFooter>
           <LicenseStatusControl />
@@ -340,7 +367,7 @@ export function AppSidebar() {
         </SidebarFooter>
       }
     >
-      <SidebarList>
+      <SidebarList role="navigation" aria-label="Main navigation">
         {MAIN_NAV.filter((item) => navVisible(item.id)).map((item) => (
           <SidebarListItem
             key={item.id}
@@ -357,7 +384,11 @@ export function AppSidebar() {
             <SidebarListGroup title="AI">
               {showAssistant ? (
                 <SidebarListItem
-                  icon={<ProviderMark provider={provider} className="size-4" />}
+                  icon={
+                    <SidebarSymbol>
+                      <ProviderMark provider={provider} className="size-[18px]" />
+                    </SidebarSymbol>
+                  }
                   title="Assistant"
                   subtitle={
                     settings?.ai.providerChosen === false
@@ -370,7 +401,11 @@ export function AppSidebar() {
               ) : null}
               {showReview ? (
                 <SidebarListItem
-                  icon={<CalendarCheck2 className="size-4" />}
+                  icon={
+                    <SidebarSymbol>
+                      <CalendarCheck2 className="size-[18px]" strokeWidth={1.75} />
+                    </SidebarSymbol>
+                  }
                   title="Weekly Review"
                   selected={pathname === "/review"}
                   onClick={() => void navigate({ to: "/review" })}
@@ -378,7 +413,11 @@ export function AppSidebar() {
               ) : null}
               {showAssistant ? (
                 <SidebarListItem
-                  icon={<Server className="size-4" />}
+                  icon={
+                    <SidebarSymbol>
+                      <Server className="size-[18px]" strokeWidth={1.75} />
+                    </SidebarSymbol>
+                  }
                   title="MCP Servers"
                   subtitle={
                     !mcpCount

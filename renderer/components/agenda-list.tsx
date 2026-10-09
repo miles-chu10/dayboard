@@ -162,7 +162,7 @@ function TodoLine({
           aria-label={`Complete “${todo.title}”`}
         />
       </span>
-      <Text truncate className="min-w-24 flex-1">
+      <Text truncate className="min-w-0 flex-1">
         {todo.title}
       </Text>
       {todo.notes ? (

@@ -184,6 +184,7 @@ export function SidebarListGroupTitle({
   const Comp = asChild ? "span" : "h2";
   return (
     <Comp
+      data-slot="sidebar-group-title"
       className={cn("truncate text-small font-medium text-tertiary", className)}
       {...(props as React.ComponentProps<"h2">)}
     >
@@ -231,6 +232,7 @@ export function SidebarListItem<T>({
   const row = (
     <button
       type="button"
+      data-slot="sidebar-list-item"
       onClick={onClick}
       aria-current={selected ? "page" : undefined}
       className={cn(
@@ -242,7 +244,10 @@ export function SidebarListItem<T>({
       {...props}
     >
       {icon ? (
-        <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
+        <span
+          data-slot="sidebar-item-icon"
+          className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4"
+        >
           {icon}
         </span>
       ) : null}
@@ -292,16 +297,23 @@ export function SidebarListItemContent({ className, ...props }: React.ComponentP
 }
 
 export function SidebarListItemTitle(props: React.ComponentProps<typeof Text>) {
-  return <Text {...props} />;
+  return <Text data-slot="sidebar-item-title" {...props} />;
 }
 
 export function SidebarListItemSubtitle({ className, ...props }: React.ComponentProps<"span">) {
-  return <span className={cn("truncate text-small text-tertiary", className)} {...props} />;
+  return (
+    <span
+      data-slot="sidebar-item-subtitle"
+      className={cn("truncate text-small text-tertiary", className)}
+      {...props}
+    />
+  );
 }
 
 export function SidebarListItemAccessory({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
+      data-slot="sidebar-item-accessory"
       className={cn(
         "ml-auto flex shrink-0 items-center gap-1 text-small text-tertiary tabular-nums",
         className,

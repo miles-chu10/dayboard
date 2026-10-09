@@ -24,7 +24,6 @@ import type { AssistantHistory } from "../../shared/assistant-history";
 import { AssistantComposer, type ContextUsage } from "../components/assistant-composer";
 import { LicenseGate } from "../components/license-gate";
 import { displayName } from "../components/app-sidebar";
-import { HistoryNav } from "../components/history-nav";
 import { McpServersDialog, useAssistantMcpServers } from "../components/mcp-servers-dialog";
 import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
@@ -214,7 +213,7 @@ export function AssistantView() {
   }, []);
   if (!state.history)
     return (
-      <ScrollArea title="Assistant" className="h-full">
+      <ScrollArea headerSize="page" title="Assistant" className="h-full">
         <EmptyState
           placement="viewport"
           title={state.error ? "Chat history unavailable" : "Loading chats…"}
@@ -547,6 +546,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
 
   const subtitle = enabled
     ? [
+        messages.length ? history.chat.title : null,
         `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
         demo ? "Sample data" : null,
         providerUsesMcp(provider) && mcpServers.data?.length
@@ -564,8 +564,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       className="h-full"
       autoScrollToBottom
       showScrollToBottomButton
-      leading={<HistoryNav />}
-      title={messages.length ? history.chat.title : "Assistant"}
+      headerSize="page"
+      viewportClassName="[&>div]:block!"
+      title="Assistant"
       subtitle={subtitle}
       actions={
         <>
@@ -599,7 +600,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       }
       footer={
         enabled ? (
-          <div className="px-2 pb-2 space-y-2">
+          <div className="w-full max-w-5xl mx-auto px-6 pb-4 space-y-2">
             {history.saveError ? (
               <Callout
                 color="orange"
@@ -660,7 +661,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         busy={history.switching || adding}
         onSelect={openChat}
       />
-      <AIChat.Conversation.Content>
+      <AIChat.Conversation.Content className="max-w-5xl mx-auto px-6">
         {legacyMessages.length && !history.history.legacyImported ? (
           <Callout
             actions={

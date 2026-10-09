@@ -5,7 +5,6 @@ import { AgendaDetailDialog } from "../components/agenda-detail-dialog";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
-import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import { todayISO } from "../lib/dates";
 import { useMail, useReminders } from "../lib/queries";
@@ -56,7 +55,8 @@ export function RemindersView() {
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
-            leading={<HistoryNav />}
+            headerSize="page"
+            viewportClassName="[&>div]:block!"
             title={<SourceHeading source="reminders" />}
             subtitle={reminders.data?.state === "ok" ? `${open} open` : undefined}
             actions={
@@ -66,7 +66,7 @@ export function RemindersView() {
               />
             }
           >
-            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-4xl mx-auto">
+            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
               <SourceGate query={reminders} label="Apple Reminders">
                 {(items) => (
                   <TodoGroups

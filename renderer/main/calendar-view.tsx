@@ -13,7 +13,6 @@ import {
   identifyCalendarEvents,
   selectedCalendarEvent,
 } from "../lib/calendar-identity";
-import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
@@ -211,7 +210,8 @@ function CalendarGrid({
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
-            leading={<HistoryNav />}
+            headerSize="page"
+            viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
             title="Calendar"
             subtitle={title}
             actions={
@@ -225,8 +225,13 @@ function CalendarGrid({
               />
             }
           >
-            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full">
-              <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={cn(
+                "flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto",
+                view === "week" && "h-full min-h-0",
+              )}
+            >
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <ModeSwitch value={view} onChange={onSwitch} />
                 <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
                   Today
@@ -542,8 +547,10 @@ function WeekGrid({
   const settings = useSettings().data;
   const colorOf = useEventColor();
   const morningRef = useRef<HTMLDivElement>(null);
+  const hoursRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    morningRef.current?.scrollIntoView({ block: "start" });
+    if (hoursRef.current && morningRef.current)
+      hoursRef.current.scrollTop = Math.max(0, morningRef.current.offsetTop - 16);
   }, []);
   const nowHours = now.getHours() + now.getMinutes() / 60;
   const hasTop = dates.some(
@@ -551,11 +558,11 @@ function WeekGrid({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-separator">
-      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b border-separator bg-well">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-separator">
+      <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] overflow-y-hidden border-b border-separator bg-well pr-3 [scrollbar-gutter:stable]">
         <span />
         {dates.map((date) => (
-          <div key={date} className="flex items-center justify-center gap-1.5 py-1.5">
+          <div key={date} className="flex flex-wrap items-center justify-center gap-1.5 py-1.5">
             <Text variant="small" color="secondary">
               {parseISODate(date).toLocaleDateString([], { weekday: "short" })}
             </Text>
@@ -571,7 +578,7 @@ function WeekGrid({
         ))}
       </div>
       {hasTop ? (
-        <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b border-separator">
+        <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] overflow-y-hidden border-b border-separator pr-3 [scrollbar-gutter:stable]">
           <Text variant="small" color="tertiary" className="px-1 py-1 text-right">
             All day
           </Text>
@@ -612,71 +619,81 @@ function WeekGrid({
           })}
         </div>
       ) : null}
-      <div className="relative grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
-        <div>
-          {HOURS.map((hour) => (
-            <div
-              key={hour}
-              ref={hour === 7 ? morningRef : undefined}
-              className="relative h-[var(--calendar-hour)] scroll-mt-16"
-            >
-              {hour ? (
-                <Text
-                  variant="small"
-                  color="tertiary"
-                  className="absolute -top-2 right-1.5 tabular-nums"
+      <div
+        ref={hoursRef}
+        data-calendar-hours
+        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+      >
+        <div className="relative grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] pr-3">
+          <div>
+            {HOURS.map((hour) => (
+              <div
+                key={hour}
+                ref={hour === 7 ? morningRef : undefined}
+                className="relative h-[var(--calendar-hour)] scroll-mt-16"
+              >
+                {hour ? (
+                  <Text
+                    variant="small"
+                    color="tertiary"
+                    data-calendar-hour-label={hour}
+                    className="absolute -top-2 right-1.5 tabular-nums"
+                  >
+                    {new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}
+                  </Text>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {dates.map((date) => (
+            <div key={date} className="relative border-l border-separator">
+              {HOURS.map((hour) => (
+                <div key={hour} className="h-[var(--calendar-hour)] border-b border-separator/60" />
+              ))}
+              {layoutDay(byDay.get(date)!.timed, date).map(
+                ({ event, top, height, lane, lanes }) => {
+                  const past = new Date(event.end) <= now;
+                  return (
+                    <button
+                      key={eventKey(event)}
+                      type="button"
+                      onClick={() => onOpen(eventKey(event))}
+                      aria-label={`${event.title}, ${formatTimeOfDay(event.start)} to ${formatTimeOfDay(event.end)}`}
+                      className="absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-small leading-[14px] focus-visible:outline-2 focus-visible:outline-accent"
+                      style={{
+                        top: `calc(${top} * var(--calendar-hour))`,
+                        height: `calc(${height} * var(--calendar-hour) - 2px)`,
+                        minHeight: 20,
+                        left: `calc(${(lane / lanes) * 100}% + 2px)`,
+                        width: `calc(${100 / lanes}% - 4px)`,
+                        borderLeftColor: colorOf(event),
+                        backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--db-background))`,
+                        opacity: past ? 0.7 : 1,
+                      }}
+                    >
+                      <span className="block truncate font-medium">{event.title}</span>
+                      {height >= 1 ? (
+                        <span className="block truncate text-secondary tabular-nums">
+                          {formatTimeOfDay(event.start)}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                },
+              )}
+              {date === today ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
+                  style={{ top: `calc(${nowHours} * var(--calendar-hour))` }}
                 >
-                  {new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}
-                </Text>
+                  <span className="-ml-1 size-2 rounded-full bg-support-red" />
+                  <span className="h-px flex-1 bg-support-red" />
+                </div>
               ) : null}
             </div>
           ))}
         </div>
-        {dates.map((date) => (
-          <div key={date} className="relative border-l border-separator">
-            {HOURS.map((hour) => (
-              <div key={hour} className="h-[var(--calendar-hour)] border-b border-separator/60" />
-            ))}
-            {layoutDay(byDay.get(date)!.timed, date).map(({ event, top, height, lane, lanes }) => {
-              const past = new Date(event.end) <= now;
-              return (
-                <button
-                  key={eventKey(event)}
-                  type="button"
-                  onClick={() => onOpen(eventKey(event))}
-                  aria-label={`${event.title}, ${formatTimeOfDay(event.start)} to ${formatTimeOfDay(event.end)}`}
-                  className="absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-small focus-visible:outline-2 focus-visible:outline-accent"
-                  style={{
-                    top: `calc(${top} * var(--calendar-hour))`,
-                    height: `calc(${height} * var(--calendar-hour) - 2px)`,
-                    left: `calc(${(lane / lanes) * 100}% + 2px)`,
-                    width: `calc(${100 / lanes}% - 4px)`,
-                    borderLeftColor: colorOf(event),
-                    backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--db-background))`,
-                    opacity: past ? 0.7 : 1,
-                  }}
-                >
-                  <span className="block truncate font-medium">{event.title}</span>
-                  {height >= 0.75 ? (
-                    <span className="block truncate text-secondary tabular-nums">
-                      {formatTimeOfDay(event.start)}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-            {date === today ? (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
-                style={{ top: `calc(${nowHours} * var(--calendar-hour))` }}
-              >
-                <span className="-ml-1 size-2 rounded-full bg-support-red" />
-                <span className="h-px flex-1 bg-support-red" />
-              </div>
-            ) : null}
-          </div>
-        ))}
       </div>
     </div>
   );
