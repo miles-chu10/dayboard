@@ -34,13 +34,34 @@ These protections have limits. CORS keeps other websites' pages out, but scripts
 
 For a signup-only deployment, start from `wrangler.signup.example.jsonc` (copy it to the git-ignored `wrangler.jsonc`) and follow `docs/launch/website-deploy.md`. The live service follows that document's "Existing deployment: waitlist rollout" section.
 
-From `billing/`, review the list without test rows, count it by cohort, or remove an address on request:
+From `billing/`, review the list without test rows or count it by cohort:
 
 ```sh
 npx wrangler d1 execute <database> --remote --command "SELECT email, cohort, classification, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups WHERE classification <> 'likely_test' ORDER BY created_at"
 npx wrangler d1 execute <database> --remote --command "SELECT cohort, classification, COUNT(*) AS n FROM beta_signups GROUP BY cohort, classification"
-npx wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups WHERE email = 'person@example.com'"
 ```
+
+For a verified removal request, use an authorized D1 query client against the intended account and database. This repository does not provide a removal CLI. Normalize the requester input with `normalizeEmail` from `src/beta.ts` and reject invalid input. Never interpolate an address into SQL or shell command text. Construct each JSON request body with a serializer, such as `JSON.stringify({ sql, params: [email] })`, keeping the query constant and the address in `params`.
+
+For example, `o'hara@example.com` stays a single bound value. First count the matching rows:
+
+```json
+{
+  "sql": "SELECT COUNT(*) AS n FROM beta_signups WHERE email = ?1",
+  "params": ["o'hara@example.com"]
+}
+```
+
+Require a successful API response and successful query result. If the count is zero, stop: the address is already absent. Otherwise require exactly one matching row before submitting the removal body:
+
+```json
+{
+  "sql": "DELETE FROM beta_signups WHERE email = ?1",
+  "params": ["o'hara@example.com"]
+}
+```
+
+Require a successful result with exactly one changed row (`meta.changes === 1`). Repeat the same bound count query and require zero remaining matches. Stop and investigate any unexpected count or unsuccessful result. Keep addresses and credentials out of logs. See the [D1 query API](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/) for the `sql` and `params` contract.
 
 ## Configuration required before launch
 
