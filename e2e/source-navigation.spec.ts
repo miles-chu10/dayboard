@@ -144,7 +144,26 @@ test("Sidebar clock advances next events without source refresh and retains save
     ).toBe(calls);
     await sourceResponse(demo, "calendar", undefined, "Synthetic refresh failure");
     await expect(calendar).toContainText("Fixture clock handoff");
+    await expect(calendar).toContainText("Refresh failed");
     await expect(calendar).not.toContainText("Nothing else today");
+    await sourceResponse(demo, "calendar", {
+      state: "ok",
+      items: [
+        {
+          id: "fixture-clock-event",
+          calendarId: "fixture-calendar",
+          calendarName: "Fixture calendar",
+          title: "Fixture clock handoff",
+          start: new Date(now + 120_000).toISOString(),
+          end: new Date(now + 240_000).toISOString(),
+          allDay: false,
+        },
+      ],
+      coverage: { complete: false },
+    });
+    await expect(calendar).toContainText("Fixture clock handoff");
+    await expect(calendar).toContainText("Partially loaded");
+    await sourceResponse(demo, "calendar", undefined, "Synthetic refresh failure");
     await page.clock.fastForward(120_000);
     await expect(next).toHaveCount(0);
     await expect(calendar).toContainText("Refresh failed");

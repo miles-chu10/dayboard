@@ -8,6 +8,7 @@
 - `npm run package:preview`: create an ad-hoc-signed preview DMG and ZIP, using available local build configuration. No publishing occurs.
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
+- `npm run build:beta`: Google-enabled community beta. It uses the existing Desktop OAuth client and fails if that configuration is missing or invalid; test mode is rejected.
 
 Test builds embed a startup isolation requirement. Test/demo launches require an absolute
 `DAYBOARD_USER_DATA` pointing to an existing empty directory or a previously marked profile of
@@ -68,6 +69,16 @@ The raw native encryption smoke probe is separate from fictional UI routing. It 
 `DAYBOARD_E2E_NATIVE_ENCRYPTION=1` only in an explicitly approved OS test session. An owned app
 profile and Playwright's browser flags do not establish production Keychain isolation or
 acceptance. Keep native encryption and signed-account continuity reported separately.
+
+The `1.3.0-beta.11` corrective beta restores the existing Google Desktop client through
+`DAYBOARD_REQUIRE_GOOGLE=1`, independently of commercial licensing. Beta.10 omitted this
+client and disabled sign-in before opening the browser. No client values or user tokens are
+committed. A real browser callback and connected account were observed with an owned app
+profile and all source fetching disabled; this does not establish every invitee's Google
+audience eligibility or refresh/account continuity. The beta also retains cached sidebar
+summaries while displaying refresh failures and partial results. It uses the manual
+`beta-1.3.0-beta.11` prerelease route, ad-hoc signing and deferred notarization. In-app updates
+remain disabled; replace the application bundle manually while preserving the user profile.
 
 Every build generates third-party notices from installed production dependencies, bundled renderer libraries and Electron. Version-pinned overrides retain their source provenance. The inventory explicitly labels two MIT declarations whose packages omit separate license files; it uses canonical SPDX terms without inventing copyright holders. Missing or changed inputs fail the build. Both the app's GPL text and the third-party notices ship in Resources; the Help menu opens the notices.
 

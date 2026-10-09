@@ -76,9 +76,11 @@ function sourceSubtitle(
   if (query.isPending) return "Loading…";
   if (!query.data) return "Unavailable";
   if (query.data.state !== "ok") return sourceStatusShort(query.data) ?? undefined;
+  if (query.isError || query.data.refreshError)
+    return loaded ? `${loaded} · Refresh failed` : "Refresh failed";
+  if (query.data.coverage?.complete === false)
+    return loaded ? `${loaded} · Partially loaded` : "Partially loaded";
   if (loaded) return loaded;
-  if (query.isError || query.data.refreshError) return "Refresh failed";
-  if (query.data.coverage?.complete === false) return "Partially loaded";
   return empty;
 }
 
