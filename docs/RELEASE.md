@@ -26,7 +26,7 @@ approved test provider account and owned app profile without a separate macOS lo
 installation/update acceptance needs a disposable installation target that preserves the
 user's existing app.
 
-Ad-hoc signing seals the whole bundle without an Apple identity. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. These packages are local review artifacts, not evidence of downloadable-app acceptance. Distribution requires the approved Developer ID, notarization and Gatekeeper checks below; do not bypass macOS security protections. Both scripts fail if `codesign --verify --deep --strict` rejects the app or if its signature is not ad-hoc.
+Ad-hoc signing seals the whole bundle without an Apple identity. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. For the limited `1.3.0-beta.9` community beta, Miles explicitly approved manual ad-hoc distribution and deferred Developer ID signing and notarization. This exception does not establish Apple verification, real account continuity or ordinary quarantined installation acceptance. Do not bypass macOS security protections. Both scripts fail if `codesign --verify --deep --strict` rejects the app or if its signature is not ad-hoc.
 
 `scripts/package-preview.mjs` packages the app with electron-builder identity lookup disabled, then passes the literal `-` directly to `@electron/osx-sign` with identity validation disabled. It seals nested code before creating the DMG and ZIP from that verified app. Preview packaging never selects an installed signing certificate, including names containing a hyphen, and never changes the shared Developer ID release configuration.
 
@@ -34,23 +34,27 @@ The current package target is Apple Silicon, macOS 14+. Intel compatibility is n
 
 ## UI-only beta preparation
 
-The local `1.3.0-beta.9` candidate reserves a new version for the reviewed Agenda/sidebar UI and
-startup isolation fix. It is not published. Use the existing `DAYBOARD_LICENSE=off` community
-build mode to prepare a beta with monetization disabled. AI defaults to disabled until a
-provider is deliberately selected; no live or paid AI acceptance is needed for this UI change.
+The `1.3.0-beta.9` manual beta contains the reviewed Agenda/sidebar UI, updated D icon and
+startup isolation fix. It uses the existing `DAYBOARD_LICENSE=off` community build mode with
+monetization disabled. AI defaults to disabled until a provider is deliberately selected;
+no live or paid AI acceptance is needed for this UI change.
 Preserve existing user preferences rather than resetting them as part of the update.
 
 A credential-free local build must point `DAYBOARD_GOOGLE_OAUTH_FILE` at an explicitly absent
 review path so it does not read the developer's default client file. That build reports Google
-sign-in as unconfigured. A distributable beta instead needs the approved existing Desktop
-OAuth build input and a recorded decision about its intended test audience. Its client-file
-presence alone does not prove public OAuth eligibility.
+sign-in as unconfigured. This credential-free artifact is the approved limited UI beta;
+its release notes disclose that Google Tasks, Gmail and Calendar cannot be connected.
+A future configured beta needs the approved existing Desktop OAuth build input and a recorded
+decision about its intended Google test audience. Client-file presence alone does not prove
+public OAuth eligibility.
 
-Community builds leave the release updater disabled and can be proposed for manual beta
-downloads. They still require Developer ID signing, notarization, packaged UI acceptance,
-Gatekeeper and an approved source/version/distribution plan. Checkout, pricing and paid AI
-are separate feature gates. Do not use `npm run dist` or push a `v*` tag for this proposed beta:
-the unchanged commercial workflow requires live merchant configuration and publishes.
+Community builds leave the release updater disabled. The approved beta.9 uses the established
+manual `beta-1.3.0-beta.9` prerelease route after package-content, version, icon, checksum,
+strict ad-hoc signature and isolated UI checks. Developer ID signing and notarization are
+deferred follow-up work; testers make their own first-opening decision without security
+overrides from the installer. Checkout, pricing and paid AI are separate feature gates.
+Do not use `npm run dist` or push a `v*` tag for this beta: the commercial workflow requires
+live merchant configuration and Apple signing/notarization, then publishes.
 
 The raw native encryption smoke probe is separate from fictional UI routing. It is opt-in via
 `DAYBOARD_E2E_NATIVE_ENCRYPTION=1` only in an explicitly approved OS test session. An owned app
