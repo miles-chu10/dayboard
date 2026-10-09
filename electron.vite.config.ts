@@ -3,11 +3,13 @@ import { join, resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
+import { createBetaBuildProofPlugin } from "./shared/beta-build.js";
 import { createGoogleOAuthClientPlugin } from "./shared/google-oauth-build.js";
 import { parseDesktopLicenseConfig } from "./shared/license-config.js";
 
 const root = import.meta.dirname;
 const fromRoot = (...segments: string[]) => resolve(root, ...segments);
+let googleConfigured = false;
 
 const alias = {
   "@main": fromRoot("main"),
@@ -64,7 +66,13 @@ export default defineConfig({
         required:
           process.env.DAYBOARD_RELEASE === "1" || process.env.DAYBOARD_REQUIRE_GOOGLE === "1",
         testBuild: process.env.DAYBOARD_TEST === "1",
+        onConfigured: () => {
+          googleConfigured = true;
+        },
       }),
+      ...(process.env.DAYBOARD_REQUIRE_GOOGLE === "1" && process.env.DAYBOARD_RELEASE !== "1"
+        ? [createBetaBuildProofPlugin(() => googleConfigured)]
+        : []),
     ],
     build: {
       // Runtime `dependencies` stay external (shipped in node_modules); node-pty is native.
