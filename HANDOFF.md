@@ -8,7 +8,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
 - Stripe now replaces Lemon Squeezy by explicit user choice. The separate `billing/` Worker handles hosted Checkout, per-order authenticated key delivery, idempotent signed-webhook fulfillment, refund/dispute revocation and device limits. The app binds keys to issuer/product/environment, preserves old encrypted records and compensates only newly created activation slots. The 14-day trial and 30-day offline grace remain. Missing commercial configuration produces preview mode; strict release builds require live configuration.
 - The website is prepared in `website/`, with a real fictional-data screenshot. Purchase/download URLs remain unset until verified destinations exist.
-- Local UI candidate: `1.3.0-beta.9` on `codex/cupola-native-ui`; the last published beta remains `1.3.0-beta.8`. Packaged target: Apple Silicon, macOS 14+.
+- Approved manual community UI beta: `1.3.0-beta.9`, with the reviewed Agenda/sidebar UI and updated D icon. Its credential-free artifact has Google sign-in unconfigured, licensing and automatic updates disabled, and AI opt-in. Miles explicitly deferred Developer ID signing and notarization for this limited beta. Packaged target: Apple Silicon, macOS 14+.
 - The reviewed Agenda/sidebar UI preserves the existing design tokens and adds clear date hierarchy, grouped navigation, wrapping filters and density spacing. Test/demo startup validates backend and browser storage before services and exits Electron immediately on isolation failure. No billing, waitlist or provider behavior changed.
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 - Assistant requests send the stable policy first; explicit cache controls apply only on the direct OpenAI API route for listed models (`docs/PROMPT-CACHING.md`). Token and cache usage are recorded per request; no live savings are measured.
@@ -38,9 +38,10 @@ Earlier standalone observations follow; their counts and live-account results ar
 
 ## Remaining work
 
-For the proposed UI-only manual beta, checkout, pricing and paid AI are separate feature gates.
-Use the existing community mode described in `docs/RELEASE.md`; approve the intended Google
-test audience and signing/distribution plan before a configured distributable is built.
+For the approved UI-only manual beta, checkout, pricing and paid AI are separate feature gates.
+The community artifact described in `docs/RELEASE.md` reports Google sign-in as unconfigured.
+Configured Google access needs its own approved audience. Apple signing/notarization and real
+account acceptance remain follow-up work, not release blockers for this limited ad-hoc beta.
 
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.
 2. Live Gmail/AI-provider acceptance and first-time Reminders consent remain unverified feature acceptance. New consent and real Keychain checks require deliberately owned OS test state; a separate macOS account is not a requirement for fictional UI. Historical Google Tasks, Calendar and existing Reminders access were verified for the selected account; this does not prove public OAuth eligibility for every account.
