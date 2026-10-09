@@ -104,7 +104,10 @@ function injectGoogleOAuthClient(): Plugin {
 export default defineConfig({
   main: {
     resolve: { alias },
-    define: licenseDefinitions(),
+    define: {
+      ...licenseDefinitions(),
+      __DAYBOARD_TEST_BUILD__: JSON.stringify(process.env.DAYBOARD_TEST === "1"),
+    },
     plugins: [injectGoogleOAuthClient()],
     build: {
       // Runtime `dependencies` stay external (shipped in node_modules); node-pty is native.

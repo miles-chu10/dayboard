@@ -1,9 +1,8 @@
 // Captures the README gallery from the fictional demo. Build first: `DAYBOARD_TEST=1 npm run build`.
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { launchDemo, root } from "../e2e/fixtures.ts";
+import { createTestProfile, launchDemo, root } from "../e2e/fixtures.ts";
 
 const output = path.join(root, "docs", "screenshots");
 const size = { width: 1280, height: 820 };
@@ -79,7 +78,7 @@ async function capture(page, name, markers) {
 
 for (const theme of ["light", "dark"]) {
   // A fixed accent keeps the gallery independent of this Mac's settings.
-  const profile = await mkdtemp(path.join(tmpdir(), "dayboard-screenshots-"));
+  const profile = await createTestProfile();
   await writeFile(
     path.join(profile, "demo-settings.json"),
     JSON.stringify({ general: { accent: "blue", detailView: "sidebar" } }),

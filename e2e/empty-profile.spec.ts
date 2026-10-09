@@ -6,6 +6,8 @@ import { launchEmptyProfile } from "./fixtures";
 type AppGlobal = typeof globalThis & { dayboard: DayboardBridge };
 
 test("empty normal profile is usable without accounts or merchant configuration", async () => {
+  const expectedLicenseState = process.env.DAYBOARD_E2E_LICENSE_MODE ?? "unconfigured";
+  expect(["unconfigured", "disabled"]).toContain(expectedLicenseState);
   const empty = await launchEmptyProfile();
   try {
     await expect(empty.page.getByRole("button", { name: /^Agenda\b/ }).first()).toBeVisible();
@@ -16,7 +18,7 @@ test("empty normal profile is usable without accounts or merchant configuration"
       await empty.page.evaluate(() =>
         (globalThis as AppGlobal).dayboard.ipc.invoke("license:status"),
       ),
-    ).toMatchObject({ status: { state: "unconfigured" }, checkoutUrl: "" });
+    ).toMatchObject({ status: { state: expectedLicenseState }, checkoutUrl: "" });
     await empty.page.evaluate(() =>
       (globalThis as AppGlobal).dayboard.ipc.invoke("window:openSettings", { tab: "license" }),
     );
@@ -28,7 +30,14 @@ test("empty normal profile is usable without accounts or merchant configuration"
       "aria-selected",
       "true",
     );
-    await expect(settings.getByText("Preview build", { exact: true })).toBeVisible();
+    await expect(
+      settings.getByText(
+        expectedLicenseState === "disabled" ? "Community build" : "Preview build",
+        {
+          exact: true,
+        },
+      ),
+    ).toBeVisible();
     await expect(settings.getByRole("textbox", { name: "License key" })).toHaveCount(0);
     await expect(settings.getByRole("button", { name: /Buy DayBoard/ })).toHaveCount(0);
     await expect(empty.page.locator("body")).not.toContainText("Alex Rivera");
