@@ -26,6 +26,7 @@ import {
 import { errorMessage, openSettings } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
+import { isNewItemShortcut } from "../lib/shortcuts";
 import { SourceDot } from "./source-dot";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,6 +67,20 @@ export function useOpenCapture() {
 
 export function CaptureProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+
+  // ⌘N from anywhere in the main window, except over another dialog or a confirm prompt.
+  useEffect(() => {
+    function keydown(event: KeyboardEvent) {
+      if (!isNewItemShortcut(event)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      event.preventDefault();
+      setOpen(true);
+    }
+    // Row action controls stop bubbling to avoid opening their parent item.
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
+  }, []);
+
   return (
     <CaptureContext.Provider value={() => setOpen(true)}>
       {children}

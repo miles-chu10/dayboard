@@ -203,3 +203,120 @@ test("focus selection persists in the disposable demo profile", async ({
     else if (demo.app.process().exitCode === null) await demo.close();
   }
 });
+
+test("⌘N opens New Item from any view and does not stack over another dialog", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    const newItem = demo.page.getByRole("dialog", { name: "New Item" });
+    for (const route of ["Tasks", "Calendar", "Assistant"]) {
+      await navigate(demo.page, route);
+      if (route === "Assistant") {
+        await demo.page.getByRole("textbox", { name: /^Message / }).focus();
+      }
+      await expect(newItem).toHaveCount(0);
+      await demo.page.keyboard.press("Meta+N");
+      await expect(newItem).toBeVisible();
+      // A second press with the dialog open must not open another one.
+      await demo.page.keyboard.press("Meta+N");
+      await expect(demo.page.getByRole("dialog")).toHaveCount(1);
+      await demo.page.keyboard.press("Escape");
+      await expect(newItem).toHaveCount(0);
+    }
+
+    // Other modifier combinations are left alone.
+    await demo.page.keyboard.press("Meta+Shift+N");
+    await demo.page.waitForTimeout(300);
+    await expect(newItem).toHaveCount(0);
+
+    await navigate(demo.page, "Tasks");
+    await demo.page
+      .getByRole("button", { name: "Open Finalize launch announcement", exact: true })
+      .click();
+    const detail = demo.page.getByRole("dialog", { name: "Finalize launch announcement" });
+    await expect(detail).toBeVisible();
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toHaveCount(0);
+    await expect(detail).toBeVisible();
+    await detail.getByRole("button", { name: "Done", exact: true }).click();
+
+    await demo.page.evaluate(() => {
+      const { document } = globalThis as unknown as {
+        document: { body: { insertAdjacentHTML(position: string, html: string): void } };
+      };
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<div role="alertdialog" data-shortcut-prompt-fixture></div>',
+      );
+    });
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toHaveCount(0);
+    await demo.page.evaluate(() => {
+      const { document } = globalThis as unknown as {
+        document: { querySelector(selector: string): { remove(): void } | null };
+      };
+      document.querySelector("[data-shortcut-prompt-fixture]")?.remove();
+    });
+
+    // The sidebar + works with the mouse, including in views whose toolbar has no + button,
+    // and its tooltip shows the shortcut. (The top drag region used to cover it.)
+    await navigate(demo.page, "Inbox");
+    const plus = demo.page.getByRole("button", { name: "New task, reminder, or event" });
+    await expect(plus).toHaveCount(1);
+    await plus.hover();
+    await expect(demo.page.getByRole("tooltip")).toContainText("New item");
+    await expect(demo.page.getByRole("tooltip")).toContainText("⌘");
+    await expect(demo.page.getByRole("tooltip")).toContainText("N");
+    await plus.click();
+    await expect(newItem).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    // Only the button is raised: the empty header strip beside it still hits the window
+    // drag region, exactly as before.
+    const box = (await plus.boundingBox())!;
+    const besidePlus = await demo.page.evaluate(
+      ([x, y]) => {
+        const { document } = globalThis as unknown as {
+          document: { elementFromPoint(x: number, y: number): { className: string } | null };
+        };
+        return document.elementFromPoint(x!, y!)?.className.split(" ").includes("drag-region");
+      },
+      [box.x - 40, box.y + box.height / 2],
+    );
+    expect(besidePlus).toBe(true);
+    await demo.page.screenshot({ path: testInfo.outputPath("command-n-sidebar.png") });
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("⌘N reaches focused row action controls", async ({ playwright: _playwright }) => {
+  const demo = await launchDemo();
+  try {
+    const newItem = demo.page.getByRole("dialog", { name: "New Item" });
+    await navigate(demo.page, "Tasks");
+    const task = demo.page.getByRole("button", {
+      name: "Open Finalize launch announcement",
+      exact: true,
+    });
+    await task.getByRole("button", { name: "Edit", exact: true }).focus();
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+    await expect(newItem).toHaveCount(0);
+
+    await navigate(demo.page, "Inbox");
+    const mail = demo.page.getByRole("button", {
+      name: "Open email from Priya Shah",
+      exact: true,
+    });
+    await mail.getByRole("button", { name: "Reply", exact: true }).focus();
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toBeVisible();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
