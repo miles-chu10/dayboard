@@ -14,12 +14,10 @@ import {
   shell,
 } from "electron";
 
-import { configureUserData } from "./user-data.js";
+// ESM dependencies initialize before this module's body; isolate the profile before other exports.
+import "./startup-profile.js";
 import { registerBridgeIpc, ipcMain } from "./ipc.js";
 
-// Must run before anything calls app.getPath("userData") — including the safeStorage-backed
-// stores below, which only resolve their paths lazily on first use.
-configureUserData();
 registerBridgeIpc();
 
 export const app = electronApp;

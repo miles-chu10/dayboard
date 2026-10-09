@@ -137,6 +137,19 @@ function OverdueSummary({ count, children }: { count: number; children: ReactNod
   );
 }
 
+/** Selected day or inclusive range; adds years when any date is outside the current year. */
+function rangeHeading(startDate: string, days: number, now: Date): string {
+  const start = parseISODate(startDate);
+  const end = parseISODate(addDays(startDate, days - 1));
+  const year =
+    start.getFullYear() === now.getFullYear() && end.getFullYear() === now.getFullYear()
+      ? undefined
+      : "numeric";
+  return days === 1
+    ? start.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year })
+    : new Intl.DateTimeFormat([], { month: "long", day: "numeric", year }).formatRange(start, end);
+}
+
 export function AgendaView({
   calendarRoute = false,
   modeSwitch,
@@ -245,6 +258,7 @@ export function AgendaView({
   ]
     .filter(Boolean)
     .join(" · ");
+  const todayOverview = !search.q && !calendarRoute && startDate === today;
 
   function updateSearch(patch: Partial<AgendaSearch>) {
     void navigate({
@@ -396,13 +410,11 @@ export function AgendaView({
         <div className="h-full min-w-0 flex-1">
           <ScrollArea
             className="h-full"
+            // Radix's display:table content wrapper grows to the widest unwrapped row; block lets
+            // the column shrink so rows truncate and controls wrap within the visible width.
+            viewportClassName="[&>div]:block!"
             leading={<HistoryNav />}
-            title="Agenda"
-            subtitle={parseISODate(startDate).toLocaleDateString([], {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
+            title={calendarRoute ? "Calendar" : "Agenda"}
             actions={
               <ViewActions
                 refreshing={sourceQueries.some(({ query }) => query.isFetching)}
@@ -413,78 +425,91 @@ export function AgendaView({
             }
           >
             <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
-              <div className="flex flex-wrap items-center gap-2">
-                {modeSwitch}
-                {calendarRoute ? (
-                  <Select
-                    value={span === "week" ? "next-7-days" : span}
-                    onValueChange={(value: string) =>
-                      updateSearch({ span: value as AgendaSpan, date: undefined })
-                    }
-                  >
-                    <SelectTrigger size="small" aria-label="Calendar range">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALENDAR_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <SegmentedControl
-                    size="small"
-                    allowEmpty
-                    value={
-                      span === "today"
-                        ? "day"
-                        : span === "week" || span === "next-7-days"
-                          ? "week"
-                          : ""
-                    }
-                    onValueChange={(value: string) =>
-                      updateSearch({
-                        span: value === "week" ? "week" : "today",
-                        date: undefined,
-                      })
-                    }
-                    aria-label="Agenda range"
-                  >
-                    <SegmentedControlItem value="day">Today</SegmentedControlItem>
-                    <SegmentedControlItem value="week">Next 7 days</SegmentedControlItem>
-                  </SegmentedControl>
-                )}
-                <Button
-                  iconOnly
-                  size="small"
-                  variant="transparent"
-                  aria-label="Previous date"
-                  onClick={() => updateSearch({ date: addDays(startDate, -days) })}
-                >
-                  <ChevronLeft />
-                </Button>
-                <Button
-                  iconOnly
-                  size="small"
-                  variant="transparent"
-                  aria-label="Next date"
-                  onClick={() => updateSearch({ date: addDays(startDate, days) })}
-                >
-                  <ChevronRight />
-                </Button>
-                {startDate !== today ? (
-                  <Button size="small" onClick={() => updateSearch({ date: undefined })}>
-                    Today
-                  </Button>
+              <div className="flex flex-col gap-1">
+                {/* Keep the font token on the child so class merging retains the heading size. */}
+                <Text asChild variant="heading1">
+                  <h1 className="text-heading1 text-balance [overflow-wrap:anywhere]">
+                    {rangeHeading(startDate, days, now)}
+                  </h1>
+                </Text>
+                {todayOverview && !featureOn(settings, "briefing") && summary ? (
+                  <Text color="secondary">{summary}</Text>
                 ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {modeSwitch}
+                  {calendarRoute ? (
+                    <Select
+                      value={span === "week" ? "next-7-days" : span}
+                      onValueChange={(value: string) =>
+                        updateSearch({ span: value as AgendaSpan, date: undefined })
+                      }
+                    >
+                      <SelectTrigger size="small" aria-label="Calendar range">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CALENDAR_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <SegmentedControl
+                      size="small"
+                      allowEmpty
+                      value={
+                        span === "today"
+                          ? "day"
+                          : span === "week" || span === "next-7-days"
+                            ? "week"
+                            : ""
+                      }
+                      onValueChange={(value: string) =>
+                        updateSearch({
+                          span: value === "week" ? "week" : "today",
+                          date: undefined,
+                        })
+                      }
+                      aria-label="Agenda range"
+                    >
+                      <SegmentedControlItem value="day">Day</SegmentedControlItem>
+                      <SegmentedControlItem value="week">Next 7 days</SegmentedControlItem>
+                    </SegmentedControl>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      iconOnly
+                      size="small"
+                      variant="transparent"
+                      aria-label="Previous date"
+                      onClick={() => updateSearch({ date: addDays(startDate, -days) })}
+                    >
+                      <ChevronLeft />
+                    </Button>
+                    <Button size="small" onClick={() => updateSearch({ date: undefined })}>
+                      Today
+                    </Button>
+                    <Button
+                      iconOnly
+                      size="small"
+                      variant="transparent"
+                      aria-label="Next date"
+                      onClick={() => updateSearch({ date: addDays(startDate, days) })}
+                    >
+                      <ChevronRight />
+                    </Button>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2 flex-1 min-w-40">
                   <Search className="size-4 text-tertiary shrink-0" />
                   <Input
                     ref={inputRef}
                     size="small"
-                    aria-label="Search agenda"
+                    aria-label={calendarRoute ? "Search calendar" : "Search agenda"}
                     placeholder="Search tasks, notes, events…"
                     value={search.q ?? ""}
                     onChange={(event) => updateSearch({ q: event.target.value || undefined })}
@@ -546,7 +571,7 @@ export function AgendaView({
                   Focus and item links could not be loaded. Your source items are still available.
                 </Callout>
               ) : null}
-              {!search.q && !calendarRoute && startDate === today ? (
+              {todayOverview ? (
                 <>
                   {featureOn(settings, "briefing") ? (
                     <BriefingCard
@@ -568,9 +593,7 @@ export function AgendaView({
                         })
                       }
                     />
-                  ) : (
-                    <Text color="secondary">{summary}</Text>
-                  )}
+                  ) : null}
                   {featureOn(settings, "assistant") ? (
                     <AskAssistantCard provider={settings?.ai.provider ?? "claude"} />
                   ) : null}
