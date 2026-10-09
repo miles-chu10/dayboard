@@ -1,5 +1,12 @@
 import { DetailsLayout } from "../components/details-layout";
-import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Button, ScrollArea, SegmentedControl, SegmentedControlItem, Text } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
@@ -149,6 +156,20 @@ function CalendarGrid({
   const byDay = groupByDay(sourceOn(settings, "calendar") ? events : [], todos, dates);
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const detailView = settings?.general.detailView ?? "dialog";
+  const root = useRef<HTMLDivElement>(null);
+  const returnFocusKey = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const key = returnFocusKey.current;
+    if (!key || search.item) return;
+    const row = root.current?.querySelector<HTMLElement>(
+      `[data-detail-anchor="${CSS.escape(key)}"] [data-agenda-row]`,
+    );
+    const fallback = root.current?.querySelector<HTMLElement>(
+      '[role="gridcell"][aria-selected="true"]',
+    );
+    (row ?? fallback)?.focus({ preventScroll: true });
+    returnFocusKey.current = undefined;
+  }, [search.item]);
 
   function update(patch: Partial<AgendaSearch>) {
     void navigate({
@@ -168,8 +189,13 @@ function CalendarGrid({
 
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
+  function closePanel() {
+    returnFocusKey.current = search.item;
+    update({ item: undefined });
+  }
+  const closeDialog = () => update({ item: undefined });
   function renderDetail(presentation: "dialog" | "panel") {
-    const close = () => update({ item: undefined });
+    const close = presentation === "panel" ? closePanel : closeDialog;
     if (selectedTodo)
       return (
         <AgendaDetailDialog
@@ -206,10 +232,11 @@ function CalendarGrid({
   const selectedItems = byDay.get(selected);
 
   return (
-    <>
+    <div ref={root} className="h-full">
       <DetailsLayout
         inlineMode="stack"
         storageKey="calendar"
+        selectedKey={search.item ?? selected}
         label={panelDetail ? "Details" : "Selected day"}
         details={
           view === "month" || panelDetail
@@ -251,7 +278,6 @@ function CalendarGrid({
           headerSize="page"
           viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
           title="Calendar"
-          subtitle={title}
           actions={
             <ViewActions
               refreshing={calendar.isFetching || tasks.isFetching || reminders.isFetching}
@@ -313,7 +339,7 @@ function CalendarGrid({
         </ScrollArea>
       </DetailsLayout>
       {detailView === "dialog" ? renderDetail("dialog") : null}
-    </>
+    </div>
   );
 }
 
@@ -377,8 +403,27 @@ function MonthGrid({
 }) {
   const settings = useSettings().data;
   const colorOf = useEventColor();
+  const grid = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const viewport = grid.current?.closest<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+    function revealSelection() {
+      const cell = grid.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!cell || !viewport) return;
+      const bounds = viewport.getBoundingClientRect();
+      const selectedBounds = cell.getBoundingClientRect();
+      if (selectedBounds.top < bounds.top || selectedBounds.height > bounds.height)
+        viewport.scrollTop += selectedBounds.top - bounds.top;
+      else if (selectedBounds.bottom > bounds.bottom)
+        viewport.scrollTop += selectedBounds.bottom - bounds.bottom;
+    }
+    revealSelection();
+    const observer = new ResizeObserver(revealSelection);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [selected]);
   return (
-    <div className="overflow-hidden rounded-lg border border-separator">
+    <div ref={grid} className="overflow-hidden rounded-lg border border-separator">
       <div className="grid grid-cols-7 border-b border-separator bg-well">
         {dates.slice(0, 7).map((date) => (
           <Text key={date} variant="small" color="secondary" className="px-2 py-1 text-center">
@@ -579,7 +624,7 @@ function WeekGrid({
       </div>
       {hasTop ? (
         <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] overflow-y-hidden border-b border-separator pr-3 [scrollbar-gutter:stable]">
-          <Text variant="small" color="tertiary" className="px-1 py-1 text-right">
+          <Text variant="small" color="tertiary" className="whitespace-nowrap px-1 py-1 text-right">
             All day
           </Text>
           {dates.map((date) => {

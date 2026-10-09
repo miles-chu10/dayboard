@@ -79,15 +79,101 @@ test("responsive details preserve the mounted editor and keyboard pane preferenc
     await demo.page.keyboard.press("Escape");
     await expect(demo.page.getByRole("dialog")).toHaveCount(0);
     await expect(inspector).toBeVisible();
+    await inspector.getByRole("region").focus();
     await demo.page.keyboard.press("Control+Meta+I");
     await expect(inspector).toBeHidden();
-    await demo.page.getByRole("button", { name: "Show details", exact: true }).click();
+    const showDetails = demo.page.getByRole("button", { name: "Show details", exact: true });
+    await expect(showDetails).toBeFocused();
+    await showDetails.click();
     await expect(inspector).toBeVisible();
+    await expect(inspector.getByRole("region")).toBeFocused();
     expect(await mounted!.evaluate((node) => node.isConnected)).toBe(true);
     await inspector.getByRole("region").focus();
     await demo.page.keyboard.press("Escape");
     await expect(inspector).toBeHidden();
     await expect(row).toBeFocused();
+    await demo.page.keyboard.press("Enter");
+    await expect(inspector.getByRole("region")).toBeFocused();
+    await demo.page.keyboard.press("Control+Meta+I");
+    await expect(showDetails).toBeFocused();
+    const nextRow = demo.page
+      .locator("[data-detail-anchor]")
+      .getByRole("button", { name: /^Open / })
+      .nth(1);
+    await nextRow.focus();
+    await demo.page.keyboard.press("Enter");
+    await expect(inspector).toBeVisible();
+    await expect(inspector.getByRole("region")).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(nextRow).toBeFocused();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("Calendar compact rows retain titles and restore focus after the selected-day list returns", async () => {
+  const profile = await createTestProfile();
+  await writeFile(
+    path.join(profile, "demo-settings.json"),
+    JSON.stringify({ general: { detailView: "sidebar" } }),
+  );
+  const demo = await launchDemo(profile);
+  try {
+    await demo.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].setContentSize(1100, 800),
+    );
+    await demo.page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("button")
+      .filter({ has: demo.page.getByText("Calendar", { exact: true }) })
+      .click();
+    const selectedDay = demo.page.getByRole("complementary", { name: "Selected day", exact: true });
+    await expect(selectedDay).toBeVisible();
+    const titles = selectedDay.locator("[data-agenda-title]");
+    await expect.poll(() => titles.count()).toBeGreaterThan(2);
+    const geometry = await titles.evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        width: node.clientWidth,
+        overflow: node.scrollWidth > node.clientWidth,
+      })),
+    );
+    expect(geometry.every(({ width, overflow }) => width >= 96 && !overflow)).toBe(true);
+    const event = selectedDay.getByRole("group", { name: /^Lunch with Sam,/ });
+    await event.focus();
+    await demo.page.keyboard.press("Enter");
+    const eventPanel = demo.page.getByRole("region", {
+      name: "Lunch with Sam details",
+      exact: true,
+    });
+    await expect(eventPanel).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(event).toBeFocused();
+    const todo = selectedDay.getByRole("group", { name: "Pick up dry cleaning", exact: true });
+    await todo.focus();
+    await demo.page.keyboard.press("Enter");
+    await expect(
+      demo.page.getByRole("region", { name: "Pick up dry cleaning details", exact: true }),
+    ).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(todo).toBeFocused();
+    await demo.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].setContentSize(800, 600),
+    );
+    await expect(demo.page.locator("[data-details-layout]")).toHaveAttribute(
+      "data-details-stacked",
+      "true",
+    );
+    await expect
+      .poll(() =>
+        demo.page.locator('[role="gridcell"][aria-selected="true"]').evaluate((cell) => {
+          const viewport = cell.closest("[data-radix-scroll-area-viewport]")!;
+          const bounds = viewport.getBoundingClientRect();
+          const day = cell.firstElementChild!.getBoundingClientRect();
+          return day.top >= bounds.top - 1 && day.bottom <= bounds.bottom + 1;
+        }),
+      )
+      .toBe(true);
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();

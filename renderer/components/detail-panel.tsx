@@ -38,7 +38,10 @@ export function DetailPanel({
       ref={panel}
       tabIndex={-1}
       aria-label={`${title} details`}
-      className={cn("flex min-w-0 flex-col gap-3 rounded-lg bg-well p-3", className)}
+      className={cn(
+        "@container/detail flex min-w-0 flex-col gap-3 rounded-lg bg-well p-3",
+        className,
+      )}
       onKeyDown={(event) => {
         if (
           event.key === "Escape" &&

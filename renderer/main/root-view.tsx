@@ -83,7 +83,7 @@ function WindowNavigation() {
         event.repeat ||
         event.isComposing ||
         event.defaultPrevented ||
-        document.querySelector('[role="dialog"]')
+        document.querySelector('[role="dialog"], [role="alertdialog"]')
       )
         return;
       event.preventDefault();

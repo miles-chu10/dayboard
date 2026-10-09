@@ -64,7 +64,7 @@ export function EventBar({
   }
 
   return (
-    <div data-detail-anchor={calendarEventKey(event)}>
+    <div data-detail-anchor={calendarEventKey(event)} className="@container/event-row">
       <div
         role="group"
         tabIndex={0}
@@ -73,7 +73,7 @@ export function EventBar({
         aria-expanded={expanded}
         onClick={activate}
         onKeyDown={keydown}
-        className="group relative flex min-h-[var(--density-bar)] min-w-0 items-center gap-2.5 rounded-md py-[var(--density-bar-py)] pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="group relative flex min-h-[var(--density-bar)] min-w-0 items-center gap-2.5 rounded-md py-[var(--density-bar-py)] pl-4 pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent @max-[22rem]/event-row:flex-wrap @max-[22rem]/event-row:gap-y-1"
         style={{
           backgroundColor: `color-mix(in srgb, ${color} ${past ? 7 : 15}%, transparent)`,
         }}
@@ -83,26 +83,37 @@ export function EventBar({
           className="absolute bottom-1.5 left-1.5 top-1.5 w-[3px] rounded-full"
           style={{ backgroundColor: color, opacity: past ? 0.5 : 1 }}
         />
-        <Text
-          variant="small"
-          color={past ? "tertiary" : "secondary"}
-          className="shrink-0 tabular-nums"
-        >
-          {compactRange(event)}
-        </Text>
-        <Text
-          variant="small"
-          truncate
-          color={past ? "tertiary" : "primary"}
-          className="min-w-0 font-medium"
-        >
-          {event.title}
-        </Text>
-        {detail ? (
-          <Text variant="small" color="tertiary" truncate className="min-w-0">
-            {detail}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 @max-[22rem]/event-row:contents">
+          <Text
+            variant="small"
+            color={past ? "tertiary" : "secondary"}
+            className="shrink-0 tabular-nums"
+          >
+            <span className="@max-[22rem]/event-row:hidden">{compactRange(event)}</span>
+            <span className="hidden @max-[22rem]/event-row:inline">
+              {event.allDay ? "All day" : formatTimeOfDay(event.start)}
+            </span>
           </Text>
-        ) : null}
+          <Text
+            variant="small"
+            truncate
+            color={past ? "tertiary" : "primary"}
+            data-agenda-title
+            className="min-w-0 flex-1 font-medium @max-[22rem]/event-row:order-first @max-[22rem]/event-row:w-full @max-[22rem]/event-row:flex-none @max-[22rem]/event-row:whitespace-normal @max-[22rem]/event-row:line-clamp-2 @max-[22rem]/event-row:text-regular"
+          >
+            {event.title}
+          </Text>
+          {detail ? (
+            <Text
+              variant="small"
+              color="tertiary"
+              truncate
+              className="min-w-0 @max-[22rem]/event-row:hidden"
+            >
+              {detail}
+            </Text>
+          ) : null}
+        </div>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {current ? <Badge color="green">Now</Badge> : null}
           {prepOn && !past ? (
