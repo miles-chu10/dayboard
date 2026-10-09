@@ -224,6 +224,7 @@ test("⌘N opens New Item from any view and does not stack over another dialog",
 
     // Other modifier combinations are left alone.
     await demo.page.keyboard.press("Meta+Shift+N");
+    await demo.page.waitForTimeout(300);
     await expect(newItem).toHaveCount(0);
 
     // The sidebar + works with the mouse, including in views whose toolbar has no + button,
@@ -235,6 +236,21 @@ test("⌘N opens New Item from any view and does not stack over another dialog",
     await expect(demo.page.getByRole("tooltip")).toContainText("New item");
     await plus.click();
     await expect(newItem).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    // Only the button is raised: the empty header strip beside it still hits the window
+    // drag region, exactly as before.
+    const box = (await plus.boundingBox())!;
+    const besidePlus = await demo.page.evaluate(
+      ([x, y]) => {
+        const { document } = globalThis as unknown as {
+          document: { elementFromPoint(x: number, y: number): { className: string } | null };
+        };
+        return document.elementFromPoint(x!, y!)?.className.split(" ").includes("drag-region");
+      },
+      [box.x - 40, box.y + box.height / 2],
+    );
+    expect(besidePlus).toBe(true);
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();

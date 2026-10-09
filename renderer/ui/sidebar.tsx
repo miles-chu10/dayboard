@@ -55,7 +55,7 @@ export function Sidebar({
   const resolvedToolbar =
     toolbar ??
     (actions || searchable ? (
-      <div className="relative z-10 flex flex-col gap-1.5 pl-2 pr-[5px] pt-2">
+      <div className="flex flex-col gap-1.5 pl-2 pr-[5px] pt-2">
         {actions ? <div className="flex items-center justify-end gap-1">{actions}</div> : null}
         {searchable ? (
           <ToolbarSearchInput

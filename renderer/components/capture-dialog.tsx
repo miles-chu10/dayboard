@@ -68,10 +68,11 @@ export function useOpenCapture() {
 export function CaptureProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
-  // ⌘N from anywhere in the main window, except over another dialog.
+  // ⌘N from anywhere in the main window, except over another dialog or a confirm prompt.
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
-      if (!isNewItemShortcut(event) || document.querySelector('[role="dialog"]')) return;
+      if (!isNewItemShortcut(event)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       event.preventDefault();
       setOpen(true);
     }
