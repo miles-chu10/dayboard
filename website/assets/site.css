@@ -1507,6 +1507,12 @@ p {
   }
 }
 
+@media (max-width: 800px) {
+  html {
+    --nav-offset: max(136px, calc(10rem - 72px));
+  }
+}
+
 @media (max-width: 720px) {
   body {
     font-size: 16px;
