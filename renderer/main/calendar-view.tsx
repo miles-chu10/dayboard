@@ -460,6 +460,7 @@ function MonthGrid({
               tabIndex={0}
               onClick={() => onSelect(date)}
               onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelect(date);
