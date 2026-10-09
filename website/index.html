@@ -16,10 +16,16 @@
       property="og:description"
       content="Google Calendar, Google Tasks, Apple Reminders and Gmail in one calm Mac app. Join the waitlist for early access."
     />
-    <meta property="og:image" content="https://getdayboard.com/assets/screens/light-agenda.png" />
-    <meta property="og:image:width" content="1600" />
-    <meta property="og:image:height" content="1025" />
-    <meta property="og:image:alt" content="DayBoard Agenda with fictional demo events and tasks" />
+    <meta
+      property="og:image"
+      content="https://getdayboard.com/assets/screens/light-agenda-preview.png"
+    />
+    <meta property="og:image:width" content="2560" />
+    <meta property="og:image:height" content="1640" />
+    <meta
+      property="og:image:alt"
+      content="Native DayBoard Agenda preview with fictional demo events, tasks and reminders"
+    />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -128,14 +134,15 @@
             <div class="window">
               <picture>
                 <source
-                  srcset="assets/screens/dark-agenda.png"
+                  srcset="assets/screens/dark-agenda-preview.png"
                   media="(prefers-color-scheme: dark)"
                 />
                 <img
-                  src="assets/screens/light-agenda.png"
-                  alt="DayBoard's Agenda: today's calendar events, Google Tasks and Apple Reminders in one list, with unread Gmail below (fictional sample data)"
-                  width="1600"
-                  height="1025"
+                  src="assets/screens/light-agenda-preview.png"
+                  alt="Native DayBoard Agenda preview: today's calendar events, Google Tasks and Apple Reminders with a date heading and source filters (fictional demo data)"
+                  aria-describedby="native-preview-note"
+                  width="2560"
+                  height="1640"
                   fetchpriority="high"
                 />
               </picture>
@@ -156,6 +163,10 @@
               ><b>Launch announcement — final copy?</b>
             </div>
           </div>
+          <p class="fine" id="native-preview-note">
+            Native app preview in development, with fictional demo data. Early access remains by
+            invite.
+          </p>
         </div>
       </section>
 
