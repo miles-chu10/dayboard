@@ -47,6 +47,8 @@ import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 
 const MAX_LIST = 100;
 const MAX_BODY_CHARS = 20_000;
+const MAX_MCP_INPUT_ELEMENTS = 10_000;
+const MAX_MCP_INPUT_DEPTH = 64;
 const WEEK_MS = 7 * 86_400_000;
 const ASSISTANT_MCP_PATH = "/assistant-mcp";
 const ASSISTANT_MCP_ID = "dashboard-assistant-readonly";
@@ -300,14 +302,37 @@ function registerReadOnlyTools(server: McpServer): void {
   );
 }
 
+// Protocol schemas also validate arrays, so bound the whole envelope before any SDK validation.
+function hasBoundedMcpInput(input: unknown): boolean {
+  const pending = [{ value: input, depth: 0 }];
+  let elements = 0;
+  while (pending.length) {
+    const { value, depth } = pending.pop()!;
+    if (depth > MAX_MCP_INPUT_DEPTH) return false;
+    if (value === null || typeof value !== "object") continue;
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      if (++elements > MAX_MCP_INPUT_ELEMENTS) return false;
+      pending.push({ value: (value as Record<string, unknown>)[key], depth: depth + 1 });
+    }
+  }
+  return true;
+}
+
 function buildAssistantMcpServer(): McpServer {
-  const server = new McpServer({ name: "dayboard-assistant", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "dayboard-assistant", version: "1.0.0" },
+    { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+  );
   registerReadOnlyTools(server);
   return server;
 }
 
 function buildMcpServer(allowWrites: boolean): McpServer {
-  const server = new McpServer({ name: "dayboard", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "dayboard", version: "1.0.0" },
+    { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+  );
   registerReadOnlyTools(server);
   if (!allowWrites) return server;
 
@@ -696,6 +721,10 @@ export function createMcpHttpServer() {
           body += chunk;
         }
         const parsedBody: unknown = JSON.parse(body);
+        if (!hasBoundedMcpInput(parsedBody)) {
+          response.writeHead(413).end("MCP request too complex");
+          return;
+        }
 
         if (!transport && isInitializeRequest(parsedBody)) {
           const newTransport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
