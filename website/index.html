@@ -43,6 +43,7 @@
       type="font/woff2"
       crossorigin
     />
+    <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
     <script>
       document.documentElement.classList.add("js");
@@ -61,6 +62,43 @@
           ><a href="#privacy">Privacy</a><a href="#faq">FAQ</a
           ><a href="https://github.com/miles-chu10/dayboard">GitHub</a>
         </div>
+        <button
+          class="theme-toggle"
+          type="button"
+          data-theme-toggle
+          aria-label="Light theme. Switch to dark theme"
+          hidden
+        >
+          <svg
+            class="theme-sun"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"
+            />
+          </svg>
+          <svg
+            class="theme-moon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z" />
+          </svg>
+          <span class="theme-label">Light</span>
+        </button>
         <a class="button" href="#join">Join the waitlist</a>
       </nav>
     </header>
@@ -149,26 +187,27 @@
 
           <div class="board rise" style="--i: 3">
             <div class="window window-back" aria-hidden="true">
-              <picture>
-                <source
-                  srcset="assets/screens/dark-calendar-month.png"
-                  media="(prefers-color-scheme: dark)"
-                />
+              <div class="theme-picture">
                 <img
+                  class="theme-light"
                   src="assets/screens/light-calendar-month.png"
                   alt=""
                   width="1600"
                   height="1025"
                 />
-              </picture>
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-calendar-month.png"
+                  alt=""
+                  width="1600"
+                  height="1025"
+                />
+              </div>
             </div>
             <div class="window">
-              <picture>
-                <source
-                  srcset="assets/screens/dark-agenda-preview.png"
-                  media="(prefers-color-scheme: dark)"
-                />
+              <div class="theme-picture">
                 <img
+                  class="theme-light"
                   src="assets/screens/light-agenda-preview.png"
                   alt="Native DayBoard Agenda preview: today's calendar events, Google Tasks and Apple Reminders with a date heading and source filters (fictional demo data)"
                   aria-describedby="native-preview-note"
@@ -176,7 +215,16 @@
                   height="1640"
                   fetchpriority="high"
                 />
-              </picture>
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-agenda-preview.png"
+                  alt="Native DayBoard Agenda preview: today's calendar events, Google Tasks and Apple Reminders with a date heading and source filters (fictional demo data)"
+                  aria-describedby="native-preview-note"
+                  width="2560"
+                  height="1640"
+                  fetchpriority="high"
+                />
+              </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
             <div class="note note-1 c-calendar" style="--i: 0" aria-hidden="true">
@@ -301,33 +349,42 @@
             </div>
             <div class="window">
               <div class="shot" id="shot-week" role="tabpanel" aria-labelledby="tab-week">
-                <picture>
-                  <source
-                    srcset="assets/screens/dark-calendar-week.png"
-                    media="(prefers-color-scheme: dark)"
-                  />
+                <div class="theme-picture">
                   <img
+                    class="theme-light"
                     src="assets/screens/light-calendar-week.png"
                     alt="Calendar week view with timed events color-coded by calendar (fictional sample data)"
                     width="1600"
                     height="1025"
                     loading="lazy"
                   />
-                </picture>
+                  <img
+                    class="theme-dark"
+                    src="assets/screens/dark-calendar-week.png"
+                    alt="Calendar week view with timed events color-coded by calendar (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                    loading="lazy"
+                  />
+                </div>
               </div>
               <div class="shot" id="shot-month" role="tabpanel" aria-labelledby="tab-month" hidden>
-                <picture>
-                  <source
-                    srcset="assets/screens/dark-calendar-month.png"
-                    media="(prefers-color-scheme: dark)"
-                  />
+                <div class="theme-picture">
                   <img
+                    class="theme-light"
                     src="assets/screens/light-calendar-month.png"
                     alt="Calendar month grid with events, tasks and reminders, and today's schedule beside it (fictional sample data)"
                     width="1600"
                     height="1025"
                   />
-                </picture>
+                  <img
+                    class="theme-dark"
+                    src="assets/screens/dark-calendar-month.png"
+                    alt="Calendar month grid with events, tasks and reminders, and today's schedule beside it (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                  />
+                </div>
               </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
@@ -373,19 +430,24 @@
             </div>
             <div class="window">
               <div class="shot" id="shot-tasks" role="tabpanel" aria-labelledby="tab-tasks">
-                <picture>
-                  <source
-                    srcset="assets/screens/dark-tasks.png"
-                    media="(prefers-color-scheme: dark)"
-                  />
+                <div class="theme-picture">
                   <img
+                    class="theme-light"
                     src="assets/screens/light-tasks.png"
                     alt="Google Tasks grouped into Work and Personal lists with due dates (fictional sample data)"
                     width="1600"
                     height="1025"
                     loading="lazy"
                   />
-                </picture>
+                  <img
+                    class="theme-dark"
+                    src="assets/screens/dark-tasks.png"
+                    alt="Google Tasks grouped into Work and Personal lists with due dates (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                    loading="lazy"
+                  />
+                </div>
               </div>
               <div
                 class="shot"
@@ -394,18 +456,22 @@
                 aria-labelledby="tab-reminders"
                 hidden
               >
-                <picture>
-                  <source
-                    srcset="assets/screens/dark-reminders.png"
-                    media="(prefers-color-scheme: dark)"
-                  />
+                <div class="theme-picture">
                   <img
+                    class="theme-light"
                     src="assets/screens/light-reminders.png"
                     alt="Apple Reminders grouped by list, with times and dates (fictional sample data)"
                     width="1600"
                     height="1025"
                   />
-                </picture>
+                  <img
+                    class="theme-dark"
+                    src="assets/screens/dark-reminders.png"
+                    alt="Apple Reminders grouped by list, with times and dates (fictional sample data)"
+                    width="1600"
+                    height="1025"
+                  />
+                </div>
               </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
@@ -426,19 +492,24 @@
               </ul>
             </div>
             <div class="window">
-              <picture>
-                <source
-                  srcset="assets/screens/dark-mail.png"
-                  media="(prefers-color-scheme: dark)"
-                />
+              <div class="theme-picture">
                 <img
+                  class="theme-light"
                   src="assets/screens/light-mail.png"
                   alt="Inbox with a message open in the side panel (fictional sample data)"
                   width="1600"
                   height="1025"
                   loading="lazy"
                 />
-              </picture>
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-mail.png"
+                  alt="Inbox with a message open in the side panel (fictional sample data)"
+                  width="1600"
+                  height="1025"
+                  loading="lazy"
+                />
+              </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
           </section>
@@ -459,19 +530,24 @@
               </ul>
             </div>
             <div class="window">
-              <picture>
-                <source
-                  srcset="assets/screens/dark-assistant.png"
-                  media="(prefers-color-scheme: dark)"
-                />
+              <div class="theme-picture">
                 <img
+                  class="theme-light"
                   src="assets/screens/light-assistant.png"
                   alt="The Assistant answering what to focus on for a launch announcement (fictional sample answer)"
                   width="1600"
                   height="1025"
                   loading="lazy"
                 />
-              </picture>
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-assistant.png"
+                  alt="The Assistant answering what to focus on for a launch announcement (fictional sample answer)"
+                  width="1600"
+                  height="1025"
+                  loading="lazy"
+                />
+              </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
           </section>
