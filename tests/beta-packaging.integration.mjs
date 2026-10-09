@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -21,7 +20,7 @@ test(
     const root = fileURLToPath(new URL("..", import.meta.url));
     const before = await snapshotPackagingOutputs(root);
     try {
-      await withPackagingWorkspace(root, async ({ directory, workspace }) => {
+      await withPackagingWorkspace(root, async ({ directory, run }) => {
         const file = path.join(directory, "client.json");
         await writeFile(
           file,
@@ -30,22 +29,17 @@ test(
             clientSecret: "synthetic-only",
           }),
         );
-        const status = await new Promise((resolve, reject) => {
-          const child = spawn("npm", ["run", "package:preview"], {
-            cwd: workspace,
-            env: {
-              ...process.env,
-              DAYBOARD_GOOGLE_OAUTH_FILE: file,
-              DAYBOARD_LICENSE: "on",
-              DAYBOARD_REQUIRE_GOOGLE: "0",
-              DAYBOARD_TEST: "0",
-              DAYBOARD_RELEASE: "0",
-            },
-            stdio: "inherit",
-            signal: t.signal,
-          });
-          child.on("error", reject);
-          child.on("close", resolve);
+        const status = await run("npm", ["run", "package:preview"], {
+          env: {
+            ...process.env,
+            DAYBOARD_GOOGLE_OAUTH_FILE: file,
+            DAYBOARD_LICENSE: "on",
+            DAYBOARD_REQUIRE_GOOGLE: "0",
+            DAYBOARD_TEST: "0",
+            DAYBOARD_RELEASE: "0",
+          },
+          stdio: "inherit",
+          signal: t.signal,
         });
         assert.equal(status, 0, "The real beta packaging/verification path must succeed.");
       });

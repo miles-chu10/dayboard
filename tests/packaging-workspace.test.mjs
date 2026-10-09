@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
   access,
   lstat,
@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   snapshotPackagingOutputs,
   withPackagingWorkspace,
@@ -70,7 +71,7 @@ for (const status of [0, 9]) {
     const nativeBefore = await readFile(dependency, "utf8");
     let temporary;
     const run = () =>
-      withPackagingWorkspace(root, async ({ directory, workspace }) => {
+      withPackagingWorkspace(root, async ({ directory, workspace, run }) => {
         temporary = directory;
         assert.ok(!workspace.startsWith(root + path.sep));
         for (const name of [
@@ -91,13 +92,12 @@ for (const status of [0, 9]) {
           (await lstat(dependency)).ino,
           (await lstat(path.join(workspace, "node_modules/fixture/native.node"))).ino,
         );
-        const result = spawnSync("npm", ["run", "package:preview"], {
-          cwd: workspace,
+        const result = await run("npm", ["run", "package:preview"], {
           env: { PATH: process.env.PATH, FIXTURE_EXIT: String(status) },
-          encoding: "utf8",
-          timeout: 10_000,
+          stdio: "ignore",
+          signal: AbortSignal.timeout(10_000),
         });
-        assert.equal(result.status, status, result.stderr);
+        assert.equal(result, status);
         assert.equal(
           await readFile(path.join(workspace, "release/DayBoard-1.3.0-beta.11-arm64.dmg"), "utf8"),
           "synthetic dmg",
@@ -124,3 +124,96 @@ test("fixture setup rejects dependency links back to the checkout", async (t) =>
   );
   assert.equal(called, false);
 });
+
+test(
+  "timeout waits for a TERM-resistant nested npm writer before workspace cleanup",
+  { timeout: 8000 },
+  async (t) => {
+    const root = await fixture(t);
+    await writeFile(
+      path.join(root, "package.json"),
+      JSON.stringify({
+        scripts: {
+          "package:preview": "npm run inner",
+          inner: "node launcher.mjs",
+        },
+      }),
+    );
+    await writeFile(
+      path.join(root, "launcher.mjs"),
+      `
+    import { spawn } from "node:child_process";
+    process.on("SIGTERM", () => {});
+    spawn(process.execPath, ["writer.mjs"], { stdio: "ignore" });
+    setInterval(() => {}, 1000);
+  `,
+    );
+    await writeFile(
+      path.join(root, "writer.mjs"),
+      `
+    import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+    import path from "node:path";
+    const output = path.resolve("release");
+    process.on("SIGTERM", () => {});
+    let ready = false;
+    setInterval(() => {
+      mkdirSync(output, { recursive: true });
+      writeFileSync(path.join(output, "heartbeat"), String(Date.now()));
+      if (!ready) {
+        writeFileSync("writer-ready.tmp", JSON.stringify({ pid: process.pid }));
+        renameSync("writer-ready.tmp", "writer-ready.json");
+        ready = true;
+      }
+    }, 20);
+  `,
+    );
+    execFileSync("git", ["add", "launcher.mjs", "writer.mjs"], { cwd: root });
+    const before = await snapshotPackagingOutputs(root);
+    const controller = new AbortController();
+    let temporary;
+    let writer;
+    const task = withPackagingWorkspace(root, async ({ directory, workspace, run }) => {
+      temporary = directory;
+      const command = run("npm", ["run", "package:preview"], {
+        env: { PATH: process.env.PATH },
+        stdio: "ignore",
+        signal: AbortSignal.any([controller.signal, t.signal]),
+        termGraceMs: 100,
+        killWaitMs: 1500,
+      });
+      const rejection = assert.rejects(command, { name: "AbortError" });
+      let timeout;
+      try {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          try {
+            writer = JSON.parse(await readFile(path.join(workspace, "writer-ready.json"), "utf8"));
+            break;
+          } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+          }
+          await delay(20);
+        }
+        assert.ok(writer?.pid, "Nested writer must start within two seconds.");
+        timeout = setTimeout(() => controller.abort(), 50);
+        await rejection;
+      } finally {
+        clearTimeout(timeout);
+        controller.abort();
+      }
+      // Check before withPackagingWorkspace can enter its removal finally block.
+      const heartbeat = path.join(workspace, "release/heartbeat");
+      const stopped = await readFile(heartbeat, "utf8");
+      await delay(100);
+      assert.equal(await readFile(heartbeat, "utf8"), stopped, "Writer must stop before cleanup.");
+      assert.ok(
+        await lstat(workspace),
+        "Workspace must still exist until command shutdown finishes.",
+      );
+    });
+    await task;
+    await assert.rejects(access(temporary), { code: "ENOENT" });
+    await delay(1200);
+    await assert.rejects(access(temporary), { code: "ENOENT" });
+    assert.deepEqual(await snapshotPackagingOutputs(root), before);
+  },
+);

@@ -5,6 +5,7 @@ import { cp, lstat, mkdir, mkdtemp, readdir, readlink, realpath, rm } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createOwnedProcessScope } from "./owned-process.mjs";
 
 const execute = promisify(execFile);
 const outputs = ["out", "release", "resources/bin"];
@@ -24,6 +25,7 @@ export async function withPackagingWorkspace(source, callback) {
   }
   const directory = await mkdtemp(path.join(temporaryRoot, "dayboard-beta-fixture-"));
   const workspace = path.join(directory, "source");
+  const processes = createOwnedProcessScope(workspace);
   try {
     await mkdir(workspace);
     const { stdout } = await execute("git", ["ls-files", "-z"], {
@@ -77,8 +79,11 @@ export async function withPackagingWorkspace(source, callback) {
         return true;
       },
     });
-    return await callback({ directory, workspace });
+    return await callback({ directory, workspace, run: processes.run });
   } finally {
+    // Stop and await owned commands even if the callback throws while one is
+    // active. If termination is unconfirmed, close throws and retains the files.
+    await processes.close();
     await rm(directory, { recursive: true, force: true });
   }
 }
