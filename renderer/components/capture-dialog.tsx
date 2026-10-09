@@ -76,8 +76,9 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
       event.preventDefault();
       setOpen(true);
     }
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
+    // Row action controls stop bubbling to avoid opening their parent item.
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
   }, []);
 
   return (

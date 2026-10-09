@@ -291,3 +291,32 @@ test("⌘N opens New Item from any view and does not stack over another dialog",
     await demo.close();
   }
 });
+
+test("⌘N reaches focused row action controls", async ({ playwright: _playwright }) => {
+  const demo = await launchDemo();
+  try {
+    const newItem = demo.page.getByRole("dialog", { name: "New Item" });
+    await navigate(demo.page, "Tasks");
+    const task = demo.page.getByRole("button", {
+      name: "Open Finalize launch announcement",
+      exact: true,
+    });
+    await task.getByRole("button", { name: "Edit", exact: true }).focus();
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+    await expect(newItem).toHaveCount(0);
+
+    await navigate(demo.page, "Inbox");
+    const mail = demo.page.getByRole("button", {
+      name: "Open email from Priya Shah",
+      exact: true,
+    });
+    await mail.getByRole("button", { name: "Reply", exact: true }).focus();
+    await demo.page.keyboard.press("Meta+N");
+    await expect(newItem).toBeVisible();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
