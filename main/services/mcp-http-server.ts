@@ -45,6 +45,19 @@ import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 
 const MAX_LIST = 100;
 const MAX_BODY_CHARS = 20_000;
+/**
+ * Most array elements plus object members one tools/call `arguments` payload may contain. The SDK
+ * rejects anything larger before schema validation or the handler. Every tool here takes at most
+ * six flat fields, so this leaves ample room while bounding per-call validation work.
+ */
+export const MAX_TOOL_INPUT_ELEMENTS = 1024;
+/**
+ * Limits for one authenticated MCP request body, checked after JSON parsing and before the SDK
+ * validates the message, opens a session or runs a handler: array elements plus object members at
+ * every depth, and nesting levels, where the outermost object or array is level 1.
+ */
+export const MAX_MCP_REQUEST_ELEMENTS = 10_000;
+export const MAX_MCP_REQUEST_DEPTH = 64;
 const WEEK_MS = 7 * 86_400_000;
 const ASSISTANT_MCP_PATH = "/assistant-mcp";
 const ASSISTANT_MCP_ID = "dashboard-assistant-readonly";
@@ -295,13 +308,19 @@ function registerReadOnlyTools(server: McpServer): void {
 }
 
 function buildAssistantMcpServer(): McpServer {
-  const server = new McpServer({ name: "dayboard-assistant", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "dayboard-assistant", version: "1.0.0" },
+    { maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS },
+  );
   registerReadOnlyTools(server);
   return server;
 }
 
 function buildMcpServer(allowWrites: boolean): McpServer {
-  const server = new McpServer({ name: "dayboard", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "dayboard", version: "1.0.0" },
+    { maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS },
+  );
   registerReadOnlyTools(server);
   if (!allowWrites) return server;
 
@@ -596,6 +615,37 @@ function hasAssistantMcpAuthorization(request: {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
+/**
+ * Whether a parsed request body stays within the element and nesting limits. Walks it with an
+ * explicit stack, never recursion, and stops at the first excess, so the work and the stack are
+ * both bounded by MAX_MCP_REQUEST_ELEMENTS whatever the body contains.
+ */
+function fitsMcpRequestLimits(body: unknown): boolean {
+  if (body === null || typeof body !== "object") return true;
+  const pending: { node: object; depth: number }[] = [{ node: body, depth: 1 }];
+  let elements = 0;
+  for (let entry = pending.pop(); entry; entry = pending.pop()) {
+    const { node, depth } = entry;
+    if (depth > MAX_MCP_REQUEST_DEPTH) return false;
+    if (Array.isArray(node)) {
+      for (const child of node as unknown[]) {
+        if (++elements > MAX_MCP_REQUEST_ELEMENTS) return false;
+        if (child !== null && typeof child === "object")
+          pending.push({ node: child, depth: depth + 1 });
+      }
+      continue;
+    }
+    for (const key in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
+      if (++elements > MAX_MCP_REQUEST_ELEMENTS) return false;
+      const child: unknown = (node as Record<string, unknown>)[key];
+      if (child !== null && typeof child === "object")
+        pending.push({ node: child, depth: depth + 1 });
+    }
+  }
+  return true;
+}
+
 type RequestHeaders = { headers: Record<string, string | string[] | undefined> };
 
 type McpRoute = {
@@ -690,6 +740,12 @@ export function createMcpHttpServer() {
           body += chunk;
         }
         const parsedBody: unknown = JSON.parse(body);
+        // Before any SDK schema sees the message, including isInitializeRequest's validation of
+        // clientInfo.icons and other arrays that the per-tool input limit doesn't cover.
+        if (!fitsMcpRequestLimits(parsedBody)) {
+          response.writeHead(413).end("MCP request too complex");
+          return;
+        }
 
         if (!transport && isInitializeRequest(parsedBody)) {
           const newTransport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({

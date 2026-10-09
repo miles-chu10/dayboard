@@ -15,6 +15,7 @@ import {
   dialog,
   logger,
   initDevToolsButtonState,
+  ipcMain,
 } from "@glaze/core/backend";
 
 import { registerHandlers } from "./handlers/index.js";
@@ -175,7 +176,22 @@ async function setupApplicationMenu() {
         { role: "quit" },
       ],
     },
-    { role: "fileMenu" },
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "New Item",
+          accelerator: "Command+N",
+          click: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            if (BrowserWindow.getFocusedWindow()?.id !== mainWindow.id) return;
+            ipcMain.broadcast("capture:open");
+          },
+        },
+        { type: "separator" },
+        { role: "close" },
+      ],
+    },
     { role: "editMenu" },
     { role: "viewMenu" },
     { role: "windowMenu" },

@@ -54,7 +54,14 @@ import {
   useReminders,
   useTasks,
 } from "../lib/queries";
-import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
+import {
+  PROVIDER_LABEL,
+  featureOn,
+  providerUsesMcp,
+  replyProviderLabel,
+  sourceOn,
+  useSettings,
+} from "../lib/settings";
 import { buildTodos } from "../lib/todos";
 import { readTriageMap } from "../lib/triage";
 
@@ -112,7 +119,7 @@ function AssistantMessageView({
         <div className="flex items-center gap-1.5">
           <ProviderMark provider={author} className="size-4" />
           <Text variant="small-strong" color="secondary">
-            {PROVIDER_LABEL[author]}
+            {replyProviderLabel(author)}
           </Text>
           {message.modelLabel ? (
             <Text variant="small" color="tertiary" truncate>

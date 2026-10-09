@@ -7,6 +7,7 @@ import type {
   AppSettings,
   SourceId,
 } from "@main/shared-types";
+import type { AssistantProvider } from "../../shared/assistant-history";
 
 import { errorMessage, invoke } from "./ipc";
 
@@ -71,6 +72,11 @@ export const PROVIDER_LABEL: Record<AIProvider, string> = {
   groq: "Groq",
   openrouter: "OpenRouter",
 };
+
+/** Saved replies can name the removed direct ChatGPT sign-in, which is no longer selectable. */
+export function replyProviderLabel(provider: AssistantProvider): string {
+  return provider === "chatgpt" ? "ChatGPT" : PROVIDER_LABEL[provider];
+}
 
 /** Subscription accounts vs. pay-per-use API keys, for grouping in pickers. */
 export const SUBSCRIPTION_PROVIDERS = ["claude", "codex", "gemini", "muse"] as const;

@@ -146,6 +146,14 @@ function modelId(value: unknown): string {
     : "";
 }
 
+/**
+ * The direct ChatGPT sign-in ("chatgpt") was removed; its selections continue on ChatGPT through
+ * the Codex CLI. Its model ID isn't carried over, since Codex has its own model catalog.
+ */
+function fromRemovedChatGPT(provider: unknown): unknown {
+  return provider === "chatgpt" ? "codex" : provider;
+}
+
 function token(value: unknown): string {
   return typeof value === "string" && /^[a-z][a-z0-9_-]{0,30}$/.test(value) ? value : "";
 }
@@ -212,7 +220,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     },
     ai: {
       enabled: bool(ai.enabled, defaults.ai.enabled),
-      provider: oneOf(ai.provider, PROVIDERS, defaults.ai.provider),
+      provider: oneOf(fromRemovedChatGPT(ai.provider), PROVIDERS, defaults.ai.provider),
       claudeModel: oneOf(ai.claudeModel, CLAUDE_MODELS, defaults.ai.claudeModel),
       claudeEffort: oneOf(ai.claudeEffort, CLAUDE_EFFORTS, defaults.ai.claudeEffort),
       claudeFast: bool(ai.claudeFast, defaults.ai.claudeFast),
@@ -227,7 +235,11 @@ export function normalizeSettings(value: unknown): AppSettings {
       apiModels: Object.fromEntries(
         API_PROVIDERS.map((provider) => [provider, modelId(record(ai.apiModels)[provider])]),
       ) as Record<ApiProviderId, string>,
-      assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
+      assistantProvider: oneOf(
+        fromRemovedChatGPT(ai.assistantProvider),
+        ["", ...PROVIDERS] as const,
+        "",
+      ),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
       assistantPermission: oneOf(
         ai.assistantPermission,
@@ -277,7 +289,8 @@ function safeDemoSettings(value: unknown): AppSettings {
   };
 }
 
-export async function getSettings(): Promise<AppSettings> {
+/** Runs inside settingsQueue only. Queued saves call this; awaiting getSettings would deadlock. */
+async function loadSettings(): Promise<AppSettings> {
   if (cachedSettings) return cachedSettings;
   const raw = await readFileIfExists(settingsPath());
   if (!raw) {
@@ -294,11 +307,16 @@ export async function getSettings(): Promise<AppSettings> {
   return cachedSettings;
 }
 
+/** Queued behind earlier saves, so a slow first read can't return or cache replaced settings. */
+export async function getSettings(): Promise<AppSettings> {
+  return settingsQueue(loadSettings);
+}
+
 export function saveSettings(
   next: unknown,
 ): Promise<{ previous: AppSettings; settings: AppSettings }> {
   return settingsQueue(async () => {
-    const previous = await getSettings();
+    const previous = await loadSettings();
     const settings = isDemoMode() ? safeDemoSettings(next) : normalizeSettings(next);
     await writeFileAtomic(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`);
     cachedSettings = settings;
@@ -358,8 +376,8 @@ export function normalizeMcpServer(value: unknown): McpServerConfig {
   };
 }
 
-export async function getMcpServers(): Promise<McpServerConfig[]> {
-  if (isDemoMode()) return [];
+/** Runs inside mcpQueue only. Queued mutations call this; awaiting getMcpServers would deadlock. */
+async function loadMcpServers(): Promise<McpServerConfig[]> {
   if (cachedServers) return cachedServers;
   const raw = await readFileIfExists(mcpPath());
   if (!raw) {
@@ -369,6 +387,11 @@ export async function getMcpServers(): Promise<McpServerConfig[]> {
   const parsed: unknown = JSON.parse(await safeStorage.decryptString(raw));
   cachedServers = Array.isArray(parsed) ? parsed.map(normalizeMcpServer) : [];
   return cachedServers;
+}
+
+export async function getMcpServers(): Promise<McpServerConfig[]> {
+  if (isDemoMode()) return [];
+  return mcpQueue(loadMcpServers);
 }
 
 async function writeMcpServers(servers: McpServerConfig[]): Promise<McpServerConfig[]> {
@@ -381,7 +404,7 @@ export function saveMcpServer(value: unknown): Promise<McpServerConfig[]> {
   assertNotDemo("mcp:save");
   return mcpQueue(async () => {
     const server = normalizeMcpServer(value);
-    const servers = await getMcpServers();
+    const servers = await loadMcpServers();
     const clash = servers.find(
       (existing) =>
         existing.id !== server.id && existing.name.toLowerCase() === server.name.toLowerCase(),
@@ -399,7 +422,7 @@ export function saveMcpServer(value: unknown): Promise<McpServerConfig[]> {
 export function deleteMcpServer(id: string): Promise<McpServerConfig[]> {
   assertNotDemo("mcp:delete");
   return mcpQueue(async () =>
-    writeMcpServers((await getMcpServers()).filter((server) => server.id !== id)),
+    writeMcpServers((await loadMcpServers()).filter((server) => server.id !== id)),
   );
 }
 

@@ -26,6 +26,7 @@ import {
 import { errorMessage, openSettings } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
+import { isNewItemShortcut } from "../lib/shortcuts";
 import { SourceDot } from "./source-dot";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,6 +67,26 @@ export function useOpenCapture() {
 
 export function CaptureProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const hasModal = () => Boolean(document.querySelector('[role="dialog"], [role="alertdialog"]'));
+    function openFromMenu() {
+      if (!hasModal()) setOpen(true);
+    }
+    function keydown(event: KeyboardEvent) {
+      if (!isNewItemShortcut(event) || hasModal()) return;
+      event.preventDefault();
+      setOpen(true);
+    }
+    const unsubscribe = window.glazeAPI.glaze.ipc.onNotification("capture:open", openFromMenu);
+    // Capture before row controls stop bubbling; the native File menu uses the same dialog.
+    window.addEventListener("keydown", keydown, true);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("keydown", keydown, true);
+    };
+  }, []);
+
   return (
     <CaptureContext.Provider value={() => setOpen(true)}>
       {children}

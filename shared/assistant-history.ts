@@ -16,6 +16,8 @@ export const ASSISTANT_PROVIDERS = [
   "deepseek",
   "groq",
   "openrouter",
+  // Replies saved by the removed direct ChatGPT sign-in; it is no longer a selectable provider.
+  "chatgpt",
 ] as const;
 export type AssistantProvider = (typeof ASSISTANT_PROVIDERS)[number];
 export type AssistantToolStatus = "running" | "success" | "error";

@@ -1,7 +1,8 @@
 import { cn } from "@glaze/core/utils";
 import type { AIProvider } from "@main/shared-types";
+import type { AssistantProvider } from "../../shared/assistant-history";
 
-import { PROVIDER_LABEL } from "../lib/settings";
+import { replyProviderLabel } from "../lib/settings";
 
 // Brand marks from Simple Icons (CC0). Claude keeps its brand coral; OpenAI follows text color.
 const CLAUDE_PATH =
@@ -22,10 +23,12 @@ const GEMINI_PATH =
 
 type Mark = { path: string; className: string } | { letter: string; className: string };
 
-// Providers without a bundled logo get a brand-colored lettermark.
-const MARK: Record<AIProvider, Mark> = {
+// Providers without a bundled logo get a brand-colored lettermark. "chatgpt" only marks replies
+// saved by the removed direct ChatGPT sign-in.
+const MARK: Record<AssistantProvider, Mark> = {
   claude: { path: CLAUDE_PATH, className: "text-[#D97757]" },
   codex: { path: OPENAI_PATH, className: "text-primary" },
+  chatgpt: { path: OPENAI_PATH, className: "text-primary" },
   glaze: { path: SPARKLE_PATH, className: "text-accent" },
   gemini: { path: GEMINI_PATH, className: "text-[#4796E3]" },
   muse: { letter: "M", className: "text-[#0866FF]" },
@@ -44,7 +47,7 @@ export function ProviderMark({
   provider,
   className,
 }: {
-  provider: AIProvider;
+  provider: AssistantProvider;
   className?: string;
 }) {
   const mark = MARK[provider];
@@ -53,7 +56,7 @@ export function ProviderMark({
       viewBox="0 0 24 24"
       fill="currentColor"
       role="img"
-      aria-label={PROVIDER_LABEL[provider]}
+      aria-label={replyProviderLabel(provider)}
       className={cn("shrink-0", mark.className, className)}
     >
       {"path" in mark ? (
