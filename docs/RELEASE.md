@@ -8,12 +8,77 @@
 - `npm run package:preview`: create an ad-hoc-signed preview DMG and ZIP, using available local build configuration. No publishing occurs.
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
 - `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
+- `npm run build:beta`: Google-enabled community beta. It uses the existing Desktop OAuth client and fails if that configuration is missing or invalid; test mode is rejected.
 
-Ad-hoc signing seals the whole bundle without an Apple identity. Without it, macOS reports a downloaded copy as damaged. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. These packages are not notarized, so the first launch on another Mac needs **Open Anyway** in System Settings → Privacy & Security. Both scripts fail if `codesign --verify --deep --strict` rejects the app or if its signature is not ad-hoc.
+Test builds embed a startup isolation requirement. Test/demo launches require an absolute
+`DAYBOARD_USER_DATA` pointing to an existing empty directory or a previously marked profile of
+the same mode. The target must be separate from the default profile, including aliases and
+ancestor/descendant paths. Startup verifies both backend `userData` and browser `sessionData`
+before writing markers or starting services; missing or invalid isolation immediately exits
+Electron with status 1, before native browser initialization can continue.
+The E2E launcher prepares owned profiles and disables sources, AI and MCP for its normal-profile
+fixture. A temporary directory does not isolate EventKit or prove personal-profile integrity.
+Fictional UI checks can use those verified owned profiles without connecting real sources.
+An owned app profile is sufficient for fictional UI checks. It does not partition EventKit,
+macOS consent state or the real Keychain. First-time Reminders consent and real Keychain tests
+need deliberately owned disposable OS state, with the executor running in that environment.
+An existing clean test account/device is one way to provide it. Google acceptance can use an
+approved test provider account and owned app profile without a separate macOS login. Signed
+installation/update acceptance needs a disposable installation target that preserves the
+user's existing app.
+
+Ad-hoc signing seals the whole bundle without an Apple identity. Preview and test packages turn off the hardened runtime, whose library validation rejects frameworks that have no Team ID; release signing keeps it. For the limited `1.3.0-beta.9` community beta, Miles explicitly approved manual ad-hoc distribution and deferred Developer ID signing and notarization. This exception does not establish Apple verification, real account continuity or ordinary quarantined installation acceptance. Do not bypass macOS security protections. Both scripts fail if `codesign --verify --deep --strict` rejects the app or if its signature is not ad-hoc.
 
 `scripts/package-preview.mjs` packages the app with electron-builder identity lookup disabled, then passes the literal `-` directly to `@electron/osx-sign` with identity validation disabled. It seals nested code before creating the DMG and ZIP from that verified app. Preview packaging never selects an installed signing certificate, including names containing a hyphen, and never changes the shared Developer ID release configuration.
 
 The current package target is Apple Silicon, macOS 14+. Intel compatibility is not claimed.
+
+## UI-only beta preparation
+
+The `1.3.0-beta.9` manual beta contains the reviewed Agenda/sidebar UI, updated D icon and
+startup isolation fix. It uses the existing `DAYBOARD_LICENSE=off` community build mode with
+monetization disabled. AI defaults to disabled until a provider is deliberately selected;
+no live or paid AI acceptance is needed for this UI change.
+Preserve existing user preferences rather than resetting them as part of the update.
+
+A credential-free local build must point `DAYBOARD_GOOGLE_OAUTH_FILE` at an explicitly absent
+review path so it does not read the developer's default client file. That build reports Google
+sign-in as unconfigured. This credential-free artifact is the approved limited UI beta;
+its release notes disclose that Google Tasks, Gmail and Calendar cannot be connected.
+A future configured beta needs the approved existing Desktop OAuth build input and a recorded
+decision about its intended Google test audience. Client-file presence alone does not prove
+public OAuth eligibility.
+
+Community builds leave the release updater disabled. The approved beta.9 uses the established
+manual `beta-1.3.0-beta.9` prerelease route after package-content, version, icon, checksum,
+strict ad-hoc signature and isolated UI checks. Developer ID signing and notarization are
+deferred follow-up work; testers make their own first-opening decision without security
+overrides from the installer. Checkout, pricing and paid AI are separate feature gates.
+Do not use `npm run dist` or push a `v*` tag for this beta: the commercial workflow requires
+live merchant configuration and Apple signing/notarization, then publishes.
+
+The `1.3.0-beta.10` follow-up uses the same approved community configuration and manual
+`beta-1.3.0-beta.10` prerelease route. It pins MCP SDK 1.32.0, enables its tool-input element
+limit on both built-in servers, and bounds all authenticated HTTP JSON envelopes before SDK
+validation to 10,000 combined array elements/object members and 64 levels. The 1 MiB wire
+limit remains. Zod 4.6.5 has no published fix for SNYK-JS-ZOD-20510278: these inbound limits
+mitigate local server exposure but do not clear the dependency advisory or bound validation
+of responses from user-configured external MCP servers. Use trusted external servers.
+
+The raw native encryption smoke probe is separate from fictional UI routing. It is opt-in via
+`DAYBOARD_E2E_NATIVE_ENCRYPTION=1` only in an explicitly approved OS test session. An owned app
+profile and Playwright's browser flags do not establish production Keychain isolation or
+acceptance. Keep native encryption and signed-account continuity reported separately.
+
+The `1.3.0-beta.11` corrective beta restores the existing Google Desktop client through
+`DAYBOARD_REQUIRE_GOOGLE=1`, independently of commercial licensing. Beta.10 omitted this
+client and disabled sign-in before opening the browser. No client values or user tokens are
+committed. A real browser callback and connected account were observed with an owned app
+profile and all source fetching disabled; this does not establish every invitee's Google
+audience eligibility or refresh/account continuity. The beta also retains cached sidebar
+summaries while displaying refresh failures and partial results. It uses the manual
+`beta-1.3.0-beta.11` prerelease route, ad-hoc signing and deferred notarization. In-app updates
+remain disabled; replace the application bundle manually while preserving the user profile.
 
 Every build generates third-party notices from installed production dependencies, bundled renderer libraries and Electron. Version-pinned overrides retain their source provenance. The inventory explicitly labels two MIT declarations whose packages omit separate license files; it uses canonical SPDX terms without inventing copyright holders. Missing or changed inputs fail the build. Both the app's GPL text and the third-party notices ship in Resources; the Help menu opens the notices.
 
@@ -59,3 +124,7 @@ The static site is in `website/`. During the beta it collects a waitlist through
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 
 Keep GPL source/build instructions available with the official binary. Distribute versioned DMGs, update ZIPs and matching update metadata through GitHub Releases, linked from the product website. Publish only after source-content review and the external release gates are complete.
+
+The signed workflow runs on `v*` tag pushes and includes publication after verification.
+Do not push a tag merely to obtain a signing test or review artifact. The current workflow also
+requires live license configuration; a different beta policy needs an approved release path.

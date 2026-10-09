@@ -20,16 +20,17 @@ import {
 import { cn } from "@renderer/ui/utils";
 import { useState } from "react";
 import { CalendarCheck2, CalendarDays, Server, Settings, Video } from "lucide-react";
-import type { AppSettings, SourceId } from "@main/shared-types";
+import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
-import { eventDayKey, formatTimeOfDay, isEventPast, todayISO } from "../lib/dates";
+import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, SOURCE_META, sourceColor, sourceColorVar } from "../lib/sources";
 import { buildTodos } from "../lib/todos";
+import { useAgendaClock } from "../lib/use-agenda-clock";
 import { NewItemButton } from "./new-item-button";
 import { EventDetail } from "./event-detail";
 import {
@@ -40,6 +41,7 @@ import {
 import { ProviderMark } from "./provider-logo";
 import { GmailLogo } from "./source-logos";
 import { LicenseStatusControl } from "./license-gate";
+import { sourceStatusShort } from "./source-gate";
 
 /** The name from Settings, or one derived from the Google address ("first.last" → "First Last"). */
 export function displayName(settings: AppSettings | undefined, email?: string | null): string {
@@ -64,6 +66,22 @@ function initials(name: string): string {
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+function sourceSubtitle(
+  query: { isPending: boolean; isError: boolean; data?: SourceResult<unknown> },
+  loaded?: string,
+  empty?: string,
+): string | undefined {
+  if (query.isPending) return "Loading…";
+  if (!query.data) return "Unavailable";
+  if (query.data.state !== "ok") return sourceStatusShort(query.data) ?? undefined;
+  if (query.isError || query.data.refreshError)
+    return loaded ? `${loaded} · Refresh failed` : "Refresh failed";
+  if (query.data.coverage?.complete === false)
+    return loaded ? `${loaded} · Partially loaded` : "Partially loaded";
+  if (loaded) return loaded;
+  return empty;
 }
 
 type MainNavId = "agenda" | SourceId;
@@ -92,8 +110,8 @@ export function AppSidebar() {
   const codexModels = useCodexModels(provider === "codex");
   const model = selectedModel(settings, codexModels.data, provider);
 
-  const today = todayISO();
-  const now = new Date();
+  const now = useAgendaClock();
+  const today = toISODate(now);
   const open = buildTodos(tasks.data, reminders.data).filter((todo) => !todo.completed);
   const dueToday = (source: SourceId) =>
     open.filter((todo) => todo.source === source && todo.dueDate === today).length;
@@ -115,14 +133,14 @@ export function AppSidebar() {
     calendar: todayEvents.length,
   };
   const subtitles: Record<SourceId, string | undefined> = {
-    tasks: summary(dueToday("tasks"), overdue("tasks")),
-    reminders: summary(dueToday("reminders"), overdue("reminders")),
-    mail: unread[0] ? `Latest: ${unread[0].from}` : undefined,
-    calendar: nextEvent
-      ? `Next ${formatTimeOfDay(nextEvent.start)} · ${nextEvent.title}`
-      : todayEvents.length
-        ? undefined
-        : "Nothing else today",
+    tasks: sourceSubtitle(tasks, summary(dueToday("tasks"), overdue("tasks"))),
+    reminders: sourceSubtitle(reminders, summary(dueToday("reminders"), overdue("reminders"))),
+    mail: sourceSubtitle(mail, unread[0] ? `Latest: ${unread[0].from}` : undefined),
+    calendar: sourceSubtitle(
+      calendar,
+      nextEvent ? `Next ${formatTimeOfDay(nextEvent.start)} · ${nextEvent.title}` : undefined,
+      todayEvents.length ? undefined : "Nothing else today",
+    ),
   };
   function summary(due: number, late: number): string | undefined {
     return (
@@ -335,67 +353,73 @@ export function AppSidebar() {
           />
         ))}
         {showAssistant || showReview ? (
-          <SidebarListGroup title="AI">
-            {showAssistant ? (
-              <SidebarListItem
-                icon={<ProviderMark provider={provider} className="size-4" />}
-                title="Assistant"
-                subtitle={
-                  settings?.ai.providerChosen === false
-                    ? "Choose an AI provider in Settings"
-                    : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`
-                }
-                selected={pathname === "/assistant"}
-                onClick={() => void navigate({ to: "/assistant" })}
-              />
-            ) : null}
-            {showReview ? (
-              <SidebarListItem
-                icon={<CalendarCheck2 className="size-4" />}
-                title="Weekly Review"
-                selected={pathname === "/review"}
-                onClick={() => void navigate({ to: "/review" })}
-              />
-            ) : null}
-            {showAssistant ? (
-              <SidebarListItem
-                icon={<Server className="size-4" />}
-                title="MCP Servers"
-                subtitle={
-                  !mcpCount
-                    ? settings?.ai.useMcpInAssistant === false
-                      ? "Turned off for the Assistant"
-                      : "Add tools for the Assistant"
-                    : !mcpInUse
-                      ? `Not used by ${PROVIDER_LABEL[provider]}`
-                      : mcpCheck.isFetching
-                        ? "Checking…"
-                        : mcpError
-                          ? `${mcpOk}/${mcpCount} available`
-                          : plural(mcpCount, "server")
-                }
-                accessory={
-                  mcpCount ? (
-                    <span
-                      role="img"
-                      aria-label={
-                        mcpError ? "Some servers unavailable" : mcpOk ? "Connected" : "Not checked"
-                      }
-                      className={cn(
-                        "inline-block size-2 rounded-full",
-                        mcpError
-                          ? "bg-support-red"
-                          : mcpOk
-                            ? "bg-support-green"
-                            : "bg-current text-tertiary",
-                      )}
-                    />
-                  ) : undefined
-                }
-                onClick={() => setMcpOpen(true)}
-              />
-            ) : null}
-          </SidebarListGroup>
+          <div className="my-[var(--density-section-gap)]">
+            <SidebarListGroup title="AI">
+              {showAssistant ? (
+                <SidebarListItem
+                  icon={<ProviderMark provider={provider} className="size-4" />}
+                  title="Assistant"
+                  subtitle={
+                    settings?.ai.providerChosen === false
+                      ? "Choose an AI provider in Settings"
+                      : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`
+                  }
+                  selected={pathname === "/assistant"}
+                  onClick={() => void navigate({ to: "/assistant" })}
+                />
+              ) : null}
+              {showReview ? (
+                <SidebarListItem
+                  icon={<CalendarCheck2 className="size-4" />}
+                  title="Weekly Review"
+                  selected={pathname === "/review"}
+                  onClick={() => void navigate({ to: "/review" })}
+                />
+              ) : null}
+              {showAssistant ? (
+                <SidebarListItem
+                  icon={<Server className="size-4" />}
+                  title="MCP Servers"
+                  subtitle={
+                    !mcpCount
+                      ? settings?.ai.useMcpInAssistant === false
+                        ? "Turned off for the Assistant"
+                        : "Add tools for the Assistant"
+                      : !mcpInUse
+                        ? `Not used by ${PROVIDER_LABEL[provider]}`
+                        : mcpCheck.isFetching
+                          ? "Checking…"
+                          : mcpError
+                            ? `${mcpOk}/${mcpCount} available`
+                            : plural(mcpCount, "server")
+                  }
+                  accessory={
+                    mcpCount ? (
+                      <span
+                        role="img"
+                        aria-label={
+                          mcpError
+                            ? "Some servers unavailable"
+                            : mcpOk
+                              ? "Connected"
+                              : "Not checked"
+                        }
+                        className={cn(
+                          "inline-block size-2 rounded-full",
+                          mcpError
+                            ? "bg-support-red"
+                            : mcpOk
+                              ? "bg-support-green"
+                              : "bg-current text-tertiary",
+                        )}
+                      />
+                    ) : undefined
+                  }
+                  onClick={() => setMcpOpen(true)}
+                />
+              ) : null}
+            </SidebarListGroup>
+          </div>
         ) : null}
       </SidebarList>
       <McpServersDialog

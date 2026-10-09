@@ -13,13 +13,6 @@ test("standalone demo boots securely and renders every primary route", async ({
     await expect(demo.page.getByRole("button", { name: /^Agenda\b/ }).first()).toBeVisible();
     expect(await demo.app.evaluate(({ app }) => app.getPath("userData"))).toBe(demo.profile);
     expect(
-      await demo.app.evaluate(({ safeStorage }) => {
-        if (!safeStorage.isEncryptionAvailable()) return false;
-        const value = "DayBoard disposable encryption fixture";
-        return safeStorage.decryptString(safeStorage.encryptString(value)) === value;
-      }),
-    ).toBe(true);
-    expect(
       await demo.page.evaluate(() => {
         const scope = globalThis as unknown as Record<string, unknown>;
         return {
@@ -60,6 +53,25 @@ test("standalone demo boots securely and renders every primary route", async ({
       });
     }
     expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("native encryption roundtrip in an explicitly approved OS test session", async () => {
+  test.skip(
+    process.env.DAYBOARD_E2E_NATIVE_ENCRYPTION !== "1",
+    "Native encryption uses OS state beyond the app profile; requires an approved test session.",
+  );
+  const demo = await launchDemo();
+  try {
+    expect(
+      await demo.app.evaluate(({ safeStorage }) => {
+        if (!safeStorage.isEncryptionAvailable()) return false;
+        const value = "DayBoard disposable encryption fixture";
+        return safeStorage.decryptString(safeStorage.encryptString(value)) === value;
+      }),
+    ).toBe(true);
   } finally {
     await demo.close();
   }

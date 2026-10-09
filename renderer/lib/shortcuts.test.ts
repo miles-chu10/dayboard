@@ -30,3 +30,8 @@ test("⌘ with another key does not match", () => {
   assert.equal(isNewItemShortcut(press("m", { metaKey: true })), false);
   assert.equal(isNewItemShortcut(press("[", { metaKey: true })), false);
 });
+
+test("handled keys and input composition do not open a new item", () => {
+  assert.equal(isNewItemShortcut(press("n", { metaKey: true, defaultPrevented: true })), false);
+  assert.equal(isNewItemShortcut(press("n", { metaKey: true, isComposing: true })), false);
+});

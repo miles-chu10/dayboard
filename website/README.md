@@ -52,6 +52,7 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
 ## Assets
 
 - `assets/screens/` is a copy of `docs/screenshots/`, captured by `npm run screenshots` from the fictional demo. After recapturing, recompress and copy the images here.
-- Link previews use `assets/screens/light-agenda.png` (1600×1025), which contains fictional demo data and no access promise. The older `assets/og-image.png` says "Free public beta" and must not be referenced by waitlist pages.
+- The homepage hero and homepage link preview use `assets/screens/light-agenda-preview.png` and `dark-agenda-preview.png` (2560×1640). These are unaltered native Agenda E2E captures from 2026-10-09, with fictional demo data, captured from a 1280×820 app window at 2× scale. The visible caption identifies the UI as in development; it does not promise an available download.
+- Other pages keep their existing `assets/screens/light-agenda.png` (1600×1025) link preview, which contains fictional demo data and no access promise. The older `assets/og-image.png` says "Free public beta" and must not be referenced by waitlist pages.
 - `assets/icon-32.png` and `assets/icon-96.png` are the small-size logo, and `assets/icon-180.png` (Apple touch icon) is the full-bleed square logo. Sources and regeneration steps are in `brand/README.md`.
 - `assets/fonts/` holds self-hosted Fraunces and Hanken Grotesk under the SIL Open Font License; their license texts sit beside them. No page loads third-party resources.
