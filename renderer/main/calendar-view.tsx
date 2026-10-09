@@ -295,7 +295,10 @@ function CalendarGrid({
               view === "week" && "h-full min-h-0",
             )}
           >
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div
+              data-calendar-controls
+              className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 bg-background py-1"
+            >
               <ModeSwitch value={view} onChange={onSwitch} />
               <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
                 Today
@@ -411,9 +414,11 @@ function MonthGrid({
       const cell = grid.current?.querySelector<HTMLElement>('[aria-selected="true"]');
       if (!cell || !viewport) return;
       const bounds = viewport.getBoundingClientRect();
+      const controls = viewport.querySelector<HTMLElement>("[data-calendar-controls]");
+      const visibleTop = bounds.top + (controls?.getBoundingClientRect().height ?? 0) + 4;
       const selectedBounds = cell.getBoundingClientRect();
-      if (selectedBounds.top < bounds.top || selectedBounds.height > bounds.height)
-        viewport.scrollTop += selectedBounds.top - bounds.top;
+      if (selectedBounds.top < visibleTop || selectedBounds.height > bounds.bottom - visibleTop)
+        viewport.scrollTop += selectedBounds.top - visibleTop;
       else if (selectedBounds.bottom > bounds.bottom)
         viewport.scrollTop += selectedBounds.bottom - bounds.bottom;
     }

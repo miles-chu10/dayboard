@@ -164,13 +164,17 @@ test("Calendar compact rows retain titles and restore focus after the selected-d
       "data-details-stacked",
       "true",
     );
+    await expect(demo.page.getByRole("radio", { name: "Week", exact: true })).toBeInViewport();
     await expect
       .poll(() =>
         demo.page.locator('[role="gridcell"][aria-selected="true"]').evaluate((cell) => {
           const viewport = cell.closest("[data-radix-scroll-area-viewport]")!;
           const bounds = viewport.getBoundingClientRect();
           const day = cell.firstElementChild!.getBoundingClientRect();
-          return day.top >= bounds.top - 1 && day.bottom <= bounds.bottom + 1;
+          const controls = viewport
+            .querySelector("[data-calendar-controls]")!
+            .getBoundingClientRect();
+          return day.top >= controls.bottom - 1 && day.bottom <= bounds.bottom + 1;
         }),
       )
       .toBe(true);
