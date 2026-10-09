@@ -1,3 +1,4 @@
+import { DetailsLayout } from "../components/details-layout";
 import { useState } from "react";
 import { ScrollArea } from "@renderer/ui";
 
@@ -51,45 +52,39 @@ export function TasksView() {
 
   return (
     <>
-      <div className="flex h-full min-w-0">
-        <div className="h-full min-w-0 flex-1">
-          <ScrollArea
-            className="h-full"
-            headerSize="page"
-            viewportClassName="[&>div]:block!"
-            title={<SourceHeading source="tasks" />}
-            subtitle={tasks.data?.state === "ok" ? `${open} open` : undefined}
-            actions={
-              <ViewActions onRefresh={() => void tasks.refetch()} refreshing={tasks.isFetching} />
-            }
-          >
-            <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
-              <SourceGate query={tasks} label="Google Tasks">
-                {(items) => (
-                  <TodoGroups
-                    todos={buildTodos({ state: "ok", items }, undefined)}
-                    emptyTitle="All Caught Up"
-                    emptyDescription="You have no open Google Tasks."
-                    selectedKey={selectedKey}
-                    onOpen={toggleOpen}
-                    renderExpanded={
-                      detailView === "inline" ? () => renderDetail("panel") : undefined
-                    }
-                  />
-                )}
-              </SourceGate>
-            </div>
-          </ScrollArea>
-        </div>
-        {sidePanel ? (
-          <aside
-            aria-label="Task details"
-            className="h-full w-[min(380px,40%)] shrink-0 overflow-y-auto border-l border-separator px-3 pb-6 pt-14"
-          >
-            {sidePanel}
-          </aside>
-        ) : null}
-      </div>
+      <DetailsLayout
+        details={sidePanel}
+        selectedKey={selectedKey}
+        storageKey="tasks"
+        label="Task details"
+      >
+        <ScrollArea
+          className="h-full"
+          headerSize="page"
+          viewportClassName="[&>div]:block!"
+          title={<SourceHeading source="tasks" />}
+          subtitle={tasks.data?.state === "ok" ? `${open} open` : undefined}
+          actions={
+            <ViewActions onRefresh={() => void tasks.refetch()} refreshing={tasks.isFetching} />
+          }
+        >
+          <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-1 w-full max-w-5xl mx-auto">
+            <div data-inline-details />
+            <SourceGate query={tasks} label="Google Tasks">
+              {(items) => (
+                <TodoGroups
+                  todos={buildTodos({ state: "ok", items }, undefined)}
+                  emptyTitle="All Caught Up"
+                  emptyDescription="You have no open Google Tasks."
+                  selectedKey={selectedKey}
+                  onOpen={toggleOpen}
+                  renderExpanded={detailView === "inline" ? () => renderDetail("panel") : undefined}
+                />
+              )}
+            </SourceGate>
+          </div>
+        </ScrollArea>
+      </DetailsLayout>
       {detailView === "dialog" ? renderDetail("dialog") : null}
     </>
   );

@@ -19,7 +19,7 @@ import {
 } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
 import { useState } from "react";
-import { CalendarCheck2, CalendarDays, Server, Settings, Video } from "lucide-react";
+import { CalendarCheck2, CalendarDays, CircleAlert, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
@@ -230,6 +230,10 @@ export function AppSidebar() {
           className="app-sidebar-badge text-support-red tabular-nums"
           title={plural(agendaLate, "overdue item")}
         >
+          <CircleAlert
+            aria-hidden="true"
+            className="differentiate-status-icon hidden size-3 mr-1"
+          />
           {agendaLate}
         </span>
       ) : agendaDue ? (

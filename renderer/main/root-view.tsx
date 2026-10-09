@@ -55,10 +55,11 @@ export function RootView() {
             storageKey="productivity-shell"
             sidebar={<AppSidebar />}
             sidebarSize={{ default: 240, min: 180, max: 400 }}
+            primarySize={{ min: 440 }}
           >
             <div className="flex h-full min-h-0 flex-col">
               <WindowNavigation />
-              <div className="min-h-0 flex-1">
+              <div data-window-content className="min-h-0 flex-1 bg-background">
                 <Outlet />
               </div>
             </div>
@@ -104,6 +105,7 @@ function WindowNavigation() {
           className="fixed left-[92px] top-[10px] z-20"
         />
         <HistoryNav />
+        <div data-inspector-controls className="ml-auto flex items-center" />
       </ToolbarRow>
     </Toolbar>
   );

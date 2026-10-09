@@ -8,6 +8,7 @@ import {
   type BrowserWindowConstructorOptions,
   dialog,
   Menu,
+  nativeTheme,
   shell,
 } from "electron";
 import * as path from "node:path";
@@ -71,10 +72,27 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     show: false,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
-    vibrancy: "sidebar",
+    vibrancy:
+      process.platform === "darwin" &&
+      !nativeTheme.prefersReducedTransparency &&
+      !nativeTheme.shouldUseHighContrastColors
+        ? "sidebar"
+        : undefined,
+    visualEffectState: "followWindow",
     webPreferences: secureWebPreferences(),
   });
   mainWindow = window;
+  const updateMaterial = () => {
+    if (process.platform !== "darwin" || window.isDestroyed()) return;
+    window.setVibrancy(
+      nativeTheme.prefersReducedTransparency || nativeTheme.shouldUseHighContrastColors
+        ? null
+        : "sidebar",
+    );
+  };
+  nativeTheme.on("updated", updateMaterial);
+  window.on("focus", updateMaterial);
+  window.once("closed", () => nativeTheme.removeListener("updated", updateMaterial));
   const url = entryUrl("main-window.html");
   hardenWindow(window, url);
 

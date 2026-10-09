@@ -1,3 +1,4 @@
+import { DetailsLayout } from "../components/details-layout";
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Button, ScrollArea, SegmentedControl, SegmentedControlItem, Text } from "@renderer/ui";
@@ -206,112 +207,111 @@ function CalendarGrid({
 
   return (
     <>
-      <div className="flex h-full min-w-0">
-        <div className="h-full min-w-0 flex-1">
-          <ScrollArea
-            className="h-full"
-            headerSize="page"
-            viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
-            title="Calendar"
-            subtitle={title}
-            actions={
-              <ViewActions
-                refreshing={calendar.isFetching || tasks.isFetching || reminders.isFetching}
-                onRefresh={() => {
-                  void calendar.refetch();
-                  void tasks.refetch();
-                  void reminders.refetch();
-                }}
-              />
-            }
-          >
-            <div
-              className={cn(
-                "flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto",
-                view === "week" && "h-full min-h-0",
-              )}
-            >
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <ModeSwitch value={view} onChange={onSwitch} />
-                <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
-                  Today
-                </Button>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  iconOnly
-                  aria-label={view === "month" ? "Previous month" : "Previous week"}
-                  onClick={() => shift(-1)}
-                >
-                  <ChevronLeft />
-                </Button>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  iconOnly
-                  aria-label={view === "month" ? "Next month" : "Next week"}
-                  onClick={() => shift(1)}
-                >
-                  <ChevronRight />
-                </Button>
-                <Text variant="large-strong" as="h2">
-                  {title}
-                </Text>
-              </div>
-              {view === "month" ? (
-                <MonthGrid
-                  dates={dates}
-                  month={anchor.getMonth()}
-                  today={today}
-                  selected={selected}
-                  byDay={byDay}
-                  onSelect={(date) => update({ date: date === today ? undefined : date })}
-                  onOpen={openItem}
-                />
-              ) : (
-                <WeekGrid dates={dates} today={today} now={now} byDay={byDay} onOpen={openItem} />
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-        {view === "month" || panelDetail ? (
-          <aside
-            aria-label={panelDetail ? "Details" : "Selected day"}
-            className="h-full w-[min(360px,36%)] shrink-0 overflow-y-auto border-l border-separator px-3 pb-6 pt-14"
-          >
-            {panelDetail ?? (
-              <div className="flex flex-col gap-3">
-                <Text variant="large-strong" as="h2">
-                  {parseISODate(selected).toLocaleDateString([], {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-                {selectedItems &&
-                (selectedItems.allDay.length ||
-                  selectedItems.timed.length ||
-                  selectedItems.todos.length) ? (
-                  <AgendaList
-                    entries={[
-                      ...selectedItems.allDay.map(eventEntry),
-                      ...selectedItems.timed.map(eventEntry),
-                      ...selectedItems.todos.map(todoEntry),
-                    ]}
-                    now={now}
-                    focusKeys={planning.data?.focusKeys ?? []}
-                    onOpen={(todo) => openItem(todo.key)}
-                    onOpenEvent={(event) => openItem(eventKey(event))}
-                    onPin={() => undefined}
-                  />
-                ) : (
-                  <Text color="tertiary">Nothing scheduled or due.</Text>
-                )}
-              </div>
+      <DetailsLayout
+        inlineMode="stack"
+        storageKey="calendar"
+        label={panelDetail ? "Details" : "Selected day"}
+        details={
+          view === "month" || panelDetail
+            ? (panelDetail ?? (
+                <div className="flex flex-col gap-3">
+                  <Text variant="large-strong" as="h2">
+                    {parseISODate(selected).toLocaleDateString([], {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                  {selectedItems &&
+                  (selectedItems.allDay.length ||
+                    selectedItems.timed.length ||
+                    selectedItems.todos.length) ? (
+                    <AgendaList
+                      entries={[
+                        ...selectedItems.allDay.map(eventEntry),
+                        ...selectedItems.timed.map(eventEntry),
+                        ...selectedItems.todos.map(todoEntry),
+                      ]}
+                      now={now}
+                      focusKeys={planning.data?.focusKeys ?? []}
+                      onOpen={(todo) => openItem(todo.key)}
+                      onOpenEvent={(event) => openItem(eventKey(event))}
+                      onPin={() => undefined}
+                    />
+                  ) : (
+                    <Text color="tertiary">Nothing scheduled or due.</Text>
+                  )}
+                </div>
+              ))
+            : null
+        }
+      >
+        <ScrollArea
+          className="h-full"
+          headerSize="page"
+          viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
+          title="Calendar"
+          subtitle={title}
+          actions={
+            <ViewActions
+              refreshing={calendar.isFetching || tasks.isFetching || reminders.isFetching}
+              onRefresh={() => {
+                void calendar.refetch();
+                void tasks.refetch();
+                void reminders.refetch();
+              }}
+            />
+          }
+        >
+          <div
+            className={cn(
+              "flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto",
+              view === "week" && "h-full min-h-0",
             )}
-          </aside>
-        ) : null}
-      </div>
+          >
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <ModeSwitch value={view} onChange={onSwitch} />
+              <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
+                Today
+              </Button>
+              <Button
+                size="small"
+                variant="transparent"
+                iconOnly
+                aria-label={view === "month" ? "Previous month" : "Previous week"}
+                onClick={() => shift(-1)}
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                size="small"
+                variant="transparent"
+                iconOnly
+                aria-label={view === "month" ? "Next month" : "Next week"}
+                onClick={() => shift(1)}
+              >
+                <ChevronRight />
+              </Button>
+              <Text variant="large-strong" as="h2">
+                {title}
+              </Text>
+            </div>
+            {view === "month" ? (
+              <MonthGrid
+                dates={dates}
+                month={anchor.getMonth()}
+                today={today}
+                selected={selected}
+                byDay={byDay}
+                onSelect={(date) => update({ date: date === today ? undefined : date })}
+                onOpen={openItem}
+              />
+            ) : (
+              <WeekGrid dates={dates} today={today} now={now} byDay={byDay} onOpen={openItem} />
+            )}
+          </div>
+        </ScrollArea>
+      </DetailsLayout>
       {detailView === "dialog" ? renderDetail("dialog") : null}
     </>
   );

@@ -94,6 +94,14 @@
   --color-separator: var(--db-separator);
   --color-field: var(--db-field);
 
+  --color-focus-ring: var(--db-focus-ring);
+  --color-glyph-sidebar: var(--db-secondary);
+  --color-glyph-toolbar: var(--db-primary);
+  --color-glyph-inactive: var(--db-tertiary);
+  --color-count-badge: var(--db-background);
+  --color-selection-outline: var(--db-field);
+  --color-separator-strong: var(--db-field);
+
   /* Text colors. */
   --color-primary: var(--db-primary);
   --color-secondary: var(--db-secondary);
@@ -154,6 +162,7 @@
 }
 
 :root {
+  --db-focus-ring: var(--accent-ink);
   color-scheme: light;
   --accent: #007aff;
   --theme-accent: #007aff;

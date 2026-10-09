@@ -2,6 +2,7 @@ import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { cn } from "./utils";
+import { clamp, separatorKey } from "../lib/shell";
 import { Button, type ButtonProps } from "./button";
 
 interface ColumnSize {
@@ -44,7 +45,7 @@ export function useSplitViewColumnContext(): {
 function useStoredNumber(
   key: string | undefined,
   initial: number,
-): [number, (value: number) => void] {
+): [number, (value: number, persist?: boolean) => void] {
   const storageKey = key ? `dayboard:split-view:${key}` : undefined;
   const [value, setValue] = React.useState(() => {
     if (!storageKey) return initial;
@@ -52,9 +53,9 @@ function useStoredNumber(
     return Number.isFinite(stored) && stored > 0 ? stored : initial;
   });
   const setAndPersist = React.useCallback(
-    (next: number) => {
+    (next: number, persist = true) => {
       setValue(next);
-      if (storageKey) localStorage.setItem(storageKey, String(next));
+      if (storageKey && persist) localStorage.setItem(storageKey, String(next));
     },
     [storageKey],
   );
@@ -81,11 +82,25 @@ function useStoredBoolean(
   return [value, setAndPersist];
 }
 
-function ResizeHandle({
+export function ResizeHandle({
   onResize,
+  onCommit,
+  value,
+  min,
+  max,
+  direction = 1,
+  label,
+  controls,
   className,
 }: {
   onResize: (deltaX: number) => void;
+  onCommit?: () => void;
+  value: number;
+  min: number;
+  max: number;
+  direction?: 1 | -1;
+  label: string;
+  controls: string;
   className?: string;
 }) {
   const dragging = React.useRef(false);
@@ -97,8 +112,10 @@ function ResizeHandle({
       lastX.current = event.clientX;
     }
     function onUp() {
+      if (!dragging.current) return;
       dragging.current = false;
       document.body.style.cursor = "";
+      onCommit?.();
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -106,18 +123,43 @@ function ResizeHandle({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [onResize]);
+  }, [onResize, onCommit]);
+  React.useEffect(
+    () => () => {
+      if (dragging.current) document.body.style.cursor = "";
+    },
+    [],
+  );
   return (
     <div
       role="separator"
+      tabIndex={0}
+      aria-label={label}
+      aria-controls={controls}
       aria-orientation="vertical"
+      aria-valuenow={Math.round(value)}
+      aria-valuemin={min}
+      aria-valuemax={Math.round(max)}
+      onKeyDown={(event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
+        const next = separatorKey(event.key, event.shiftKey, value, min, max, direction);
+        if (next === null) return;
+        event.preventDefault();
+        onResize((next - value) * direction);
+      }}
+      onKeyUp={(event) => {
+        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) onCommit?.();
+      }}
+      onBlur={() => onCommit?.()}
       onMouseDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.focus();
         dragging.current = true;
         lastX.current = event.clientX;
         document.body.style.cursor = "col-resize";
       }}
       className={cn(
-        "relative w-px shrink-0 cursor-col-resize bg-separator after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-['']",
+        "resize-handle relative w-px shrink-0 cursor-col-resize bg-separator after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-['']",
         className,
       )}
     />
@@ -161,6 +203,18 @@ export function SplitView({
   storageKey,
   className,
 }: SplitViewProps) {
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const sidebarId = React.useId();
+  const listId = React.useId();
+  const inspectorId = React.useId();
+  const [available, setAvailable] = React.useState(() => window.innerWidth);
+  React.useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => setAvailable(entry.contentRect.width));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const [sidebarWidth, setSidebarWidth] = useStoredNumber(
     storageKey && `${storageKey}:sidebar`,
     sidebarSize.default ?? 200,
@@ -220,14 +274,20 @@ export function SplitView({
     ],
   );
 
+  const sidebarMax = Math.max(
+    sidebarSize.min ?? 0,
+    Math.min(sidebarSize.max ?? available, available - (primarySize?.min ?? 0) - 1),
+  );
+  const fittedSidebar = clamp(sidebarWidth, sidebarSize.min ?? 0, sidebarMax);
   const columns: { key: string; node: React.ReactNode }[] = [];
   if (sidebar && !sidebarCollapsed) {
     columns.push({
       key: "sidebar",
       node: (
         <div
+          id={sidebarId}
           style={{
-            width: sidebarWidth,
+            width: fittedSidebar,
             minWidth: sidebarSize.min,
             maxWidth: sidebarSize.max,
           }}
@@ -241,12 +301,16 @@ export function SplitView({
       key: "sidebar-handle",
       node: (
         <ResizeHandle
+          value={fittedSidebar}
+          min={sidebarSize.min ?? 0}
+          max={sidebarMax}
+          label="Resize sidebar"
+          controls={sidebarId}
+          onCommit={() => setSidebarWidth(sidebarWidth)}
           onResize={(dx) =>
             setSidebarWidth(
-              Math.min(
-                sidebarSize.max ?? Number.POSITIVE_INFINITY,
-                Math.max(sidebarSize.min ?? 0, sidebarWidth + dx),
-              ),
+              Math.min(sidebarMax, Math.max(sidebarSize.min ?? 0, fittedSidebar + dx)),
+              false,
             )
           }
         />
@@ -258,6 +322,7 @@ export function SplitView({
       key: "list",
       node: (
         <div
+          id={listId}
           style={{
             width: listWidth,
             minWidth: listSize.min,
@@ -273,12 +338,19 @@ export function SplitView({
       key: "list-handle",
       node: (
         <ResizeHandle
+          value={listWidth}
+          min={listSize.min ?? 0}
+          max={listSize.max ?? available}
+          label="Resize list"
+          controls={listId}
+          onCommit={() => setListWidth(listWidth)}
           onResize={(dx) =>
             setListWidth(
               Math.min(
                 listSize.max ?? Number.POSITIVE_INFINITY,
                 Math.max(listSize.min ?? 0, listWidth + dx),
               ),
+              false,
             )
           }
         />
@@ -298,12 +370,20 @@ export function SplitView({
       key: "inspector-handle",
       node: (
         <ResizeHandle
+          value={inspectorWidth}
+          min={inspectorSize.min ?? 0}
+          max={inspectorSize.max ?? available}
+          direction={-1}
+          label="Resize details"
+          controls={inspectorId}
+          onCommit={() => setInspectorWidth(inspectorWidth)}
           onResize={(dx) =>
             setInspectorWidth(
               Math.min(
                 inspectorSize.max ?? Number.POSITIVE_INFINITY,
                 Math.max(inspectorSize.min ?? 0, inspectorWidth - dx),
               ),
+              false,
             )
           }
         />
@@ -313,6 +393,7 @@ export function SplitView({
       key: "inspector",
       node: (
         <div
+          id={inspectorId}
           style={{
             width: inspectorWidth,
             minWidth: inspectorSize.min,
@@ -330,7 +411,7 @@ export function SplitView({
 
   return (
     <SplitViewContext.Provider value={contextValue}>
-      <div className={cn("flex h-full min-h-0 w-full min-w-0", className)}>
+      <div ref={rootRef} className={cn("flex h-full min-h-0 w-full min-w-0", className)}>
         {columns.map((column) => {
           if (column.key.endsWith("-handle"))
             return <React.Fragment key={column.key}>{column.node}</React.Fragment>;

@@ -64,6 +64,10 @@ function getNativeThemeInfo(): NativeThemeInfo {
     shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
     themeSource: nativeTheme.themeSource as ThemeSource,
     accentColor: systemPreferences.getAccentColor(),
+    prefersReducedTransparency: Boolean(nativeTheme.prefersReducedTransparency),
+    shouldUseHighContrastColors: Boolean(nativeTheme.shouldUseHighContrastColors),
+    shouldDifferentiateWithoutColor: Boolean(nativeTheme.shouldDifferentiateWithoutColor),
+    prefersReducedMotion: Boolean(systemPreferences.getAnimationSettings?.().prefersReducedMotion),
   };
 }
 
@@ -71,6 +75,9 @@ function getNativeThemeInfo(): NativeThemeInfo {
 export function registerBridgeIpc(): void {
   if (bridgeRegistered) return;
   bridgeRegistered = true;
+  nativeTheme.on?.("updated", () => {
+    ipcMain.broadcast("nativeTheme:updated", getNativeThemeInfo());
+  });
 
   electronIpcMain.handle(BridgeChannel.streamStart, async (event, request: StreamStartRequest) => {
     assertTrustedSender(event);

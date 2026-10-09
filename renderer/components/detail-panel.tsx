@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Button, Text } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
 import { X } from "lucide-react";
@@ -19,12 +19,33 @@ export function DetailPanel({
   className?: string;
   children: ReactNode;
 }) {
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const node = panel.current;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    node?.focus({ preventScroll: true });
+    return () => {
+      if (
+        trigger?.isConnected &&
+        (document.activeElement === document.body || node?.contains(document.activeElement))
+      ) {
+        trigger.focus({ preventScroll: true });
+      }
+    };
+  }, []);
   return (
     <section
+      ref={panel}
+      tabIndex={-1}
       aria-label={`${title} details`}
       className={cn("flex min-w-0 flex-col gap-3 rounded-lg bg-well p-3", className)}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented) {
+        if (
+          event.key === "Escape" &&
+          !event.defaultPrevented &&
+          !document.querySelector('[role="dialog"], [role="alertdialog"]') &&
+          event.currentTarget.contains(event.target as Node)
+        ) {
           event.preventDefault();
           onClose();
         }

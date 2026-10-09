@@ -1,0 +1,21 @@
+# DayBoard macOS shell
+
+This Electron/React implementation reconciles the private DayBoard Design System v21, render `1791573676-ee86`, against PR34. The independently preserved export SHA256 is `70b651fc70292da853420350760c444f505d6fcf94da27ae6aac8aceea64df85`. The export contains authored guidelines, tokens, component READMEs, handoff CSS/TypeScript and specimens; it does not include the older uploaded font/image binaries. Specimen tests reported by Claude are design claims, separate from application checks.
+
+| Design contract                                              | Current implementation                                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| System 24/18/13/11 typography; 24px page gutters             | `theme.css`, `styles.css`, shared page header and existing density tokens                                                                                       |
+| 48px window toolbar; stable history and sidebar control      | `root-view.tsx`; Cmd+[ / Cmd+] and Control+Cmd+S retain dialog guards                                                                                           |
+| 28px icon tiles, 18px/1.75 symbols, source/provider identity | `app-sidebar.tsx`, `source-dot.tsx`; existing logo and source assets retained                                                                                   |
+| Root sidebar 240px default, 180–400px                        | `SplitView`; primitive defaults stay 200/180/300; the visible width fits a 440px content minimum                                                                |
+| Inspector 280px default, 240–380px, 440px content minimum    | `DetailsLayout` and `lib/shell.ts`; sidebar preference uses the side pane when available, then inline placement                                                 |
+| Keyboard separator and inspector states                      | Focusable labelled separators; Arrow keys 8px, Shift+Arrow 32px, Home/End; widths persist on release/blur; Control+Cmd+I toggles details                        |
+| Semantic focus, selection, counts and accessibility          | Opaque count pills, selected title weight, focus rings, increased-contrast outlines, non-color overdue glyph, inactive chrome and motion/transparency fallbacks |
+
+The inspector keeps one portal container and the same React subtree mounted while resizing or hiding it. It preserves local planner/editor state and nested dialogs instead of adopting the guide's proposed remount-and-route-store approach. The existing user default remains dialog, with explicit inline/sidebar modes preserved. Calendar retains its selected-day aside; at narrow widths it stacks below the calendar so week view keeps one bounded hour scroller. Automatic width fitting does not overwrite remembered widths.
+
+Electron 44.4.4 supports native sidebar vibrancy and native appearance/accessibility signals. Existing window vibrancy follows window activity and is disabled for Reduce Transparency or Increase Contrast. The renderer's shell remains opaque: the proposed 90% native tints require bounded backdrop luminance, which arbitrary desktops cannot guarantee. Legacy blurred controls/menus receive opaque fallback fills under those preferences. Native-theme updates and focus re-read the flags; browser media queries remain a portable fallback. No new material preference, global-search navigation, font removal or dependency is introduced.
+
+Native vibrancy and CSS materials are not SwiftUI Liquid Glass. A future SwiftUI implementation may map the semantic shell surfaces to supported system materials and Liquid Glass APIs, with accessibility and performance validation on the target OS. That future mapping is documentation only; this app retains Electron/React.
+
+The design's 16.7ms frame and ≤10% renderer working-set growth figures are proposed budgets. Disposable demo measurements and `requestAnimationFrame` diagnostics do not establish production GPU/compositor deadlines or memory under real provider workloads.
