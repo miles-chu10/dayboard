@@ -596,9 +596,9 @@ p {
 }
 
 .works-with .app-icon {
-  width: 18px;
-  height: 18px;
-  fill: var(--c-ink);
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
   flex: none;
 }
 
