@@ -114,8 +114,9 @@
 }
 
 html {
+  --nav-offset: max(88px, calc(10rem - 72px));
   -webkit-text-size-adjust: 100%;
-  scroll-padding-top: 88px;
+  scroll-padding-top: var(--nav-offset);
 }
 
 body {
@@ -1033,7 +1034,7 @@ p {
 }
 
 /* Road Map: three status columns. Status is the heading text; the mark's shape repeats it. */
-.roadmap {
+.section.roadmap {
   padding-top: 0;
 }
 
@@ -1351,7 +1352,7 @@ p {
 
 .aside-card {
   position: sticky;
-  top: 100px;
+  top: calc(var(--nav-offset) + 12px);
   display: grid;
   gap: 16px;
   padding: 28px;
