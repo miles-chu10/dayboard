@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createTestProfile, launchDemo, root } from "../e2e/fixtures.ts";
+import { withTimeout } from "./with-timeout.mjs";
 
 const output = path.join(root, "docs", "screenshots");
 const size = { width: 1280, height: 820 };
@@ -153,15 +154,21 @@ for (const theme of ["light", "dark"]) {
       page.getByText("Saved on this Mac"),
     ]);
 
-    await page.evaluate(() => globalThis.dayboard.ipc.invoke("window:openSettings"));
     const settingsDeadline = Date.now() + 10_000;
+    await withTimeout(
+      () => page.evaluate(() => globalThis.dayboard.ipc.invoke("window:openSettings")),
+      10_000,
+      "Settings window did not open within 10 seconds",
+    );
     let settings = app.windows().find((w) => /settings-window/.test(w.url()));
     while (!settings && Date.now() < settingsDeadline) {
       await delay(100);
       settings = app.windows().find((w) => /settings-window/.test(w.url()));
     }
     if (!settings) throw Error("Settings window did not open within 10 seconds");
-    await settings.waitForLoadState("domcontentloaded");
+    await settings.waitForLoadState("domcontentloaded", {
+      timeout: Math.max(1, settingsDeadline - Date.now()),
+    });
     await settings.emulateMedia({ colorScheme: theme });
     await settings.getByRole("tab", { name: "General", exact: true }).click();
     await capture(settings, `${theme}-settings`, [
