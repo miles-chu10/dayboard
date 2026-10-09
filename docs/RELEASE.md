@@ -56,6 +56,14 @@ overrides from the installer. Checkout, pricing and paid AI are separate feature
 Do not use `npm run dist` or push a `v*` tag for this beta: the commercial workflow requires
 live merchant configuration and Apple signing/notarization, then publishes.
 
+The `1.3.0-beta.10` follow-up uses the same approved community configuration and manual
+`beta-1.3.0-beta.10` prerelease route. It pins MCP SDK 1.32.0, enables its tool-input element
+limit on both built-in servers, and bounds all authenticated HTTP JSON envelopes before SDK
+validation to 10,000 combined array elements/object members and 64 levels. The 1 MiB wire
+limit remains. Zod 4.6.5 has no published fix for SNYK-JS-ZOD-20510278: these inbound limits
+mitigate local server exposure but do not clear the dependency advisory or bound validation
+of responses from user-configured external MCP servers. Use trusted external servers.
+
 The raw native encryption smoke probe is separate from fictional UI routing. It is opt-in via
 `DAYBOARD_E2E_NATIVE_ENCRYPTION=1` only in an explicitly approved OS test session. An owned app
 profile and Playwright's browser flags do not establish production Keychain isolation or

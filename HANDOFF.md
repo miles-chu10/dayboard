@@ -4,6 +4,11 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 
 ## Current state
 
+- Community UI beta follow-up: `1.3.0-beta.10` retains beta.9's visuals, D icon and credential-free
+  build configuration. MCP SDK is pinned to 1.32.0; both local servers enable tool-input limits,
+  and authenticated JSON is bounded before SDK validation. Zod's advisory remains unresolved
+  upstream; remote MCP response validation is outside this local input mitigation.
+
 - Standalone Electron integration is implemented: platform services, sandboxed preload, native window lifecycle, React UI, Swift Reminders helper, Google Desktop OAuth, AI provider selection, local MCP, preferences and history.
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
 - Stripe now replaces Lemon Squeezy by explicit user choice. The separate `billing/` Worker handles hosted Checkout, per-order authenticated key delivery, idempotent signed-webhook fulfillment, refund/dispute revocation and device limits. The app binds keys to issuer/product/environment, preserves old encrypted records and compensates only newly created activation slots. The 14-day trial and 30-day offline grace remain. Missing commercial configuration produces preview mode; strict release builds require live configuration.

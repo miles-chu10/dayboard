@@ -209,6 +209,79 @@ function rawMcpRequest(port, headers, body, requestPath = "/assistant-mcp") {
   });
 }
 
+test("MCP rejects oversized JSON structures before validation on both authenticated routes", async () => {
+  const module = await loadMcpHarness();
+  const server = module.createMcpHttpServer();
+  const port = await listen(server);
+  const wide = Array(10_001).fill(null);
+  const aggregate = Array.from({ length: 101 }, () => Array(100).fill(null));
+  const members = Object.fromEntries(wide.map((_, index) => [String(index), null]));
+  let deep = null;
+  for (let level = 0; level < 65; level++) deep = { nested: deep };
+  try {
+    for (const requestPath of ["/mcp", "/assistant-mcp"]) {
+      const headers =
+        requestPath === "/mcp"
+          ? EXTERNAL_AUTH
+          : module.getAssistantMcpServerConfig("fixture").headers;
+      const client = new Client({ name: "input-budget-test", version: "1.0.0" });
+      const transport = new StreamableHTTPClientTransport(
+        new URL(`http://127.0.0.1:${port}${requestPath}`),
+        { requestInit: { headers } },
+      );
+      try {
+        const initialization = await rawMcpRequest(
+          port,
+          headers,
+          {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2025-03-26",
+              capabilities: {},
+              clientInfo: { name: "invalid-icons", version: "1.0.0", icons: wide },
+            },
+          },
+          requestPath,
+        );
+        assert.equal(initialization.status, 413);
+        await client.connect(transport);
+        const sessionHeaders = { ...headers, "mcp-session-id": transport.sessionId };
+        for (const body of [
+          wide,
+          { jsonrpc: "2.0", id: 2, method: "initialize", params: { _meta: { wide } } },
+          {
+            jsonrpc: "2.0",
+            id: 3,
+            method: "tools/call",
+            params: { name: "list_reminders", arguments: { aggregate } },
+          },
+          { jsonrpc: "2.0", id: 4, method: "tools/list", params: { _meta: { deep } } },
+          { jsonrpc: "2.0", id: 5, method: "tools/list", params: { _meta: { members } } },
+        ]) {
+          assert.ok(Buffer.byteLength(JSON.stringify(body)) < 1024 * 1024);
+          const result = await rawMcpRequest(port, sessionHeaders, body, requestPath);
+          assert.equal(result.status, 413);
+          assert.match(result.body, /MCP request too complex/);
+        }
+        assert.ok((await client.listTools()).tools.length > 0);
+        const ordinary = await client.callTool({
+          name: "list_reminders",
+          arguments: { optional: Array(100).fill(null), notes: "x".repeat(20_000) },
+        });
+        assert.notEqual(ordinary.isError, true);
+        assert.equal(await rawRequest(port, {}, requestPath), 401);
+      } finally {
+        await transport.terminateSession().catch(() => undefined);
+        await client.close();
+      }
+    }
+  } finally {
+    await close(server);
+  }
+});
+
 test("Assistant MCP exposes exactly six read-only tools and rejects unauthenticated or foreign requests", async () => {
   const module = await loadMcpHarness();
   const server = module.createMcpHttpServer();
