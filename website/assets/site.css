@@ -262,7 +262,7 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 28px;
+  gap: 12px 28px;
   min-height: 68px;
   padding-block: 14px;
 }
