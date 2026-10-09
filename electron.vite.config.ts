@@ -1,10 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
-import type { Plugin } from "vite";
+import { createGoogleOAuthClientPlugin } from "./shared/google-oauth-build.js";
 import { parseDesktopLicenseConfig } from "./shared/license-config.js";
 
 const root = import.meta.dirname;
@@ -50,57 +49,6 @@ function licenseDefinitions(): Record<string, string> {
   };
 }
 
-// The Google Desktop OAuth client ships inside the app bundle but never lives in git. It is read at
-// build time from an absolute per-user path (DAYBOARD_GOOGLE_OAUTH_FILE, else
-// ~/.config/dayboard/google-oauth.json) so builds from copied/staged trees still find it. Release
-// packaging (DAYBOARD_RELEASE=1, set by `npm run dist`) fails without a valid client; other builds
-// warn and keep the committed empty values, so Google sign-in reports itself as not configured.
-function injectGoogleOAuthClient(): Plugin {
-  const file = process.env.DAYBOARD_GOOGLE_OAUTH_FILE
-    ? resolve(process.env.DAYBOARD_GOOGLE_OAUTH_FILE)
-    : join(homedir(), ".config", "dayboard", "google-oauth.json");
-  const release = process.env.DAYBOARD_RELEASE === "1";
-  const testBuild = process.env.DAYBOARD_TEST === "1";
-  let warned = false;
-  return {
-    name: "dayboard:inject-google-oauth-client",
-    load(id) {
-      if (!/[\\/]main[\\/]services[\\/]google-oauth-app-client\.ts$/.test(id)) return null;
-      if (testBuild) {
-        if (release) this.error("A test build cannot be packaged as a release.");
-        return 'export const GOOGLE_APP_CLIENT_ID = ""; export const GOOGLE_APP_CLIENT_SECRET = "";';
-      }
-      const client = existsSync(file)
-        ? (JSON.parse(readFileSync(file, "utf8")) as {
-            clientId?: unknown;
-            clientSecret?: unknown;
-          })
-        : null;
-      if (
-        typeof client?.clientId !== "string" ||
-        !client.clientId.endsWith(".apps.googleusercontent.com") ||
-        typeof client.clientSecret !== "string" ||
-        !client.clientSecret
-      ) {
-        const reason = client ? `${file} has no valid clientId/clientSecret` : `${file} not found`;
-        if (release) {
-          this.error(`[google-oauth] ${reason}; release builds require the Desktop OAuth client.`);
-        }
-        if (!warned) {
-          this.warn(`[google-oauth] ${reason}; this build ships without Google sign-in.`);
-          warned = true;
-        }
-        return null;
-      }
-      this.addWatchFile(file);
-      return (
-        `export const GOOGLE_APP_CLIENT_ID = ${JSON.stringify(client.clientId)};\n` +
-        `export const GOOGLE_APP_CLIENT_SECRET = ${JSON.stringify(client.clientSecret)};\n`
-      );
-    },
-  };
-}
-
 export default defineConfig({
   main: {
     resolve: { alias },
@@ -108,7 +56,16 @@ export default defineConfig({
       ...licenseDefinitions(),
       __DAYBOARD_TEST_BUILD__: JSON.stringify(process.env.DAYBOARD_TEST === "1"),
     },
-    plugins: [injectGoogleOAuthClient()],
+    plugins: [
+      createGoogleOAuthClientPlugin({
+        file: process.env.DAYBOARD_GOOGLE_OAUTH_FILE
+          ? resolve(process.env.DAYBOARD_GOOGLE_OAUTH_FILE)
+          : join(homedir(), ".config", "dayboard", "google-oauth.json"),
+        required:
+          process.env.DAYBOARD_RELEASE === "1" || process.env.DAYBOARD_REQUIRE_GOOGLE === "1",
+        testBuild: process.env.DAYBOARD_TEST === "1",
+      }),
+    ],
     build: {
       // Runtime `dependencies` stay external (shipped in node_modules); node-pty is native.
       externalizeDeps: { include: ["node-pty"] },
