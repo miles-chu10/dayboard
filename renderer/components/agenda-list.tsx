@@ -99,7 +99,11 @@ export function AgendaList({
       {todos.length ? (
         <div className="flex flex-col">
           {todos.map((todo) => (
-            <Fragment key={todo.key}>
+            <div
+              key={todo.key}
+              data-detail-anchor={todo.key}
+              className="border-b border-separator last:border-b-0"
+            >
               <TodoLine
                 todo={todo}
                 now={now}
@@ -109,7 +113,7 @@ export function AgendaList({
                 onPin={() => onPin(todo)}
               />
               {inline(todo.key)}
-            </Fragment>
+            </div>
           ))}
         </div>
       ) : null}
@@ -151,7 +155,7 @@ function TodoLine({
           onOpen();
         }
       }}
-      className="group flex min-h-[var(--density-row)] min-w-0 items-center gap-3 rounded-md border-b border-separator px-2 last:border-b-0 hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group flex min-h-[var(--density-row)] min-w-0 items-center gap-3 rounded-md px-2 hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <span className="flex" onClick={(clickEvent) => clickEvent.stopPropagation()}>
         <Checkbox
@@ -162,9 +166,20 @@ function TodoLine({
           aria-label={`Complete “${todo.title}”`}
         />
       </span>
-      <Text truncate className="min-w-24 flex-1">
-        {todo.title}
-      </Text>
+      <div className="min-w-0 flex-1 @max-[22rem]:flex @max-[22rem]:flex-col @max-[22rem]:gap-1 @max-[22rem]:py-1.5">
+        <Text
+          truncate
+          data-agenda-title
+          className="min-w-0 @max-[22rem]:whitespace-normal @max-[22rem]:line-clamp-2"
+        >
+          {todo.title}
+        </Text>
+        {todo.dueDate ? (
+          <span className="hidden @max-[22rem]:block">
+            <DueChip date={todo.dueDate} time={todo.dueTime} now={now} />
+          </span>
+        ) : null}
+      </div>
       {todo.notes ? (
         <AlignLeft aria-label="Has notes" className="size-3.5 shrink-0 text-tertiary" />
       ) : null}
@@ -185,7 +200,11 @@ function TodoLine({
           <ListChip key={item.key} source={item.source} listTitle={item.listTitle} />
         ))}
       </span>
-      {todo.dueDate ? <DueChip date={todo.dueDate} time={todo.dueTime} now={now} /> : null}
+      {todo.dueDate ? (
+        <span className="@max-[22rem]:hidden">
+          <DueChip date={todo.dueDate} time={todo.dueTime} now={now} />
+        </span>
+      ) : null}
       <span
         className={cn(
           "flex",

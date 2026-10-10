@@ -17,8 +17,8 @@ export const buttonVariants = cva(
         accent: "bg-accent text-accent-contrast hover:bg-accent-hover active:bg-accent-active",
         destructive:
           "bg-destructive text-white hover:bg-destructive-hover active:bg-destructive-active",
-        glass: "bg-well/70 text-primary backdrop-blur hover:bg-control",
-        glassAccent: "bg-accent text-accent-contrast backdrop-blur hover:bg-accent-hover",
+        glass: "bg-well text-primary hover:bg-control",
+        glassAccent: "bg-accent text-accent-contrast hover:bg-accent-hover",
         transparent: "bg-transparent text-primary hover:bg-control-subtle",
       },
       size: {

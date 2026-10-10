@@ -19,6 +19,7 @@ test("event editor blocks reloads, recovers from a failed load, and ignores stal
     import { createRoot } from "react-dom/client";
     import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
     import { ItemEditButton } from ${JSON.stringify(path.join(root, "renderer/components/item-editor.tsx"))};
+    import { DetailsLayout } from ${JSON.stringify(path.join(root, "renderer/components/details-layout.tsx"))};
     const client = new QueryClient({defaultOptions:{queries:{retry:false}}});
     client.setQueryData(["fixture-scope"], "disposable-scope");
     let item = {id:"fixture-event",calendarId:"fixture-calendar",calendarName:"Fixture",calendarColor:null,
@@ -26,7 +27,7 @@ test("event editor blocks reloads, recovers from a failed load, and ignores stal
       allDay:false,htmlLink:null,meetLink:null,attendees:[]};
     const requests = [], writes = [];
     const app = createRoot(document.getElementById("root"));
-    const render = () => app.render(<QueryClientProvider client={client}><ItemEditButton item={item}/></QueryClientProvider>);
+    const render = () => app.render(<QueryClientProvider client={client}><div style={{height:'100vh'}}><DetailsLayout selectedKey="fixture" storageKey="fixture" label="Fixture details" details={<ItemEditButton item={item}/>}><div data-detail-anchor="fixture">Fixture row</div></DetailsLayout></div></QueryClientProvider>);
     window.editorFixture = {
       get pending(){return requests.length}, get writes(){return writes},
       replace(){ item={...item}; render(); },
@@ -154,6 +155,25 @@ test("event editor blocks reloads, recovers from a failed load, and ignores stal
     await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue(
       "Newest event",
     );
+    const title = page.getByRole("textbox", { name: "Title", exact: true });
+    await title.fill("Unsaved responsive draft");
+    const draft = await title.elementHandle();
+    for (const [width, layout] of [
+      [600, "inline"],
+      [1280, "side"],
+    ] as const) {
+      await app.evaluate(
+        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0].setContentSize(width, 850),
+        width,
+      );
+      await expect(page.locator("[data-inspector]")).toHaveAttribute(
+        "data-inspector-layout",
+        layout,
+      );
+      await expect(title).toHaveValue("Unsaved responsive draft");
+      expect(await draft!.evaluate((node) => node.isConnected)).toBe(true);
+    }
+    await title.fill("Newest event");
     await save.click();
     await expect
       .poll(() =>

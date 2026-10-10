@@ -28,7 +28,7 @@ export function TodoRow({
   const plainDetail = detail ?? todo.notes;
 
   return (
-    <div>
+    <div data-detail-anchor={todo.key}>
       <div
         role={onOpen ? "button" : undefined}
         tabIndex={onOpen ? 0 : undefined}
@@ -65,7 +65,7 @@ export function TodoRow({
           <Text
             truncate
             color={todo.completed ? "tertiary" : "primary"}
-            className={todo.completed ? "line-through" : undefined}
+            className={cn(todo.completed && "line-through", selected && "font-semibold")}
           >
             {todo.title}
           </Text>

@@ -33,13 +33,14 @@ const bundled = await build({
             const fixture = globalThis.__dayboardIpcFixture;
             export const ipcMain = fixture.ipcMain;
             export const BrowserWindow = fixture.BrowserWindow;
-            export const nativeTheme = { shouldUseDarkColors: false, themeSource: "system" };
+            export const nativeTheme = fixture.nativeTheme;
           `,
           loader: "js",
         }));
         api.onLoad({ filter: /system-preferences\.js$/, namespace: "fixture" }, () => ({
           contents: `export const systemPreferences = {
             getAccentColor: () => "#123456",
+            getAnimationSettings: () => ({ prefersReducedMotion: globalThis.__dayboardIpcFixture.nativeTheme.prefersReducedMotion }),
             getMediaAccessStatus: () => "not-determined",
             askForMediaAccess: async () => false,
           };`,
@@ -62,7 +63,16 @@ async function createHarness() {
   const handlers = new Map();
   const listeners = new Map();
   const windows = new Map();
+  const nativeTheme = Object.assign(new EventEmitter(), {
+    shouldUseDarkColors: false,
+    themeSource: "system",
+    prefersReducedTransparency: false,
+    shouldUseHighContrastColors: false,
+    shouldDifferentiateWithoutColor: false,
+    prefersReducedMotion: false,
+  });
   globalThis.__dayboardIpcFixture = {
+    nativeTheme,
     ipcMain: {
       handle(channel, handler) {
         assert.equal(handlers.has(channel), false, `duplicate handler: ${channel}`);
@@ -105,7 +115,7 @@ async function createHarness() {
     return handler(event(sender), ...args);
   }
 
-  return { adapter, handlers, listeners, windows, makeSender, event, invoke };
+  return { adapter, handlers, listeners, windows, makeSender, event, invoke, nativeTheme };
 }
 
 test("only a registered window's current main frame reaches a read handler", async () => {
@@ -262,4 +272,38 @@ test("update preparation drains existing IPC work and blocks new writes and stre
   finish("saved again");
   assert.equal(await resumed, "saved again");
   assert.equal(writes, 2);
+});
+
+test("native accessibility info and updates remain restricted to trusted windows", async () => {
+  const { adapter, makeSender, invoke, nativeTheme } = await createHarness();
+  const trusted = makeSender(90);
+  const unregistered = makeSender(91);
+  adapter.registerTrustedWindow(trusted, entryUrl);
+  adapter.registerBridgeIpc();
+  await assert.rejects(invoke("nativeTheme:getInfo", unregistered), /Untrusted/);
+  const initial = await invoke("nativeTheme:getInfo", trusted);
+  assert.equal(initial.prefersReducedTransparency, false);
+  Object.assign(nativeTheme, {
+    prefersReducedTransparency: true,
+    shouldUseHighContrastColors: true,
+    shouldDifferentiateWithoutColor: true,
+    prefersReducedMotion: true,
+  });
+  nativeTheme.emit("updated");
+  const updated = await invoke("nativeTheme:getInfo", trusted);
+  for (const flag of [
+    "prefersReducedTransparency",
+    "shouldUseHighContrastColors",
+    "shouldDifferentiateWithoutColor",
+    "prefersReducedMotion",
+  ]) {
+    assert.equal(updated[flag], true);
+  }
+  assert.equal(trusted.sent.at(-1)[1].channel, "nativeTheme:updated");
+  assert.deepEqual(trusted.sent.at(-1)[1].params, updated);
+  assert.deepEqual(unregistered.sent, []);
+  trusted.url = "https://untrusted.example/";
+  trusted.sent.length = 0;
+  nativeTheme.emit("updated");
+  assert.deepEqual(trusted.sent, []);
 });

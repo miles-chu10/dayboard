@@ -10,6 +10,9 @@ const PRIVACY_PANES: Record<string, string> = {
 };
 
 export const systemPreferences = {
+  getAnimationSettings() {
+    return electronSystemPreferences.getAnimationSettings();
+  },
   getAccentColor(): string {
     const raw = electronSystemPreferences.getAccentColor?.() ?? "0000ffff";
     return `#${raw.slice(0, 6)}`;

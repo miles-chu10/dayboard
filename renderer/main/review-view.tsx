@@ -7,7 +7,6 @@ import { InlineHint, ListCard, RowsSkeleton, SectionCard } from "../components/s
 import { SourceDot } from "../components/source-dot";
 import { sourceStatusShort } from "../components/source-gate";
 import { TodoRow } from "../components/todo-row";
-import { HistoryNav } from "../components/history-nav";
 import { useAITask } from "../lib/ai";
 import { REVIEW_SYSTEM, buildWeeklyReviewPrompt } from "../lib/ai-prompts";
 import { formatTimeOfDay, shortDate, todayISO } from "../lib/dates";
@@ -119,7 +118,8 @@ export function ReviewView() {
   return (
     <ScrollArea
       className="h-full"
-      leading={<HistoryNav />}
+      headerSize="page"
+      viewportClassName="[&>div]:block!"
       title="Weekly Review"
       subtitle={
         data ? `${shortDate(data.since.slice(0, 10))} – ${shortDate(today)}` : "Past 7 days"
@@ -138,7 +138,7 @@ export function ReviewView() {
         </>
       }
     >
-      <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-2 w-full max-w-4xl mx-auto">
+      <div className="flex flex-col gap-[var(--density-section-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto">
         {review.isError ? (
           <Callout color="red">Couldn't load the past week. Try refreshing.</Callout>
         ) : null}

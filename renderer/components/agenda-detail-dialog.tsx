@@ -444,9 +444,15 @@ export function AgendaDetailDialog({
         <section className="flex flex-col gap-2">
           <Text variant="strong">Related context</Text>
           {suggestedMail.map(({ message }) => (
-            <div key={message.id} className="flex items-center gap-2">
+            <div
+              key={message.id}
+              className="flex min-w-0 items-center gap-2 @max-[22rem]/detail:flex-wrap @max-[22rem]/detail:gap-y-1"
+            >
               <Badge color="blue">Suggested</Badge>
-              <Text truncate className="flex-1">
+              <Text
+                truncate
+                className="min-w-0 flex-1 @max-[22rem]/detail:order-first @max-[22rem]/detail:w-full @max-[22rem]/detail:flex-none"
+              >
                 {message.subject}
               </Text>
               <Text variant="small" color="tertiary">
@@ -466,10 +472,13 @@ export function AgendaDetailDialog({
           {suggestedEvents.map(({ event }) => (
             <div
               key={`${event.calendarId}:${event.id}:${event.start}`}
-              className="flex items-center gap-2"
+              className="flex min-w-0 items-center gap-2 @max-[22rem]/detail:flex-wrap @max-[22rem]/detail:gap-y-1"
             >
               <Badge color="green">Suggested</Badge>
-              <Text truncate className="flex-1">
+              <Text
+                truncate
+                className="min-w-0 flex-1 @max-[22rem]/detail:order-first @max-[22rem]/detail:w-full @max-[22rem]/detail:flex-none"
+              >
                 {event.title}
               </Text>
               <Text variant="small" color="tertiary">

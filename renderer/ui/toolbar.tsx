@@ -7,7 +7,7 @@ import { Button, type ButtonProps } from "./button";
 export interface ToolbarProps extends React.ComponentProps<"div"> {
   position?: "top" | "bottom";
   inset?: "none" | "windowControls" | "windowControlsAndButton";
-  background?: "progressive-blur" | "full-blur";
+  background?: "solid" | "progressive-blur" | "full-blur";
   disableLayoutTransition?: boolean;
 }
 
@@ -20,7 +20,7 @@ const INSET_CLASS = {
 export function Toolbar({
   position = "top",
   inset = "windowControls",
-  background = "progressive-blur",
+  background = "solid",
   disableLayoutTransition,
   className,
   children,
@@ -35,9 +35,11 @@ export function Toolbar({
       className={cn(
         "relative z-10 flex shrink-0 flex-col",
         position === "top" && "drag-region",
-        background === "full-blur"
-          ? "backdrop-blur-xl border-b border-separator"
-          : "backdrop-blur-md",
+        background === "solid"
+          ? "bg-background"
+          : background === "full-blur"
+            ? "backdrop-blur-xl border-b border-separator"
+            : "backdrop-blur-md",
         !disableLayoutTransition && "transition-[height]",
         className,
       )}
@@ -70,9 +72,16 @@ export function ToolbarContent({ className, ...props }: React.ComponentProps<"di
   );
 }
 
-export function ToolbarTitle({ className, ...props }: React.ComponentProps<"h2">) {
+export function ToolbarTitle({
+  as: Component = "h2",
+  className,
+  ...props
+}: React.ComponentProps<"h2"> & { as?: "h1" | "h2" }) {
   return (
-    <h2 className={cn("truncate text-[15px] font-medium text-primary", className)} {...props} />
+    <Component
+      className={cn("truncate text-[15px] font-medium text-primary", className)}
+      {...props}
+    />
   );
 }
 

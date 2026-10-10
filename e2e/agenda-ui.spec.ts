@@ -31,7 +31,7 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
   let relaunched: Awaited<ReturnType<typeof launchDemo>> | undefined;
   try {
     const page = demo.page;
-    const heading = page.getByRole("heading", { level: 1 });
+    const heading = page.locator("[data-agenda-range]");
     const search = page.getByRole("textbox", { name: "Search agenda" });
     const today = page.getByRole("button", { name: "Today", exact: true });
     const previous = page.getByRole("button", { name: "Previous date", exact: true });
@@ -106,9 +106,9 @@ test("Calendar Schedule retains its mode and range while resetting the selected 
     const page = demo.page;
     await navigate(page, "Calendar");
     await page.getByRole("radio", { name: "Schedule", exact: true }).click();
-    await expect(page.locator("[data-toolbar] h2")).toHaveText("Calendar");
+    await expect(page.locator("[data-page-header] h1")).toHaveText("Calendar");
     await expect(page.getByRole("textbox", { name: "Search calendar", exact: true })).toBeVisible();
-    const heading = page.getByRole("heading", { level: 1 });
+    const heading = page.locator("[data-agenda-range]");
     await expect(heading).toBeVisible();
     await page.getByRole("combobox", { name: "Calendar range" }).click();
     await page.getByRole("option", { name: "Today", exact: true }).click();
@@ -167,7 +167,7 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
           await expect(page.locator("html")).toHaveClass(/density-compact/);
         else await expect(page.locator("html")).not.toHaveClass(/density-compact/);
         await resize(demo.app, 1280, 820);
-        await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "24px");
+        await expect(page.locator("[data-agenda-range]")).toHaveCSS("font-size", "18px");
         await page.screenshot({
           path: testInfo.outputPath(`agenda-${theme.toLowerCase()}-${density.toLowerCase()}.png`),
           animations: "disabled",

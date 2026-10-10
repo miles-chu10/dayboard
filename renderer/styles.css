@@ -58,3 +58,150 @@ select,
   --calendar-cell: 5rem;
   --calendar-hour: 2.25rem;
 }
+
+.window-navigation,
+.page-header {
+  backdrop-filter: none;
+}
+
+.page-header-row {
+  align-items: flex-start;
+  width: 100%;
+  max-width: 64rem;
+  height: auto;
+  min-height: 5.25rem;
+  margin-inline: auto;
+  padding: 1rem 1.5rem;
+  gap: 0.75rem;
+}
+
+.page-title {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--text-heading1);
+  line-height: var(--text-heading1--line-height);
+  font-weight: var(--text-heading1--font-weight);
+}
+
+.page-description {
+  margin-top: 0.25rem;
+  font-size: var(--text-small);
+  line-height: var(--text-small--line-height);
+}
+
+.app-sidebar [data-slot="sidebar-item-icon"],
+.app-sidebar-symbol {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.app-sidebar-symbol {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  background: var(--color-control-subtle);
+}
+
+.app-sidebar [data-slot="sidebar-list-item"] {
+  min-height: var(--density-list-row);
+  padding-block: var(--density-bar-py);
+}
+
+.app-sidebar [data-slot="sidebar-item-title"] {
+  font-size: var(--text-regular);
+  line-height: var(--text-regular--line-height);
+  font-weight: 500;
+}
+
+.app-sidebar [data-slot="sidebar-item-subtitle"] {
+  margin-top: 0.125rem;
+  font-size: var(--text-small);
+  line-height: var(--text-small--line-height);
+  color: var(--color-secondary);
+}
+
+.app-sidebar [data-slot="sidebar-group-title"] {
+  font-size: var(--text-small);
+  line-height: var(--text-small--line-height);
+}
+
+.app-sidebar [data-slot="sidebar-item-accessory"],
+.app-sidebar-badge {
+  display: flex;
+  min-width: 1.5rem;
+  height: 1.375rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.25rem;
+  border-radius: calc(infinity * 1px);
+  background: var(--color-control-subtle);
+  font-size: var(--text-small);
+}
+
+/* Reconciled v21 states; count fills stay opaque to avoid nested tint accumulation. */
+.app-sidebar [data-slot="sidebar-item-accessory"],
+.app-sidebar-badge {
+  background: var(--color-count-badge);
+}
+.app-sidebar [aria-current="page"] [data-slot="sidebar-item-title"] {
+  font-weight: 600;
+}
+.resize-handle:focus-visible,
+[data-inspector] section:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.resize-handle:focus-visible {
+  z-index: 15;
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+:root.increase-contrast {
+  --db-separator: var(--db-field);
+  --db-tertiary: var(--db-secondary);
+}
+:root.increase-contrast
+  :is([aria-current="page"], [aria-selected="true"], [aria-expanded="true"][data-agenda-row]) {
+  box-shadow: inset 0 0 0 1px var(--color-selection-outline);
+}
+:root.increase-contrast
+  :is(.app-sidebar-symbol, .app-sidebar-badge, [data-slot="sidebar-item-accessory"]) {
+  box-shadow: inset 0 0 0 1px var(--color-field);
+}
+:root.window-inactive [data-window-navigation] button,
+:root.window-inactive .app-sidebar-symbol:not([class*="text-support-"]),
+:root.window-inactive .app-sidebar [aria-current="page"] [data-slot="sidebar-item-title"] {
+  color: var(--color-glyph-inactive);
+}
+:root.differentiate-without-color .differentiate-status-icon {
+  display: inline-block;
+}
+:root:is(.reduce-transparency, .increase-contrast) [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  background-color: var(--color-background);
+}
+:root.reduce-motion *,
+:root.reduce-motion *::before,
+:root.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (prefers-contrast: more) {
+  :root:is(.light, .dark),
+  :root:not(.light) {
+    --db-separator: var(--db-field);
+    --db-tertiary: var(--db-secondary);
+  }
+}

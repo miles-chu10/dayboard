@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
+import { cn } from "./utils";
 
 import {
   MARK_CONTRAST,
@@ -19,6 +20,18 @@ import {
 const theme = readFileSync(new URL("../theme.css", import.meta.url), "utf8");
 const appearance = readFileSync(new URL("../lib/appearance.ts", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+test("custom text sizes retain colors and resolve independent overrides", () => {
+  assert.equal(cn("text-regular", "text-primary"), "text-regular text-primary");
+  assert.equal(
+    cn("text-regular text-primary", "text-small text-secondary"),
+    "text-small text-secondary",
+  );
+  assert.equal(
+    cn("text-small-mono font-mono text-secondary", "text-primary"),
+    "text-small-mono font-mono text-primary",
+  );
+});
 
 const SUPPORT = ["red", "orange", "yellow", "green", "blue", "purple", "magenta"];
 

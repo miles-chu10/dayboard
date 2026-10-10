@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import { DetailsLayout } from "../components/details-layout";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Button, ScrollArea, SegmentedControl, SegmentedControlItem, Text } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
@@ -13,7 +21,6 @@ import {
   identifyCalendarEvents,
   selectedCalendarEvent,
 } from "../lib/calendar-identity";
-import { HistoryNav } from "../components/history-nav";
 import { ViewActions } from "../components/view-actions";
 import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
@@ -149,6 +156,21 @@ function CalendarGrid({
   const byDay = groupByDay(sourceOn(settings, "calendar") ? events : [], todos, dates);
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const detailView = settings?.general.detailView ?? "dialog";
+  const root = useRef<HTMLDivElement>(null);
+  const openedFromSelectedDay = useRef(false);
+  const returnFocusKey = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const key = returnFocusKey.current;
+    if (!key || search.item) return;
+    const row = root.current?.querySelector<HTMLElement>(
+      `[data-detail-anchor="${CSS.escape(key)}"] [data-agenda-row]`,
+    );
+    const fallback = root.current?.querySelector<HTMLElement>(
+      '[role="gridcell"][aria-selected="true"]',
+    );
+    (row ?? fallback)?.focus({ preventScroll: true });
+    returnFocusKey.current = undefined;
+  }, [search.item]);
 
   function update(patch: Partial<AgendaSearch>) {
     void navigate({
@@ -164,12 +186,21 @@ function CalendarGrid({
         : addDays(selected, direction * 7);
     update({ date: next === today ? undefined : next, item: undefined });
   }
-  const openItem = (key: string) => update({ item: search.item === key ? undefined : key });
+  function openItem(key: string, fromSelectedDay = false) {
+    openedFromSelectedDay.current = fromSelectedDay;
+    update({ item: search.item === key ? undefined : key });
+  }
 
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
+  function closePanel() {
+    returnFocusKey.current = openedFromSelectedDay.current ? search.item : undefined;
+    openedFromSelectedDay.current = false;
+    update({ item: undefined });
+  }
+  const closeDialog = () => update({ item: undefined });
   function renderDetail(presentation: "dialog" | "panel") {
-    const close = () => update({ item: undefined });
+    const close = presentation === "panel" ? closePanel : closeDialog;
     if (selectedTodo)
       return (
         <AgendaDetailDialog
@@ -206,109 +237,117 @@ function CalendarGrid({
   const selectedItems = byDay.get(selected);
 
   return (
-    <>
-      <div className="flex h-full min-w-0">
-        <div className="h-full min-w-0 flex-1">
-          <ScrollArea
-            className="h-full"
-            leading={<HistoryNav />}
-            title="Calendar"
-            subtitle={title}
-            actions={
-              <ViewActions
-                refreshing={calendar.isFetching || tasks.isFetching || reminders.isFetching}
-                onRefresh={() => {
-                  void calendar.refetch();
-                  void tasks.refetch();
-                  void reminders.refetch();
-                }}
-              />
-            }
-          >
-            <div className="flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full">
-              <div className="flex flex-wrap items-center gap-2">
-                <ModeSwitch value={view} onChange={onSwitch} />
-                <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
-                  Today
-                </Button>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  iconOnly
-                  aria-label={view === "month" ? "Previous month" : "Previous week"}
-                  onClick={() => shift(-1)}
-                >
-                  <ChevronLeft />
-                </Button>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  iconOnly
-                  aria-label={view === "month" ? "Next month" : "Next week"}
-                  onClick={() => shift(1)}
-                >
-                  <ChevronRight />
-                </Button>
-                <Text variant="large-strong" as="h2">
-                  {title}
-                </Text>
-              </div>
-              {view === "month" ? (
-                <MonthGrid
-                  dates={dates}
-                  month={anchor.getMonth()}
-                  today={today}
-                  selected={selected}
-                  byDay={byDay}
-                  onSelect={(date) => update({ date: date === today ? undefined : date })}
-                  onOpen={openItem}
-                />
-              ) : (
-                <WeekGrid dates={dates} today={today} now={now} byDay={byDay} onOpen={openItem} />
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-        {view === "month" || panelDetail ? (
-          <aside
-            aria-label={panelDetail ? "Details" : "Selected day"}
-            className="h-full w-[min(360px,36%)] shrink-0 overflow-y-auto border-l border-separator px-3 pb-6 pt-14"
-          >
-            {panelDetail ?? (
-              <div className="flex flex-col gap-3">
-                <Text variant="large-strong" as="h2">
-                  {parseISODate(selected).toLocaleDateString([], {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-                {selectedItems &&
-                (selectedItems.allDay.length ||
-                  selectedItems.timed.length ||
-                  selectedItems.todos.length) ? (
-                  <AgendaList
-                    entries={[
-                      ...selectedItems.allDay.map(eventEntry),
-                      ...selectedItems.timed.map(eventEntry),
-                      ...selectedItems.todos.map(todoEntry),
-                    ]}
-                    now={now}
-                    focusKeys={planning.data?.focusKeys ?? []}
-                    onOpen={(todo) => openItem(todo.key)}
-                    onOpenEvent={(event) => openItem(eventKey(event))}
-                    onPin={() => undefined}
-                  />
-                ) : (
-                  <Text color="tertiary">Nothing scheduled or due.</Text>
-                )}
-              </div>
+    <div ref={root} className="h-full">
+      <DetailsLayout
+        inlineMode="stack"
+        storageKey="calendar"
+        selectedKey={search.item ?? selected}
+        label={panelDetail ? "Details" : "Selected day"}
+        details={
+          view === "month" || panelDetail
+            ? (panelDetail ?? (
+                <div className="flex flex-col gap-3">
+                  <Text variant="large-strong" as="h2">
+                    {parseISODate(selected).toLocaleDateString([], {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                  {selectedItems &&
+                  (selectedItems.allDay.length ||
+                    selectedItems.timed.length ||
+                    selectedItems.todos.length) ? (
+                    <AgendaList
+                      entries={[
+                        ...selectedItems.allDay.map(eventEntry),
+                        ...selectedItems.timed.map(eventEntry),
+                        ...selectedItems.todos.map(todoEntry),
+                      ]}
+                      now={now}
+                      focusKeys={planning.data?.focusKeys ?? []}
+                      onOpen={(todo) => openItem(todo.key, true)}
+                      onOpenEvent={(event) => openItem(eventKey(event), true)}
+                      onPin={() => undefined}
+                    />
+                  ) : (
+                    <Text color="tertiary">Nothing scheduled or due.</Text>
+                  )}
+                </div>
+              ))
+            : null
+        }
+      >
+        <ScrollArea
+          className="h-full"
+          headerSize="page"
+          viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
+          title="Calendar"
+          actions={
+            <ViewActions
+              refreshing={calendar.isFetching || tasks.isFetching || reminders.isFetching}
+              onRefresh={() => {
+                void calendar.refetch();
+                void tasks.refetch();
+                void reminders.refetch();
+              }}
+            />
+          }
+        >
+          <div
+            className={cn(
+              "flex flex-col gap-[var(--density-page-gap)] px-6 pb-8 pt-2 w-full max-w-5xl mx-auto",
+              view === "week" && "h-full min-h-0",
             )}
-          </aside>
-        ) : null}
-      </div>
+          >
+            <div
+              data-calendar-controls
+              className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 bg-background py-1"
+            >
+              <ModeSwitch value={view} onChange={onSwitch} />
+              <Button size="small" onClick={() => update({ date: undefined, item: undefined })}>
+                Today
+              </Button>
+              <Button
+                size="small"
+                variant="transparent"
+                iconOnly
+                aria-label={view === "month" ? "Previous month" : "Previous week"}
+                onClick={() => shift(-1)}
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                size="small"
+                variant="transparent"
+                iconOnly
+                aria-label={view === "month" ? "Next month" : "Next week"}
+                onClick={() => shift(1)}
+              >
+                <ChevronRight />
+              </Button>
+              <Text variant="large-strong" as="h2">
+                {title}
+              </Text>
+            </div>
+            {view === "month" ? (
+              <MonthGrid
+                dates={dates}
+                month={anchor.getMonth()}
+                today={today}
+                selected={selected}
+                byDay={byDay}
+                onSelect={(date) => update({ date: date === today ? undefined : date })}
+                onOpen={openItem}
+              />
+            ) : (
+              <WeekGrid dates={dates} today={today} now={now} byDay={byDay} onOpen={openItem} />
+            )}
+          </div>
+        </ScrollArea>
+      </DetailsLayout>
       {detailView === "dialog" ? renderDetail("dialog") : null}
-    </>
+    </div>
   );
 }
 
@@ -372,8 +411,29 @@ function MonthGrid({
 }) {
   const settings = useSettings().data;
   const colorOf = useEventColor();
+  const grid = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const viewport = grid.current?.closest<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+    function revealSelection() {
+      const cell = grid.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!cell || !viewport) return;
+      const bounds = viewport.getBoundingClientRect();
+      const controls = viewport.querySelector<HTMLElement>("[data-calendar-controls]");
+      const visibleTop = bounds.top + (controls?.getBoundingClientRect().height ?? 0) + 4;
+      const selectedBounds = cell.getBoundingClientRect();
+      if (selectedBounds.top < visibleTop || selectedBounds.height > bounds.bottom - visibleTop)
+        viewport.scrollTop += selectedBounds.top - visibleTop;
+      else if (selectedBounds.bottom > bounds.bottom)
+        viewport.scrollTop += selectedBounds.bottom - bounds.bottom;
+    }
+    revealSelection();
+    const observer = new ResizeObserver(revealSelection);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [selected]);
   return (
-    <div className="overflow-hidden rounded-lg border border-separator">
+    <div ref={grid} className="overflow-hidden rounded-lg border border-separator">
       <div className="grid grid-cols-7 border-b border-separator bg-well">
         {dates.slice(0, 7).map((date) => (
           <Text key={date} variant="small" color="secondary" className="px-2 py-1 text-center">
@@ -400,6 +460,7 @@ function MonthGrid({
               tabIndex={0}
               onClick={() => onSelect(date)}
               onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelect(date);
@@ -542,8 +603,10 @@ function WeekGrid({
   const settings = useSettings().data;
   const colorOf = useEventColor();
   const morningRef = useRef<HTMLDivElement>(null);
+  const hoursRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    morningRef.current?.scrollIntoView({ block: "start" });
+    if (hoursRef.current && morningRef.current)
+      hoursRef.current.scrollTop = Math.max(0, morningRef.current.offsetTop - 16);
   }, []);
   const nowHours = now.getHours() + now.getMinutes() / 60;
   const hasTop = dates.some(
@@ -551,11 +614,11 @@ function WeekGrid({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-separator">
-      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b border-separator bg-well">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-separator">
+      <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] overflow-y-hidden border-b border-separator bg-well pr-3 [scrollbar-gutter:stable]">
         <span />
         {dates.map((date) => (
-          <div key={date} className="flex items-center justify-center gap-1.5 py-1.5">
+          <div key={date} className="flex flex-wrap items-center justify-center gap-1.5 py-1.5">
             <Text variant="small" color="secondary">
               {parseISODate(date).toLocaleDateString([], { weekday: "short" })}
             </Text>
@@ -571,8 +634,8 @@ function WeekGrid({
         ))}
       </div>
       {hasTop ? (
-        <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b border-separator">
-          <Text variant="small" color="tertiary" className="px-1 py-1 text-right">
+        <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] overflow-y-hidden border-b border-separator pr-3 [scrollbar-gutter:stable]">
+          <Text variant="small" color="tertiary" className="whitespace-nowrap px-1 py-1 text-right">
             All day
           </Text>
           {dates.map((date) => {
@@ -612,71 +675,81 @@ function WeekGrid({
           })}
         </div>
       ) : null}
-      <div className="relative grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
-        <div>
-          {HOURS.map((hour) => (
-            <div
-              key={hour}
-              ref={hour === 7 ? morningRef : undefined}
-              className="relative h-[var(--calendar-hour)] scroll-mt-16"
-            >
-              {hour ? (
-                <Text
-                  variant="small"
-                  color="tertiary"
-                  className="absolute -top-2 right-1.5 tabular-nums"
+      <div
+        ref={hoursRef}
+        data-calendar-hours
+        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+      >
+        <div className="relative grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] pr-3">
+          <div>
+            {HOURS.map((hour) => (
+              <div
+                key={hour}
+                ref={hour === 7 ? morningRef : undefined}
+                className="relative h-[var(--calendar-hour)] scroll-mt-16"
+              >
+                {hour ? (
+                  <Text
+                    variant="small"
+                    color="tertiary"
+                    data-calendar-hour-label={hour}
+                    className="absolute -top-2 right-1.5 tabular-nums"
+                  >
+                    {new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}
+                  </Text>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {dates.map((date) => (
+            <div key={date} className="relative border-l border-separator">
+              {HOURS.map((hour) => (
+                <div key={hour} className="h-[var(--calendar-hour)] border-b border-separator/60" />
+              ))}
+              {layoutDay(byDay.get(date)!.timed, date).map(
+                ({ event, top, height, lane, lanes }) => {
+                  const past = new Date(event.end) <= now;
+                  return (
+                    <button
+                      key={eventKey(event)}
+                      type="button"
+                      onClick={() => onOpen(eventKey(event))}
+                      aria-label={`${event.title}, ${formatTimeOfDay(event.start)} to ${formatTimeOfDay(event.end)}`}
+                      className="absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-small leading-[14px] focus-visible:outline-2 focus-visible:outline-accent"
+                      style={{
+                        top: `calc(${top} * var(--calendar-hour))`,
+                        height: `calc(${height} * var(--calendar-hour) - 2px)`,
+                        minHeight: 20,
+                        left: `calc(${(lane / lanes) * 100}% + 2px)`,
+                        width: `calc(${100 / lanes}% - 4px)`,
+                        borderLeftColor: colorOf(event),
+                        backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--db-background))`,
+                        opacity: past ? 0.7 : 1,
+                      }}
+                    >
+                      <span className="block truncate font-medium">{event.title}</span>
+                      {height >= 1 ? (
+                        <span className="block truncate text-secondary tabular-nums">
+                          {formatTimeOfDay(event.start)}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                },
+              )}
+              {date === today ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
+                  style={{ top: `calc(${nowHours} * var(--calendar-hour))` }}
                 >
-                  {new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}
-                </Text>
+                  <span className="-ml-1 size-2 rounded-full bg-support-red" />
+                  <span className="h-px flex-1 bg-support-red" />
+                </div>
               ) : null}
             </div>
           ))}
         </div>
-        {dates.map((date) => (
-          <div key={date} className="relative border-l border-separator">
-            {HOURS.map((hour) => (
-              <div key={hour} className="h-[var(--calendar-hour)] border-b border-separator/60" />
-            ))}
-            {layoutDay(byDay.get(date)!.timed, date).map(({ event, top, height, lane, lanes }) => {
-              const past = new Date(event.end) <= now;
-              return (
-                <button
-                  key={eventKey(event)}
-                  type="button"
-                  onClick={() => onOpen(eventKey(event))}
-                  aria-label={`${event.title}, ${formatTimeOfDay(event.start)} to ${formatTimeOfDay(event.end)}`}
-                  className="absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-small focus-visible:outline-2 focus-visible:outline-accent"
-                  style={{
-                    top: `calc(${top} * var(--calendar-hour))`,
-                    height: `calc(${height} * var(--calendar-hour) - 2px)`,
-                    left: `calc(${(lane / lanes) * 100}% + 2px)`,
-                    width: `calc(${100 / lanes}% - 4px)`,
-                    borderLeftColor: colorOf(event),
-                    backgroundColor: `color-mix(in srgb, ${colorOf(event)} ${past ? 10 : 20}%, var(--db-background))`,
-                    opacity: past ? 0.7 : 1,
-                  }}
-                >
-                  <span className="block truncate font-medium">{event.title}</span>
-                  {height >= 0.75 ? (
-                    <span className="block truncate text-secondary tabular-nums">
-                      {formatTimeOfDay(event.start)}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-            {date === today ? (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
-                style={{ top: `calc(${nowHours} * var(--calendar-hour))` }}
-              >
-                <span className="-ml-1 size-2 rounded-full bg-support-red" />
-                <span className="h-px flex-1 bg-support-red" />
-              </div>
-            ) : null}
-          </div>
-        ))}
       </div>
     </div>
   );

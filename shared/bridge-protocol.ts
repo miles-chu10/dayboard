@@ -25,6 +25,10 @@ export interface NativeThemeInfo {
   shouldUseDarkColors: boolean;
   themeSource: ThemeSource;
   accentColor?: string;
+  prefersReducedTransparency?: boolean;
+  shouldUseHighContrastColors?: boolean;
+  shouldDifferentiateWithoutColor?: boolean;
+  prefersReducedMotion?: boolean;
 }
 
 export type MediaAccessType = "microphone" | "camera" | "screen";

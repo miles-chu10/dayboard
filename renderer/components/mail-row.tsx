@@ -62,106 +62,112 @@ export function MailRow({
   const badge = triage ? TRIAGE_LABEL[triage.category] : null;
 
   return (
-    <div
-      role={onOpen ? "button" : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      aria-expanded={onOpen ? selected : undefined}
-      aria-label={onOpen ? `Open email from ${message.from}` : undefined}
-      onClick={onOpen ? () => onOpen(message) : undefined}
-      onKeyDown={
-        onOpen
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onOpen(message);
-              }
-            }
-          : undefined
-      }
-      className={cn(
-        "flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0",
-        onOpen &&
-          "cursor-default hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
-        selected && "bg-list-selection",
-      )}
-    >
-      <span className="mt-1.5 flex" title={message.unread ? "Unread" : "Read"}>
-        <SourceDot source="mail" hollow={!message.unread} />
-      </span>
-      <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <Text variant={message.unread ? "strong" : "regular"} truncate className="min-w-0">
-            {message.from}
-          </Text>
-          {badge ? (
-            <Badge color={badge.color} className="shrink-0">
-              {badge.label}
-            </Badge>
-          ) : null}
-          <Text variant="small" color="tertiary" className="ml-auto shrink-0 tabular-nums">
-            {formatMailDate(message.date)}
-          </Text>
-        </div>
-        <Text variant="small" color="secondary" truncate>
-          {message.subject}
-        </Text>
-        {!compact ? (
-          <Text variant="small" color="tertiary" truncate>
-            {triage?.reason ? `${triage.reason} — ${message.snippet}` : message.snippet}
-          </Text>
-        ) : null}
-      </div>
+    <div data-detail-anchor={`mail:${message.id}`}>
       <div
-        className="flex items-center gap-0.5 shrink-0"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
+        role={onOpen ? "button" : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+        aria-expanded={onOpen ? selected : undefined}
+        aria-label={onOpen ? `Open email from ${message.from}` : undefined}
+        onClick={onOpen ? () => onOpen(message) : undefined}
+        onKeyDown={
+          onOpen
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpen(message);
+                }
+              }
+            : undefined
+        }
+        className={cn(
+          "flex items-start gap-3 px-3 py-[var(--density-mail-py)] min-w-0",
+          onOpen &&
+            "cursor-default hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
+          selected && "bg-list-selection",
+        )}
       >
-        <Button
-          size="small"
-          variant="transparent"
-          iconOnly
-          aria-label="Reply"
-          title="Reply"
-          onClick={() => onReply(message)}
+        <span className="mt-1.5 flex" title={message.unread ? "Unread" : "Read"}>
+          <SourceDot source="mail" hollow={!message.unread} />
+        </span>
+        <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Text
+              variant={message.unread ? "strong" : "regular"}
+              truncate
+              className={cn("min-w-0", selected && "font-semibold")}
+            >
+              {message.from}
+            </Text>
+            {badge ? (
+              <Badge color={badge.color} className="shrink-0">
+                {badge.label}
+              </Badge>
+            ) : null}
+            <Text variant="small" color="tertiary" className="ml-auto shrink-0 tabular-nums">
+              {formatMailDate(message.date)}
+            </Text>
+          </div>
+          <Text variant="small" color="secondary" truncate>
+            {message.subject}
+          </Text>
+          {!compact ? (
+            <Text variant="small" color="tertiary" truncate>
+              {triage?.reason ? `${triage.reason} — ${message.snippet}` : message.snippet}
+            </Text>
+          ) : null}
+        </div>
+        <div
+          className="flex items-center gap-0.5 shrink-0"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         >
-          <Reply />
-        </Button>
-        {triage?.task ? (
           <Button
             size="small"
             variant="transparent"
             iconOnly
-            aria-label={`Add task: ${triage.task}`}
-            title={`Add task: ${triage.task}`}
-            disabled={addTask.isPending || addTask.isSuccess}
-            onClick={() => addTask.mutate(triage.task)}
+            aria-label="Reply"
+            title="Reply"
+            onClick={() => onReply(message)}
           >
-            <ListPlus />
+            <Reply />
           </Button>
-        ) : null}
-        {!compact ? (
+          {triage?.task ? (
+            <Button
+              size="small"
+              variant="transparent"
+              iconOnly
+              aria-label={`Add task: ${triage.task}`}
+              title={`Add task: ${triage.task}`}
+              disabled={addTask.isPending || addTask.isSuccess}
+              onClick={() => addTask.mutate(triage.task)}
+            >
+              <ListPlus />
+            </Button>
+          ) : null}
+          {!compact ? (
+            <Button
+              size="small"
+              variant="transparent"
+              iconOnly
+              aria-label="Archive"
+              title="Archive"
+              disabled={archive.isPending}
+              onClick={() => archive.mutate()}
+            >
+              <Archive />
+            </Button>
+          ) : null}
           <Button
             size="small"
             variant="transparent"
             iconOnly
-            aria-label="Archive"
-            title="Archive"
-            disabled={archive.isPending}
-            onClick={() => archive.mutate()}
+            aria-label="Open in Gmail"
+            title="Open in Gmail"
+            onClick={() => void openExternal(gmailUrl)}
           >
-            <Archive />
+            <ExternalLink />
           </Button>
-        ) : null}
-        <Button
-          size="small"
-          variant="transparent"
-          iconOnly
-          aria-label="Open in Gmail"
-          title="Open in Gmail"
-          onClick={() => void openExternal(gmailUrl)}
-        >
-          <ExternalLink />
-        </Button>
+        </div>
       </div>
     </div>
   );

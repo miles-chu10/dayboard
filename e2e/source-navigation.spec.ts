@@ -180,7 +180,7 @@ test("Calendar context survives repeated navigation and capture cancellation", a
     for (let attempt = 0; attempt < 2; attempt++) {
       await navigation(page, "Calendar").click();
       await page.getByRole("radio", { name: "Schedule", exact: true }).click();
-      await expect(page.locator("[data-toolbar] h2")).toHaveText("Calendar");
+      await expect(page.locator("[data-page-header] h1")).toHaveText("Calendar");
       await page.keyboard.press("Meta+f");
       await expect(
         page.getByRole("textbox", { name: "Search calendar", exact: true }),
@@ -194,10 +194,10 @@ test("Calendar context survives repeated navigation and capture cancellation", a
       if (attempt === 0) await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
       else await page.keyboard.press("Escape");
       await expect(dialog).toHaveCount(0);
-      await expect(page.locator("[data-toolbar] h2")).toHaveText("Calendar");
+      await expect(page.locator("[data-page-header] h1")).toHaveText("Calendar");
       await navigation(page, "Inbox").click();
       await navigation(page, "Agenda").click();
-      await expect(page.locator("[data-toolbar] h2")).toHaveText("Agenda");
+      await expect(page.locator("[data-page-header] h1")).toHaveText("Agenda");
       await page.keyboard.press("Meta+f");
       await expect(page.getByRole("textbox", { name: "Search agenda", exact: true })).toBeFocused();
     }
