@@ -114,9 +114,9 @@
 }
 
 html {
+  --nav-offset: max(88px, calc(10rem - 72px));
   -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-  scroll-padding-top: 88px;
+  scroll-padding-top: var(--nav-offset);
 }
 
 body {
@@ -197,6 +197,7 @@ h3 {
   line-height: 1.04;
   margin: 0;
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 h1 em,
@@ -259,13 +260,16 @@ p {
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 28px;
-  height: 68px;
+  gap: 12px 28px;
+  min-height: 68px;
+  padding-block: 14px;
 }
 
 .brand {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 10px;
   font-family: var(--display);
@@ -284,6 +288,7 @@ p {
 
 .nav-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   margin-left: auto;
   font-size: 0.95rem;
@@ -292,6 +297,7 @@ p {
 .nav-links a {
   color: var(--ink-soft);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .nav-links a:hover,
@@ -369,7 +375,6 @@ p {
 }
 
 .button:hover {
-  transform: translateY(-1px);
   box-shadow: var(--shadow-card);
 }
 
@@ -414,6 +419,11 @@ p {
   color: var(--ink-soft);
   font-size: 0.88rem;
   font-weight: 500;
+  max-width: 100%;
+}
+
+.pill > span {
+  min-width: 0;
 }
 
 .pill strong {
@@ -423,6 +433,7 @@ p {
 
 .dots {
   display: inline-flex;
+  flex: none;
   gap: 3px;
 }
 
@@ -454,6 +465,7 @@ p {
 /* ── Signup form ───────────────────────────────────── */
 .signup {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   max-width: 470px;
@@ -463,7 +475,8 @@ p {
   display: flex;
   gap: 8px;
   padding: 6px;
-  border: 1px solid var(--rule-strong);
+  /* The field's outline identifies it: ink-faint holds 3:1 against paper and paper-raised. */
+  border: 1px solid var(--ink-faint);
   border-radius: 999px;
   background: var(--paper-raised);
   box-shadow: var(--shadow-card);
@@ -564,6 +577,7 @@ p {
 
 .hero-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   justify-items: start;
   max-width: 800px;
@@ -732,6 +746,7 @@ p {
 
 .section-head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
   max-width: 740px;
@@ -824,12 +839,13 @@ p {
 
 .today-card li {
   display: grid;
-  grid-template-columns: 62px 10px 1fr;
+  grid-template-columns: 62px 10px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   padding: 9px 4px;
   border-bottom: 1px solid var(--rule);
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .today-card li:last-child {
@@ -866,6 +882,7 @@ p {
 
 .feature-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-content: start;
 }
@@ -902,6 +919,8 @@ p {
 
 .tabs {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--rule-strong);
@@ -1014,6 +1033,107 @@ p {
   rotate: -2deg;
 }
 
+/* Road Map: three status columns. Status is the heading text; the mark's shape repeats it. */
+.section.roadmap {
+  padding-top: 0;
+}
+
+.roadmap > .wrap {
+  padding-top: 90px;
+  border-top: 1px solid var(--rule);
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.roadmap-col {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: var(--paper-raised);
+}
+
+.roadmap-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--text);
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.status-mark {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.is-available .status-mark {
+  background: currentColor;
+}
+
+.is-progress .status-mark {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+
+.roadmap-lead {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.roadmap-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.roadmap-list li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.roadmap-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.roadmap-list strong {
+  display: block;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.roadmap-aside {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--paper-sunk);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.roadmap-note {
+  margin-top: 28px;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
 /* FAQ */
 .faq {
   display: grid;
@@ -1069,6 +1189,7 @@ p {
 /* Final call to action */
 .cta {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 22px;
   padding: 72px 32px;
@@ -1231,7 +1352,7 @@ p {
 
 .aside-card {
   position: sticky;
-  top: 100px;
+  top: calc(var(--nav-offset) + 12px);
   display: grid;
   gap: 16px;
   padding: 28px;
@@ -1261,6 +1382,14 @@ p {
 
 /* ── Motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .button:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
   .rise {
     animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
     animation-delay: calc(var(--i, 0) * 90ms);
@@ -1365,7 +1494,8 @@ p {
     position: static;
   }
   .grid-3,
-  .split {
+  .split,
+  .roadmap-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .note,
@@ -1374,6 +1504,12 @@ p {
   }
   .board {
     margin-top: 40px;
+  }
+}
+
+@media (max-width: 800px) {
+  html {
+    --nav-offset: max(136px, calc(10rem - 72px));
   }
 }
 
@@ -1399,6 +1535,12 @@ p {
   .feature {
     padding: 60px 0;
   }
+  .roadmap > .wrap {
+    padding-top: 60px;
+  }
+  .roadmap-col {
+    padding: 22px;
+  }
   .signup-row {
     flex-direction: column;
     border-radius: 20px;
@@ -1421,6 +1563,35 @@ p {
   .nav-links {
     gap: 14px;
     font-size: 0.88rem;
+  }
+}
+
+/* 721–1023px: five section links, the theme control and the waitlist button share one row.
+   GitHub stays in the footer and the open-source panel; the theme control shows its icon only
+   and keeps its accessible name ("Light theme. Switch to dark theme"). */
+@media (max-width: 1023px) and (min-width: 721px) {
+  .nav {
+    gap: 12px;
+  }
+  .brand {
+    flex: none;
+    gap: 8px;
+  }
+  .nav-links {
+    gap: 10px;
+  }
+  .nav .button {
+    padding: 0 14px;
+  }
+  .nav-links .nav-secondary {
+    display: none;
+  }
+  .theme-toggle {
+    width: 40px;
+    padding: 0;
+  }
+  .theme-label {
+    display: none;
   }
 }
 
