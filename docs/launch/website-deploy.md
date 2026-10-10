@@ -237,16 +237,11 @@ Then wait a minute, open `<site-origin>/` in Safari, and join with an address yo
 npx wrangler d1 execute <database> --remote --command "SELECT email, cohort, classification, datetime(created_at / 1000, 'unixepoch') AS joined FROM beta_signups ORDER BY created_at DESC LIMIT 5"
 ```
 
-Expect the script's synthetic address and your Safari address, both `waitlist` / `unreviewed`. Delete the synthetic row with the `DELETE` the script printed, and your test row with:
-
-```sh
-# billing/
-npx wrangler d1 execute <database> --remote --command "DELETE FROM beta_signups WHERE email = '<your test address>'"
-```
+Expect the script's synthetic address and your Safari address, both `waitlist` / `unreviewed`. Remove those test rows using the [bound-parameter and exact-count removal workflow](../../billing/README.md#waitlist-signups).
 
 ## Operate
 
-- **Review the list or remove an address:** use the commands under "Waitlist signups" in `billing/README.md`, run from `billing/`.
+- **Review the list or remove an address:** use the read-only review commands and [bound-parameter removal workflow](../../billing/README.md#waitlist-signups) under "Waitlist signups" in `billing/README.md`.
 - **Close signups fast:**
 
   ```sh
