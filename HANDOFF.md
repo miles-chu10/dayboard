@@ -16,6 +16,13 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
   `npm test` skips it).
+- Glaze 1.2.5 was rebuilt from the 2026-10-14 recovery packet: remote `glaze` df4d574 plus
+  patches 01, 02 and 03. All 53 files match the packet's hashes. Its shared fixes are ported into
+  PR #37: Glaze's three-way Google refresh classification, one-line snapshot fields with MCP
+  errors kept inside the snapshot, the pinned Anthropic base URL, usage accounting, the
+  mid-stream error message, and queued settings reads. The remote `glaze` branch stays at
+  1.2.2 until Miles approves pushing the rebuild. Standalone fixes still worth porting to Glaze:
+  `useId` field labels in the item editor and `accentColors` theming.
 - Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
   `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
