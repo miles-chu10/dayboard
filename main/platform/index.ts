@@ -27,5 +27,5 @@ export { safeStorage } from "./safe-storage.js";
 export { systemPreferences } from "./system-preferences.js";
 export { logger } from "./logger.js";
 export { reminders } from "./reminders.js";
-export { OAuthService, OAuthTokenStateChangedError } from "./oauth.js";
+export { OAuthRefreshRejectedError, OAuthService, OAuthTokenStateChangedError } from "./oauth.js";
 export type { OAuthTokens, OAuthTokensInput } from "./oauth.js";

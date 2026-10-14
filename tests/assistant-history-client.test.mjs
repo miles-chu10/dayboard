@@ -27,7 +27,7 @@ async function fixture(invoke) {
   };
   const stubs = {
     react:
-      "export const useState = init => [typeof init === 'function' ? init() : init, () => {}]; export const useRef = value => ({current: value}); export const useEffect = () => {};",
+      "export const useState = init => [typeof init === 'function' ? init() : init, () => {}]; export const useRef = value => ({current: value}); export const useCallback = callback => callback; export const useEffect = () => {};",
     "./ipc":
       "export const invoke = (channel, input) => globalThis.__historyClient.invoke(channel, input); export const errorMessage = error => error.message;",
   };

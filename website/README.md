@@ -47,7 +47,7 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
   ```
 
 - `404.html` is what the site serves, with status 404, for unknown paths (`not_found_handling` in `website-worker/wrangler.jsonc`). It uses root-absolute URLs (`/assets/site.css`) because it's served at any depth.
-- `robots.txt` is the crawler policy. Add a `Sitemap:` line only together with a `sitemap.xml`.
+- `robots.txt` is the crawler policy and points to `sitemap.xml`. Each page has a `<link rel="canonical">` with its extensionless address (`/waitlist`, not `/waitlist.html`). When you add a page, add it to `sitemap.xml` and give it a canonical link.
 
 ## Assets
 

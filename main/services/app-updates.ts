@@ -105,7 +105,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
         .then((updater) => {
           updater.autoDownload = false;
           updater.autoInstallOnAppQuit = false;
-          updater.allowPrerelease = /-/.test(options.currentVersion);
+          updater.allowPrerelease = /^[^+]*-/.test(options.currentVersion);
           updater.allowDowngrade = false;
           updater.setFeedURL({ provider: "github", owner: "miles-chu10", repo: "dayboard" });
           updater.on("update-available", (info: { version: string }) => {

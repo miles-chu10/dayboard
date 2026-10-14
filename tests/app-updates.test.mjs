@@ -173,6 +173,20 @@ test("stable versions do not request prereleases; no update and errors are repor
   assert.match((await item.service.check()).error, /unavailable/);
 });
 
+test("update channels ignore hyphens in SemVer build metadata", async () => {
+  for (const [currentVersion, allowPrerelease] of [
+    ["1.3.0", false],
+    ["1.3.0+build-local", false],
+    ["1.3.0-beta.1", true],
+    ["1.3.0-beta.1+build-local", true],
+  ]) {
+    const item = fixture({ currentVersion });
+    await item.service.check();
+    assert.equal(item.updater.allowPrerelease, allowPrerelease, currentVersion);
+    assert.equal(item.updater.allowDowngrade, false, currentVersion);
+  }
+});
+
 test("concurrent checks deduplicate and timed-out checks cannot start another request", async () => {
   const waiting = deferred();
   const item = fixture({ checkTimeoutMs: 5 });

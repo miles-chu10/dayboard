@@ -18,6 +18,8 @@ export const API_LABEL: Record<ApiProviderId, string> = {
 
 /** Set explicitly: an inherited OPENAI_BASE_URL would otherwise make the direct route a gateway. */
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
+/** Set explicitly for the same reason: an inherited ANTHROPIC_BASE_URL would receive the API key. */
+const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 
 type CompatibleProvider = Exclude<ApiProviderId, "openai" | "anthropic" | "google">;
 
@@ -93,7 +95,7 @@ export async function listApiModels(
         contextWindow: null,
       }));
   } else if (provider === "anthropic") {
-    const body = await fetchJson("https://api.anthropic.com/v1/models?limit=100", {
+    const body = await fetchJson(`${ANTHROPIC_BASE_URL}/models?limit=100`, {
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
     });
@@ -167,7 +169,8 @@ export async function resolveApiModel(
 export async function apiLanguageModel(provider: ApiProviderId, modelId: string) {
   const apiKey = await requireKey(provider);
   if (provider === "openai") return createOpenAI({ apiKey, baseURL: OPENAI_BASE_URL })(modelId);
-  if (provider === "anthropic") return createAnthropic({ apiKey })(modelId);
+  if (provider === "anthropic")
+    return createAnthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL })(modelId);
   if (isCompatible(provider))
     return createOpenAI({
       apiKey,

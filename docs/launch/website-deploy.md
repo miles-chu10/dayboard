@@ -198,8 +198,7 @@ Make these edits in `website/`, then preview the site (see `website/README.md`).
   ```
 
 - Make every `og:image` absolute, `https://<domain>/assets/screens/light-agenda.png`, so link previews work without the old public-beta claim. `rg -n og:image website/*.html` lists them.
-- If you want canonical links, add `<link rel="canonical">` to each page with the address the site serves: `<site-origin>/`, `<site-origin>/waitlist`, `<site-origin>/beta`, `<site-origin>/privacy` and so on. Pages redirects `/page.html` to `/page`.
-- Add `Sitemap: <site-origin>/sitemap.xml` to `robots.txt` only if you also add a `sitemap.xml`.
+- Canonical links, `sitemap.xml` and the `Sitemap:` line in `robots.txt` use `https://getdayboard.com`. On another domain, replace that origin in all three. The site serves `/page.html` at `/page`.
 - `_headers` needs no change for the API: its Content-Security-Policy's `connect-src` allows any HTTPS origin.
 - If you changed a page's inline `<script>`, recompute the hashes and update the `script-src` of the Content-Security-Policy in `_headers`:
 

@@ -2,7 +2,11 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { app, logger } from "../platform/index.js";
-import { OAuthService, OAuthTokenStateChangedError } from "../platform/index.js";
+import {
+  OAuthRefreshRejectedError,
+  OAuthService,
+  OAuthTokenStateChangedError,
+} from "../platform/index.js";
 
 import type { GoogleAccountStatus } from "../shared-types.js";
 import { GOOGLE_APP_CLIENT_ID, GOOGLE_APP_CLIENT_SECRET } from "./google-oauth-app-client.js";
@@ -172,6 +176,28 @@ export async function disconnectGoogle(): Promise<void> {
   await writeProfile({ email: null });
 }
 
+const CONFIGURATION_ERRORS = new Set([
+  "invalid_client",
+  "unauthorized_client",
+  "invalid_request",
+  "unsupported_grant_type",
+  "invalid_scope",
+]);
+
+/** Same classification as the Glaze build's `googleTokenFailure`. */
+function refreshFailure(error: unknown): {
+  kind: "reauthentication" | "configuration" | "temporary";
+  code: string;
+} {
+  if (!(error instanceof OAuthRefreshRejectedError))
+    return { kind: "temporary", code: "unclassified" };
+  const code = error.code ?? "missing_refresh_token";
+  if (error.code === null || code === "invalid_grant" || code === "access_denied")
+    return { kind: "reauthentication", code };
+  if (CONFIGURATION_ERRORS.has(code)) return { kind: "configuration", code };
+  return { kind: "temporary", code };
+}
+
 export async function getGoogleAccessToken(): Promise<string> {
   const client = appClient();
   if (!client) {
@@ -186,7 +212,19 @@ export async function getGoogleAccessToken(): Promise<string> {
   } catch (error) {
     if (error instanceof OAuthTokenStateChangedError)
       throw new Error("Your Google account changed during this request. Try again.");
-    logger.warn("google-auth", "Google token refresh failed", error);
-    throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
+    const failure = refreshFailure(error);
+    // Log only the classification: Google's descriptions aren't needed to diagnose a refresh.
+    logger.warn("google-auth", "Google token refresh failed", failure);
+    if (failure.kind === "reauthentication")
+      throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
+    // A broken app client can't be fixed by signing in again; keep the account connected.
+    if (failure.kind === "configuration")
+      throw new Error("Google rejected the app sign-in configuration. Try again after an update.", {
+        cause: error,
+      });
+    // Offline or a Google outage: keep the account connected so cached items stay visible.
+    throw new Error("Couldn't reach Google to renew your sign-in. Check your connection.", {
+      cause: error,
+    });
   }
 }

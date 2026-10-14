@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
@@ -276,6 +276,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   );
 
   // Questions typed on Today arrive as ?prompt=…; send each once, then clear it from the URL.
+  const sendHandoffPrompt = useEffectEvent((prompt: string) => send(prompt));
   useEffect(() => {
     if (!handoffPrompt) {
       handledPromptRef.current = null;
@@ -286,8 +287,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     void navigate({ to: "/assistant", search: {}, replace: true });
     if (!enabled) return;
     if (runningId) setInput(handoffPrompt);
-    else void send(handoffPrompt);
-  }, [handoffPrompt, settings]);
+    else void sendHandoffPrompt(handoffPrompt);
+  }, [enabled, handoffPrompt, navigate, runningId, settings]);
 
   function patchMessage(id: string, update: (message: AssistantMessage) => AssistantMessage) {
     setMessages((previous) =>
@@ -461,6 +462,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
 
   // Auto permission: add every proposed item once the reply has settled.
   const autoAddRef = useRef<string | null>(null);
+  const addProposedAction = useEffectEvent((id: string, index: number) => addAction(id, index));
   useEffect(() => {
     const id = autoAddRef.current;
     if (!id || runningId) return;
@@ -469,7 +471,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     autoAddRef.current = null;
     void (async () => {
       for (let index = 0; index < message.actions.length; index++) {
-        if (!message.actions[index].added) await addAction(id, index);
+        if (!message.actions[index].added) await addProposedAction(id, index);
       }
     })();
   }, [messages, runningId]);

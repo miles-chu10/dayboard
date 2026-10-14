@@ -88,6 +88,21 @@ export class OAuthTokenStateChangedError extends Error {
   }
 }
 
+/**
+ * The provider refused the refresh with an OAuth `error` code (null when no refresh token is
+ * stored). Callers decide from `code` whether a new sign-in can help. Network failures and
+ * provider outages throw ordinary errors instead.
+ */
+export class OAuthRefreshRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "OAuthRefreshRejectedError";
+  }
+}
+
 export class OAuthService {
   private readonly options: OAuthServiceOptions;
   private readonly fetchImpl: typeof fetch;
@@ -203,8 +218,9 @@ export class OAuthService {
     if (this.refreshInFlight?.generation === generation) return this.refreshInFlight.promise;
     const run = async (): Promise<OAuthTokens> => {
       if (!current.refreshToken) {
-        throw new Error(
+        throw new OAuthRefreshRejectedError(
           `Token for provider "${this.options.providerId}" expired and no refresh token is available. Sign in again.`,
+          null,
         );
       }
       const body = new URLSearchParams({
@@ -231,11 +247,17 @@ export class OAuthService {
         );
       }
       if (!response.ok || !parsed.access_token) {
-        throw new Error(
-          `Token refresh for provider "${this.options.providerId}" failed: ${
-            parsed.error_description ?? parsed.error ?? `HTTP ${response.status}`
-          }`,
-        );
+        // OAuth reports a refused grant or client as 400/401 with an `error` code; anything
+        // else (429, 5xx, a missing token) may succeed on a later attempt.
+        const message = `Token refresh for provider "${this.options.providerId}" failed: ${
+          parsed.error_description ?? parsed.error ?? `HTTP ${response.status}`
+        }`;
+        if (
+          (response.status === 400 || response.status === 401) &&
+          typeof parsed.error === "string"
+        )
+          throw new OAuthRefreshRejectedError(message, parsed.error);
+        throw new Error(message);
       }
       const next: OAuthTokensInput = {
         accessToken: parsed.access_token,
