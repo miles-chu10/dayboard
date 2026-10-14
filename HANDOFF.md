@@ -12,6 +12,10 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   packaging that enforces the Google configuration through final macOS packaging (PR #33), the
   macOS shell, sidebar and responsive inspector refinement (PR #34), billing tooling updates
   (PR #22) and the website Road Map (PR #36). `package.json` still reads `1.3.0-beta.11`.
+- PR #37 also carries the offline Google refresh fix (only a refused grant signs out) and the
+  recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
+  effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
+  `npm test` skips it).
 - Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
   `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`

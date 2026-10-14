@@ -19,7 +19,19 @@ since then. It is a draft until the build is made and verified on an Apple Silic
   keyboard, and focus returns to the item you opened it from. Compact Calendar titles stay
   readable, and Calendar controls stay visible above the selected week.
 
+## Fixes
+
+- **Going offline no longer signs you out of Google.** If DayBoard renews its Google access while
+  the Mac is offline or Google's sign-in service is failing, it now shows a connection error with
+  Retry and keeps you signed in. Only a sign-in Google has actually revoked or expired asks you
+  to sign in again.
+- **Assistant handoffs and auto-added items run once.** A question typed on Today is sent once, and
+  auto-added proposals are created once, even as the view re-renders.
+
 ## Under the hood
+
+- Stable builds stay on the stable update channel even when their version carries build metadata
+  with a hyphen (for example `1.3.0+build-local`). In-app updates remain disabled in this beta.
 
 - Beta packaging enforces the Google configuration from `package:preview` through the final
   DMG and ZIP, and the artifact verifier checks it inside the app, ZIP and mounted DMG.
