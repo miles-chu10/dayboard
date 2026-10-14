@@ -7,6 +7,7 @@ import { OAuthService } from "@glaze/core/oauth";
 import type { GoogleAccountStatus } from "../shared-types.js";
 import { GOOGLE_APP_CLIENT_ID, GOOGLE_APP_CLIENT_SECRET } from "./google-oauth-app-client.js";
 import { authorizeGoogleWithLoopback } from "./google-loopback-oauth.js";
+import { GOOGLE_TOKEN_URL, googleOAuthFetch, googleTokenFailure } from "./google-oauth-errors.js";
 
 export const GOOGLE_REDIRECT_URI = "https://www.glaze.app/api/oauth/callback";
 
@@ -164,9 +165,10 @@ function getService(client: GoogleClient): OAuthService {
     clientId: client.clientId,
     clientSecret: client.clientSecret,
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenUrl: "https://oauth2.googleapis.com/token",
+    tokenUrl: GOOGLE_TOKEN_URL,
     scopes: SCOPES,
     extraAuthorizationParameters: AUTHORIZATION_PARAMETERS,
+    fetch: googleOAuthFetch,
   });
   service = { key, instance };
   return instance;
@@ -306,13 +308,27 @@ export async function getGoogleAccessToken(): Promise<string> {
     throw new GoogleAuthError("needs-setup", "Google sign-in isn't configured in this build.");
   }
   const oauth = getService(client);
-  if (!(await oauth.getTokens())) {
+  const tokens = await oauth.getTokens();
+  if (!tokens) {
     throw new GoogleAuthError("not-connected", "Google account is not connected.");
+  }
+  if (tokens.isExpired() && !tokens.refreshToken) {
+    throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
   }
   try {
     return await oauth.getAccessToken();
   } catch (error) {
-    logger.warn("google-auth", "Google token refresh failed", error);
-    throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
+    const failure = googleTokenFailure(error);
+    logger.warn("google-auth", "Google token refresh failed", failure);
+    if (failure.kind === "reauthentication") {
+      throw new GoogleAuthError(
+        "not-connected",
+        "Google rejected your stored sign-in. Sign in again.",
+      );
+    }
+    if (failure.kind === "configuration") {
+      throw new Error("Google rejected the app sign-in configuration. Try again after an update.");
+    }
+    throw new Error("Could not refresh your Google session. Check your connection and try again.");
   }
 }

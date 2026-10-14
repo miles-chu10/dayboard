@@ -14,7 +14,6 @@ import {
   SidebarFooter,
   SidebarList,
   SidebarListGroup,
-  SidebarListItem,
   Text,
 } from "@glaze/core/components";
 import { cn } from "@glaze/core/utils";
@@ -33,6 +32,7 @@ import { buildTodos } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import { useOpenCapture } from "./capture-dialog";
 import { EventDetail } from "./event-detail";
+import { DayBoardSidebarCount, DayBoardSidebarItem } from "./dayboard-sidebar-item";
 import {
   McpServersDialog,
   useAssistantMcpCheck,
@@ -182,14 +182,14 @@ export function AppSidebar() {
   }
 
   function navIcon(id: MainNavId) {
-    if (id === "agenda") return <CalendarDays className="size-4" />;
+    if (id === "agenda") return <CalendarDays className="size-[18px] [stroke-width:1.75]" />;
     if (id === "mail") {
       return (
-        <GmailLogo className={cn("size-4", COLOR_CLASS[sourceColor(settings, "mail")].text)} />
+        <GmailLogo className={cn("size-[18px]", COLOR_CLASS[sourceColor(settings, "mail")].text)} />
       );
     }
     const Icon = SOURCE_META[id].icon;
-    return <Icon className={cn("size-4", COLOR_CLASS[sourceColor(settings, id)].text)} />;
+    return <Icon className={cn("size-[18px]", COLOR_CLASS[sourceColor(settings, id)].text)} />;
   }
 
   function navSelected(id: MainNavId, route: string): boolean {
@@ -205,15 +205,23 @@ export function AppSidebar() {
   function navAccessory(id: MainNavId) {
     if (id === "agenda") {
       return agendaLate ? (
-        <span className="text-support-red tabular-nums" title={plural(agendaLate, "overdue item")}>
-          {agendaLate}
-        </span>
+        <DayBoardSidebarCount
+          count={agendaLate}
+          label={plural(agendaLate, "overdue item")}
+          overdue
+        />
       ) : agendaDue ? (
-        String(agendaDue)
+        <DayBoardSidebarCount count={agendaDue} label={`${plural(agendaDue, "item")} due today`} />
       ) : undefined;
     }
     const count = counts[id];
-    return count ? String(count) : undefined;
+    const label =
+      id === "mail"
+        ? plural(count, "unread message")
+        : id === "calendar"
+          ? `${plural(count, "event")} left today`
+          : plural(count, id === "tasks" ? "open task" : "open reminder");
+    return count ? <DayBoardSidebarCount count={count} label={label} /> : undefined;
   }
 
   return (
@@ -350,9 +358,10 @@ export function AppSidebar() {
     >
       <SidebarList>
         {MAIN_NAV.filter((item) => navVisible(item.id)).map((item) => (
-          <SidebarListItem
+          <DayBoardSidebarItem
             key={item.id}
             icon={navIcon(item.id)}
+            sourceColor={item.id === "agenda" ? undefined : sourceColor(settings, item.id)}
             title={item.title}
             subtitle={navSubtitle(item.id)}
             accessory={navAccessory(item.id)}
@@ -364,8 +373,8 @@ export function AppSidebar() {
           <div className="my-[var(--density-section-gap)]">
             <SidebarListGroup title="AI">
               {showAssistant ? (
-                <SidebarListItem
-                  icon={<ProviderMark provider={provider} className="size-4" />}
+                <DayBoardSidebarItem
+                  icon={<ProviderMark provider={provider} className="size-[18px]" />}
                   title="Assistant"
                   subtitle={
                     provider === "glaze"
@@ -377,16 +386,16 @@ export function AppSidebar() {
                 />
               ) : null}
               {showReview ? (
-                <SidebarListItem
-                  icon={<CalendarCheck2 className="size-4" />}
+                <DayBoardSidebarItem
+                  icon={<CalendarCheck2 className="size-[18px] [stroke-width:1.75]" />}
                   title="Weekly Review"
                   selected={pathname === "/review"}
                   onClick={() => void navigate({ to: "/review" })}
                 />
               ) : null}
               {showAssistant ? (
-                <SidebarListItem
-                  icon={<Server className="size-4" />}
+                <DayBoardSidebarItem
+                  icon={<Server className="size-[18px] [stroke-width:1.75]" />}
                   title="MCP Servers"
                   subtitle={
                     !mcpCount

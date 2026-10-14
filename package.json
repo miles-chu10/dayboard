@@ -37,7 +37,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1",
-    "zod": "^4.6.5"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
@@ -55,7 +55,7 @@
     "eslint": "^9.39.2",
     "eslint-plugin-import": "^2.31.0",
     "globals": "^17.3.0",
-    "oxfmt": "^0.26.0",
+    "oxfmt": "0.73.0",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.20.5",
     "typescript": "^5.5.3",
@@ -93,6 +93,6 @@
     "host": {
       "minVersion": "0.14.3.0"
     },
-    "updatedAt": 1791559771462
+    "updatedAt": 1791559938703
   }
 }
