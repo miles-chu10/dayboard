@@ -452,7 +452,9 @@ test("a refused grant is a rejection; outages and network failures are not", asy
     await service.setTokens({ accessToken: "at-1", refreshToken: "rt-1", expiresIn: -10 });
     await assert.rejects(
       service.getAccessToken(),
-      (error) => error instanceof OAuthRefreshRejectedError === rejected,
+      (error) =>
+        error instanceof OAuthRefreshRejectedError === rejected &&
+        (!rejected || error.code === name),
       name,
     );
     // A failed refresh never discards the stored grant.
@@ -461,7 +463,10 @@ test("a refused grant is a rejection; outages and network failures are not", asy
 
   const missing = new OAuthService(baseOptions(), { store: memoryStore() });
   await missing.setTokens({ accessToken: "at-1", expiresIn: -10 });
-  await assert.rejects(missing.getAccessToken(), OAuthRefreshRejectedError);
+  await assert.rejects(
+    missing.getAccessToken(),
+    (error) => error instanceof OAuthRefreshRejectedError && error.code === null,
+  );
 });
 
 test("getAccessToken fails when there are no stored tokens at all", async () => {
