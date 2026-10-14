@@ -2,7 +2,11 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { app, logger } from "../platform/index.js";
-import { OAuthService, OAuthTokenStateChangedError } from "../platform/index.js";
+import {
+  OAuthRefreshRejectedError,
+  OAuthService,
+  OAuthTokenStateChangedError,
+} from "../platform/index.js";
 
 import type { GoogleAccountStatus } from "../shared-types.js";
 import { GOOGLE_APP_CLIENT_ID, GOOGLE_APP_CLIENT_SECRET } from "./google-oauth-app-client.js";
@@ -187,6 +191,11 @@ export async function getGoogleAccessToken(): Promise<string> {
     if (error instanceof OAuthTokenStateChangedError)
       throw new Error("Your Google account changed during this request. Try again.");
     logger.warn("google-auth", "Google token refresh failed", error);
-    throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
+    if (error instanceof OAuthRefreshRejectedError)
+      throw new GoogleAuthError("not-connected", "Google session expired. Sign in again.");
+    // Offline or a Google outage: keep the account connected so cached items stay visible.
+    throw new Error("Couldn't reach Google to renew your sign-in. Check your connection.", {
+      cause: error,
+    });
   }
 }

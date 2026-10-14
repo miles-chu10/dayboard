@@ -421,6 +421,49 @@ test("getAccessToken fails clearly when the provider rejects the refresh", async
   await assert.rejects(service.getAccessToken(), /Token has been revoked\./);
 });
 
+test("a refused grant is a rejection; outages and network failures are not", async () => {
+  const { OAuthService, OAuthRefreshRejectedError } = await loadOAuthService();
+  for (const [name, respond, rejected] of [
+    ["invalid_grant", () => jsonResponse(400, { error: "invalid_grant" }), true],
+    ["invalid_client", () => jsonResponse(401, { error: "invalid_client" }), true],
+    ["rate limit", () => jsonResponse(429, { error: "rate_limit_exceeded" }), false],
+    ["server error", () => jsonResponse(503, {}), false],
+    [
+      "unparseable body",
+      () => ({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      }),
+      false,
+    ],
+    [
+      "network failure",
+      () => {
+        throw new TypeError("fetch failed");
+      },
+      false,
+    ],
+  ]) {
+    const store = memoryStore();
+    const service = new OAuthService(baseOptions(), { store, fetchImpl: fakeFetch(respond) });
+    await service.setTokens({ accessToken: "at-1", refreshToken: "rt-1", expiresIn: -10 });
+    await assert.rejects(
+      service.getAccessToken(),
+      (error) => error instanceof OAuthRefreshRejectedError === rejected,
+      name,
+    );
+    // A failed refresh never discards the stored grant.
+    assert.equal((await service.getTokens()).refreshToken, "rt-1", name);
+  }
+
+  const missing = new OAuthService(baseOptions(), { store: memoryStore() });
+  await missing.setTokens({ accessToken: "at-1", expiresIn: -10 });
+  await assert.rejects(missing.getAccessToken(), OAuthRefreshRejectedError);
+});
+
 test("getAccessToken fails when there are no stored tokens at all", async () => {
   const { OAuthService } = await loadOAuthService();
   const service = new OAuthService(baseOptions(), { store: memoryStore() });
