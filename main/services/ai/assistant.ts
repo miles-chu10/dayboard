@@ -4,7 +4,8 @@ import {
   type RequestUsage,
   type TokenUsage,
 } from "../../../shared/ai-usage.js";
-import { apiPromptOptions, withCurrentSnapshot } from "./prompt-cache.js";
+import { oneLine } from "../../../shared/ai-snapshot.js";
+import { apiPromptOptions, insertIntoSnapshot, withCurrentSnapshot } from "./prompt-cache.js";
 import { stepCountIs, streamText, tool } from "ai";
 
 import { logger } from "../../platform/index.js";
@@ -21,6 +22,7 @@ import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-opt
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { resolveConfiguredProvider } from "./provider-resolution.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
+import { asError } from "./stream-error.js";
 
 const ASSISTANT_TIMEOUT_MS = 5 * 60_000;
 
@@ -48,12 +50,18 @@ function transcript(messages: AssistantMessageInput[]): string {
   return `${lines.length ? `Conversation so far:\n${lines.join("\n\n")}\n\n` : ""}User's latest message:\n${latest?.content ?? ""}`;
 }
 
-function mcpNote(session: McpSession | null, cliServers: number): string {
-  if (session?.errors.length)
-    return `\n\nSome MCP servers could not be reached: ${session.errors.join("; ")}`;
-  if (session?.tools.length || cliServers)
-    return "\n\nMCP tools are connected; use them when they help.";
-  return "";
+const MCP_HINT = "MCP tools are connected; use them when they help.";
+
+/** MCP errors quote remote servers, so they are untrusted text inside the snapshot block. */
+function mcpErrorSection(errors: string[]): string {
+  return `## MCP servers\nCould not be reached (text reported by the servers): ${errors.map(oneLine).join("; ")}`;
+}
+
+/** The snapshot for an API request, with the MCP status folded in. */
+function apiSnapshot(snapshot: string | undefined, session: McpSession | null): string | undefined {
+  if (session?.errors.length) return insertIntoSnapshot(snapshot, mcpErrorSection(session.errors));
+  if (session?.tools.length) return [snapshot, MCP_HINT].filter(Boolean).join("\n\n");
+  return snapshot;
 }
 
 export async function runAssistant(
@@ -71,7 +79,6 @@ export async function runAssistant(
     if (!signal.aborted) send({ type: "delta", text });
     return { text };
   }
-  const startedAt = Date.now();
   const settings = await getSettings();
   if (!settings.ai.enabled || !settings.ai.providerChosen) return { blocked: "not-configured" };
   const provider = await resolveConfiguredProvider(
@@ -96,7 +103,8 @@ export async function runAssistant(
   const messages = withCurrentSnapshot(params.messages, params.snapshot);
   let requestUsage: RequestUsage | undefined;
   let resolvedModelId: string | null = null;
-  const reportUsage = (usage: CliUsage) => {
+  // Each route starts its clock immediately before the provider call, so setup work is not counted.
+  const reportUsage = (usage: CliUsage, startedAt: number) => {
     requestUsage = {
       ...tokenUsage(usage),
       modelId: resolvedModelId,
@@ -128,16 +136,17 @@ export async function runAssistant(
     provider === "gemini" ||
     provider === "muse"
   ) {
+    const startedAt = Date.now();
     const text = await runCliCompletion({
       provider,
-      system: system + mcpNote(null, servers.length),
+      system: system + (servers.length ? `\n\n${MCP_HINT}` : ""),
       codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
         resolvedModelId = id;
         send({ type: "meta", model: { ...model, id } });
       },
-      onUsage: reportUsage,
+      onUsage: (usage) => reportUsage(usage, startedAt),
       prompt: transcript(messages),
       mcpServers: servers,
       signal,
@@ -167,16 +176,15 @@ export async function runAssistant(
     // The CLI branch above returns first, so reaching here means an API-key provider.
     if (!apiModel || !isApiProvider(provider))
       throw new Error(`No model available for ${provider}.`);
+    const languageModel = await apiLanguageModel(provider, apiModel.id);
+    const startedAt = Date.now();
     const result = streamText({
-      model: await apiLanguageModel(provider, apiModel.id),
+      model: languageModel,
       ...apiPromptOptions(
         provider,
         apiModel?.id ?? "",
         system,
-        withCurrentSnapshot(
-          params.messages,
-          [params.snapshot, mcpNote(session, 0)].filter(Boolean).join("\n\n"),
-        ),
+        withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
         "implicit",
       ),
       tools,
@@ -226,14 +234,14 @@ export async function runAssistant(
           send({ type: "tool", id: part.toolCallId ?? "", status: "error" });
           break;
         case "finish-step":
-          if (part.usage) steps.push(tokenUsage(part.usage, provider));
+          steps.push(tokenUsage(part.usage ?? {}, provider));
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
           break;
         case "finish":
-          reportUsage(aggregateStepUsage(steps));
+          reportUsage(aggregateStepUsage(steps), startedAt);
           break;
         case "error":
-          throw part.error instanceof Error ? part.error : new Error(String(part.error));
+          throw asError(part.error);
       }
     }
     return { text, usage: requestUsage };

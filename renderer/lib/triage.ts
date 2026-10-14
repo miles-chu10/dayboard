@@ -4,16 +4,9 @@ import type { MailItem } from "@main/shared-types";
 import { extractJSON, useAITask } from "./ai";
 import { TRIAGE_SYSTEM, buildTriagePrompt } from "./ai-prompts";
 import { readStored, writeStored } from "./storage";
+import type { TriageCategory, TriageMap, TriageResult } from "./triage-types";
 
-export type TriageCategory = "needs-reply" | "fyi" | "ignore";
-
-export interface TriageResult {
-  category: TriageCategory;
-  reason: string;
-  task: string;
-}
-
-export type TriageMap = Record<string, TriageResult>;
+export type { TriageCategory, TriageMap, TriageResult };
 
 export const TRIAGE_LABEL: Record<
   TriageCategory,

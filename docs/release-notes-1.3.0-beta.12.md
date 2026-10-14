@@ -35,6 +35,15 @@ since then. It is a draft until the build is made and verified on an Apple Silic
 - Beta packaging enforces the Google configuration from `package:preview` through the final
   DMG and ZIP, and the artifact verifier checks it inside the app, ZIP and mounted DMG.
 - Billing service tooling dependencies were updated (not shipped in the Mac app).
+- Hardening synced from the Glaze build:
+  - The Assistant now keeps every email, event, task and account field on one line of its
+    data snapshot, and puts MCP server errors inside that snapshot. Text from those sources
+    can no longer pose as the end of the snapshot.
+  - The direct Anthropic route ignores an inherited `ANTHROPIC_BASE_URL`, so your API key only
+    goes to Anthropic.
+  - Token totals read as unknown when a step reports no usage, and cancelled requests record
+    no usage. Request durations now exclude app setup.
+  - A provider error that arrives mid-reply now shows its message.
 
 ## Install and limits
 
