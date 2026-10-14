@@ -20,9 +20,11 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   patches 01, 02 and 03. All 53 files match the packet's hashes. Its shared fixes are ported into
   PR #37: Glaze's three-way Google refresh classification, one-line snapshot fields with MCP
   errors kept inside the snapshot, the pinned Anthropic base URL, usage accounting, the
-  mid-stream error message, and queued settings reads. The remote `glaze` branch stays at
-  1.2.2 until Miles approves pushing the rebuild. Standalone fixes still worth porting to Glaze:
-  `useId` field labels in the item editor and `accentColors` theming.
+  mid-stream error message, and queued settings reads. The original owner then pushed the
+  preserved history to `glaze` (5bc351e, 1.2.5, same tree as the rebuild); that is the Glaze
+  baseline. Standalone's `accentColors` theming and `useId` field labels are not ported: Glaze's
+  SDK components read only `--accent-contrast`, which Glaze already computes to 3:1, and its
+  inputs already carry `aria-label`s.
 - Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
   `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
