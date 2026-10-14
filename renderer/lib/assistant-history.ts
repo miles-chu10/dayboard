@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AssistantChat,
   AssistantHistory,
@@ -76,7 +76,7 @@ export function useAssistantHistory(initial: AssistantHistory, demo: boolean) {
   const saveTail = useRef<Promise<void>>(Promise.resolve());
   const transitioning = useRef(false);
 
-  function flush(): Promise<void> {
+  const flush = useCallback((): Promise<void> => {
     const current = chatRef.current;
     const version = revision.current;
     if (!current.messages.length || version <= savedRevision.current) return saveTail.current;
@@ -106,7 +106,7 @@ export function useAssistantHistory(initial: AssistantHistory, demo: boolean) {
       });
     saveTail.current = pending;
     return pending;
-  }
+  }, [initial.scope]);
 
   function setMessages(
     update: AssistantMessage[] | ((previous: AssistantMessage[]) => AssistantMessage[]),
@@ -137,7 +137,7 @@ export function useAssistantHistory(initial: AssistantHistory, demo: boolean) {
       alive.current = false;
       void flush().catch(() => undefined);
     };
-  }, []);
+  }, [demo, flush, initial.chats.length]);
 
   async function selectChat(id: string | null) {
     if (transitioning.current) return false;
