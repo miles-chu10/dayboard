@@ -16,21 +16,21 @@ After this change Miles can press ⌃⌥Space over any app, including a full-scr
 
 ## Progress
 
-- [ ] Task 1: Baseline, plan files and TASKS.md
-- [ ] Task 2: Per-window IPC allow-list
-- [ ] Task 3: Accelerator utilities and macOS shortcut conflict mapping
-- [ ] Task 4: `system` settings section and in-process settings events
-- [ ] Task 5: Panel placement
-- [ ] Task 6: Panel window layer, hotkey manager, menu items and Settings UI
-- [ ] Task 7: Shared capture logic and AI completion runner
-- [ ] Task 8: Capture pipeline in main with Undo
-- [ ] Task 9: Quick Capture panel UI
-- [ ] Task 10: Menu-bar icon and menu-bar panel
-- [ ] Task 11: Meeting logic and calendar fields
-- [ ] Task 12: Up Next card and Meetings settings
-- [ ] Task 13: Meeting notifications
-- [ ] Task 14: Granola notes import and follow-ups
-- [ ] Task 15: Porting doc, fuse proposal, handoff
+- [x] Task 1: Baseline, plan files and TASKS.md
+- [x] Task 2: Per-window IPC allow-list
+- [x] Task 3: Accelerator utilities and macOS shortcut conflict mapping
+- [x] Task 4: `system` settings section and in-process settings events
+- [x] Task 5: Panel placement
+- [x] Task 6: Panel window layer, hotkey manager, menu items and Settings UI
+- [x] Task 7: Shared capture logic and AI completion runner
+- [x] Task 8: Capture pipeline in main with Undo
+- [x] Task 9: Quick Capture panel UI
+- [x] Task 10: Menu-bar icon and menu-bar panel
+- [x] Task 11: Meeting logic and calendar fields
+- [x] Task 12: Up Next card and Meetings settings
+- [x] Task 13: Meeting notifications
+- [x] Task 14: Granola notes import and follow-ups
+- [x] Task 15: Porting doc, fuse proposal, handoff
 - [ ] Task 16: Full verification, packaged build, manual acceptance, REA check
 
 ## Surprises & Discoveries
@@ -49,7 +49,17 @@ After this change Miles can press ⌃⌥Space over any app, including a full-scr
 
 ## Outcomes & Retrospective
 
-(Fill in at each milestone: what shipped, what was verified with which command output, what remains.)
+- 2026-10-20, Tasks 1–15 shipped on `claude/system-panels-bb42de` (draft PR #44). Verification at `c316117`:
+  `npm run typecheck`, `npm run lint`, `npm run format:check` exit 0; `npm test` 59/59 renderer +
+  510/510 backend; `npm run test:e2e` 36 passed; `npm run package:preview` built the ad-hoc DMG/ZIP.
+- REA on the packaged `app.asar`: 3 BrowserWindows (main, settings, panel); one `contextBridge` API
+  (`window.dayboard`, 4 members, unchanged); all 16 new IPC channels present; panel `type: "panel"`
+  at the `"floating"` level; allow-list rejection text present. Verification found the tray images
+  missing from `app.asar` (electron-vite does not emit `?asset` files under `resources/`); fixed and
+  pinned by `tests/main-assets.test.mjs`.
+- Task 16 manual native acceptance (hotkey over full-screen apps, focus return, tray placement,
+  conflict message, switches, notification delivery) did not run: computer-use access was declined.
+  It is listed for Miles in PR #44.
 
 ## Context and Orientation
 
