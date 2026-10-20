@@ -447,3 +447,28 @@ test("a staged update the system rejects cannot be installed", async () => {
   assert.equal(item.updater.calls.install, 0);
   assert.equal((await item.service.check()).phase, "available");
 });
+
+test("restart stays unavailable until Squirrel.Mac has staged the download", async () => {
+  const staging = deferred();
+  const item = fixture();
+  await item.service.check();
+  item.updater.downloadUpdate = async function () {
+    this.calls.download++;
+    this.emit("update-downloaded", { version: this.version });
+    await staging.promise;
+    return [];
+  };
+  const download = item.service.download();
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(item.service.status().phase, "downloading");
+    assert.equal((await item.service.install()).phase, "downloading");
+    assert.equal(item.updater.calls.install, 0);
+  } finally {
+    // Settling the download clears its timeout, so a failure here cannot hang the run.
+    staging.resolve();
+  }
+  assert.equal((await download).phase, "downloaded");
+  assert.equal((await item.service.install()).phase, "installing");
+  assert.equal(item.updater.calls.install, 1);
+});

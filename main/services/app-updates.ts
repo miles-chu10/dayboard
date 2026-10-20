@@ -129,11 +129,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
           updater.on("update-downloaded", (info: { version: string }) => {
             if (state.phase !== "downloading" || info.version !== state.availableVersion) return;
             downloadedEvent = true;
-            publish({
-              phase: "downloaded",
-              progressPercent: 100,
-              message: `DayBoard ${info.version} is ready. It installs when you restart or quit DayBoard.`,
-            });
+            publish({ progressPercent: 100 });
           });
           updater.on("error", (error: Error) => {
             if (state.phase === "preparing" || state.phase === "installing") {
@@ -251,8 +247,13 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     return run("downloading", options.downloadTimeoutMs ?? 10 * 60_000, async () => {
       const updater = await client();
       await updater.downloadUpdate();
-      if (state.phase === "error") return;
+      if (state.phase !== "downloading") return;
       if (!downloadedEvent) throw new Error("The updater did not verify a completed download.");
+      // On macOS the download settles only once Squirrel.Mac holds the update, so restart can work.
+      publish({
+        phase: "downloaded",
+        message: `DayBoard ${state.availableVersion} is ready. It installs when you restart or quit DayBoard.`,
+      });
     });
   }
 
