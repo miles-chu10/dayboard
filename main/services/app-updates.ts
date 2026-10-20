@@ -59,6 +59,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
   let inFlight: Promise<AppUpdateState> | null = null;
   let installPromise: Promise<AppUpdateState> | null = null;
   let operation = 0;
+  let timedOut = 0;
   let downloadedEvent = false;
   let checkEvent: "available" | "up-to-date" | null = null;
 
@@ -103,6 +104,14 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     }
   }
 
+  /** A download can finish after its timeout, and Squirrel.Mac would still install it on quit. */
+  function downloadPending(): boolean {
+    return (
+      state.phase === "downloading" ||
+      (state.phase === "error" && timedOut === operation && inFlight !== null)
+    );
+  }
+
   async function client(): Promise<UpdateClient> {
     if (!clientPromise) {
       clientPromise = options
@@ -127,9 +136,9 @@ export function createAppUpdates(options: AppUpdatesOptions) {
             publish({ progressPercent: boundedPercent(info.percent) });
           });
           updater.on("update-downloaded", (info: { version: string }) => {
-            if (state.phase !== "downloading" || info.version !== state.availableVersion) return;
+            if (!downloadPending() || info.version !== state.availableVersion) return;
             downloadedEvent = true;
-            publish({ progressPercent: 100 });
+            if (state.phase === "downloading") publish({ progressPercent: 100 });
           });
           updater.on("error", (error: Error) => {
             if (state.phase === "preparing" || state.phase === "installing") {
@@ -179,10 +188,10 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const source = task();
     const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(
-        () => reject(new Error("Update operation timed out. Restart DayBoard before retrying.")),
-        timeoutMs,
-      );
+      timer = setTimeout(() => {
+        timedOut = id;
+        reject(new Error("Update operation timed out. Restart DayBoard before retrying."));
+      }, timeoutMs);
     });
     const result = Promise.race([source, timeout])
       .then(() => ({ ...state }))
@@ -247,12 +256,14 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     return run("downloading", options.downloadTimeoutMs ?? 10 * 60_000, async () => {
       const updater = await client();
       await updater.downloadUpdate();
-      if (state.phase !== "downloading") return;
+      if (!downloadPending()) return;
       if (!downloadedEvent) throw new Error("The updater did not verify a completed download.");
       // On macOS the download settles only once Squirrel.Mac holds the update, so restart can work.
       publish({
         phase: "downloaded",
         message: `DayBoard ${state.availableVersion} is ready. It installs when you restart or quit DayBoard.`,
+        progressPercent: 100,
+        error: null,
       });
     });
   }

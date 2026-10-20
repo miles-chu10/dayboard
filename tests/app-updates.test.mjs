@@ -234,6 +234,37 @@ test("concurrent downloads deduplicate and a timed-out download cannot be instal
   await new Promise((resolve) => setImmediate(resolve));
 });
 
+test("a download that finishes after its timeout is offered for restart", async () => {
+  const waiting = deferred();
+  const item = fixture({ downloadTimeoutMs: 5 });
+  await item.service.check();
+  item.updater.downloadUpdate = async function () {
+    this.calls.download++;
+    await waiting.promise;
+    this.emit("update-downloaded", { version: this.version });
+    return [];
+  };
+  assert.match((await item.service.download()).error, /timed out/);
+  waiting.resolve();
+  await until(() => item.service.status().phase === "downloaded");
+  assert.equal(item.service.status().error, null);
+  assert.equal((await item.service.install()).phase, "installing");
+  assert.equal(item.updater.calls.install, 1);
+});
+
+test("a download that fails after its timeout stays failed", async () => {
+  const waiting = deferred();
+  const item = fixture({ downloadTimeoutMs: 5 });
+  await item.service.check();
+  item.updater.downloadOutcome = waiting.promise;
+  assert.match((await item.service.download()).error, /timed out/);
+  waiting.reject(new Error("Squirrel.Mac rejected the update"));
+  await sleep(10);
+  assert.equal(item.service.status().phase, "error");
+  assert.equal((await item.service.install()).phase, "error");
+  assert.equal(item.updater.calls.install, 0);
+});
+
 test("download reports progress and requires its completion event", async () => {
   const item = fixture();
   assert.equal((await item.service.download()).phase, "idle");

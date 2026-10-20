@@ -191,6 +191,7 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 6. Verify the intended merchant in test mode: checkout, receipt/key, activation, deactivation, refund/revocation and offline behavior. Never charge a real customer as a test.
 7. Sign nested code and the application with the approved Developer ID, notarize, staple and assess the final artifact with Gatekeeper. Do not remove quarantine or advise users to disable security protections.
 8. Install the signed prior version in a disposable test environment, let it find and download the new release automatically, restart to update, and verify the version, saved preferences and account continuity after restart. Unit updater fakes do not prove Apple's actual update installation.
+9. Before the first tag with automatic updates (`v1.3.0-beta.12`), deploy the website copy that discloses them: `website/privacy.html` must say DayBoard checks GitHub for updates, and `website/docs.html` must say betas update themselves. Until then both pages say betas never contact GitHub or update.
 
 `npm run measure -- --inspect` runs a disposable fictional demo and records launch/idle process measurements. Set `DAYBOARD_E2E_EXECUTABLE` to measure the packaged executable. Summed process working sets may count shared memory more than once; this measurement does not describe real-account workloads.
 
