@@ -18,7 +18,13 @@ import {
   reduceCapturePanel,
   type CaptureRecordView,
 } from "./capture-panel-state";
-import { hidePanel, showPanel, useFitPanelHeight, usePanelShown } from "./panel-ipc";
+import {
+  hidePanel,
+  showPanel,
+  useFitPanelHeight,
+  usePanelEscape,
+  usePanelShown,
+} from "./panel-ipc";
 
 const NONE = { task: false, reminder: false, event: false };
 
@@ -63,6 +69,7 @@ export function CapturePanel() {
     if (settings) dispatch({ type: "shown", aiAvailable, defaultKind });
   }, [settings, aiAvailable, defaultKind]);
 
+  usePanelEscape("capture");
   usePanelShown(() => {
     dispatch({ type: "shown", aiAvailable, defaultKind });
     setFormError(null);
@@ -100,16 +107,7 @@ export function CapturePanel() {
   }
 
   return (
-    <div
-      ref={container}
-      className="flex flex-col gap-2 p-3"
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented) {
-          event.preventDefault();
-          void hidePanel("capture");
-        }
-      }}
-    >
+    <div ref={container} className="flex flex-col gap-2 p-3">
       {state.failures.map((failure) => (
         <Callout
           key={failure.key}

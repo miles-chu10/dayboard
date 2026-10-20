@@ -52,7 +52,7 @@ export function startSystemPanels(): void {
     if (!nativeIntegrationsEnabled()) return;
     if (!enabled) return stopTray();
     startTray({
-      toggleAgenda: () => void togglePanel("menubar"),
+      toggleAgenda: (anchor) => void togglePanel("menubar", anchor),
       openQuickCapture: () => void showPanel("capture"),
       openDayBoard: () => void focusMainWindow(),
       openSettings: () => void openSettingsWindow(),

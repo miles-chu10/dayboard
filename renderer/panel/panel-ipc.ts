@@ -45,3 +45,16 @@ export function usePanelShown(onShown: () => void) {
     return () => window.removeEventListener("focus", listener);
   }, []);
 }
+
+/** Esc hides the panel wherever focus is, including right after it opens with nothing focused. */
+export function usePanelEscape(surface: PanelSurface) {
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      void hidePanel(surface);
+    };
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, [surface]);
+}

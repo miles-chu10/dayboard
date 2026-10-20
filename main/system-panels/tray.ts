@@ -1,11 +1,12 @@
 // The menu-bar icon. Left click toggles the mini Agenda panel; right click shows a short menu.
 
-import { Menu, Tray } from "@glaze/core/backend";
+import { Menu, Tray, type Rectangle } from "@glaze/core/backend";
 
 import { setTrayBoundsProvider } from "./panel-window.js";
 
 export interface TrayActions {
-  toggleAgenda(): void;
+  /** `anchor` is the clicked icon: on several displays `getBounds()` can report another copy. */
+  toggleAgenda(anchor: Rectangle): void;
   openQuickCapture(): void;
   openDayBoard(): void;
   openSettings(): void;
@@ -31,7 +32,7 @@ export function startTray(actions: TrayActions): void {
     { label: "Quit DayBoard", click: actions.quit },
   ]);
   // No setContextMenu: left click opens the custom panel, so the menu is shown on right click only.
-  created.on("click", actions.toggleAgenda);
+  created.on("click", (_event, bounds) => actions.toggleAgenda(bounds));
   created.on("right-click", () => created.popUpContextMenu(menu));
   setTrayBoundsProvider(async () => (created.isDestroyed() ? null : await created.getBounds()));
 }
