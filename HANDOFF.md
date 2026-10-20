@@ -65,6 +65,8 @@ Lifecycle changes for release-owner review (the updater's quit/install path is u
   service and `runtime-activity` are untouched. Check for Updates stays in the app menu.
 - Meeting alerts hold one `setTimeout` and, only while on, a refresh `setInterval`.
 
+Acceptance correction (2026-10-20): the stale QA preview launched at 07:19:27 PDT (14:19:27 UTC; shell PID 81215, app PID 81216; `DAYBOARD_DEMO=1`, scratchpad `demo-profile`, built from `c316117`) was reported stopped at about 07:21 but kept running: the stop command matched an absolute path while the app had been launched with a relative one. It ran until it was stopped by PID with SIGTERM at about 07:47 PDT; its launch task exited with code 0, and a check at 14:48:08 UTC found no QA preview processes. While it ran it likely held ⌃⌥Space and showed a menu-bar icon. No canonical or user-launched DayBoard was touched. Use the fresh `cf890ac` preview package and a new empty demo profile for acceptance.
+
 PR #42 overlap: this branch moved the `ai:run` body into `main/services/ai/completion.ts`. PR #42
 changes that body (effort provider options on the API path, explicit Codex default model on the
 CLI path). Whichever merges second must carry both into `runCompletion` and add a wiring test that
