@@ -55,6 +55,8 @@ jobs:
       - name: Build, sign and notarize
         env:
           DAYBOARD_RELEASE: "1"
+          # Free release with in-app updates until DayBoard has a price; remove to require live licensing.
+          DAYBOARD_LICENSE: "off"
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
           CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}

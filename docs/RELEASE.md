@@ -7,12 +7,13 @@
 - `npm run package:test`: create an ad-hoc-signed test `.app` with no OAuth/merchant configuration.
 - `npm run package:beta` (also `npm run package:preview`): rebuild with `build:beta`, then create and verify the ad-hoc-signed beta app, DMG and ZIP. Missing/invalid Google configuration fails the build; licensing and in-app updates stay disabled. No publishing occurs.
 - `npm run dist`: require commercial-release configuration, build the DMG and ZIP, and keep publishing disabled. Signing and notarization are a separate verified step before public distribution.
-- `DAYBOARD_LICENSE=off npm run build`: community build. Strict release packaging rejects this mode.
+- `DAYBOARD_LICENSE=off npm run build`: community build. Adding `DAYBOARD_RELEASE=1` (as in `DAYBOARD_LICENSE=off npm run dist`) makes it a free release: in-app updates on, licensing off, and no license-service configuration embedded even if those variables are set.
 - `npm run build:beta`: Google-enabled community beta. It uses the existing Desktop OAuth client and fails if that configuration is missing or invalid; test mode is rejected.
 - `npm run test:packaging`: macOS-only integration coverage for that exact packaging path, with a synthetic client. It copies tracked working-tree source and installed dependencies into a temporary workspace, builds there and deletes the workspace on success or failure. Existing `out/`, `release/` and `resources/bin/` are checked for changes. Stage new source files before this test; ignored local configuration is not copied. Fixture artifacts must never be distributed.
 
 Beta packaging is self-contained; no earlier `build:beta` invocation or inherited flags are
-needed. It rejects test/release mode conflicts. A non-sensitive build proof records successful
+needed. It rejects test mode and release mode, because local beta packages are ad-hoc signed
+and cannot update. A non-sensitive build proof records successful
 Google injection and the effective licensing/update/test definitions, bound to hashes of the
 emitted main-process code. Packaging verifies it from `app.asar` before creating archives,
 then extracts the ZIP and mounts the DMG read-only to verify their signatures, configuration
@@ -101,17 +102,31 @@ Every build generates third-party notices from installed production dependencies
 ## Signed community beta
 
 From `1.3.0-beta.12`, Miles has a paid Apple Developer Program membership and asked for
-notarized betas. The manual **Signed macOS beta** workflow (`.github/workflows/macos-beta.yml`)
-runs only from `main` and only for an `x.y.z-beta.n` version. It runs the repository checks,
-builds with `npm run build:beta` (Google required; licensing and in-app updates off), signs with
-Developer ID, notarizes and staples. It then verifies the Developer ID team, hardened runtime,
-stapled ticket and Gatekeeper assessment of the app, the ZIP's app and the mounted DMG's app,
-checks the beta build proof in all three and smoke-tests the signed app with fictional data.
-The DMG, ZIP, blockmaps, `SHA256SUMS.txt` and `release-manifest.json` are uploaded as a workflow
-artifact. Nothing is published, and the release publisher refuses a beta manifest.
+notarized, self-updating betas. Two workflows share the signing setup:
 
-It uses the `macos-release` GitHub environment, which must allow the `main` branch. That
-environment needs:
+- **Signed macOS release** (`.github/workflows/macos-release.yml`) runs when a `v`-prefixed
+  SemVer tag such as `v1.3.0-beta.12` is pushed for a commit on `main` whose `package.json`
+  version matches. Until DayBoard has a price it builds a free release (`DAYBOARD_RELEASE=1`
+  with `DAYBOARD_LICENSE=off`): Google required, in-app updates on, licensing off. It signs,
+  notarizes, staples, verifies and smoke-tests like the dry run below, then publishes the DMG,
+  ZIP, blockmaps, `latest-mac.yml` and `SHA256SUMS.txt` as a GitHub prerelease (never marked
+  latest for a prerelease version). This is how betas are distributed.
+- **Signed macOS beta** (`.github/workflows/macos-beta.yml`) is a manual signing dry run from
+  `main` for an `x.y.z-beta.n` version. It builds with `npm run build:beta` (licensing and
+  in-app updates off), signs with Developer ID, notarizes and staples. It then verifies the
+  Developer ID team, hardened runtime, stapled ticket and Gatekeeper assessment of the app, the
+  ZIP's app and the mounted DMG's app, checks the beta build proof in all three and smoke-tests
+  the signed app with fictional data. The DMG, ZIP, blockmaps, `SHA256SUMS.txt` and
+  `release-manifest.json` are uploaded as a workflow artifact. Nothing is published, and the
+  release publisher refuses a beta manifest.
+
+Pushing a release tag publishes publicly and needs Miles's approval each time. Do not create new
+`beta-<version>` releases: the updater ignores tags that are not SemVer, so only `v`-prefixed
+releases reach installed apps. Beta.11 and earlier cannot update themselves; their users install
+beta.12 once from its DMG, and later betas arrive in the app.
+
+Both use the `macos-release` GitHub environment, which must allow the `main` branch and `v*`
+tags. That environment needs:
 
 | Kind     | Name                           | Value                                                      |
 | -------- | ------------------------------ | ---------------------------------------------------------- |
@@ -123,10 +138,9 @@ environment needs:
 | Secret   | `MACOS_NOTARY_KEY_P8`          | Contents of the App Store Connect `.p8` key                |
 | Secret   | `DAYBOARD_GOOGLE_OAUTH_JSON`   | `{"clientId": …, "clientSecret": …}` of the Desktop client |
 
-The tagged commercial workflow uses the same entries. Distribution stays manual through the
-`beta-<version>` prerelease route after the Mac acceptance checks below. The first Developer ID
-build replaces ad-hoc-signed installs, so verify on an owned installation that Google sign-in and
-the Keychain-held encryption key carry over when the app is replaced in Applications.
+The free release ignores `DAYBOARD_LICENSE_API_URL` and `DAYBOARD_STRIPE_PRODUCT_ID`. The first
+Developer ID build replaces ad-hoc-signed installs, so verify on an owned installation that Google
+sign-in and the Keychain-held encryption key carry over when the app is replaced in Applications.
 
 ## Local installation and QA copies
 
@@ -141,11 +155,11 @@ Trash with an exact path manifest. Preserve source, active worktrees, user data,
 any app/runtime still required by ongoing QA. Coordinate retirement of Glaze separately.
 Keep durable rollback and QA archives as ZIPs so they do not appear as launchable apps.
 
-## Manual updates
+## In-app updates
 
-Official builds embed `DAYBOARD_RELEASE=1`; source, preview and demo builds cannot contact the updater. The DayBoard menu and Settings → Updates let users check, download and install explicitly. Automatic checks, downloads and installation on ordinary quit are disabled. Preparation freezes editing and new IPC/MCP operations, drains existing work and saves, then preserves the updater's own quit sequence. A failed preparation or installation restores normal app use. Publisher verification remains enabled.
+Official builds embed `DAYBOARD_RELEASE=1`; source, preview, local beta and demo builds cannot contact the updater. Official builds check GitHub Releases 30 seconds after launch and every 6 hours, and download any newer version in the background. When a verified download is ready, a **Restart to update** button appears in the main window toolbar, and Settings → Updates shows it too. Otherwise the update installs the next time DayBoard quits normally. Nothing installs while DayBoard is open. The DayBoard menu and Settings → Updates still check on request. Restarting to update freezes editing and new IPC/MCP operations, drains existing work and saves, then preserves the updater's own quit sequence. A failed preparation, installation or system rejection of the staged update restores normal app use. Squirrel.Mac only installs an update signed by the same Developer ID team.
 
-macOS updates require the ZIP payload alongside the DMG. Publish both and the matching `*-mac.yml` update metadata in the same approved GitHub release. Prerelease builds can request prereleases; stable builds do not. Keep existing release assets available for existing users. A signed upgrade from an older installed version remains a mandatory real release test.
+macOS updates require the ZIP payload alongside the DMG. Publish both and the matching `latest-mac.yml` update metadata in the same approved GitHub release; electron-builder writes only `latest-mac.yml` for the GitHub provider, and the updater falls back to it for beta versions. Prerelease builds can request prereleases; stable builds do not. Keep existing release assets available for existing users. A signed upgrade from an older installed version remains a mandatory real release test.
 
 An updater-disabled local build needs an approved initial replacement with an official
 signed build; changing launch-time environment variables cannot enable code removed
@@ -176,18 +190,20 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 5. Verify actual Google sign-in/refresh/sign-out and Reminders permissions with deliberately chosen test data. Fixture success is not evidence of real account operation.
 6. Verify the intended merchant in test mode: checkout, receipt/key, activation, deactivation, refund/revocation and offline behavior. Never charge a real customer as a test.
 7. Sign nested code and the application with the approved Developer ID, notarize, staple and assess the final artifact with Gatekeeper. Do not remove quarantine or advise users to disable security protections.
-8. Install the signed prior version in a disposable test environment, check/download/install the new release, and verify the version, saved preferences and account continuity after restart. Unit updater fakes do not prove Apple's actual update installation.
+8. Install the signed prior version in a disposable test environment, let it find and download the new release automatically, restart to update, and verify the version, saved preferences and account continuity after restart. Unit updater fakes do not prove Apple's actual update installation.
+9. The first tag with automatic updates (`v1.3.0-beta.12`) waits for the website to disclose them. In order: deploy `website/` from main with the stage-1 copy, where the Updates bullet in `privacy.html` says beta 12 and later check GitHub after launch and every few hours, and `docs.html#updates` describes the background download, Restart to update and install on quit, without offering a beta.12 download. Then push the tag and publish the release. Turn on the direct download (stage 2) only after the release is published and Google sign-in is verified for production.
 
 `npm run measure -- --inspect` runs a disposable fictional demo and records launch/idle process measurements. Set `DAYBOARD_E2E_EXECUTABLE` to measure the packaged executable. Summed process working sets may count shared memory more than once; this measurement does not describe real-account workloads.
 
 ## Website and source distribution
 
-The static site is in `website/`. During the beta it collects a waitlist through the billing service's `POST /v1/waitlist` endpoint (`/v1/beta-signup` remains an alias). Invitations with the download link go out by email in small groups, so beta builds are never linked publicly. Its screenshots contain fictional demo data. Add public download and checkout destinations only for the approved release, with the current privacy, support and refund information.
+The static site is in `website/`. From `1.3.0-beta.12`, signed betas are public GitHub prereleases. Once the release is published and Google sign-in is verified for production, getdayboard.com/download redirects to the first-install DMG named by `DOWNLOAD_URL` in `website-worker/worker.js`. Installed copies update themselves, so change that URL only when a later release should be the first install. Its screenshots contain fictional demo data. Add checkout destinations only for the approved release, with the current privacy, support and refund information.
 
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 
 Keep GPL source/build instructions available with the official binary. Distribute versioned DMGs, update ZIPs and matching update metadata through GitHub Releases, linked from the product website. Publish only after source-content review and the external release gates are complete.
 
 The signed workflow runs on `v*` tag pushes and includes publication after verification.
-Do not push a tag merely to obtain a signing test or review artifact. The current workflow also
-requires live license configuration; a different beta policy needs an approved release path.
+Do not push a tag merely to obtain a signing test or review artifact; use the manual beta
+workflow for that. It builds a free release until DayBoard has a price; removing
+`DAYBOARD_LICENSE: "off"` from the workflow makes it require live license configuration.
