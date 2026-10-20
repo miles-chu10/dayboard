@@ -14,7 +14,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 9: Quick Capture panel UI
 - [x] Task 10: Menu-bar icon and menu-bar panel
 - [x] Task 11: Meeting logic and calendar fields
-- [ ] Task 12: Up Next card and Meetings settings
+- [x] Task 12: Up Next card and Meetings settings
 - [ ] Task 13: Meeting notifications
 - [ ] Task 14: Granola notes import and follow-ups
 - [ ] Task 15: Porting doc, fuse proposal, handoff
