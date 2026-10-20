@@ -101,9 +101,14 @@ disposable profile `scratchpad/acceptance-profile`, with Chess as the other app.
 - the switches removing the hotkey, the tray icon and the Up Next card, and turning the hotkey and
   card back on
 
-Failed: the tray panel opens under its icon on 2 of 3 opens. The third landed on the built-in
-display while the ASUS menu-bar icon was clicked: placement uses `tray.getBounds()` at show time,
-not the click event's bounds.
+Failed: the tray panel opened under its icon on 2 of 3 opens. The third landed on the built-in
+display while the icon on the ASUS display was clicked. Electron 44.4.4's `Tray.getBounds()` reads
+the status item view's own window (`[status_item_view_ window].frame`), which can be another
+display's copy. The click event instead carries the frame of the window that was clicked
+(`event.window.frame`).
+
+Fixed in `609350d`: the click bounds now drive placement, with a `tests/tray-anchor.test.mjs`
+regression. It needs native re-acceptance.
 
 Blocked or not run:
 
@@ -116,10 +121,23 @@ Blocked or not run:
 
 Other findings:
 
-- The tray click made DayBoard frontmost on 2 of 3 clicks.
-- Esc doesn't close a freshly opened menu-bar panel until focus is inside it.
-- The first keystrokes after the hotkey were lost on 2 of about 8 opens. This may be the test tool;
-  check it by hand.
+- **Tray click made DayBoard frontmost** on 2 of 3 clicks, in both cases the clicks that opened
+  the panel.
+  - The cause is outside DayBoard's code. Electron 44.4.4's tray click handler activates nothing,
+    and `Show()`/`Focus()` skip activation for panels (`if (!IsPanel())`). DayBoard calls
+    `app.focus` only for Open DayBoard. The hotkey-opened panel never activated the app.
+  - So either macOS activates the app on a status-item click, or the test tool activates the app
+    it clicks.
+  - Not fixed: a blind fix (`app.hide()`) would hide a visible main window. One by-hand tray click
+    while another app is frontmost tells the two causes apart.
+- **Esc on a freshly opened menu-bar panel** did nothing until focus was inside it. Fixed in
+  `db10cdb`: both panels listen for Esc on the window, with an e2e regression.
+- **First keystrokes lost after the hotkey** on 2 of about 8 opens.
+  - A new e2e test types right after each way the capture panel reopens: first show, after Esc,
+    after click-away, after a rejected submit. Every keystroke lands, so the renderer's focus is
+    not the cause.
+  - What remains is OS keystroke routing or the test tool's key injection. CI can't check that;
+    check it by hand.
 
 No canonical app or profile was touched. Full report, with permission evidence, screenshots and
 logs:
