@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import test from "node:test";
+import { setTimeout } from "node:timers";
 import { fileURLToPath, URL } from "node:url";
 import { build } from "esbuild";
 
