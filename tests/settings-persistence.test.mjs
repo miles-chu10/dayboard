@@ -17,6 +17,7 @@ const boundaries = new Map([
   [
     "platform",
     `export const app = { getPath: () => globalThis.__settingsFixture.userData };
+    export const logger = { info() {}, warn() {}, error() {} };
     export const safeStorage = {
       encryptString: async (text) => Buffer.from("sealed:" + text),
       decryptString: async (data) => {
@@ -319,4 +320,61 @@ test("demo mode keeps the ordering and never exposes real settings or MCP server
     },
     { demo: true },
   );
+});
+
+test("defaults the system section", async () => {
+  await withStore(async ({ store }) => {
+    assert.deepEqual(store.normalizeSettings({}).system, {
+      quickCapture: { enabled: true, hotkey: "Control+Alt+Space" },
+      menuBar: { enabled: true },
+      meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
+    });
+    assert.deepEqual(store.DEFAULT_SETTINGS.system, store.normalizeSettings({}).system);
+  });
+});
+
+test("keeps a valid custom hotkey", async () => {
+  await withStore(async ({ store }) => {
+    const settings = store.normalizeSettings({
+      system: { quickCapture: { enabled: false, hotkey: "Alt+Control+d" } },
+    });
+    assert.deepEqual(settings.system.quickCapture, { enabled: false, hotkey: "Control+Alt+D" });
+  });
+});
+
+test("falls back to the default hotkey when invalid", async () => {
+  await withStore(async ({ store }) => {
+    for (const hotkey of ["Command+Q", 42, "A", "Control+Alt"]) {
+      const settings = store.normalizeSettings({ system: { quickCapture: { hotkey } } });
+      assert.equal(settings.system.quickCapture.hotkey, "Control+Alt+Space", String(hotkey));
+    }
+  });
+});
+
+test("clamps notifyMinutesBefore to 1, 2, 5 or 10", async () => {
+  await withStore(async ({ store }) => {
+    const minutes = (value) =>
+      store.normalizeSettings({ system: { meetings: { notifyMinutesBefore: value } } }).system
+        .meetings.notifyMinutesBefore;
+    assert.equal(minutes(5), 5);
+    assert.equal(minutes(10), 10);
+    assert.equal(minutes(3), 2);
+    assert.equal(minutes("5"), 2);
+  });
+});
+
+test("notifies in-process listeners after a save", async () => {
+  await withStore(async ({ store }) => {
+    const calls = [];
+    const unsubscribe = store.onSettingsChanged((next, previous) => calls.push([next, previous]));
+    const base = await store.getSettings();
+    const changed = { ...base, system: { ...base.system, menuBar: { enabled: false } } };
+    await store.saveSettings(changed);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0].system.menuBar.enabled, false);
+    assert.equal(calls[0][1].system.menuBar.enabled, true);
+    unsubscribe();
+    await store.saveSettings(base);
+    assert.equal(calls.length, 1);
+  });
 });
