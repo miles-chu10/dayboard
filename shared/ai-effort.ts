@@ -46,16 +46,14 @@ const ARGUMENTS = new Map([
 ]);
 
 const LIGHT_TO_MAX = ["low", "medium", "high", "xhigh", "max"];
-const NONE_TO_MAX = ["none", ...LIGHT_TO_MAX];
 const WITHOUT_EXTRA_HIGH = ["low", "medium", "high", "max"];
 
 // Exact families plus dated snapshots, like supportsExplicitCache in prompt-cache.ts.
+// The OpenAI API route offers effort only on GPT-6 Astra and GPT-6.1 Sol, Light to Max; other
+// OpenAI models get the model default. @ai-sdk/openai drops levels outside low–max for GPT-6+.
 const OPENAI_LEVELS: [RegExp, string[]][] = [
-  // OpenAI accepts `none` on GPT-6 Sol and Luna, but @ai-sdk/openai drops every level outside
-  // low–max for GPT-6 and later, so offering None there would silently send the default.
-  [/^gpt-6-(?:astra|sol|luna)(?:-\d{4}-\d{2}-\d{2})?$/, LIGHT_TO_MAX],
+  [/^gpt-6-astra(?:-\d{4}-\d{2}-\d{2})?$/, LIGHT_TO_MAX],
   [/^gpt-6\.1-sol(?:-\d{4}-\d{2}-\d{2})?$/, LIGHT_TO_MAX],
-  [/^gpt-5\.6-(?:sol|terra|luna)(?:-\d{4}-\d{2}-\d{2})?$/, NONE_TO_MAX],
 ];
 
 const ANTHROPIC_LEVELS: [RegExp, string[]][] = [

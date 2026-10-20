@@ -100,19 +100,21 @@ test("effort levels follow the route and model table, including dated snapshots"
   for (const model of ["default", "fable", "opus", "sonnet", "opus[1m]", "sonnet[1m]"])
     assert.deepEqual(levels("claude", model), lightToMax, model);
   assert.deepEqual(levels("claude", "haiku"), []);
-  // OpenAI accepts none on GPT-6 Sol and Luna, but the installed SDK drops it for GPT-6+.
+  // On the OpenAI API only GPT-6 Astra and GPT-6.1 Sol offer effort, Light to Max.
   for (const model of [
     "gpt-6-astra",
-    "gpt-6-sol",
-    "gpt-6-luna",
-    "gpt-6-sol-2026-09-20",
+    "gpt-6-astra-2026-09-20",
     "gpt-6.1-sol",
     "gpt-6.1-sol-2026-10-01",
   ])
     assert.deepEqual(levels("openai", model), lightToMax, model);
-  for (const model of ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-luna-2026-07-01"])
-    assert.deepEqual(levels("openai", model), ["none", ...lightToMax], model);
   for (const model of [
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-6-sol-2026-09-20",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna-2026-07-01",
     "gpt-5.5",
     "gpt-5.6",
     "gpt-6-terra",
@@ -167,7 +169,7 @@ test("effort levels follow the route and model table, including dated snapshots"
     levels: [],
     defaultLevel: null,
   });
-  assert.equal(effort.effortOptions("openai", "gpt-6-sol").defaultLevel, null);
+  assert.equal(effort.effortOptions("openai", "gpt-6-astra").defaultLevel, null);
   assert.equal(effort.effortOptions("claude", "opus").defaultLevel, null);
   // A caller can't change the shared table.
   effort.effortOptions("claude", "opus").levels.push("bogus");
@@ -281,11 +283,9 @@ test("the saved Assistant effort is checked against the model that will run", ()
     "",
   );
   assert.equal(resolve({ assistantEffort: { codex: "high" } }, "codex", []), "");
-  assert.equal(
-    resolve({ assistantEffort: { openai: "none" } }, "openai", [], "gpt-5.6-sol"),
-    "none",
-  );
-  assert.equal(resolve({ assistantEffort: { openai: "none" } }, "openai", [], "gpt-6-sol"), "");
+  assert.equal(resolve({ assistantEffort: { openai: "max" } }, "openai", [], "gpt-6.1-sol"), "max");
+  assert.equal(resolve({ assistantEffort: { openai: "none" } }, "openai", [], "gpt-6-astra"), "");
+  assert.equal(resolve({ assistantEffort: { openai: "high" } }, "openai", [], "gpt-6-sol"), "");
   assert.equal(
     resolve({ assistantEffort: { anthropic: "xhigh" } }, "anthropic", [], "claude-opus-4-6"),
     "",
@@ -518,21 +518,23 @@ async function cliRun(overrides, codexModels) {
 }
 
 test("OpenAI requests send the Assistant effort beside the cache options and drop levels the model lacks", async () => {
-  const sol = await apiRun("openai", "gpt-6-sol", { openai: "high" });
-  assert.equal(sol.requests[0].url, "https://api.openai.com/v1/responses");
-  assert.deepEqual(sol.requests[0].body.reasoning, { effort: "high" });
-  assert.deepEqual(sol.requests[0].body.prompt_cache_options, { mode: "implicit", ttl: "30m" });
-  assert.equal(sol.value.text, "Fixture answer");
-  const none = await apiRun("openai", "gpt-5.6-sol", { openai: "none" });
-  assert.deepEqual(none.requests[0].body.reasoning, { effort: "none" });
-  const dropped = await apiRun("openai", "gpt-6-sol", { openai: "none" });
+  const astra = await apiRun("openai", "gpt-6-astra", { openai: "high" });
+  assert.equal(astra.requests[0].url, "https://api.openai.com/v1/responses");
+  assert.deepEqual(astra.requests[0].body.reasoning, { effort: "high" });
+  assert.deepEqual(astra.requests[0].body.prompt_cache_options, { mode: "implicit", ttl: "30m" });
+  assert.equal(astra.value.text, "Fixture answer");
+  const sol = await apiRun("openai", "gpt-6.1-sol", { openai: "low" });
+  assert.deepEqual(sol.requests[0].body.reasoning, { effort: "low" });
+  const dropped = await apiRun("openai", "gpt-6-astra", { openai: "none" });
   assert.equal(dropped.requests[0].body.reasoning, undefined);
+  const unlisted = await apiRun("openai", "gpt-6-sol", { openai: "high" });
+  assert.equal(unlisted.requests[0].body.reasoning, undefined);
   const unknown = await apiRun("openai", "gpt-5.5", { openai: "high" });
   assert.equal(unknown.requests[0].body.reasoning, undefined);
   // Effort stays out of the stable policy, so changing it leaves the cached prefix alone.
-  const max = await apiRun("openai", "gpt-6-sol", { openai: "max" });
-  assert.deepEqual(max.requests[0].body.input[0], sol.requests[0].body.input[0]);
-  assert.doesNotMatch(JSON.stringify(sol.requests[0].body.input[0]), /Reasoning effort/);
+  const max = await apiRun("openai", "gpt-6-astra", { openai: "max" });
+  assert.deepEqual(max.requests[0].body.input[0], astra.requests[0].body.input[0]);
+  assert.doesNotMatch(JSON.stringify(astra.requests[0].body.input[0]), /Reasoning effort/);
 });
 
 test("Anthropic requests send the Assistant effort as output_config.effort where the model has it", async () => {
