@@ -196,6 +196,24 @@ test("a stream's end marker follows its last chunk, whether it resolves or fails
     ["dayboard:stream:chunk", { id: "ordered", end: true }],
   ];
   assert.deepEqual(sender.sent, [...run, ...run]);
+
+  // A refused request still ends its stream, unless it has no ID to end.
+  sender.sent.length = 0;
+  for (const refused of [
+    { id: "reserved", channel: "dayboard:stream:start", args: {} },
+    { id: "nameless", channel: "", args: {} },
+    { id: "", channel: "ai:run", args: {} },
+    null,
+  ]) {
+    await assert.rejects(
+      invoke("dayboard:stream:start", sender, refused),
+      /Invalid stream request/,
+    );
+  }
+  assert.deepEqual(sender.sent, [
+    ["dayboard:stream:chunk", { id: "reserved", end: true }],
+    ["dayboard:stream:chunk", { id: "nameless", end: true }],
+  ]);
 });
 
 test("license denial stops paid handlers while settings and source reads remain usable", async () => {
