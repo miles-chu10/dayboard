@@ -17,9 +17,18 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
   `npm test` skips it).
-- Miles bought Apple Developer Program enrollment on October 20. Beta.12 onward should be
-  Developer ID signed and notarized through the manual **Signed macOS beta** workflow (see
-  `docs/RELEASE.md`), once the `macos-release` environment holds the Apple and Google entries.
+- Miles bought Apple Developer Program enrollment on October 20 and wants a notarized DayBoard
+  that anyone can download and that updates itself. Beta.12 onward is a free release published by
+  pushing a `v`-prefixed tag (the **Signed macOS release** workflow, `DAYBOARD_RELEASE=1` with
+  `DAYBOARD_LICENSE=off`): Developer ID signed, notarized, in-app updates on, licensing off. The
+  manual **Signed macOS beta** workflow stays an updates-off signing dry run. Official builds
+  check and download updates in the background and install on restart or quit. Each tag push
+  needs Miles's approval. Beta.11 users move to beta.12 manually once; a real beta.12 to beta.13
+  in-app update must then be tested in isolated QA state. See `docs/RELEASE.md`.
+- October 20 signing setup on Miles's Mac: the `macos-release` environment exists (main and
+  `v*`), with `DAYBOARD_GOOGLE_OAUTH_JSON`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` set and
+  the App Store Connect team key "DayBoard notarization" created. Miles requires approval at
+  the time of each credential creation, storage or import step.
 - Glaze 1.2.5 was rebuilt from the 2026-10-14 recovery packet: remote `glaze` df4d574 plus
   patches 01, 02 and 03. All 53 files match the packet's hashes. Its shared fixes are ported into
   PR #37: Glaze's three-way Google refresh classification, one-line snapshot fields with MCP
@@ -34,8 +43,10 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
   exists only in production, not in this repository; commit it with the code that uses it.
 - Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
-  servers and bounded authenticated JSON before SDK validation. Zod's advisory remains
-  unresolved upstream; remote MCP response validation is outside this local input mitigation.
+  servers and bounded authenticated JSON before SDK validation. Zod 4.6.6 (October 11) fixes
+  SNYK-JS-ZOD-20510278: standalone requires `^4.6.6` from beta.12 and Glaze 1.2.5 pins 4.6.6.
+  The fix only stops early on arrays that declare a maximum, so keep the local input limits;
+  remote MCP response validation stays outside them.
 
 - Standalone Electron integration is implemented: platform services, sandboxed preload, native window lifecycle, React UI, Swift Reminders helper, Google Desktop OAuth, AI provider selection, local MCP, preferences and history.
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
@@ -209,7 +220,7 @@ account acceptance remain follow-up work, not release blockers for this limited 
 
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.
 2. Live Gmail/AI-provider acceptance and first-time Reminders consent remain unverified feature acceptance. New consent and real Keychain checks require deliberately owned OS test state; a separate macOS account is not a requirement for fictional UI. Historical Google Tasks, Calendar and existing Reminders access were verified for the selected account; this does not prove public OAuth eligibility for every account.
-3. Developer ID signing and notarization now run in the Signed macOS beta workflow once its credentials exist; ordinary signed launch, Gatekeeper on a quarantined download and account/Keychain continuity across replacing an ad-hoc install still need an owned installation target. October 7 metadata showed two Apple Development identities, no valid Developer ID Application identity, no `macos-release` GitHub environment and no repository signing/notarization configuration names. The manual beta keeps the updater disabled; signed automatic upgrade acceptance belongs to a future updater-enabled release.
+3. Developer ID signing and notarization run in both signed workflows once the certificate, its password and the notary key are in `macos-release`; ordinary signed launch, Gatekeeper on a quarantined download and account/Keychain continuity across replacing an ad-hoc install still need an owned installation target. Signed automatic upgrade acceptance needs two published `v` releases (beta.12, then beta.13).
 4. Manual window-drag acceptance, source migration review and public download/site publication. The preview is ad-hoc signed, not Developer ID signed or notarized, and has no merchant configuration.
 
 The Glaze source repository and this standalone repository are separate histories and do not synchronize automatically. Preserve the public repository's history when preparing the standalone migration; do not force-push over it.

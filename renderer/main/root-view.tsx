@@ -8,6 +8,7 @@ import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
 import { HistoryNav, useHistoryShortcuts } from "../components/history-nav";
+import { UpdateReadyButton } from "../components/update-ready-button";
 import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
@@ -126,7 +127,10 @@ function WindowNavigation() {
           className="fixed left-[92px] top-[10px] z-20"
         />
         <HistoryNav />
-        <div data-inspector-controls className="ml-auto flex items-center" />
+        <div className="ml-auto flex items-center">
+          <UpdateReadyButton />
+          <div data-inspector-controls className="flex items-center" />
+        </div>
       </ToolbarRow>
     </Toolbar>
   );

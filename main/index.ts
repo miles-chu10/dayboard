@@ -115,6 +115,7 @@ if (acquireSingleInstanceLock()) {
       startMcpHttpServer(MCP_PROJECT_ID);
       startSystemPanels();
       await createMainWindow();
+      updates.startAutomatic();
     })
     .catch((error) => {
       logger.error("main", "Failed to start DayBoard", error);

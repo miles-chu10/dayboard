@@ -24,19 +24,22 @@ function licenseDefinitions(): Record<string, string> {
     "DAYBOARD_STRIPE_PRODUCT_ID",
     "DAYBOARD_LICENSE_ENVIRONMENT",
   ] as const;
-  const values = Object.fromEntries(
-    names.map((name) => [name, testBuild ? "" : (process.env[name] ?? "").trim()]),
-  );
   const disabled = !testBuild && process.env.DAYBOARD_LICENSE === "off";
+  // Builds with licensing off never carry the license service configuration.
+  const values = Object.fromEntries(
+    names.map((name) => [name, testBuild || disabled ? "" : (process.env[name] ?? "").trim()]),
+  );
+  // DAYBOARD_RELEASE=1 enables in-app updates. With licensing off it is a free release;
+  // otherwise it must carry the live license service configuration.
   if (process.env.DAYBOARD_RELEASE === "1") {
     const config = parseDesktopLicenseConfig({
       apiUrl: values.DAYBOARD_LICENSE_API_URL,
       productId: values.DAYBOARD_STRIPE_PRODUCT_ID,
       environment: values.DAYBOARD_LICENSE_ENVIRONMENT,
     });
-    if (testBuild || disabled || !config || config.environment !== "live") {
+    if (testBuild || (!disabled && config?.environment !== "live")) {
       throw new Error(
-        "Release packaging requires DAYBOARD_LICENSE_API_URL, DAYBOARD_STRIPE_PRODUCT_ID and DAYBOARD_LICENSE_ENVIRONMENT=live, with licensing enabled.",
+        "Release packaging requires DAYBOARD_LICENSE=off for a free release, or DAYBOARD_LICENSE_API_URL, DAYBOARD_STRIPE_PRODUCT_ID and DAYBOARD_LICENSE_ENVIRONMENT=live with licensing enabled.",
       );
     }
   }
@@ -70,7 +73,8 @@ export default defineConfig({
           googleConfigured = true;
         },
       }),
-      ...(process.env.DAYBOARD_REQUIRE_GOOGLE === "1" && process.env.DAYBOARD_RELEASE !== "1"
+      // Local beta packages are ad-hoc signed, so the proof also rejects an updater build.
+      ...(process.env.DAYBOARD_REQUIRE_GOOGLE === "1"
         ? [createBetaBuildProofPlugin(() => googleConfigured)]
         : []),
     ],
