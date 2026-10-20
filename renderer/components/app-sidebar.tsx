@@ -22,7 +22,12 @@ import { useState } from "react";
 import { CalendarCheck2, CalendarDays, CircleAlert, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
-import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
+import {
+  assistantProvider,
+  selectedModel,
+  useClaudeModels,
+  useCodexModels,
+} from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
@@ -119,7 +124,8 @@ export function AppSidebar() {
   const avatar = useProfileAvatar();
   const provider = assistantProvider(settings);
   const codexModels = useCodexModels(provider === "codex");
-  const model = selectedModel(settings, codexModels.data, provider);
+  const claudeModels = useClaudeModels().data;
+  const model = selectedModel(settings, codexModels.data, provider, undefined, claudeModels);
 
   const now = useAgendaClock();
   const today = toISODate(now);

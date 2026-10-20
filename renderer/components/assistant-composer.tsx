@@ -37,6 +37,7 @@ import {
   assistantProvider,
   formatTokens,
   selectedModel,
+  useClaudeModels,
   useCodexModels,
   useProviderAvailability,
 } from "../lib/ai-models";
@@ -209,11 +210,13 @@ export function AssistantComposer({
   const codexModels = useCodexModels(Boolean(available?.codex));
   const geminiModels = useGeminiModels(Boolean(available?.gemini));
   const apiModels = useAllApiModels(available);
+  const claudeModels = useClaudeModels().data;
   const current = selectedModel(
     settings,
     codexModels.data,
     provider,
     isApiKeyProvider(provider) ? apiModels[provider] : undefined,
+    claudeModels,
   );
 
   function lists(option: AIProvider): ModelLists {
@@ -221,6 +224,7 @@ export function AssistantComposer({
       codex: codexModels.data,
       gemini: geminiModels.data,
       api: isApiKeyProvider(option) ? apiModels[option] : undefined,
+      claude: claudeModels,
     };
   }
 

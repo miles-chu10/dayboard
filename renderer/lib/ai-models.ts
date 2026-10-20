@@ -9,8 +9,8 @@ import type {
 
 import { invoke } from "./ipc";
 import {
-  CLAUDE_MODEL_OPTIONS,
   DEFAULT_MODEL_LABEL,
+  claudeChoices,
   claudeSupportsFast,
   codexModel,
 } from "./model-choices";
@@ -24,6 +24,17 @@ export function useCodexModels(enabled: boolean) {
     queryFn: () => invoke<CodexModelInfo[]>("ai:codexModels", {}),
     staleTime: 10 * 60_000,
     enabled,
+  });
+}
+
+export const claudeModelsKey = ["claude-models"] as const;
+
+/** The exact ID each Claude Code alias last ran as in this app session, keyed by alias. */
+export function useClaudeModels() {
+  return useQuery({
+    queryKey: claudeModelsKey,
+    queryFn: () => invoke<Record<string, string>>("ai:claudeModels"),
+    staleTime: Infinity,
   });
 }
 
@@ -49,11 +60,12 @@ export function selectedModel(
   codexModels: CodexModelInfo[] | undefined,
   provider: AIProvider = settings?.ai.provider ?? "claude",
   apiModels?: ApiModelInfo[],
+  claudeModels?: Record<string, string>,
 ): { label: string; fast: boolean; contextWindow: number | null; id: string } {
   const ai = settings?.ai;
   if (!ai) return { label: "Choose a model", fast: false, contextWindow: null, id: "" };
   if (provider === "claude") {
-    const option = CLAUDE_MODEL_OPTIONS.find((entry) => entry.value === ai.claudeModel);
+    const option = claudeChoices(claudeModels).find((entry) => entry.value === ai.claudeModel);
     return {
       label: option?.label ?? ai.claudeModel,
       fast: ai.claudeFast && claudeSupportsFast(ai.claudeModel),

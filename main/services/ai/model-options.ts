@@ -6,6 +6,7 @@ import type {
   CodexModelInfo,
 } from "../../shared-types.js";
 import { effortOptions, supportedEffort } from "../../../shared/ai-effort.js";
+import { claudeModelName } from "../../../shared/claude-model-name.js";
 import { isApiProvider } from "./api-keys.js";
 import { API_LABEL } from "./api-providers.js";
 
@@ -61,11 +62,33 @@ const CLAUDE_NAMES: Record<string, string> = {
   "sonnet[1m]": "Claude Sonnet (1M context)",
 };
 
-// Exact IDs Claude Code resolved each alias to on earlier runs (from its init event).
+// Exact IDs Claude Code resolved each alias to on earlier runs in this app session (from its
+// init event). Nothing is kept across restarts, since Claude Code's default can change meanwhile.
 const claudeResolved = new Map<string, string>();
+let claudeResolvedListener: ((models: Record<string, string>) => void) | undefined;
 
 export function rememberClaudeModel(alias: string, id: string): void {
+  if (claudeResolved.get(alias) === id) return;
   claudeResolved.set(alias, id);
+  claudeResolvedListener?.(resolvedClaudeModels());
+}
+
+/** The exact ID each Claude Code alias last ran as, keyed by alias; empty until a reply reports one. */
+export function resolvedClaudeModels(): Record<string, string> {
+  return Object.fromEntries(claudeResolved);
+}
+
+export function onClaudeModelResolved(listener: (models: Record<string, string>) => void): void {
+  claudeResolvedListener = listener;
+}
+
+/** Claude Code's default is named after the model it last ran as, once a reply has reported it. */
+export function claudeDisplayName(alias: string, id: string | null): string {
+  if (alias === "default" && id) {
+    const name = claudeModelName(id);
+    return name ? `Claude ${name}` : id;
+  }
+  return CLAUDE_NAMES[alias] ?? alias;
 }
 
 /** The saved Claude effort when the chosen alias takes one; Claude Code's default never does. */
@@ -116,10 +139,11 @@ export function describeModel(
     };
   }
   if (provider === "claude") {
+    const id = claudeResolved.get(ai.claudeModel) ?? null;
     return {
       provider: "claude",
-      name: CLAUDE_NAMES[ai.claudeModel] ?? ai.claudeModel,
-      id: claudeResolved.get(ai.claudeModel) ?? null,
+      name: claudeDisplayName(ai.claudeModel, id),
+      id,
       fast: claudeFastOn(ai),
       effort: claudeEffort(ai) || null,
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,

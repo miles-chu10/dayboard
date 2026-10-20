@@ -18,7 +18,12 @@ import { apiLanguageModel, resolveApiModel } from "./api-providers.js";
 import { attachmentContext } from "./attachments.js";
 import { runCliCompletion, type CliUsage } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
-import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
+import {
+  claudeDisplayName,
+  describeModel,
+  modelSystemNote,
+  rememberClaudeModel,
+} from "./model-options.js";
 import {
   effortProviderOptions,
   resolveAssistantEffort,
@@ -158,7 +163,9 @@ export async function runAssistant(
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
         resolvedModelId = id;
-        send({ type: "meta", model: { ...model, id } });
+        const name =
+          provider === "claude" ? claudeDisplayName(settings.ai.claudeModel, id) : model.name;
+        send({ type: "meta", model: { ...model, id, name } });
       },
       onUsage: (usage) => reportUsage(usage, startedAt),
       prompt: transcript(messages),

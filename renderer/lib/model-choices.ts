@@ -6,6 +6,7 @@ import type {
   CodexModelInfo,
 } from "@main/shared-types";
 import { effortOptions, supportedEffort } from "../../shared/ai-effort";
+import { claudeModelName } from "../../shared/claude-model-name";
 
 /**
  * The model list and model-change rules shared by Settings → AI and the Assistant's model menu,
@@ -24,6 +25,8 @@ export interface ModelLists {
   codex?: CodexModelInfo[];
   gemini?: string[];
   api?: ApiModelInfo[];
+  /** The exact ID each Claude Code alias last ran as in this app session, keyed by alias. */
+  claude?: Record<string, string>;
 }
 
 export const CLAUDE_MODEL_OPTIONS: {
@@ -51,6 +54,24 @@ export const CLAUDE_MODEL_OPTIONS: {
     sublabel: "Sonnet with a 1 million token context window",
   },
 ];
+
+/**
+ * Claude Code's choices. Its default is named after the model a reply last reported; with no
+ * report it keeps its generic name rather than a guessed model.
+ */
+export function claudeChoices(resolved: Record<string, string> | undefined): ModelChoice[] {
+  const id = resolved?.default;
+  if (!id) return CLAUDE_MODEL_OPTIONS;
+  return CLAUDE_MODEL_OPTIONS.map((option) =>
+    option.value === "default"
+      ? {
+          ...option,
+          label: claudeModelName(id) ?? id,
+          sublabel: "Claude Code's default, as of its last reply",
+        }
+      : option,
+  );
+}
 
 /** Muse Code models; empty follows the CLI's default. */
 export const MUSE_MODEL_OPTIONS: { value: string; label: string }[] = [
@@ -118,7 +139,7 @@ export function modelChoices(
   lists: ModelLists,
 ): ModelChoice[] {
   const saved = savedModel(ai, provider);
-  if (provider === "claude") return withSaved(CLAUDE_MODEL_OPTIONS, saved);
+  if (provider === "claude") return withSaved(claudeChoices(lists.claude), saved);
   if (provider === "codex") {
     const first = lists.codex?.[0];
     return withSaved(

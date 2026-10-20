@@ -21,9 +21,11 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   model chip, `/` commands and `@` mentions. Settings → AI and the composer's model menu share one
   model list, effort table and model-change rule, and one-click features get API-route effort.
   Claude Code's `default` model offers no effort anywhere, since what it resolves to is unknown
-  until the CLI runs. Glaze gets the same as DayBoard 1.2.6 through the
-  patch series in the project files (`dayboard/glaze-1.2.6-composer/`), applied, verified and
-  published from the Mac.
+  until the CLI runs. Once an Assistant reply reports the exact model (Claude Code's init event),
+  Settings, the composer and the sidebar name the default after it ("Opus 5.5") for the rest of
+  the app session; before that, and after a restart, it reads "Claude Code default". Glaze gets
+  the same as DayBoard 1.2.6 through the patch series in the project files
+  (`dayboard/glaze-1.2.6-composer-16/`), applied, verified and published from the Mac.
 - Miles bought Apple Developer Program enrollment on October 20. Beta.12 onward should be
   Developer ID signed and notarized through the manual **Signed macOS beta** workflow (see
   `docs/RELEASE.md`), once the `macos-release` environment holds the Apple and Google entries.

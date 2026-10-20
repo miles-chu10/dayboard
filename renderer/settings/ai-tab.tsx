@@ -31,6 +31,7 @@ import {
   savedModelEffort,
 } from "../lib/model-choices";
 import { errorMessage, invoke } from "../lib/ipc";
+import { useClaudeModels } from "../lib/ai-models";
 import { ProviderMark } from "../components/provider-logo";
 import {
   API_KEY_PROVIDERS,
@@ -182,6 +183,7 @@ function ProviderStatusRow({ provider }: { provider: CliProviderId }) {
 
 function ClaudeOptions({ settings, edit }: { settings: AppSettings; edit: SettingsEdit }) {
   const { ai } = settings;
+  const claudeModels = useClaudeModels().data;
   const supportsFast = claudeSupportsFast(ai.claudeModel);
   return (
     <>
@@ -192,7 +194,7 @@ function ClaudeOptions({ settings, edit }: { settings: AppSettings; edit: Settin
         <SettingSelect
           label="Claude model"
           value={ai.claudeModel}
-          options={modelChoices("claude", ai, {})}
+          options={modelChoices("claude", ai, { claude: claudeModels })}
           onChange={(value) => edit((draft) => applyModelChoice(draft.ai, "claude", value, {}))}
         />
       </Field>

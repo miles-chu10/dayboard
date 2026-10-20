@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AppSettings, CodexModelInfo } from "@main/shared-types";
 
+import { claudeModelName } from "../../shared/claude-model-name";
 import {
   applyModelChoice,
   codexModel,
@@ -241,4 +242,53 @@ test("changing the model keeps each effort and Fast only where the new model has
   assert.equal(newest.apiModels.openai, "");
   const kept = choose(settings({ apiEffort: { openai: "max" } }), "openai", "gpt-6.1-sol", api);
   assert.deepEqual(kept.apiEffort, { openai: "max" });
+});
+
+test("exact Claude IDs read as family and version; any other shape has no name", () => {
+  assert.equal(claudeModelName("claude-opus-5-5"), "Opus 5.5");
+  assert.equal(claudeModelName("claude-opus-5-5[1m]"), "Opus 5.5 (1M context)");
+  assert.equal(claudeModelName("claude-sonnet-4-5-20250929"), "Sonnet 4.5");
+  assert.equal(claudeModelName("claude-opus-4-20250514"), "Opus 4");
+  assert.equal(claudeModelName("claude-3-5-haiku-20241022"), "Haiku 3.5");
+  assert.equal(claudeModelName("claude-fable-5-1"), "Fable 5.1");
+  for (const id of ["opus", "default", "claude-opus", "claude-opus-5-5-preview", "gateway-model"])
+    assert.equal(claudeModelName(id), null, id);
+});
+
+test("Claude Code's default is named after the model a reply reported, and only then", () => {
+  const label = (ai: AppSettings["ai"], claude?: Record<string, string>) =>
+    modelChoices("claude", ai, { claude }).find((choice) => choice.value === ai.claudeModel)?.label;
+  const byDefault = settings({ claudeModel: "default" });
+
+  // Configured default with a report: the exact model, still marked as Claude Code's default.
+  assert.deepEqual(
+    modelChoices("claude", byDefault, { claude: { default: "claude-opus-5-5[1m]" } })[0],
+    {
+      value: "default",
+      label: "Opus 5.5 (1M context)",
+      sublabel: "Claude Code's default, as of its last reply",
+    },
+  );
+  // It is still the default: the saved value stays "default" and no effort level appears.
+  const reported = { claude: { default: "claude-opus-5-5" } };
+  assert.deepEqual(savedModelEffort(byDefault, "claude", reported).levels, []);
+  const chosen = settings({ claudeModel: "opus", claudeEffort: "max" });
+  applyModelChoice(chosen, "claude", "default", reported);
+  assert.equal(chosen.claudeModel, "default");
+  assert.equal(chosen.claudeEffort, "default");
+
+  // Explicit override: the chosen alias keeps its own name whatever the default reported.
+  const opus = settings({ claudeModel: "opus" });
+  assert.equal(label(opus, { default: "claude-sonnet-4-5" }), "Opus");
+  assert.equal(label(opus, { opus: "claude-opus-5-5" }), "Opus");
+
+  // Unavailable metadata: no report for the default keeps its generic name.
+  const unreported: (Record<string, string> | undefined)[] = [
+    undefined,
+    {},
+    { opus: "claude-opus-5-5" },
+  ];
+  for (const claude of unreported) assert.equal(label(byDefault, claude), "Claude Code default");
+  // An ID of another shape is shown exactly as reported rather than renamed.
+  assert.equal(label(byDefault, { default: "gateway-model-7" }), "gateway-model-7");
 });

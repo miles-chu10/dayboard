@@ -31,7 +31,12 @@ import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { MentionChip } from "../components/mention-chip";
 import { BLOCKED_MESSAGE } from "../lib/ai";
-import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
+import {
+  assistantProvider,
+  selectedModel,
+  useClaudeModels,
+  useCodexModels,
+} from "../lib/ai-models";
 import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSnapshot, buildAssistantSystem } from "../lib/ai-prompts";
 import {
@@ -269,7 +274,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const mail = useMail();
   const calendar = useCalendar();
   const mcpStatus = useAssistantMcpStatus();
-  const model = selectedModel(settings, useCodexModels(provider === "codex").data, provider);
+  const codexModels = useCodexModels(provider === "codex").data;
+  const model = selectedModel(settings, codexModels, provider, undefined, useClaudeModels().data);
 
   const history = useAssistantHistory(initialHistory, demo);
   const { messages, setMessages } = history;

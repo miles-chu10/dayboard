@@ -27,7 +27,11 @@ import {
   runCliCompletion,
 } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
-import { describeModel } from "../services/ai/model-options.js";
+import {
+  describeModel,
+  onClaudeModelResolved,
+  resolvedClaudeModels,
+} from "../services/ai/model-options.js";
 import {
   effortProviderOptions,
   resolveFeatureEffort,
@@ -245,6 +249,10 @@ export function registerAIHandlers(): void {
     }
     return checkCliProvider(input.provider, input.verify === true);
   });
+
+  // The exact model each Claude Code alias ran as, so Settings and the composer can name the default.
+  onClaudeModelResolved((models) => ipcMain.broadcast("ai:claudeModelsChanged", models));
+  ipcMain.handle("ai:claudeModels", () => (isDemoMode() ? {} : resolvedClaudeModels()));
 
   ipcMain.handle("ai:codexModels", async (_event, payload: unknown) => {
     if (isDemoMode()) return [];

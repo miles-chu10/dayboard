@@ -22,6 +22,7 @@ import type {
   TaskItem,
 } from "@main/shared-types";
 
+import { claudeModelsKey } from "./ai-models";
 import { errorMessage, invoke } from "./ipc";
 import { settingsQueryKey, sourceOn, useSettings } from "./settings";
 import { buildTodos, linkedKeys, type Todo } from "./todos";
@@ -187,7 +188,7 @@ export function useAssistantMcpStatus() {
   });
 }
 
-/** Keeps every window in step with account, settings, and MCP changes made anywhere. */
+/** Keeps every window in step with account, settings, MCP and model changes made anywhere. */
 export function useBackendSync() {
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -215,6 +216,9 @@ export function useBackendSync() {
         if (event?.source)
           void queryClient.invalidateQueries({ queryKey: queryKeys[event.source] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.review });
+      }),
+      ipc.onNotification("ai:claudeModelsChanged", () => {
+        void queryClient.invalidateQueries({ queryKey: claudeModelsKey });
       }),
       ipc.onNotification("mcp:changed", () => {
         void queryClient.invalidateQueries({ queryKey: ["assistant-mcp-servers"] });

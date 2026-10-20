@@ -615,3 +615,70 @@ test("CLI routes pass the Assistant effort and describe it in the model note", a
   assert.equal(luna.effort, "");
   assert.match(luna.system, /Reasoning effort: high\./);
 });
+
+test("Claude Code's default takes the name of the model a reply reported, and only that alias", () => {
+  const byDefault = aiSettings({ claudeModel: "default", claudeEffort: "max" });
+  const describe = (ai) => modelOptions.describeModel(ai, [], "claude");
+  // Unavailable metadata: no reply has reported a model, so nothing specific is claimed.
+  assert.equal(describe(byDefault).name, "Claude Code default");
+  assert.equal(describe(byDefault).id, null);
+  assert.deepEqual(modelOptions.resolvedClaudeModels(), {});
+
+  const changes = [];
+  modelOptions.onClaudeModelResolved((models) => changes.push(models));
+  modelOptions.rememberClaudeModel("default", "claude-opus-5-5[1m]");
+  modelOptions.rememberClaudeModel("default", "claude-opus-5-5[1m]");
+  assert.deepEqual(changes, [{ default: "claude-opus-5-5[1m]" }]);
+  // Configured default: named after the exact model, still run without --model or --effort.
+  assert.equal(describe(byDefault).name, "Claude Opus 5.5 (1M context)");
+  assert.equal(describe(byDefault).id, "claude-opus-5-5[1m]");
+  assert.equal(describe(byDefault).effort, null);
+  assert.deepEqual(modelOptions.claudeModelArgs(byDefault), [
+    "--settings",
+    JSON.stringify({ fastMode: false }),
+  ]);
+
+  // Explicit override: the chosen alias keeps its own name and arguments.
+  const opus = aiSettings({ claudeModel: "opus", claudeEffort: "max" });
+  assert.equal(describe(opus).name, "Claude Opus");
+  assert.equal(describe(opus).id, null);
+  assert.deepEqual(modelOptions.claudeModelArgs(opus).slice(0, 4), [
+    "--model",
+    "opus",
+    "--effort",
+    "max",
+  ]);
+
+  // An ID of another shape is shown exactly as reported rather than renamed.
+  modelOptions.rememberClaudeModel("default", "gateway-model-7");
+  assert.equal(describe(byDefault).name, "gateway-model-7");
+  assert.deepEqual(changes.at(-1), { default: "gateway-model-7" });
+});
+
+test("an Assistant reply through Claude Code's default names the model it reported", async () => {
+  const request = { system: "stable policy", messages: [{ role: "user", content: "hello" }] };
+  const signal = new globalThis.AbortController().signal;
+  fixture({ provider: "claude", claudeModel: "default", assistantEffort: { claude: "high" } });
+  const chunks = [];
+  await assistant.runAssistant(request, (chunk) => chunks.push(chunk), signal);
+  const first = globalThis.__effortFixture.cli[0];
+  assert.match(first.system, /You are running as Claude Code default through Claude Code/);
+  assert.match(first.system, /The CLI resolves the exact model ID when the request starts/);
+  first.onModel("claude-opus-5-5");
+  assert.deepEqual(
+    chunks
+      .filter((chunk) => chunk.type === "meta")
+      .map((chunk) => [chunk.model.name, chunk.model.id]),
+    [
+      ["Claude Code default", null],
+      ["Claude Opus 5.5", "claude-opus-5-5"],
+    ],
+  );
+
+  fixture({ provider: "claude", claudeModel: "default", assistantEffort: { claude: "high" } });
+  await assistant.runAssistant(request, () => {}, signal);
+  const next = globalThis.__effortFixture.cli[0];
+  assert.match(next.system, /running as Claude Opus 5\.5 through Claude Code/);
+  assert.match(next.system, /The exact model ID is "claude-opus-5-5"\./);
+  assert.equal(next.effort, "");
+});
