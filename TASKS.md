@@ -24,15 +24,19 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
     tray placement check failed.
   - Still open: the tray placement fix, then full-screen click-away, the re-enabled tray icon and
     notification delivery (Miles).
-- [ ] Reconcile with the final #42 head (merge order #43, #42, #44). Use the reviewed
-      `runCompletion` repair, keep the `clipSnapshot` import, merge the test lists as a union, rerun
-      both wiring paths and full validation, then build a new combined QA artifact.
+- [ ] Reconcile with the merged #42 (order #43, #42, #44).
+  - The trial on interim `302d191` passed every check (see `HANDOFF.md`).
+  - #42 is being corrected for two final-review P2s. After it merges: merge main, apply the
+    `runCompletion` repair, keep the `clipSnapshot` import and the union of test lists, rerun both
+    wiring checks and full validation, then build a fresh artifact from the current lock.
 - [x] Tray panel placement: use the clicked icon's bounds (`609350d`, `tests/tray-anchor.test.mjs`).
 - [x] Esc closes a freshly opened panel (`db10cdb`, e2e regression).
-- [x] First-keystroke regression: renderer focus is ruled out by e2e. OS routing or test-tool
-      injection still needs a by-hand check.
-- [ ] Tray click activating DayBoard: the cause is outside DayBoard and Electron. Needs one
-      by-hand tray click while another app is frontmost before choosing a fix.
+- [ ] First keystrokes lost after the hotkey: the e2e regression (each reopen path) passes, which
+      narrows the cause. Native key routing and test-tool injection remain open hypotheses; check
+      by hand.
+- [ ] Tray click activating DayBoard: cause unresolved. Code inspection found no activation in
+      DayBoard or in Electron's tray and panel paths. Needs a by-hand tray click while another app
+      is frontmost before choosing a fix.
 - [ ] Native re-acceptance of the tray placement and Esc fixes on a fresh build.
 
 ## Found along the way

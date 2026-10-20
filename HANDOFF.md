@@ -122,22 +122,56 @@ Blocked or not run:
 Other findings:
 
 - **Tray click made DayBoard frontmost** on 2 of 3 clicks, in both cases the clicks that opened
-  the panel.
-  - The cause is outside DayBoard's code. Electron 44.4.4's tray click handler activates nothing,
-    and `Show()`/`Focus()` skip activation for panels (`if (!IsPanel())`). DayBoard calls
-    `app.focus` only for Open DayBoard. The hotkey-opened panel never activated the app.
-  - So either macOS activates the app on a status-item click, or the test tool activates the app
-    it clicks.
-  - Not fixed: a blind fix (`app.hide()`) would hide a visible main window. One by-hand tray click
-    while another app is frontmost tells the two causes apart.
+  the panel. Cause unresolved.
+  - What was checked: Electron 44.4.4's tray click handler calls no activation, `Show()`/`Focus()`
+    skip activation for panels (`if (!IsPanel())`), DayBoard calls `app.focus` only for Open
+    DayBoard, and the hotkey-opened panel never activated the app.
+  - That narrows the cause but does not rule out every native path.
+  - Leading hypotheses: macOS activating the app on a status-item click, or the test tool
+    activating the app it clicks.
+  - Not fixed: a blind fix (`app.hide()`) would hide a visible main window. A by-hand tray click
+    while another app is frontmost is the next check.
 - **Esc on a freshly opened menu-bar panel** did nothing until focus was inside it. Fixed in
   `db10cdb`: both panels listen for Esc on the window, with an e2e regression.
-- **First keystrokes lost after the hotkey** on 2 of about 8 opens.
+- **First keystrokes lost after the hotkey** on 2 of about 8 opens. Cause unresolved.
   - A new e2e test types right after each way the capture panel reopens: first show, after Esc,
-    after click-away, after a rejected submit. Every keystroke lands, so the renderer's focus is
-    not the cause.
-  - What remains is OS keystroke routing or the test tool's key injection. CI can't check that;
-    check it by hand.
+    after click-away, after a rejected submit. Every keystroke lands.
+  - Playwright delivers keys to the page directly, so that test narrows the cause but does not
+    rule out native key-window routing or the renderer under OS-level input.
+  - The test tool's key injection is a further hypothesis. Next check: by hand.
+
+Verification of the acceptance fixes (2026-10-20). Each regression test was run and failed
+before its fix:
+
+- **Branch `01c4949`.**
+  - `npm test`: renderer 63/63 and backend 520/520 pass. lint, typecheck and `format:check` exit 0.
+  - `e2e/system-panels.spec.ts` (built at `db10cdb`): 11/11 pass.
+- **`tests/tray-anchor.test.mjs`: 3 tests.**
+  - Before the fix, the toggle received the click event instead of the bounds, and the panel was
+    centred at x 371 (the built-in copy) instead of 936.
+- **e2e "Escape hides a freshly shown menu-bar panel".**
+  - Before the fix the panel stayed visible: "Expected: false, Received: true".
+- **e2e "the first keystrokes after each reopen reach the capture input".** It passed before and
+  after the change, so it records existing behaviour rather than proving a fix.
+- **`tests/quick-capture-wiring.test.mjs`.** It fails when Quick Capture's `complete` bypasses
+  `runCompletion`.
+
+Trial reconciliation (scratch worktree, not pushed), merging #42 at interim head `302d191` into
+`0e73008`:
+
+- Conflicts:
+  - `main/handlers/ai.ts`: kept the slim `ai:run` and the `clipSnapshot`,
+    `onClaudeModelResolved` and `resolvedClaudeModels` imports, and dropped the unused ones.
+  - `package.json`: merged the test lists as a union.
+- Applied the reviewed `runCompletion` repair.
+- #42's two `ai:run` wiring tests fail 0/2 without the repair and pass 2/2 with it.
+- `npm ci` from the merged lock: zod 4.6.7.
+- `npm test`: renderer 82/82 and backend 548/548. lint, typecheck and `format:check` exit 0.
+  `test:e2e`: 41 passed, 1 skipped (the opt-in native encryption test).
+- `302d191` is interim: #42's final review raised two P2s that its owner is fixing. Redo this on
+  the merged #42 source, then build a fresh artifact from the current lock.
+- The trial resolution patch and logs are in
+  `~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-trial-on-302d191/`.
 
 No canonical app or profile was touched. Full report, with permission evidence, screenshots and
 logs:
