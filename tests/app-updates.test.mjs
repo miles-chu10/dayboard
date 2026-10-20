@@ -85,6 +85,13 @@ class FakeUpdater extends EventEmitter {
   }
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function until(condition) {
+  for (let attempt = 0; attempt < 200 && !condition(); attempt++) await sleep(2);
+  assert.ok(condition());
+}
+
 function fixture(overrides = {}) {
   const updater = new FakeUpdater();
   let loads = 0;
@@ -132,24 +139,26 @@ test("source, preview, and demo builds never load or call the updater", async ()
     { isPackaged: false },
     { isDemo: () => true },
   ]) {
-    const item = fixture(override);
+    const item = fixture({ ...override, automaticDelayMs: 0 });
     for (const action of ["status", "check", "download", "install"]) {
       assert.equal((await item.service[action]()).phase, "unavailable");
     }
+    item.service.startAutomatic();
+    await sleep(5);
     assert.match(item.service.status().message, /official DayBoard downloads/);
     assert.equal(item.loads, 0);
     assert.deepEqual(item.updater.calls, { check: 0, download: 0, install: 0, feed: [] });
   }
 });
 
-test("official checks use fixed GitHub feed and manual, prerelease-safe settings", async () => {
+test("official checks use fixed GitHub feed and install-on-quit, prerelease-safe settings", async () => {
   const item = fixture();
   assert.equal(item.service.status().phase, "idle");
   const state = await item.service.check();
   assert.equal(state.phase, "available");
   assert.equal(state.availableVersion, "1.3.0-beta.2");
   assert.equal(item.updater.autoDownload, false);
-  assert.equal(item.updater.autoInstallOnAppQuit, false);
+  assert.equal(item.updater.autoInstallOnAppQuit, true);
   assert.equal(item.updater.allowPrerelease, true);
   assert.equal(item.updater.allowDowngrade, false);
   assert.deepEqual(item.updater.calls.feed, [
@@ -387,4 +396,54 @@ test("concurrent install requests share one save drain and installer call", asyn
   assert.equal((await first).phase, "installing");
   assert.equal(drains, 1);
   assert.equal(item.updater.calls.install, 1);
+});
+
+test("automatic updates check after launch, download what they find, and never install", async () => {
+  const item = fixture({ automaticDelayMs: 1, automaticIntervalMs: 2 });
+  const stop = item.service.startAutomatic();
+  await until(() => item.service.status().phase === "downloaded");
+  await sleep(20);
+  stop();
+  assert.equal(item.updater.calls.check, 1);
+  assert.equal(item.updater.calls.download, 1);
+  assert.equal(item.updater.calls.install, 0);
+  assert.equal(item.drains, 0);
+  assert.match(item.service.status().message, /installs when you restart or quit/);
+});
+
+test("automatic checks repeat on their interval and stop when asked", async () => {
+  const item = fixture({ automaticDelayMs: 1, automaticIntervalMs: 2 });
+  item.updater.checkOutcome = "none";
+  const stop = item.service.startAutomatic();
+  await until(() => item.updater.calls.check >= 3);
+  stop();
+  const checks = item.updater.calls.check;
+  await sleep(20);
+  assert.equal(item.updater.calls.check, checks);
+  assert.equal(item.updater.calls.download, 0);
+  assert.equal(item.service.status().phase, "up-to-date");
+});
+
+test("a failed background check retries on the next interval", async () => {
+  const item = fixture({ automaticDelayMs: 1, automaticIntervalMs: 2 });
+  item.updater.checkOutcome = "error";
+  const stop = item.service.startAutomatic();
+  await until(() => item.service.status().phase === "error");
+  item.updater.checkOutcome = "available";
+  await until(() => item.service.status().phase === "downloaded");
+  stop();
+  assert.equal(item.updater.calls.download, 1);
+});
+
+test("a staged update the system rejects cannot be installed", async () => {
+  const item = fixture();
+  await item.service.check();
+  await item.service.download();
+  item.updater.emit("error", new Error("code signature rejected"));
+  const failed = item.service.status();
+  assert.equal(failed.phase, "error");
+  assert.match(failed.error, /code signature rejected/);
+  assert.equal((await item.service.install()).phase, "error");
+  assert.equal(item.updater.calls.install, 0);
+  assert.equal((await item.service.check()).phase, "available");
 });

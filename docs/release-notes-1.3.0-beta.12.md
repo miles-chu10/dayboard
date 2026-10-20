@@ -1,9 +1,16 @@
-# DayBoard 1.3.0-beta.12 — native shell and ⌘N
+# DayBoard 1.3.0-beta.12 — signed, self-updating, native shell and ⌘N
 
 This beta carries beta.11's Google sign-in forward and adds the native macOS refinements merged
 since then. It is a draft until the build is made and verified on an Apple Silicon Mac.
 
 ## New
+
+- **DayBoard now updates itself.** This is the first beta signed with DayBoard's Developer ID,
+  notarized by Apple and published with update metadata. It checks for newer betas after launch
+  and every few hours, downloads them in the background, and shows **Restart to update** in the
+  toolbar when one is ready. If you don't restart, the update installs the next time you quit.
+  Settings → Updates and DayBoard → Check for Updates… still check on request. Your data and
+  sign-ins stay where they are.
 
 - **⌘N opens New Item** from Agenda, Inbox, Calendar and the other main views, including when
   focus is on a row's action controls. It is ignored while a dialog or confirmation is open, so
@@ -29,7 +36,7 @@ since then. It is a draft until the build is made and verified on an Apple Silic
 ## Under the hood
 
 - Stable builds stay on the stable update channel even when their version carries build metadata
-  with a hyphen (for example `1.3.0+build-local`). In-app updates remain disabled in this beta.
+  with a hyphen (for example `1.3.0+build-local`).
 - The Assistant's effect-dependency lint warnings are fixed. Browser tests confirm a question
   handed off from Today and auto-added proposals still run exactly once.
 - Beta packaging enforces the Google configuration from `package:preview` through the final
@@ -47,15 +54,18 @@ since then. It is a draft until the build is made and verified on an Apple Silic
 
 ## Install and limits
 
-Apple Silicon, macOS 14+. This is the first beta signed with DayBoard's Developer ID and
-notarized by Apple, so it opens normally with no Open Anyway step. In-app updates stay disabled:
-quit DayBoard, replace the application in Applications and keep your data, which lives outside
-the bundle. Because the signature changed, macOS may ask once whether DayBoard can use its saved
-key in your keychain; allow it so you stay signed in. Google may restrict accounts outside the
+Apple Silicon, macOS 14+. Notarized, so it opens normally with no Open Anyway step.
+
+Coming from beta.11 or earlier is a one-time manual step, because those builds can't update
+themselves: quit DayBoard, open the beta.12 DMG and replace the application in Applications. Your
+data lives outside the bundle and stays. Because the signature changed, macOS may ask once
+whether DayBoard can use its saved key in your keychain; allow it so you stay signed in. From
+beta.12 on, new betas arrive in the app. Google may restrict accounts outside the
 project's test audience. AI and MCP remain optional.
 
 ## Before publishing
 
 Fill in from the actual build: release source commit, tests and packaged UI cases run, and
-SHA-256 hashes in SHA256SUMS.txt. Update the website Road Map from "beta 11" to "beta 12" in
+SHA-256 hashes in SHA256SUMS.txt. Publish by pushing tag `v1.3.0-beta.12` after Miles approves;
+then confirm the release carries the DMG, ZIP, both blockmaps and `latest-mac.yml`. Update the website Road Map from "beta 11" to "beta 12" in
 the same change that links the release.
