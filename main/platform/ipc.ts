@@ -15,6 +15,7 @@ import {
   BridgeChannel,
   type MediaAccessType,
   type NativeThemeInfo,
+  type StreamMessage,
   type StreamStartRequest,
   type ThemeSource,
 } from "../../shared/bridge-protocol.js";
@@ -90,23 +91,27 @@ export function registerBridgeIpc(): void {
       request.channel.startsWith("dayboard:")
     )
       throw new Error("Invalid stream request");
-    return runAppOperation(async () => {
-      if (requiresLicenseAccess(request.channel)) await licenseAccess();
-      return registry.start(request, event.sender.id, (chunk) => {
-        if (
-          !event.sender.isDestroyed() &&
-          isAllowedWindowNavigation(
-            event.sender.getURL(),
-            trustedWindows.get(event.sender.id)?.entryUrl ?? "",
-          )
-        ) {
-          event.sender.send(BridgeChannel.streamChunk, {
-            id: request.id,
-            chunk,
-          });
-        }
+    const emit = (message: StreamMessage) => {
+      if (
+        !event.sender.isDestroyed() &&
+        isAllowedWindowNavigation(
+          event.sender.getURL(),
+          trustedWindows.get(event.sender.id)?.entryUrl ?? "",
+        )
+      ) {
+        event.sender.send(BridgeChannel.streamChunk, message);
+      }
+    };
+    try {
+      return await runAppOperation(async () => {
+        if (requiresLicenseAccess(request.channel)) await licenseAccess();
+        return registry.start(request, event.sender.id, (chunk) => emit({ id: request.id, chunk }));
       });
-    });
+    } finally {
+      // The invoke reply can reach the renderer before chunks sent ahead of it, so the preload
+      // settles the stream on this marker, which follows the last chunk on the same channel.
+      emit({ id: request.id, end: true });
+    }
   });
   electronIpcMain.on(BridgeChannel.streamCancel, (event, id: string) => {
     try {

@@ -4,8 +4,9 @@ import {
   BridgeChannel,
   type DayboardBridge,
   type NotificationMessage,
-  type StreamChunkMessage,
+  type StreamMessage,
 } from "../shared/bridge-protocol";
+import { createStreamClient } from "../shared/stream-client";
 
 // Electron prefixes rejected invokes with "Error invoking remote method '<channel>': Error: ".
 // Strip it so the renderer shows the handler's own message.
@@ -26,9 +27,9 @@ function assertAppChannel(channel: string): void {
 }
 
 let streamSeq = 0;
-const chunkHandlers = new Map<string, (chunk: unknown) => void>();
-ipcRenderer.on(BridgeChannel.streamChunk, (_event, message: StreamChunkMessage) => {
-  chunkHandlers.get(message.id)?.(message.chunk);
+const streams = createStreamClient();
+ipcRenderer.on(BridgeChannel.streamChunk, (_event, message: StreamMessage) => {
+  streams.receive(message);
 });
 
 const notificationHandlers = new Map<string, Set<(params: unknown) => void>>();
@@ -56,17 +57,11 @@ const bridge: DayboardBridge = {
     ) {
       assertAppChannel(channel);
       const id = options?.cancellationId ?? `stream-${++streamSeq}`;
-      if (chunkHandlers.has(id)) throw new Error(`Stream ${id} is already running`);
-      chunkHandlers.set(id, onChunk as (chunk: unknown) => void);
-      try {
-        return await invoke<TResult>(BridgeChannel.streamStart, {
-          id,
-          channel,
-          args,
-        });
-      } finally {
-        chunkHandlers.delete(id);
-      }
+      // Main rejects an empty ID before it can send an end marker, so refuse it here, not wait.
+      if (typeof id !== "string" || !id) throw new Error("Invalid stream ID");
+      return streams.run(id, onChunk as (chunk: unknown) => void, () =>
+        invoke<TResult>(BridgeChannel.streamStart, { id, channel, args }),
+      );
     },
     cancelStream(cancellationId) {
       ipcRenderer.send(BridgeChannel.streamCancel, cancellationId);

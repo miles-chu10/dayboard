@@ -484,7 +484,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
           const finalContent = message.content || result.text;
           const actions = permission === "read-only" ? [] : splitActions(finalContent).actions;
           proposed = actions.length;
-          return { ...message, content: finalContent, actions };
+          return {
+            ...message,
+            content: finalContent,
+            actions,
+            ...(result.model ? { modelLabel: modelLabel(result.model) } : {}),
+          };
         });
         if (permission === "auto" && proposed) autoAddRef.current = assistantId;
       }

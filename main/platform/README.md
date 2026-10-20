@@ -53,8 +53,11 @@ repeating strings.
   `Error invoking remote method` prefix.
 - **stream**: renderer invokes `dayboard:stream:start` with `{ id, channel, args }`. Look up the
   `handleStream` handler for `channel`, run it with an `AbortSignal`, send each chunk as
-  `event.sender.send("dayboard:stream:chunk", { id, chunk })`, and resolve the invoke with the
-  handler's final result (reject on error). Key running streams by `(event.sender.id, id)`.
+  `event.sender.send("dayboard:stream:chunk", { id, chunk })`, then send `{ id, end: true }` on
+  the same channel and resolve the invoke with the handler's final result (reject on error). An
+  invoke reply can reach the renderer before earlier `send` messages, so the preload settles a
+  stream only after its end marker (`shared/stream-client.ts`). Key running streams by
+  `(event.sender.id, id)`.
 - **cancel**: renderer sends `dayboard:stream:cancel` with the stream id; abort that stream's
   signal. A cancel can arrive before the start is processed, so remember recently cancelled ids
   briefly. Abort all of a sender's streams when its `webContents` is destroyed.

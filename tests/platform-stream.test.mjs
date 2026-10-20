@@ -9,9 +9,9 @@ import { build } from "esbuild";
 const root = new URL("..", import.meta.url).pathname;
 let bundleSequence = 0;
 
-async function loadStreamRegistry() {
+async function loadStreamRegistry(file = "main/platform/stream-registry.ts") {
   const result = await build({
-    entryPoints: [path.join(root, "main/platform/stream-registry.ts")],
+    entryPoints: [path.join(root, file)],
     bundle: true,
     format: "esm",
     platform: "node",
@@ -126,4 +126,67 @@ test("registering the same channel twice throws", async () => {
   const registry = new StreamRegistry();
   registry.registerHandler("dup", async () => "ok");
   assert.throws(() => registry.registerHandler("dup", async () => "ok"), /already registered/);
+});
+
+const loadStreamClient = () => loadStreamRegistry("shared/stream-client.ts");
+
+test("a stream whose reply overtakes its chunks still delivers every chunk first", async () => {
+  const { createStreamClient } = await loadStreamClient();
+  const client = createStreamClient();
+  const seen = [];
+  // The invoke reply is already here; the chunks main sent before it arrive afterwards.
+  const run = client.run(
+    "s1",
+    (chunk) => seen.push(chunk),
+    async () => ({ text: "hi" }),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  client.receive({ id: "s1", chunk: { type: "meta", model: "resolved" } });
+  client.receive({ id: "other", chunk: { type: "delta", text: "not mine" } });
+  client.receive({ id: "s1", chunk: { type: "delta", text: "hi" } });
+  let settled = false;
+  void run.then(() => (settled = true));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, "the stream waits for its end marker");
+  client.receive({ id: "s1", end: true });
+  assert.deepEqual(await run, { text: "hi" });
+  assert.deepEqual(seen, [
+    { type: "meta", model: "resolved" },
+    { type: "delta", text: "hi" },
+  ]);
+  // Once settled, late messages for the stream are ignored and the ID can run again.
+  client.receive({ id: "s1", chunk: { type: "delta", text: "late" } });
+  assert.equal(seen.length, 2);
+  const again = client.run(
+    "s1",
+    () => {},
+    async () => "again",
+  );
+  client.receive({ id: "s1", end: true });
+  assert.equal(await again, "again");
+});
+
+test("a failed stream rejects after its end marker, and IDs stay unique while running", async () => {
+  const { createStreamClient } = await loadStreamClient();
+  const client = createStreamClient();
+  const seen = [];
+  const run = client.run(
+    "s2",
+    (chunk) => seen.push(chunk),
+    async () => {
+      throw new Error("Provider failed");
+    },
+  );
+  await assert.rejects(
+    client.run(
+      "s2",
+      () => {},
+      async () => "duplicate",
+    ),
+    /Stream s2 is already running/,
+  );
+  client.receive({ id: "s2", chunk: { type: "tool", id: "t1", status: "error" } });
+  client.receive({ id: "s2", end: true });
+  await assert.rejects(run, /Provider failed/);
+  assert.deepEqual(seen, [{ type: "tool", id: "t1", status: "error" }]);
 });

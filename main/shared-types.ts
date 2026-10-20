@@ -395,7 +395,10 @@ export type AIStreamChunk =
     }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
-export type AssistantResult = { text: string; usage?: RequestUsage } | { blocked: string };
+/** `model` repeats the reply's last meta chunk, so the reply records it even if a chunk is lost. */
+export type AssistantResult =
+  | { text: string; usage?: RequestUsage; model?: AssistantModelInfo }
+  | { blocked: string };
 
 export interface AssistantModelInfo {
   provider: AIProvider;

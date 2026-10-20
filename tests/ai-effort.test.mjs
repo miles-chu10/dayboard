@@ -18,7 +18,7 @@ const stubs = {
   "demo-data.js": `export const isDemoMode=()=>false; export const demoAssistantReply=()=>'';`,
   "attachments.js": `export const attachmentContext=async()=>'';`,
   "codex-models.js": `export const listCodexModels=async()=>globalThis.__effortFixture.codexModels;`,
-  "cli-providers.js": `export const runCliCompletion=async(options)=>{globalThis.__effortFixture.cli.push(options); return 'CLI answer';};`,
+  "cli-providers.js": `export const runCliCompletion=async(options)=>{const f=globalThis.__effortFixture; f.cli.push(options); if (f.reports) options.onModel?.(f.reports); return 'CLI answer';};`,
   "assistant-mcp.js": `export const resolveAssistantMcpServers=()=>[];`,
   "mcp-client.js": `export const openMcpSession=async()=>{throw Error('MCP must not run')};`,
   "provider-resolution.js": `export const resolveConfiguredProvider=async p=>p;`,
@@ -751,6 +751,36 @@ test("an Assistant reply through Claude Code's default names the model it report
     nextChunks.filter((chunk) => chunk.type === "meta").at(-1).model.name,
     "Claude Sonnet 5.5",
   );
+});
+
+test("a reply's result names the model it ran as, the same one its last meta chunk named", async () => {
+  const request = { system: "stable policy", messages: [{ role: "user", content: "hello" }] };
+  const run = async (reports) => {
+    fixture({ provider: "claude", claudeModel: "opus", assistantEffort: { claude: "max" } });
+    globalThis.__effortFixture.reports = reports;
+    const chunks = [];
+    const result = await assistant.runAssistant(
+      request,
+      (chunk) => chunks.push(chunk),
+      new globalThis.AbortController().signal,
+    );
+    return { result, metas: chunks.filter((chunk) => chunk.type === "meta").map((c) => c.model) };
+  };
+  const reported = await run("claude-opus-5-5");
+  assert.deepEqual(
+    reported.metas.map((model) => model.name),
+    ["Claude Opus", "Claude Opus 5.5"],
+  );
+  assert.deepEqual(reported.result.model, reported.metas.at(-1));
+  assert.equal(reported.result.model.id, "claude-opus-5-5");
+  assert.equal(reported.result.model.effortLabel, "Max effort requested");
+  // No init event: the result keeps the model that was requested, with no ID claimed.
+  const unreported = await run(undefined);
+  assert.deepEqual(unreported.result.model, unreported.metas[0]);
+  assert.equal(unreported.result.model.id, null);
+  // An API reply's result repeats its one meta chunk.
+  const api = await apiRun("anthropic", "claude-opus-5-5", { anthropic: "high" });
+  assert.deepEqual(api.value.model, api.chunks.find((chunk) => chunk.type === "meta").model);
 });
 
 async function replyEfforts(overrides, codexModels = [], reported) {

@@ -10,7 +10,12 @@ import { stepCountIs, streamText, tool } from "ai";
 
 import { logger } from "../../platform/index.js";
 
-import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
+import type {
+  AIStreamChunk,
+  AssistantMessageInput,
+  AssistantModelInfo,
+  AssistantResult,
+} from "../../shared-types.js";
 import { demoAssistantReply, isDemoMode } from "../demo-data.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
 import { isApiProvider } from "./api-keys.js";
@@ -134,6 +139,7 @@ export async function runAssistant(
   const messages = withCurrentSnapshot(params.messages, params.snapshot);
   let requestUsage: RequestUsage | undefined;
   let resolvedModelId: string | null = null;
+  let replyModel: AssistantModelInfo = model;
   // Each route starts its clock immediately before the provider call, so setup work is not counted.
   const reportUsage = (usage: CliUsage, startedAt: number) => {
     requestUsage = {
@@ -178,7 +184,8 @@ export async function runAssistant(
         resolvedModelId = id;
         const name =
           provider === "claude" ? claudeDisplayName(settings.ai.claudeModel, id) : model.name;
-        send({ type: "meta", model: { ...model, id, name } });
+        replyModel = { ...model, id, name };
+        send({ type: "meta", model: replyModel });
       },
       onUsage: (usage) => reportUsage(usage, startedAt),
       prompt: transcript(messages),
@@ -188,7 +195,7 @@ export async function runAssistant(
       onDelta: (text) => send({ type: "delta", text }),
       onTool: (event) => send({ type: "tool", ...event }),
     });
-    return { text, usage: requestUsage };
+    return { text, usage: requestUsage, model: replyModel };
   }
 
   const session = servers.length ? await openMcpSession(servers) : null;
@@ -281,7 +288,7 @@ export async function runAssistant(
           throw asError(part.error);
       }
     }
-    return { text, usage: requestUsage };
+    return { text, usage: requestUsage, model: replyModel };
   } catch (error) {
     logger.error("ai", "Assistant request failed", error);
     throw error;
