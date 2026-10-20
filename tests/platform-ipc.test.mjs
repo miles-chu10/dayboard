@@ -307,3 +307,52 @@ test("native accessibility info and updates remain restricted to trusted windows
   nativeTheme.emit("updated");
   assert.deepEqual(trusted.sent, []);
 });
+
+test("allows listed channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(40);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["settings:get"]) });
+  adapter.ipcMain.handle("settings:get", () => ({ theme: "dark" }));
+
+  assert.deepEqual(await invoke("settings:get", panel), { theme: "dark" });
+});
+
+test("rejects unlisted channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(41);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["settings:get"]) });
+  let writes = 0;
+  adapter.ipcMain.handle("tasks:create", () => ++writes);
+
+  await assert.rejects(
+    invoke("tasks:create", panel, { title: "fixture" }),
+    /^Error: This DayBoard window can't use tasks:create\.$/,
+  );
+  assert.equal(writes, 0);
+});
+
+test("rejects unlisted stream channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(42);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["ai:run"]) });
+  adapter.registerBridgeIpc();
+  let runs = 0;
+  adapter.ipcMain.handleStream("ai:assistant", async () => ++runs);
+
+  await assert.rejects(
+    invoke("dayboard:stream:start", panel, { id: "s1", channel: "ai:assistant", args: {} }),
+    /^Error: This DayBoard window can't use ai:assistant\.$/,
+  );
+  assert.equal(runs, 0);
+});
+
+test("leaves unrestricted windows unchanged", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const main = makeSender(43);
+  adapter.registerTrustedWindow(main, entryUrl);
+  adapter.ipcMain.handle("tasks:list", () => ["existing task"]);
+  adapter.ipcMain.handle("mcp:list", () => []);
+
+  assert.deepEqual(await invoke("tasks:list", main), ["existing task"]);
+  assert.deepEqual(await invoke("mcp:list", main), []);
+});

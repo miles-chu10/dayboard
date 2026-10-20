@@ -27,7 +27,14 @@ import { runAppOperation } from "../services/runtime-activity.js";
 
 const registry = new StreamRegistry();
 let bridgeRegistered = false;
-const trustedWindows = new Map<number, { contents: WebContents; entryUrl: string }>();
+interface TrustedWindow {
+  contents: WebContents;
+  entryUrl: string;
+  /** When set, the only app channels this window may invoke or stream. */
+  channels?: ReadonlySet<string>;
+}
+
+const trustedWindows = new Map<number, TrustedWindow>();
 let licenseAccess: () => Promise<void> = async () => {
   throw new Error("License status is not ready. Try again shortly.");
 };
@@ -36,15 +43,19 @@ export function setLicenseAccessGuard(guard: () => Promise<void>): void {
   licenseAccess = guard;
 }
 
-export function registerTrustedWindow(contents: WebContents, entryUrl: string): void {
-  trustedWindows.set(contents.id, { contents, entryUrl });
+export function registerTrustedWindow(
+  contents: WebContents,
+  entryUrl: string,
+  options: { channels?: ReadonlySet<string> } = {},
+): void {
+  trustedWindows.set(contents.id, { contents, entryUrl, channels: options.channels });
   contents.once("destroyed", () => {
     trustedWindows.delete(contents.id);
     registry.disposeSender(contents.id);
   });
 }
 
-function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): void {
+function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): TrustedWindow {
   const trusted = trustedWindows.get(event.sender.id);
   if (
     !trusted ||
@@ -57,6 +68,12 @@ function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): void {
   ) {
     throw new Error("Untrusted DayBoard IPC sender");
   }
+  return trusted;
+}
+
+function assertChannelAllowed(trusted: TrustedWindow, channel: string): void {
+  if (trusted.channels && !trusted.channels.has(channel))
+    throw new Error(`This DayBoard window can't use ${channel}.`);
 }
 
 function getNativeThemeInfo(): NativeThemeInfo {
@@ -80,7 +97,7 @@ export function registerBridgeIpc(): void {
   });
 
   electronIpcMain.handle(BridgeChannel.streamStart, async (event, request: StreamStartRequest) => {
-    assertTrustedSender(event);
+    const trusted = assertTrustedSender(event);
     if (
       !request ||
       typeof request.id !== "string" ||
@@ -90,6 +107,7 @@ export function registerBridgeIpc(): void {
       request.channel.startsWith("dayboard:")
     )
       throw new Error("Invalid stream request");
+    assertChannelAllowed(trusted, request.channel);
     return runAppOperation(async () => {
       if (requiresLicenseAccess(request.channel)) await licenseAccess();
       return registry.start(request, event.sender.id, (chunk) => {
@@ -141,7 +159,7 @@ export function registerBridgeIpc(): void {
 export const ipcMain = {
   handle(channel: string, listener: Parameters<typeof electronIpcMain.handle>[1]): void {
     electronIpcMain.handle(channel, async (event, ...args) => {
-      assertTrustedSender(event);
+      assertChannelAllowed(assertTrustedSender(event), channel);
       const operation = async () => {
         if (requiresLicenseAccess(channel)) await licenseAccess();
         return listener(event, ...args);

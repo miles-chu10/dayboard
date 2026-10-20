@@ -31,7 +31,7 @@ const PRELOAD_PATH = path.join(__dirname, "..", "preload", "index.cjs");
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 
-function secureWebPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
+export function secureWebPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
   return {
     preload: PRELOAD_PATH,
     contextIsolation: true,
@@ -40,8 +40,12 @@ function secureWebPreferences(): BrowserWindowConstructorOptions["webPreferences
   };
 }
 
-function hardenWindow(window: BrowserWindow, entryUrl: string): void {
-  registerTrustedWindow(window.webContents, entryUrl);
+export function hardenWindow(
+  window: BrowserWindow,
+  entryUrl: string,
+  options: { channels?: ReadonlySet<string> } = {},
+): void {
+  registerTrustedWindow(window.webContents, entryUrl, options);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternalWebUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -53,7 +57,7 @@ function hardenWindow(window: BrowserWindow, entryUrl: string): void {
   });
 }
 
-function entryUrl(htmlFileName: string): string {
+export function entryUrl(htmlFileName: string): string {
   return windowEntryUrl(htmlFileName, RENDERER_ROOT, process.env.ELECTRON_RENDERER_URL);
 }
 
