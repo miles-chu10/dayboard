@@ -18,7 +18,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 13: Meeting notifications
 - [x] Task 14: Granola notes import and follow-ups
 - [x] Task 15: Porting doc, fuse proposal, handoff
-- [ ] Task 16: Full verification, packaged build, manual acceptance, REA check
+- [ ] Task 16: Full verification, packaged build, manual acceptance, REA check (automated checks, package, REA and the Codex review fix pass done; native manual acceptance pending — computer-use access was declined)
 
 ## Found along the way
 
