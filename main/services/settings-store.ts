@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { app, safeStorage } from "@glaze/core/backend";
+import { app, logger, safeStorage } from "@glaze/core/backend";
 
 import type {
   AIFeature,
@@ -16,9 +16,11 @@ import type {
   ClaudeModel,
   LaunchView,
   McpServerConfig,
+  NotifyMinutesBefore,
   SourceColor,
   SourceId,
 } from "../shared-types.js";
+import { normalizeAccelerator, validateAccelerator } from "../../shared/accelerator.js";
 import { API_PROVIDERS } from "./ai/api-keys.js";
 import { CALENDAR_RANGES } from "./calendar-range.js";
 import { assertNotDemo, isDemoMode } from "./demo-data.js";
@@ -125,7 +127,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
       weeklyReview: true,
     },
   },
+  system: {
+    quickCapture: { enabled: true, hotkey: "Control+Alt+Space" },
+    menuBar: { enabled: true },
+    meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
+  },
 };
+
+const NOTIFY_MINUTES: NotifyMinutesBefore[] = [1, 2, 5, 10];
+
+function hotkey(value: unknown): string {
+  const normalized = normalizeAccelerator(value);
+  return normalized && validateAccelerator(normalized).ok
+    ? normalized
+    : DEFAULT_SETTINGS.system.quickCapture.hotkey;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -171,6 +187,9 @@ export function normalizeSettings(value: unknown): AppSettings {
   const ai = record(root.ai);
   const mcpServer = record(root.mcpServer);
   const features = record(ai.features);
+  const system = record(root.system);
+  const quickCapture = record(system.quickCapture);
+  const meetings = record(system.meetings);
   const defaults = DEFAULT_SETTINGS;
 
   const visibility: Record<string, boolean> = {};
@@ -253,6 +272,25 @@ export function normalizeSettings(value: unknown): AppSettings {
         ]),
       ) as AppSettings["ai"]["features"],
     },
+    system: {
+      quickCapture: {
+        enabled: bool(quickCapture.enabled, defaults.system.quickCapture.enabled),
+        hotkey: hotkey(quickCapture.hotkey),
+      },
+      menuBar: {
+        enabled: bool(record(system.menuBar).enabled, defaults.system.menuBar.enabled),
+      },
+      meetings: {
+        upNext: bool(meetings.upNext, defaults.system.meetings.upNext),
+        notify: bool(meetings.notify, defaults.system.meetings.notify),
+        notifyMinutesBefore: oneOf(
+          meetings.notifyMinutesBefore,
+          NOTIFY_MINUTES,
+          defaults.system.meetings.notifyMinutesBefore,
+        ),
+        notesImport: bool(meetings.notesImport, defaults.system.meetings.notesImport),
+      },
+    },
   };
 }
 
@@ -268,6 +306,14 @@ export function settingsAffectData(previous: AppSettings, next: AppSettings): bo
 
 const settingsQueue = createSerialQueue();
 let cachedSettings: AppSettings | null = null;
+type SettingsListener = (next: AppSettings, previous: AppSettings) => void;
+const settingsListeners = new Set<SettingsListener>();
+
+/** In-process change events for main-process features; windows get `settings:changed`. */
+export function onSettingsChanged(listener: SettingsListener): () => void {
+  settingsListeners.add(listener);
+  return () => settingsListeners.delete(listener);
+}
 
 function settingsPath(): string {
   return path.join(app.getPath("userData"), isDemoMode() ? "demo-settings.json" : "settings.json");
@@ -312,16 +358,24 @@ export async function getSettings(): Promise<AppSettings> {
   return settingsQueue(loadSettings);
 }
 
-export function saveSettings(
+export async function saveSettings(
   next: unknown,
 ): Promise<{ previous: AppSettings; settings: AppSettings }> {
-  return settingsQueue(async () => {
+  const result = await settingsQueue(async () => {
     const previous = await loadSettings();
     const settings = isDemoMode() ? safeDemoSettings(next) : normalizeSettings(next);
     await writeFileAtomic(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`);
     cachedSettings = settings;
     return { previous, settings };
   });
+  for (const listener of settingsListeners) {
+    try {
+      listener(result.settings, result.previous);
+    } catch (error) {
+      logger.warn("settings", "A settings listener failed", error);
+    }
+  }
+  return result;
 }
 
 // ── MCP servers (encrypted: env vars and headers often hold tokens) ──────────────────

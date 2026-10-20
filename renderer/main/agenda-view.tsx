@@ -32,6 +32,7 @@ import { AgendaSourceStatus } from "../components/agenda-source-status";
 import { AskAssistantCard } from "../components/ask-assistant-card";
 import { EventDetail } from "../components/event-detail";
 import { BriefingCard } from "../components/briefing-card";
+import { MeetingCard } from "../components/meeting-card";
 import { MailDetail } from "../components/mail-detail";
 import { MailRow } from "../components/mail-row";
 import { ReplyDialog } from "../components/reply-dialog";
@@ -575,6 +576,7 @@ export function AgendaView({
               ) : null}
               {todayOverview ? (
                 <>
+                  <MeetingCard surface="agenda" />
                   {featureOn(settings, "briefing") ? (
                     <BriefingCard
                       summary={

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
-import { clipboard, ipcMain, logger, shell } from "@glaze/core/backend";
+import { clipboard, logger, shell } from "@glaze/core/backend";
+import { ipcMain } from "../ipc.js";
 
 import {
   createEvent,
@@ -179,7 +180,7 @@ function requireUUID(value: unknown, channel: string): string {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-async function getAccountsStatus(): Promise<AccountsStatus> {
+export async function getAccountsStatus(): Promise<AccountsStatus> {
   if (isDemoMode()) return demoAccounts;
   const [google, reminders] = await Promise.all([getGoogleStatus(), getRemindersAccess()]);
   return { google, reminders };
@@ -240,9 +241,24 @@ export function requireExpectedAgendaScope(
   }
 }
 
+const accountListeners = new Set<(status: AccountsStatus) => void>();
+
+/** In-process account change events for main-process features; windows get `accounts:changed`. */
+export function onAccountsChanged(listener: (status: AccountsStatus) => void): () => void {
+  accountListeners.add(listener);
+  return () => accountListeners.delete(listener);
+}
+
 async function broadcastAccounts(): Promise<AccountsStatus> {
   const status = await getAccountsStatus();
   ipcMain.broadcast("accounts:changed", status);
+  for (const listener of accountListeners) {
+    try {
+      listener(status);
+    } catch (error) {
+      logger.warn("productivity", "An account listener failed", error);
+    }
+  }
   return status;
 }
 
@@ -705,10 +721,12 @@ export function registerProductivityHandlers(): void {
   ipcMain.handle("calendar:list", async () => {
     const settings = await getSettings();
     if (isDemoMode()) return demoEventsForDays(calendarRangeDays(settings.calendar.range));
+    const { email } = await getGoogleStatus();
     return googleBoundedList("calendar:list", () =>
       listEventsWithCoverage(
         calendarRangeDays(settings.calendar.range),
         settings.calendar.visibility,
+        email,
       ),
     );
   });
@@ -725,8 +743,9 @@ export function registerProductivityHandlers(): void {
     if (!settings.sources.calendar.enabled) return { state: "disabled" as const };
     const { start, end } = localDateRange(startDate, days as number);
     if (isDemoMode()) return demoEventsBetween(start, end);
+    const { email } = await getGoogleStatus();
     return googleBoundedList(channel, () =>
-      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility),
+      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility, email),
     );
   });
 

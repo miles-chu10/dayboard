@@ -1,4 +1,4 @@
-import { ipcMain } from "@glaze/core/backend";
+import { ipcMain } from "../ipc.js";
 
 import { assertNotDemo, isDemoMode } from "../services/demo-data.js";
 import { getStartAtLogin, setStartAtLogin } from "../services/startup-settings.js";

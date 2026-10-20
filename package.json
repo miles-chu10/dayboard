@@ -13,7 +13,7 @@
     "dev:renderer": "sh ./glaze-node.sh dev:renderer",
     "lint": "sh ./glaze-node.sh lint",
     "type-check": "sh ./glaze-node.sh type-check",
-    "test": "tsx --test renderer/lib/agenda.test.ts renderer/lib/ai-prompts.test.ts && node --test tests/*.test.mjs",
+    "test": "tsx --test renderer/lib/agenda.test.ts renderer/lib/ai-prompts.test.ts renderer/lib/notes-lines.test.ts renderer/lib/account-scoped-queries.test.ts renderer/panel/capture-panel-state.test.ts renderer/panel/today-items.test.ts renderer/panel/menubar-capture.test.ts && node --test tests/*.test.mjs",
     "format": "sh ./glaze-node.sh format",
     "verify": "sh ./glaze-node.sh verify --json",
     "launch": "sh ./glaze-node.sh launch --wait --json",

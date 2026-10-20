@@ -120,6 +120,23 @@ export interface AppSettings {
     assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;
   };
+  /** Quick Capture panel, menu-bar Agenda and meeting helpers. */
+  system: SystemSettings;
+}
+
+export type NotifyMinutesBefore = 1 | 2 | 5 | 10;
+
+export interface SystemSettings {
+  /** Global hotkey that opens the Quick Capture panel over any app. */
+  quickCapture: { enabled: boolean; hotkey: string };
+  menuBar: { enabled: boolean };
+  meetings: {
+    upNext: boolean;
+    notify: boolean;
+    notifyMinutesBefore: NotifyMinutesBefore;
+    /** Offer to pull notes from a configured Granola MCP server after meetings. */
+    notesImport: boolean;
+  };
 }
 
 export interface CodexModelInfo {
@@ -264,6 +281,14 @@ export interface CalendarEventItem {
   calendarName: string;
   calendarColor: string | null;
   attendees: string[];
+  /** On the account's primary calendar (including the legacy "primary" fallback). */
+  primaryCalendar?: boolean;
+  /** The connected account organizes or is invited to this event. */
+  selfInvited?: boolean;
+  /** The account's own reply; read only from the primary calendar's copy. */
+  selfResponse?: "accepted" | "declined" | "tentative" | "needsAction" | null;
+  /** Shared by every copy of the event across calendars (and every occurrence of a series). */
+  iCalUID?: string;
 }
 
 export interface GoogleCalendarInfo {

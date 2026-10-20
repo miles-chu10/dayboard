@@ -12,7 +12,7 @@ async function loadModule(file) {
       api.onResolve({ filter: /(?:shell-env|cli-binaries)\.js$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
       api.onResolve({ filter: /^@glaze\/core\/backend$/ }, (args) => ({ path: args.path, namespace: "glaze-backend" }));
       api.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'export const getToolEnv = async () => ({}); export const resolveCli = async () => null;', loader: "js" }));
-      api.onLoad({ filter: /.*/, namespace: "glaze-backend" }, () => ({ contents: 'export const app = { getPath: () => "/nonexistent" }; export const safeStorage = {};', loader: "js" }));
+      api.onLoad({ filter: /.*/, namespace: "glaze-backend" }, () => ({ contents: 'export const app = { getPath: () => "/nonexistent" }; export const safeStorage = {}; export const logger = { info() {}, warn() {}, error() {} };', loader: "js" }));
     } }],
   });
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);

@@ -1,4 +1,4 @@
-import { ipcMain } from "@glaze/core/backend";
+import { ipcMain } from "../ipc.js";
 
 import type { CalendarEventItem, ReminderItem, TaskItem } from "../shared-types.js";
 import type {

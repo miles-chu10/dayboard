@@ -1,63 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Callout,
-  Dialog,
-  Field,
-  FieldGroup,
-  Input,
-  SegmentedControl,
-  SegmentedControlItem,
-  Status,
-  toast,
-} from "@glaze/core/components";
+import { Button, Callout, Dialog, Input, Status, toast } from "@glaze/core/components";
 
 import { extractJSON, useAITask } from "../lib/ai";
 import { CAPTURE_SYSTEM, buildCapturePrompt } from "../lib/ai-prompts";
-import {
-  KIND_LABEL,
-  KIND_SOURCE,
-  createItem,
-  isItemKind,
-  type ItemDraft,
-  type ItemKind,
-} from "../lib/create-items";
+import { parseDraft } from "../../shared/capture";
+import { KIND_LABEL, createItem, type ItemDraft, type ItemKind } from "../lib/create-items";
 import { errorMessage, openSettings } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { isNewItemShortcut } from "../lib/shortcuts";
-import { SourceDot } from "./source-dot";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
-
-function parseDraft(text: string, available: Record<ItemKind, boolean>): ItemDraft | null {
-  const value = extractJSON(text);
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  const read = (key: string, pattern?: RegExp) => {
-    const field = record[key];
-    return typeof field === "string" && (!pattern || pattern.test(field.trim()))
-      ? field.trim()
-      : "";
-  };
-  const title = read("title");
-  if (!title) return null;
-  let kind: ItemKind = isItemKind(record.kind) ? record.kind : "task";
-  if (!available[kind]) {
-    kind =
-      (["reminder", "task", "event"] as const).find((candidate) => available[candidate]) ?? kind;
-  }
-  return {
-    kind,
-    title,
-    notes: read("notes"),
-    date: read("date", DATE_RE),
-    time: read("time", TIME_RE),
-    endTime: read("endTime", TIME_RE),
-  };
-}
+import { DraftFields } from "./draft-fields";
 
 const CaptureContext = createContext<() => void>(() => {});
 
@@ -256,71 +209,12 @@ function CaptureDialog({
           </>
         ) : null}
         {draft ? (
-          <FieldGroup>
-            <Field label="Type">
-              <SegmentedControl
-                size="small"
-                value={draft.kind}
-                onValueChange={(value) => update({ kind: value as ItemKind })}
-                aria-label="Item type"
-              >
-                {(["task", "reminder", "event"] as const).map((kind) => (
-                  <SegmentedControlItem key={kind} value={kind} disabled={!available[kind]}>
-                    <span className="flex items-center gap-1.5">
-                      <SourceDot source={KIND_SOURCE[kind]} />
-                      {kind === "task" ? "Task" : kind === "reminder" ? "Reminder" : "Event"}
-                    </span>
-                  </SegmentedControlItem>
-                ))}
-              </SegmentedControl>
-            </Field>
-            <Field label="Title">
-              <Input
-                className="w-64"
-                autoFocus={!aiCapture}
-                value={draft.title}
-                onChange={(event) => update({ title: event.target.value })}
-              />
-            </Field>
-            <Field
-              label={draft.kind === "event" ? "Date" : "Due"}
-              description={
-                draft.kind === "event" && !draft.date ? "Events need a date." : undefined
-              }
-            >
-              <Input
-                type="date"
-                className="w-64"
-                value={draft.date}
-                onChange={(event) => update({ date: event.target.value })}
-              />
-            </Field>
-            {draft.kind !== "task" ? (
-              <Field
-                label={draft.kind === "event" ? "Starts" : "Time"}
-                description={
-                  draft.kind === "event" ? "Leave empty for an all-day event." : undefined
-                }
-              >
-                <Input
-                  type="time"
-                  className="w-64"
-                  value={draft.time}
-                  onChange={(event) => update({ time: event.target.value })}
-                />
-              </Field>
-            ) : null}
-            {draft.kind === "event" && draft.time ? (
-              <Field label="Ends" description="Defaults to one hour.">
-                <Input
-                  type="time"
-                  className="w-64"
-                  value={draft.endTime}
-                  onChange={(event) => update({ endTime: event.target.value })}
-                />
-              </Field>
-            ) : null}
-          </FieldGroup>
+          <DraftFields
+            draft={draft}
+            available={available}
+            autoFocusTitle={!aiCapture}
+            onChange={update}
+          />
         ) : null}
       </div>
     </Dialog>
