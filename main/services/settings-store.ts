@@ -112,6 +112,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       string
     >,
     assistantProvider: "",
+    assistantEffort: {},
     useMcpInAssistant: true,
     assistantPermission: "ask",
     features: {
@@ -233,6 +234,12 @@ export function normalizeSettings(value: unknown): AppSettings {
         API_PROVIDERS.map((provider) => [provider, modelId(record(ai.apiModels)[provider])]),
       ) as Record<ApiProviderId, string>,
       assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
+      assistantEffort: Object.fromEntries(
+        PROVIDERS.flatMap((provider): [AIProvider, string][] => {
+          const level = token(record(ai.assistantEffort)[provider]);
+          return level ? [[provider, level]] : [];
+        }),
+      ),
       useMcpInAssistant: bool(ai.useMcpInAssistant, defaults.ai.useMcpInAssistant),
       assistantPermission: oneOf(
         ai.assistantPermission,

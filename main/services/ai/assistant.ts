@@ -19,6 +19,12 @@ import { attachmentContext } from "./attachments.js";
 import { runCliCompletion, type CliUsage } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
 import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
+import {
+  effortProviderOptions,
+  resolveAssistantEffort,
+  withAssistantEffort,
+  withProviderOptions,
+} from "./assistant-effort.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { resolveConfiguredProvider } from "./provider-resolution.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
@@ -89,7 +95,14 @@ export async function runAssistant(
   const apiModel = isApiProvider(provider)
     ? await resolveApiModel(provider, settings.ai)
     : undefined;
-  const model = describeModel(settings.ai, codexModels, provider, apiModel);
+  // The composer's effort, checked against the model that will run; "" is the model default.
+  const effort = resolveAssistantEffort(settings.ai, provider, codexModels, apiModel?.id);
+  const model = describeModel(
+    withAssistantEffort(settings.ai, provider, effort),
+    codexModels,
+    provider,
+    apiModel,
+  );
   send({ type: "meta", model });
   const attached = params.attachments?.length ? await attachmentContext(params.attachments) : "";
   if (attached) {
@@ -141,6 +154,7 @@ export async function runAssistant(
       provider,
       system: system + (servers.length ? `\n\n${MCP_HINT}` : ""),
       codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
+      effort,
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
         resolvedModelId = id;
@@ -180,12 +194,15 @@ export async function runAssistant(
     const startedAt = Date.now();
     const result = streamText({
       model: languageModel,
-      ...apiPromptOptions(
-        provider,
-        apiModel?.id ?? "",
-        system,
-        withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
-        "implicit",
+      ...withProviderOptions(
+        apiPromptOptions(
+          provider,
+          apiModel?.id ?? "",
+          system,
+          withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
+          "implicit",
+        ),
+        effortProviderOptions(provider, effort),
       ),
       tools,
       stopWhen: stepCountIs(8),

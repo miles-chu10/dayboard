@@ -118,6 +118,11 @@ export interface AppSettings {
     apiModels: Record<ApiProviderId, string>;
     /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
     assistantProvider: AIProvider | "";
+    /**
+     * Reasoning effort the Assistant composer sets, per provider. Missing or empty is the model
+     * default; one-click features use `claudeEffort` and `codexEffort` instead.
+     */
+    assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;

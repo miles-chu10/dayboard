@@ -433,6 +433,10 @@ test("demo Assistant replies locally without CLI, provider API, or MCP access", 
           "./model-options.js",
           `export const describeModel = () => { globalThis.__demoLiveCalls += 1; }; export const modelSystemNote = describeModel; export const rememberClaudeModel = describeModel;`,
         ],
+        [
+          "./assistant-effort.js",
+          `export const resolveAssistantEffort = () => { globalThis.__demoLiveCalls += 1; }; export const withAssistantEffort = resolveAssistantEffort; export const effortProviderOptions = resolveAssistantEffort; export const withProviderOptions = resolveAssistantEffort;`,
+        ],
       ]);
       api.onResolve({ filter: /.*/ }, (args) =>
         stubs.has(fixtureImport(args.path))

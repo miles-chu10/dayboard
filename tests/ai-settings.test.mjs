@@ -210,3 +210,27 @@ test("supported chosen providers resolve only to themselves", async () => {
   assert.equal(await resolveConfiguredProvider("codex"), "codex");
   assert.equal(await resolveConfiguredProvider("anthropic"), "anthropic");
 });
+
+test("Assistant effort keeps valid levels for known providers and drops everything else", () => {
+  const settings = normalizeSettings({
+    ai: {
+      provider: "claude",
+      assistantEffort: {
+        claude: "high",
+        codex: "ultra",
+        openai: "",
+        anthropic: "Bad Level",
+        nobody: "high",
+        google: 3,
+      },
+    },
+  });
+  assert.deepEqual(settings.ai.assistantEffort, { claude: "high", codex: "ultra" });
+  assert.deepEqual(normalizeSettings({}).ai.assistantEffort, {});
+  assert.deepEqual(normalizeSettings({ ai: { assistantEffort: "high" } }).ai.assistantEffort, {});
+  // Normalizing a saved value again changes nothing.
+  assert.deepEqual(normalizeSettings(settings).ai.assistantEffort, {
+    claude: "high",
+    codex: "ultra",
+  });
+});
