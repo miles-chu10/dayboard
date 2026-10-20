@@ -19,18 +19,14 @@ const MODIFIER_ALIASES: Record<string, Modifier> = {
 const NAMED_KEYS = ["Space", "Up", "Down", "Left", "Right"];
 const PUNCTUATION = ["-", "=", "[", "]", ";", "'", ",", ".", "/", "\\", "`"];
 
+// Common app commands (⌘N is DayBoard's own New Item) and macOS system shortcuts.
 const RESERVED = new Set([
-  "Command+Q",
-  "Command+W",
-  "Command+H",
-  "Command+M",
-  "Command+C",
-  "Command+V",
-  "Command+X",
-  "Command+Z",
-  "Command+A",
+  ...["Q", "W", "H", "M", "C", "V", "X", "Z", "A", "N", "O", "S", "P", "F", "T", "R", ","].map(
+    (key) => `Command+${key}`,
+  ),
   "Command+Tab",
   "Command+Space",
+  "Shift+Command+Z",
 ]);
 
 function normalizeKey(raw: string): string | null {

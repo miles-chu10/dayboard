@@ -76,3 +76,10 @@ test("detects a customized binding", () => {
   assert.equal(accelerator.symbolicHotkeyConflict(plist, "Alt+Command+D"), "Show Spotlight search");
   assert.equal(accelerator.symbolicHotkeyConflict(plist, "Command+Space"), null);
 });
+
+test("reserves ⌘N for DayBoard's New Item", () => {
+  for (const value of ["Command+N", "Command+S", "Command+,", "Shift+Command+Z", "Command+T"]) {
+    assert.equal(accelerator.validateAccelerator(value).ok, false, value);
+  }
+  assert.equal(accelerator.validateAccelerator("Control+Command+N").ok, true);
+});

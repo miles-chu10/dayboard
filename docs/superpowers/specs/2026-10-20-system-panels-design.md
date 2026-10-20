@@ -146,7 +146,7 @@ set and are unchanged. The panel set lives in `main/system-panels/panel-channels
 - Meeting prep: `ai:run` (stream), `mail:related`.
 - Meetings: `meetings:notesStatus`, `meetings:findNotes`, `meetings:importNotes`,
   `meetings:getNotes`, `tasks:create`, `reminders:create` (follow-ups).
-- Panel control: `panel:hide`, `panel:openMain` (focus main window at a route),
+- Panel control: `panel:hide`, `panel:show`, `panel:openMain` (focus main window at a route),
   `window:openSettings`, `app:openExternal`.
 
 A unit test asserts the exact set. Broadcasts (`settings:changed`, `data:changed`) still reach
@@ -176,7 +176,9 @@ system: {
 UI: "Menu Bar & Shortcuts" and "Meetings" FieldSets in `renderer/settings/general-tab.tsx`.
 The hotkey field records a combination, shows macOS symbols, and validates with pure
 `shared/accelerator.ts` (needs at least one of ⌃⌥⌘ plus a key; rejects bare keys and common app
-shortcuts such as ⌘Q/⌘W/⌘C/⌘V). AI prep text in the card stays gated by
+shortcuts such as ⌘Q/⌘W/⌘C/⌘V, and ⌘N, which is DayBoard's own New Item). The File → Quick
+Capture… menu item shows no key equivalent: macOS ignores Electron's `registerAccelerator: false`,
+so a menu accelerator would fire while the recorder is listening. AI prep text in the card stays gated by
 `ai.features.meetingPrep`.
 
 **Hotkey manager** (`main/system-panels/hotkey.ts`). Registers after `whenReady`, re-registers
@@ -220,12 +222,17 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
   end time), reusing the field component extracted from `capture-dialog.tsx`. Enter sends
   `capture:submit { draft }`; the panel hides and the same confirm step runs.
 - **Failure** (license, demo, provider, network, unparseable): the capture panel reopens on the
-  pointer's display with the original text and the error. If parsing failed, it reopens on the
+  pointer's display with the original text and the error. Rejections that happen before the
+  capture reaches the pipeline (the license guard or update admission in the IPC wrapper) are
+  caught in the panel itself: it keeps a snapshot of each submission, queues the failure with
+  that text, and re-shows itself with `panel:show`. If parsing failed, it reopens on the
   manual form with the text as the title. A failure never shows only as a notification.
 - **Undo** (`capture:undo { id }`) uses a single-use, 10-minute receipt (account scope +
   container + item identity, kept in memory, never rebuilt from the title). It deletes through
   the existing delete services only if the current account scope still matches, once, and
-  updates the recent list. The notification's Undo action calls the same guarded operation.
+  updates the recent list. IPC and the notification's Undo button share one command that applies
+  the same runtime admission, license guard, demo refusal, receipt and scope checks
+  (`runGuardedCommand` in `main/platform/ipc.ts` for actions that start outside IPC).
 - **Job lifetime:** `capture:submit` awaits the whole pipeline in main, so the existing
   operation tracking and quit draining cover it; the renderer does not wait for it. Late
   failures are queued in the panel and never replace text Miles is typing.
@@ -252,10 +259,11 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
 
 - `extractJoinUrl(event)`: `meetLink` first, then the first Zoom, Microsoft Teams, Webex,
   Whereby or Google Meet https URL in `location`, then `description`.
-- `isMine(event, accountEmail)`: the event's calendar has Google's `primary` flag (this also
-  covers the legacy `"primary"` fallback calendar), or the account email is the organizer or an
-  attendee. Ownership and `selfResponse` are computed in `eventToItem` from the raw attendee
-  list, before the self attendee is filtered out and the list is capped. Events on shared or
+- `isMine(event)`: the event's calendar has Google's `primary` flag (this also covers the
+  legacy `"primary"` fallback calendar), or `selfInvited` (the connected account is the
+  organizer or an attendee). `eventToItem` receives the account email and computes
+  `selfInvited` and `selfResponse` from the raw attendee list, before the self attendee is
+  filtered out and the list is capped. Events on shared or
   subscribed calendars where Miles isn't invited are not his meetings.
 - `isMeeting(event)`: timed, mine, not declined (`selfResponse !== "declined"`, taken only
   from the primary calendar's copy), and has a join URL or at least one other attendee.
@@ -294,8 +302,9 @@ for the Developer ID signed beta.
 - **Provider detection without background launches.** When Miles tests an MCP server
   (`mcp:test` connects and lists tools; `mcp:save` only stores the configuration), DayBoard
   records whether its tools include both `list_meetings` and `get_meetings` (Granola's public
-  tool names) in `userData/meeting-notes/providers.json`, keyed by server ID plus a hash of the
-  server's command/arguments/URL, so editing the server invalidates the record. The card offers "Get notes from Granola" only for an
+  tool names) in `userData/meeting-notes/providers.json`, keyed by a hash of the server's
+  transport/command/arguments/URL (not its ID: Test runs on the unsaved form and Save assigns
+  the ID), so editing the server invalidates the record. The card offers "Get notes from Granola" only for an
   enabled server recorded as Granola. A "Check MCP servers for meeting notes" button in Settings
   → Meetings runs detection on demand. Nothing launches an MCP server unless Miles clicks.
 - **Granola output** (from the approved sample): text containing
@@ -308,7 +317,10 @@ url="https://notes.granola.ai/d/<uuid>" …>` elements with XML-escaped attribut
   event's local date. Parse `<meeting>` attributes (decode entities). Primary signal:
   `meeting_at` within [event start − 10 min, event end + 5 min]. Tie-break by title-token
   overlap. Exactly one match → use it; otherwise the card lists up to five candidates
-  (title and time) to pick.
+  (title and time) to pick. Finding returns a short-lived, single-use selection token bound to
+  the account scope, the calendar event, the provider's configuration and the offered meeting
+  IDs; import checks it before fetching and again before saving, and account changes clear all
+  selections.
 - **Fetch:** `get_meetings { meeting_ids: [id] }`, through a call path with a 60,000-character
   cap instead of the assistant's 12,000 that reports the tool's `isError` and truncation
   separately (the assistant formatter folds errors into text). An error or empty result is
@@ -356,10 +368,12 @@ allow-list, and the React components. Electron-specific: `main/system-panels/*`
   services (success, parse failure, create failure, undo).
 - Existing checks: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test`,
   `npm run build`, `npm run test:e2e`.
-- Manual with screenshots: hotkey from a normal and a full-screen app; display under the
-  pointer; Esc, click-away and submit keep focus in the previous app; tray panel under the icon;
-  conflict message for a taken shortcut; switches remove hotkey, tray and card; notification
-  on the ad-hoc packaged build.
+- Manual with screenshots, on the non-test ad-hoc packaged build (`package:preview`) with a
+  disposable demo profile (`DAYBOARD_DEMO=1`, fresh `DAYBOARD_USER_DATA`); test builds keep the
+  hotkey and menu-bar icon off for e2e: hotkey from a normal and a full-screen app; display
+  under the pointer; Esc, click-away and submit keep focus in the previous app; tray panel under
+  the icon; conflict message for a taken shortcut; switches remove hotkey, tray and card;
+  notification delivered or refused.
 - REA `analyze_javascript_application` (`detail: "summary"`) on the built `app.asar`: shipped
   IPC channels, preload surface and the three window kinds match this design.
 
