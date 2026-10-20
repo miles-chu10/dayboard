@@ -14,14 +14,11 @@
       }
     </script>
     <style>
-      :root {
-        --background: transparent;
-      }
-      .dark {
-        --background: transparent;
-      }
+      /* Popovers stay solid (DayBoard Design System, Materials): an opaque ground also keeps text
+         readable when Reduce Transparency removes the window's vibrancy. */
+      html,
       body {
-        background: var(--background);
+        background: var(--color-surface-popover);
       }
     </style>
   </head>

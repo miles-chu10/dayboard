@@ -1,0 +1,185 @@
+import { Buffer } from "node:buffer";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import process from "node:process";
+import { URL } from "node:url";
+import { build } from "esbuild";
+import type { Page } from "@playwright/test";
+
+// Specs run from the project folder; Glaze publishes the build to the sibling runtime folder.
+const BUILD_DIR = path.resolve(process.cwd(), "..", "runtime", "build");
+// The native shell resolves the build's shared modules through an import map and injects the SDK's
+// component styles; the harness serves the same files from the project's SDK.
+const SDK_DIR = process.env.GLAZE_SDK_PATH
+  ? path.resolve(process.env.GLAZE_SDK_PATH, "@glaze/core")
+  : path.resolve(process.cwd(), "..", "..", ".sdk", "@glaze", "core");
+const IMPORT_MAP = {
+  imports: {
+    react: "/__glaze/vendor/react.js",
+    "react/jsx-runtime": "/__glaze/vendor/react-jsx-runtime.js",
+    "react/jsx-dev-runtime": "/__glaze/vendor/react-jsx-dev-runtime.js",
+    "react/compiler-runtime": "/__glaze/vendor/react-compiler-runtime.js",
+    "react-dom": "/__glaze/vendor/react-dom.js",
+    "react-dom/client": "/__glaze/vendor/react-dom-client.js",
+    "@tanstack/react-query": "/__glaze/vendor/tanstack-react-query.js",
+    sonner: "/__glaze/vendor/sonner.js",
+    "@glaze/core/components": "/__glaze/components.js",
+    "@glaze/core/hooks": "/__glaze/hooks.js",
+    "@glaze/core/utils": "/__glaze/utils.js",
+    "@glaze/core/ipc": "/__glaze/ipc.js",
+  },
+};
+const SHELL_HEAD = `<script type="importmap">${JSON.stringify(IMPORT_MAP)}</script>
+<link rel="stylesheet" href="/__glaze/components.css" />`;
+const ORIGIN = "http://dayboard.test";
+const TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".woff2": "font/woff2",
+};
+
+/** The app's real default settings, from the backend's own normalizer. */
+export async function defaultSettings(): Promise<Record<string, unknown>> {
+  const result = await build({
+    entryPoints: [path.resolve(process.cwd(), "main/services/settings-store.ts")],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    write: false,
+    logLevel: "silent",
+    plugins: [
+      {
+        name: "glaze-backend",
+        setup(api) {
+          api.onResolve({ filter: /^@glaze\/core\/backend$/ }, () => ({
+            path: "backend",
+            namespace: "stub",
+          }));
+          api.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
+            contents: `export const app = { getPath: () => "/nonexistent" };
+export const safeStorage = {};
+export const logger = { info() {}, warn() {}, error() {}, debug() {} };`,
+            loader: "js",
+          }));
+        },
+      },
+    ],
+  });
+  const source = Buffer.from(result.outputFiles[0].text).toString("base64");
+  const module = await import(`data:text/javascript;base64,${source}`);
+  return module.normalizeSettings({});
+}
+
+export interface BridgeOptions {
+  settings: Record<string, unknown>;
+  /** Fixed responses by channel; list channels default to an empty "ok" result. */
+  responses?: Record<string, unknown>;
+  /** Channels that reject with this message. */
+  reject?: Record<string, string>;
+}
+
+/** Stands in for the native preload: records every call and lets a spec push notifications. */
+function installBridge(options: BridgeOptions) {
+  type Listener = (payload: unknown) => void;
+  const calls: { channel: string; args: unknown[] }[] = [];
+  const listeners = new Map<string, Set<Listener>>();
+  // A signed-out, non-demo profile with Reminders allowed: what a fresh install shows.
+  const defaults: Record<string, unknown> = {
+    "app:isDemo": false,
+    "accounts:getStatus": {
+      google: { hasCredentials: false, connected: false, email: null, clientIdHint: null },
+      reminders: "full-access",
+    },
+    "agenda:getScope": "e2e-scope",
+    "agenda:getState": {
+      scope: "e2e-scope",
+      state: { focusKeys: [], duplicateLinks: [], scheduledBlocks: [] },
+    },
+    "ai:availability": { glaze: true, claude: false, codex: false, gemini: false, muse: false },
+    "capture:recent": [],
+    "system:hotkeyStatus": {
+      accelerator: "Control+Alt+Space",
+      enabled: true,
+      registered: true,
+      conflict: null,
+    },
+    "system:notificationStatus": { status: "unknown" },
+  };
+  const respond = (channel: string, args: unknown[]): Promise<unknown> => {
+    calls.push({ channel, args });
+    if (options.reject && channel in options.reject)
+      return Promise.reject(new Error(options.reject[channel]));
+    if (channel === "settings:get") return Promise.resolve(options.settings);
+    if (options.responses && channel in options.responses)
+      return Promise.resolve(options.responses[channel]);
+    if (channel in defaults) return Promise.resolve(defaults[channel]);
+    if (/:list(Range)?$/.test(channel)) return Promise.resolve({ state: "ok", items: [] });
+    return Promise.resolve(null);
+  };
+  const target = globalThis as unknown as Record<string, unknown>;
+  target.__panel = {
+    calls,
+    emit(channel: string, payload: unknown) {
+      for (const listener of listeners.get(channel) ?? []) listener(payload);
+    },
+  };
+  target.glazeAPI = {
+    glaze: {
+      ipc: {
+        invoke: (channel: string, ...args: unknown[]) => respond(channel, args),
+        stream: (channel: string, args: unknown) => respond(channel, [args]),
+        cancelStream() {},
+        onNotification(channel: string, listener: Listener) {
+          const set = listeners.get(channel) ?? new Set<Listener>();
+          set.add(listener);
+          listeners.set(channel, set);
+          return () => set.delete(listener);
+        },
+        isConnected: () => true,
+        waitForReady: () => Promise.resolve(),
+        disconnect() {},
+      },
+    },
+    nativeTheme: {
+      getInfo: () => Promise.resolve({ shouldUseDarkColors: false, themeSource: "system" }),
+      setThemeSource: () => Promise.resolve(),
+    },
+  };
+}
+
+/** Opens one panel surface from the production build with the stubbed bridge. */
+export async function openPanel(page: Page, surface: "capture" | "menubar", options: BridgeOptions) {
+  await page.route(`${ORIGIN}/**`, async (route) => {
+    const pathname = decodeURIComponent(new URL(route.request().url()).pathname);
+    const [root, relative] = pathname.startsWith("/__glaze/")
+      ? [SDK_DIR, pathname.slice("/__glaze/".length)]
+      : [BUILD_DIR, pathname.slice(1)];
+    const file = path.join(root, relative);
+    if (!file.startsWith(root)) return route.fulfill({ status: 404 });
+    try {
+      let body = await readFile(file);
+      if (file.endsWith("panel-window.html"))
+        body = Buffer.from(body.toString("utf8").replace("<head>", `<head>${SHELL_HEAD}`));
+      // The SDK stylesheet addresses its fonts on the native glaze-core: scheme.
+      if (file.endsWith(".css"))
+        body = Buffer.from(body.toString("utf8").replaceAll("glaze-core://", "/__glaze/"));
+      return route.fulfill({ body, contentType: TYPES[path.extname(file)] ?? "text/plain" });
+    } catch {
+      return route.fulfill({ status: 404 });
+    }
+  });
+  await page.addInitScript(installBridge, options);
+  await page.goto(`${ORIGIN}/panel-window.html#${surface}`);
+}
+
+export function panelCalls(page: Page, channel: string) {
+  return page.evaluate((name) => {
+    const panel = (globalThis as unknown as { __panel: { calls: { channel: string }[] } }).__panel;
+    return panel.calls.filter((call) => call.channel === name);
+  }, channel);
+}

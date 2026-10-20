@@ -15,6 +15,7 @@
     "type-check": "sh ./glaze-node.sh type-check",
     "test": "tsx --test renderer/lib/agenda.test.ts renderer/lib/ai-prompts.test.ts renderer/lib/notes-lines.test.ts renderer/lib/account-scoped-queries.test.ts renderer/panel/capture-panel-state.test.ts renderer/panel/today-items.test.ts renderer/panel/menubar-capture.test.ts && node --test tests/*.test.mjs",
     "format": "sh ./glaze-node.sh format",
+    "test:e2e": "npm run build && playwright test --tsconfig e2e/tsconfig.json",
     "verify": "sh ./glaze-node.sh verify --json",
     "launch": "sh ./glaze-node.sh launch --wait --json",
     "update-bundle": "sh ./glaze-node.sh update-bundle --wait --json",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "@playwright/test": "1.63.0",
     "@rolldown/plugin-babel": "^0.2.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^24.3.1",

@@ -27,3 +27,5 @@ GLAZE-APP-GUIDE.md
 GLAZE-AGENT-INSTRUCTIONS.md
 .glaze-runtime-context.md
 store-screenshots/
+test-results/
+playwright-report/

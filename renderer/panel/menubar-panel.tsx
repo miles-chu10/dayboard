@@ -118,14 +118,19 @@ export function MenuBarPanel() {
             <button
               key={item.key}
               type="button"
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-control-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
               onClick={() => void openMain(item.kind === "event" ? "/calendar" : "/")}
             >
               <SourceDot source={item.source} />
-              <Text as="span" variant="small" color="secondary" className="w-16 shrink-0">
+              <Text
+                as="span"
+                variant="small"
+                color="secondary"
+                className="w-16 shrink-0 tabular-nums"
+              >
                 {item.time ?? "Anytime"}
               </Text>
-              <Text as="span" variant="regular" truncate>
+              <Text as="span" variant="regular" truncate title={item.title}>
                 {item.title}
               </Text>
             </button>
@@ -166,13 +171,13 @@ export function MenuBarPanel() {
         </section>
       ) : null}
 
-      {error ? <Callout color="orange">{error}</Callout> : null}
+      {error ? <Callout color="red">{error}</Callout> : null}
       {aiCapture ? (
         <div className="flex gap-2">
           <Input
             aria-label="Add or ask"
             className="flex-1"
-            placeholder="Add something, e.g. Call dentist Thursday 3pm"
+            placeholder="Add or ask…"
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
@@ -198,7 +203,7 @@ export function MenuBarPanel() {
             void showPanel("capture");
           }}
         >
-          Add an Item…
+          Add an item…
         </Button>
       )}
     </div>
