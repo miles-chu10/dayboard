@@ -45,6 +45,9 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
       is frontmost before choosing a fix.
 - [x] Design system check of the panels against v21 (`1791573676-ee86`) and the live revision
       `1792522028-b5ac`: fixes in `ba10a95`, with before and after screenshots (see `HANDOFF.md`).
+- [ ] Claude Design project check: blocked until Miles runs `/design-login` in an interactive
+      Claude Code session. Then rerun the `/design-sync` read-only inspection (`list_projects`,
+      `get_project`, `list_files`) against the existing DayBoard project.
 - [ ] After #42 merges, check whether any panel surface shows #42's model or effort presentation,
       and align it with #42's design.
 - [ ] Native re-acceptance of the tray placement and Esc fixes on a fresh build.

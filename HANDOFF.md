@@ -203,12 +203,21 @@ render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on th
 - **Already compliant:** the panel ground is opaque. A new e2e test pins it along with the
   fixes.
 - **Left as decisions:**
-  - the Spotlight-size capture field (`h-10 text-[15px]`)
+  - The Spotlight-size capture field stays for this release. It is 40px tall with 15px text
+    (`h-10 text-[15px]`); the design system's Input sizes are 28, 32 and 36px with 13px text.
   - the app-wide time-range format
   - model and effort presentation, which has no guidance in the design system (owned by #42)
   - the hidden native vibrancy layer
 - Before and after screenshots and rendered design-system cards are in the shared notes folder's
   `pr44-design-system-check/`.
+- **Exact-head regression at `a96c70c`** (code as `ba10a95`): `npm test` renderer 63/63 and backend
+  529/529; lint, typecheck and `format:check` exit 0; `test:e2e` 39 passed, 1 skipped (the opt-in
+  native encryption test).
+- **Claude Design project (claude.ai/design): not inspected.** The `/design-sync` skill's
+  read-only `DesignSync list_projects` call failed: "DesignSync needs design-system
+  authorization, and /design-login cannot run in this non-interactive session. Ask the user to run
+  /design-login once from an interactive Claude Code session on this machine". The artifact and
+  the v21 export above were used instead.
 
 No canonical app or profile was touched. Full report, with permission evidence, screenshots and
 logs:
