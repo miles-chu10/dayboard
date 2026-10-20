@@ -135,7 +135,11 @@ function submitInput(value: unknown): CaptureSubmit {
 }
 
 export function registerCaptureHandlers(): void {
-  onAccountsChanged(() => service.clear());
+  onAccountsChanged(() => {
+    service.clear();
+    for (const notification of liveNotifications) notification.close();
+    liveNotifications.clear();
+  });
   ipcMain.handle("capture:submit", (_event, value: unknown) => service.submit(submitInput(value)));
   ipcMain.handle("capture:undo", (_event, value: unknown) => {
     const id = (value as { id?: unknown } | null)?.id;

@@ -33,10 +33,26 @@ function useRecentCaptures(): CaptureRecordView[] {
     const apply = (value: unknown) => {
       if (Array.isArray(value)) setRecords(value as CaptureRecordView[]);
     };
-    void invoke<unknown>("capture:recent").then(apply, () => undefined);
-    return window.dayboard.ipc.onNotification("capture:changed", (params) =>
-      apply((params as { records?: unknown } | null)?.records),
+    let revision = 0;
+    const stopAccounts = window.dayboard.ipc.onNotification("accounts:changed", () => {
+      revision += 1;
+      setRecords([]);
+    });
+    const stopRecords = window.dayboard.ipc.onNotification("capture:changed", (params) => {
+      revision += 1;
+      apply((params as { records?: unknown } | null)?.records);
+    });
+    void invoke<unknown>("capture:recent").then(
+      (records) => {
+        if (revision === 0) apply(records);
+      },
+      () => undefined,
     );
+    return () => {
+      revision += 1;
+      stopAccounts();
+      stopRecords();
+    };
   }, []);
   return records;
 }
@@ -54,10 +70,22 @@ export function MenuBarPanel() {
   const [text, setText] = useState("");
   // The rejection arrives later; it must see what is typed by then, not when it was submitted.
   const latestText = useRef(text);
+  const accountRevision = useRef(0);
   useEffect(() => {
     latestText.current = text;
   }, [text]);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(
+    () =>
+      window.dayboard.ipc.onNotification("accounts:changed", () => {
+        accountRevision.current += 1;
+        latestText.current = "";
+        setText("");
+        setError(null);
+      }),
+    [],
+  );
 
   usePanelShown(() => setError(null));
   usePanelEscape("menubar");
@@ -82,14 +110,23 @@ export function MenuBarPanel() {
   const shown = records.filter((record) => record.state !== "processing").slice(0, 3);
 
   function capture() {
+    const started = accountRevision.current;
     const value = text.trim();
     if (!value) return;
     setText("");
     setError(null);
     void invoke("capture:submit", { text: value }).catch((reason: unknown) => {
+      if (started !== accountRevision.current) return;
       const next = afterRejection(latestText.current, value, errorMessage(reason));
       setText(next.text);
       setError(next.error);
+    });
+  }
+
+  function undo(id: string) {
+    const started = accountRevision.current;
+    void invoke("capture:undo", { id }).catch((reason: unknown) => {
+      if (started === accountRevision.current) setError(errorMessage(reason));
     });
   }
 
@@ -154,15 +191,7 @@ export function MenuBarPanel() {
                 {record.error ? ` — ${record.error}` : ""}
               </Text>
               {record.canUndo ? (
-                <Button
-                  size="small"
-                  variant="transparent"
-                  onClick={() =>
-                    void invoke("capture:undo", { id: record.id }).catch((reason: unknown) =>
-                      setError(errorMessage(reason)),
-                    )
-                  }
-                >
+                <Button size="small" variant="transparent" onClick={() => undo(record.id)}>
                   Undo
                 </Button>
               ) : null}

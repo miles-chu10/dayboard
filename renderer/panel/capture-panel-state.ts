@@ -31,6 +31,7 @@ export interface CapturePanelState {
 }
 
 export type CapturePanelAction =
+  | { type: "accountChanged" }
   | { type: "typed"; text: string }
   | { type: "submitted" }
   | {
@@ -74,6 +75,8 @@ export function reduceCapturePanel(
   action: CapturePanelAction,
 ): CapturePanelState {
   switch (action.type) {
+    case "accountChanged":
+      return initialCaptureState;
     case "typed":
       return { ...state, text: action.text };
     case "submitted":

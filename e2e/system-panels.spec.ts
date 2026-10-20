@@ -369,3 +369,159 @@ test("turning off the Up Next card hides it on Agenda", async () => {
     await demo.close();
   }
 });
+
+test("account changes clear capture failures and recovered drafts", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openQuickCapture(demo.app);
+    await panel.getByRole("textbox", { name: "Quick Capture" }).fill("Private account A draft");
+    await demo.app.evaluate(({ BrowserWindow }) => {
+      const panel = BrowserWindow.getAllWindows().find((window) =>
+        window.webContents.getURL().endsWith("#capture"),
+      );
+      panel?.webContents.send("dayboard:notification", {
+        channel: "capture:changed",
+        params: {
+          records: [
+            {
+              id: "old-account",
+              text: "Private account A failure",
+              state: "failed",
+              draft: null,
+              partial: { title: "Private account A failure" },
+              error: "Could not save",
+              createdAt: "2026-10-20T00:00:00Z",
+              canUndo: false,
+            },
+          ],
+        },
+      });
+    });
+    await expect(panel.getByText(/Private account A failure/)).toBeVisible();
+    await demo.app.evaluate(({ BrowserWindow }) => {
+      const panel = BrowserWindow.getAllWindows().find((window) =>
+        window.webContents.getURL().endsWith("#capture"),
+      );
+      panel?.webContents.send("dayboard:notification", { channel: "accounts:changed", params: {} });
+      panel?.webContents.send("dayboard:notification", {
+        channel: "capture:changed",
+        params: { records: [] },
+      });
+    });
+    await expect(panel.getByText(/Private account A failure/)).toHaveCount(0);
+    await expect(panel.getByRole("textbox", { name: "Quick Capture" })).toHaveValue("");
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+for (const surface of ["capture", "menubar"] as const) {
+  test(`${surface} discards a recent-capture read that completes after an account change`, async () => {
+    const demo = await launchDemo();
+    try {
+      await demo.app.evaluate(({ ipcMain }) => {
+        ipcMain.removeHandler("capture:recent");
+        ipcMain.handle(
+          "capture:recent",
+          () =>
+            new Promise((resolve) => {
+              (globalThis as unknown as { releaseRecent: () => void }).releaseRecent = () =>
+                resolve([
+                  {
+                    id: "old-account",
+                    text: "Private stale account A record",
+                    state: "failed",
+                    draft: null,
+                    partial: null,
+                    error: "Private failure",
+                    canUndo: false,
+                    createdAt: "2026-10-20T00:00:00Z",
+                  },
+                ]);
+            }),
+        );
+      });
+      const panel =
+        surface === "capture"
+          ? await openQuickCapture(demo.app)
+          : await openMenuBarAgenda(demo.app);
+      await expect
+        .poll(() =>
+          demo.app.evaluate(
+            () => typeof (globalThis as unknown as { releaseRecent?: unknown }).releaseRecent,
+          ),
+        )
+        .toBe("function");
+      await demo.app.evaluate(({ BrowserWindow }, surface) => {
+        const panel = BrowserWindow.getAllWindows().find((window) =>
+          window.webContents.getURL().endsWith(`#${surface}`),
+        );
+        panel?.webContents.send("dayboard:notification", {
+          channel: "accounts:changed",
+          params: {},
+        });
+        (globalThis as unknown as { releaseRecent: () => void }).releaseRecent();
+      }, surface);
+      await panel.waitForTimeout(200);
+      await expect(panel.getByText(/Private stale account A/)).toHaveCount(0);
+      expect(demo.errors).toEqual([]);
+    } finally {
+      await demo.close();
+    }
+  });
+
+  test(`${surface} discards a submit rejection that completes after an account change`, async () => {
+    const demo = await launchDemo();
+    try {
+      await demo.app.evaluate(({ ipcMain }) => {
+        ipcMain.removeHandler("capture:submit");
+        ipcMain.handle(
+          "capture:submit",
+          () =>
+            new Promise((_resolve, reject) => {
+              (globalThis as unknown as { rejectCapture: () => void }).rejectCapture = () =>
+                reject(new Error("Private old-account error"));
+            }),
+        );
+      });
+      const panel =
+        surface === "capture"
+          ? await openQuickCapture(demo.app)
+          : await openMenuBarAgenda(demo.app);
+      const input = panel.getByRole("textbox", {
+        name: surface === "capture" ? "Quick Capture" : "Add or ask",
+      });
+      await input.fill("Private account A submission");
+      await input.press("Enter");
+      await expect
+        .poll(() =>
+          demo.app.evaluate(
+            () => typeof (globalThis as unknown as { rejectCapture?: unknown }).rejectCapture,
+          ),
+        )
+        .toBe("function");
+      await demo.app.evaluate(({ BrowserWindow }, surface) => {
+        const panel = BrowserWindow.getAllWindows().find((window) =>
+          window.webContents.getURL().endsWith(`#${surface}`),
+        );
+        panel?.webContents.send("dayboard:notification", {
+          channel: "accounts:changed",
+          params: {},
+        });
+        (globalThis as unknown as { rejectCapture: () => void }).rejectCapture();
+      }, surface);
+      await panel.waitForTimeout(200);
+      if (surface === "capture") {
+        expect(await panelVisible(demo.app, "#capture")).toBe(false);
+        await reopenQuickCapture(demo.app);
+      }
+      await expect(input).toHaveValue("");
+      await expect(panel.getByText(/Private old-account error/)).toHaveCount(0);
+      await expect(panel.getByText(/Private account A submission/)).toHaveCount(0);
+      expect(demo.errors).toEqual([]);
+    } finally {
+      await demo.close();
+    }
+  });
+}

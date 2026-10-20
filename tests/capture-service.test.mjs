@@ -25,12 +25,19 @@ function harness(options = {}) {
     JSON.stringify({ kind: "reminder", title: "Call dentist", date: "2026-10-22", time: "15:00" });
   const service = createCaptureService({
     isDemoMode: () => options.demo ?? false,
-    currentScope: async () => state.scope,
+    currentScope: async () => {
+      const scope = state.scope;
+      await options.duringScope?.(state);
+      return scope;
+    },
     guardedWrite: async (scope, write) => {
       if (scope !== state.scope) throw new Error(ACCOUNT_CHANGED);
       return write();
     },
-    getSettings: async () => options.settings ?? settings(),
+    getSettings: async () => {
+      await options.duringSettings?.(state);
+      return options.settings ?? settings();
+    },
     getAccounts: async () => ({ google: { connected: true }, reminders: "full-access" }),
     complete: async () => {
       calls.complete += 1;
@@ -45,6 +52,7 @@ function harness(options = {}) {
       ),
       reminder: async (draft) => {
         calls.create.push(["reminder", draft]);
+        await options.duringCreate?.(state);
         if (options.createError) throw new Error(options.createError);
         return { ref: `r${calls.create.length}` };
       },
@@ -267,4 +275,61 @@ test("two concurrent submits both complete", async () => {
   assert.equal(first.state, "created");
   assert.equal(second.state, "created");
   assert.equal(calls.create.length, 2);
+});
+
+for (const phase of ["duringScope", "duringSettings", "duringComplete", "duringCreate"]) {
+  test(`account changes during ${phase} cannot publish old capture data`, async () => {
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    const { service, calls, state } = harness({
+      [phase]: async () => {
+        entered.resolve();
+        await released.promise;
+      },
+    });
+    const pending = service.submit({ text: "Private account A capture" });
+    await entered.promise;
+    state.scope = "account-b";
+    service.clear();
+    const changesAtClear = calls.changes;
+    released.resolve();
+    await assert.rejects(pending, /account changed/i);
+    assert.deepEqual(service.recent(), []);
+    assert.equal(calls.changes, changesAtClear, "no stale records broadcast after clear");
+    assert.deepEqual(calls.created, [], "no old-account notification");
+    assert.deepEqual(calls.failed, [], "no old-account failure or panel reopen");
+    if (phase !== "duringCreate") assert.deepEqual(calls.create, []);
+  });
+}
+
+test("clear removes existing records and Undo access", async () => {
+  const { service, calls } = harness();
+  const record = await service.submit({ text: "Private account A capture" });
+  service.clear();
+  assert.deepEqual(service.recent(), []);
+  await assert.rejects(service.undo(record.id), /no longer available/);
+  assert.deepEqual(calls.remove, []);
+});
+
+test("switching away and back still discards an old failed parse", async () => {
+  const entered = Promise.withResolvers();
+  const released = Promise.withResolvers();
+  const { service, calls, state } = harness({
+    duringComplete: async () => {
+      entered.resolve();
+      await released.promise;
+    },
+    completeError: "Private provider error",
+  });
+  const pending = service.submit({ text: "Private account A capture" });
+  await entered.promise;
+  state.scope = "account-b";
+  service.clear();
+  state.scope = "account-a";
+  service.clear();
+  released.resolve();
+  await assert.rejects(pending, /account changed/i);
+  assert.deepEqual(service.recent(), []);
+  assert.deepEqual(calls.failed, []);
+  assert.deepEqual(calls.create, []);
 });

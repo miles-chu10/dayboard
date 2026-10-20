@@ -5,11 +5,11 @@ import { loadTs } from "./helpers/load-ts.mjs";
 // Quick Capture must parse through the same runner as `ai:run`, so provider options added there
 // (effort, the explicit Codex default) also reach Quick Capture. Everything but the wiring is
 // stubbed; prompt-cache.test.mjs covers what runCompletion sends.
-const fixture = { completions: [], deps: null, accountListeners: [], cleared: 0 };
+const fixture = { completions: [], deps: null, accountListeners: [], cleared: 0, closed: 0 };
 globalThis.__quickCaptureWiring = fixture;
 
 const STUBS = {
-  electron: `export class Notification { static isSupported() { return false; } }`,
+  electron: `export class Notification { static isSupported() { return true; } on() { return this; } show() {} close() { globalThis.__quickCaptureWiring.closed += 1; } }`,
   "productivity.js": `export const getAccountsStatus = async () => ({}); export const requireAgendaScope = async () => "scope"; export const onAccountsChanged = (listener) => globalThis.__quickCaptureWiring.accountListeners.push(listener);`,
   "platform/index.js": `export const ipcMain = { handle() {}, broadcast() {} }; export const logger = { error() {}, warn() {} };`,
   "ipc.js": `export const runGuardedCommand = (_channel, run) => run();`,
@@ -64,6 +64,11 @@ test("Quick Capture's AI parse runs through runCompletion, like ai:run", async (
 test("an account change clears recent captures, so the previous account's items never show", () => {
   handlers.registerCaptureHandlers();
   assert.equal(fixture.accountListeners.length, 1);
+  fixture.deps.onCreated({
+    id: "old-account",
+    draft: { kind: "task", title: "Private task", notes: "", date: "", time: "", endTime: "" },
+  });
   fixture.accountListeners[0]();
   assert.equal(fixture.cleared, 1);
+  assert.equal(fixture.closed, 1, "previous-account confirmation is closed");
 });
