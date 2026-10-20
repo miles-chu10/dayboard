@@ -283,6 +283,14 @@ export interface CalendarEventItem {
   calendarName: string;
   calendarColor: string | null;
   attendees: string[];
+  /** On the account's primary calendar (including the legacy "primary" fallback). */
+  primaryCalendar?: boolean;
+  /** The connected account organizes or is invited to this event. */
+  selfInvited?: boolean;
+  /** The account's own reply; read only from the primary calendar's copy. */
+  selfResponse?: "accepted" | "declined" | "tentative" | "needsAction" | null;
+  /** Shared by every copy of the event across calendars (and every occurrence of a series). */
+  iCalUID?: string;
 }
 
 export interface GoogleCalendarInfo {

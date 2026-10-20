@@ -235,6 +235,10 @@ function allEvents(): CalendarEventItem[] {
       calendarName,
       calendarColor,
       attendees: [],
+      // The demo account owns every demo calendar and has accepted its meetings.
+      primaryCalendar: true,
+      selfInvited: true,
+      selfResponse: "accepted" as const,
       ...extra,
     };
   });

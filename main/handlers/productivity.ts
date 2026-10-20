@@ -676,10 +676,12 @@ export function registerProductivityHandlers(): void {
   ipcMain.handle("calendar:list", async () => {
     const settings = await getSettings();
     if (isDemoMode()) return demoEventsForDays(calendarRangeDays(settings.calendar.range));
+    const { email } = await getGoogleStatus();
     return googleBoundedList("calendar:list", () =>
       listEventsWithCoverage(
         calendarRangeDays(settings.calendar.range),
         settings.calendar.visibility,
+        email,
       ),
     );
   });
@@ -696,8 +698,9 @@ export function registerProductivityHandlers(): void {
     if (!settings.sources.calendar.enabled) return { state: "disabled" as const };
     const { start, end } = localDateRange(startDate, days as number);
     if (isDemoMode()) return demoEventsBetween(start, end);
+    const { email } = await getGoogleStatus();
     return googleBoundedList(channel, () =>
-      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility),
+      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility, email),
     );
   });
 
