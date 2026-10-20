@@ -315,8 +315,10 @@ test("the saved Assistant effort is checked against the model that will run", ()
   assert.equal(resolve({ claudeEffort: "max" }, "claude"), "");
   const { assistantEffort: _unset, ...older } = aiSettings({ assistantEffort: { claude: "max" } });
   assert.equal(main.resolveAssistantEffort(older, "claude", []), "");
+  // A saved model the catalog dropped has no levels; the request fails instead of running another.
+  assert.equal(main.effortModelId(aiSettings({ codexModel: "gone" }), "codex", codexCatalog), "");
   assert.equal(
-    main.effortModelId(aiSettings({ codexModel: "gone" }), "codex", codexCatalog),
+    main.effortModelId(aiSettings({ codexModel: "" }), "codex", codexCatalog),
     "gpt-6-astra",
   );
 });
@@ -614,6 +616,15 @@ test("CLI routes pass the Assistant effort and describe it in the model note", a
   );
   assert.equal(luna.effort, "");
   assert.match(luna.system, /Reasoning effort: high\./);
+  // A saved model the catalog dropped is passed as saved, so the run fails with "no longer listed"
+  // rather than quietly using the first catalog model the composer doesn't show.
+  const gone = await cliRun(
+    { provider: "codex", codexModel: "gone", assistantEffort: { codex: "high" } },
+    codexCatalog,
+  );
+  assert.equal(gone.codexModel, "gone");
+  assert.equal(gone.effort, "");
+  assert.doesNotMatch(gone.system, /gpt-6-astra|GPT-6 Astra/);
 });
 
 test("Claude Code's default takes the name of the model a reply reported, and only that alias", () => {

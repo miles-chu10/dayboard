@@ -94,16 +94,19 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
   return /^\s/.test(query) || query.includes("\n") || query.length > 80 ? null : { start, query };
 }
 
+/** Days of events the `@` list offers, today and the next 7, whatever the Calendar setting shows. */
+export const MENTION_EVENT_DAYS = 8;
+
 /**
- * What can be mentioned, from the data the Assistant already loaded: today's and the next 7 days'
- * events by start time, open tasks and reminders by due date, then loaded emails, newest first.
+ * What can be mentioned: today's and the next 7 days' events by start time, open tasks and
+ * reminders by due date, then loaded emails, newest first.
  */
 export function mentionCandidates(input: {
   calendar: SourceResult<CalendarEventItem> | undefined;
   todos: Todo[];
   mail: SourceResult<MailItem> | undefined;
 }): MentionItem[] {
-  const last = addDays(todayISO(), 7);
+  const last = addDays(todayISO(), MENTION_EVENT_DAYS - 1);
   const events = (input.calendar?.state === "ok" ? input.calendar.items : [])
     .filter((event) => eventDayKey(event) <= last)
     .sort((a, b) => eventStart(a) - eventStart(b))

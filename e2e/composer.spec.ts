@@ -240,10 +240,22 @@ test("@ mentions add a chip, and the sent message keeps it", async ({
 }, testInfo) => {
   const demo = await launchDemo();
   try {
+    // The list covers today and the next 7 days even when the Calendar setting shows only today.
+    await demo.page.evaluate(async () => {
+      const ipc = (globalThis as AppGlobal).dayboard.ipc;
+      const settings = await ipc.invoke<{ calendar: Record<string, unknown> }>("settings:get");
+      await ipc.invoke("settings:update", {
+        ...settings,
+        calendar: { ...settings.calendar, range: "today" },
+      });
+    });
+    await demo.page.reload();
     await navigate(demo.page, "Assistant");
     await demo.page.getByRole("button", { name: "New chat" }).click();
     const input = demo.page.getByRole("textbox", { name: /^Message / });
     const list = demo.page.getByRole("listbox", { name: "Mentions" });
+    await input.fill("@sprint");
+    await expect(list.getByRole("option", { name: /^Sprint planning/ })).toBeVisible();
     await input.fill("bob@example.com");
     await expect(list).toHaveCount(0);
     await input.fill("Prep me for @lun");

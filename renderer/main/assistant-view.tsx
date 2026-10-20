@@ -47,11 +47,12 @@ import {
   type AssistantMessage,
 } from "../lib/assistant";
 import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
-import { dayHeading, formatClock } from "../lib/dates";
+import { dayHeading, formatClock, todayISO } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { useAssistantHistory } from "../lib/assistant-history";
 import type { AssistantViewAction } from "../lib/assistant-commands";
 import {
+  MENTION_EVENT_DAYS,
   earlierMentionSection,
   loadMentionBodies,
   mentionCandidates,
@@ -65,6 +66,7 @@ import { drainAssistantOperations, trackAssistantOperation } from "../lib/assist
 import {
   useAccounts,
   useCalendar,
+  useCalendarRange,
   useMail,
   useAssistantMcpStatus,
   useReminders,
@@ -273,6 +275,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const reminders = useReminders();
   const mail = useMail();
   const calendar = useCalendar();
+  const mentionEvents = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const mcpStatus = useAssistantMcpStatus();
   const codexModels = useCodexModels(provider === "codex").data;
   const model = selectedModel(settings, codexModels, provider, undefined, useClaudeModels().data);
@@ -287,7 +290,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const [mentions, setMentions] = useState<MentionItem[]>([]);
   const candidates = mentionCandidates({
-    calendar: calendar.data,
+    calendar: mentionEvents.data,
     todos: buildTodos(tasks.data, reminders.data),
     mail: mail.data,
   });

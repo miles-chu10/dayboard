@@ -101,7 +101,10 @@ export function claudeFastOn(ai: AppSettings["ai"]): boolean {
   return ai.claudeFast && ["opus", "opus[1m]"].includes(ai.claudeModel);
 }
 
-/** What will serve the next request. Codex's default is its first listed model, passed explicitly. */
+/**
+ * What will serve the next request. Codex's default is its first listed model, passed explicitly; a
+ * saved model the catalog no longer lists stays named, so the request fails rather than run another.
+ */
 export function describeModel(
   ai: AppSettings["ai"],
   codexModels: CodexModelInfo[],
@@ -151,7 +154,9 @@ export function describeModel(
     };
   }
   if (provider === "codex") {
-    const model = codexModels.find((entry) => entry.slug === ai.codexModel) ?? codexModels[0];
+    const model = ai.codexModel
+      ? codexModels.find((entry) => entry.slug === ai.codexModel)
+      : codexModels[0];
     const tier = model?.tiers.find((entry) => entry.id === ai.codexServiceTier);
     return {
       provider: "codex",

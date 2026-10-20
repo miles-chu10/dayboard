@@ -20,7 +20,7 @@ export type ProviderOptions = Record<string, { [key: string]: JsonValue | undefi
 
 /**
  * The model an effort applies to: the Claude Code alias, the Codex slug that will run (the first
- * catalog model when the saved one is missing, as describeModel does), or the API model ID.
+ * catalog model for Codex's default, as describeModel does), or the API model ID.
  */
 export function effortModelId(
   ai: AppSettings["ai"],
@@ -31,7 +31,8 @@ export function effortModelId(
   if (provider === "claude") return ai.claudeModel;
   if (provider === "codex")
     return (
-      (codexModels.find((model) => model.slug === ai.codexModel) ?? codexModels[0])?.slug ?? ""
+      (ai.codexModel ? codexModels.find((model) => model.slug === ai.codexModel) : codexModels[0])
+        ?.slug ?? ""
     );
   return apiModelId;
 }
