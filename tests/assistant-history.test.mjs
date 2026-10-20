@@ -438,3 +438,58 @@ test("request usage survives durable history with unknown and zero cache counter
     assert.equal(history.chats[0].messages[0].content, "Hello");
   });
 });
+
+test("user messages keep mention chips, drop empty lists and read files saved before mentions", async () => {
+  await withStore(async (userData) => {
+    const scope = "google:fixture-mentions";
+    const target = path.join(userData, "assistant-history.json");
+    // A file written before mentions existed.
+    await writeFile(
+      target,
+      `${JSON.stringify({
+        version: 1,
+        legacyImported: false,
+        histories: {
+          [scope]: {
+            scope,
+            activeChatId: "old-chat",
+            chats: [
+              chat("old-chat", "2026-09-27T09:00:00.000Z", [message("old", "Before mentions")]),
+            ],
+          },
+        },
+      })}\n`,
+    );
+    const store = await load();
+    const old = await store.getAssistantHistory(scope);
+    assert.equal("mentions" in old.chats[0].messages[0], false);
+
+    const mentions = [
+      { kind: "event", label: "Lunch with Sam" },
+      { kind: "email", label: "Lunch today? (unavailable)" },
+    ];
+    await store.saveAssistantChat(
+      scope,
+      chat("mention-chat", "2026-09-28T10:00:00.000Z", [
+        { ...message("with-mentions", "Prep me"), mentions },
+        { ...message("empty-mentions", "No chips"), mentions: [] },
+      ]),
+    );
+    const reloaded = await load();
+    const saved = (await reloaded.getAssistantHistory(scope)).chats.find(
+      (entry) => entry.id === "mention-chat",
+    ).messages;
+    assert.deepEqual(saved[0].mentions, mentions);
+    assert.equal("mentions" in saved[1], false);
+    assert.equal(JSON.parse(await readFile(target, "utf8")).version, 1);
+
+    const bad = (value) =>
+      reloaded.saveAssistantChat(
+        scope,
+        chat("bad-chat", "2026-09-28T11:00:00.000Z", [{ ...message("bad"), mentions: value }]),
+      );
+    await assert.rejects(bad([{ kind: "file", label: "x" }]), /invalid mention kind/);
+    await assert.rejects(bad([{ kind: "task", label: "" }]), /invalid mention label/);
+    await assert.rejects(bad("Lunch"), /invalid message payload/);
+  });
+});

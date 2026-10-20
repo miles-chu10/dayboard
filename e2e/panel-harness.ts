@@ -31,7 +31,7 @@ const IMPORT_MAP = {
 };
 const SHELL_HEAD = `<script type="importmap">${JSON.stringify(IMPORT_MAP)}</script>
 <link rel="stylesheet" href="/__glaze/components.css" />`;
-const ORIGIN = "http://dayboard.test";
+const ORIGIN = "https://dayboard.test";
 const TYPES: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -88,6 +88,12 @@ function installBridge(options: BridgeOptions) {
   type Listener = (payload: unknown) => void;
   const calls: { channel: string; args: unknown[] }[] = [];
   const listeners = new Map<string, Set<Listener>>();
+  let history = {
+    scope: "e2e-scope",
+    chats: [] as unknown[],
+    activeChatId: null as string | null,
+    legacyImported: true,
+  };
   // A signed-out, non-demo profile with Reminders allowed: what a fresh install shows.
   const defaults: Record<string, unknown> = {
     "app:isDemo": false,
@@ -102,6 +108,12 @@ function installBridge(options: BridgeOptions) {
     },
     "ai:availability": { glaze: true, claude: false, codex: false, gemini: false, muse: false },
     "capture:recent": [],
+    "ai:claudeModels": {},
+    "ai:codexModels": [],
+    "apiKeys:status": {},
+    "mcp:assistantStatus": { state: "ready", ok: true, toolCount: 0, serverCount: 0 },
+    "mcp:assistantServers": [],
+    "mcp:list": [],
     "system:hotkeyStatus": {
       accelerator: "Control+Alt+Space",
       enabled: true,
@@ -115,6 +127,16 @@ function installBridge(options: BridgeOptions) {
     if (options.reject && channel in options.reject)
       return Promise.reject(new Error(options.reject[channel]));
     if (channel === "settings:get") return Promise.resolve(options.settings);
+    if (channel === "settings:update") {
+      options.settings = args[0] as Record<string, unknown>;
+      return Promise.resolve(options.settings);
+    }
+    if (channel === "assistant:getHistory") return Promise.resolve(history);
+    if (channel === "assistant:saveChat") {
+      const { chat } = args[0] as { chat: { id: string } };
+      history = { ...history, chats: [chat], activeChatId: chat.id };
+      return Promise.resolve(history);
+    }
     if (options.responses && channel in options.responses)
       return Promise.resolve(options.responses[channel]);
     if (channel in defaults) return Promise.resolve(defaults[channel]);
@@ -152,8 +174,8 @@ function installBridge(options: BridgeOptions) {
   };
 }
 
-/** Opens one panel surface from the production build with the stubbed bridge. */
-export async function openPanel(page: Page, surface: "capture" | "menubar", options: BridgeOptions) {
+async function openWindow(page: Page, entry: string, options: BridgeOptions) {
+  await page.route("**/*", (route) => route.abort());
   await page.route(`${ORIGIN}/**`, async (route) => {
     const pathname = decodeURIComponent(new URL(route.request().url()).pathname);
     const [root, relative] = pathname.startsWith("/__glaze/")
@@ -163,7 +185,7 @@ export async function openPanel(page: Page, surface: "capture" | "menubar", opti
     if (!file.startsWith(root)) return route.fulfill({ status: 404 });
     try {
       let body = await readFile(file);
-      if (file.endsWith("panel-window.html"))
+      if (file.endsWith(".html"))
         body = Buffer.from(body.toString("utf8").replace("<head>", `<head>${SHELL_HEAD}`));
       // The SDK stylesheet addresses its fonts on the native glaze-core: scheme.
       if (file.endsWith(".css"))
@@ -174,12 +196,23 @@ export async function openPanel(page: Page, surface: "capture" | "menubar", opti
     }
   });
   await page.addInitScript(installBridge, options);
-  await page.goto(`${ORIGIN}/panel-window.html#${surface}`);
+  await page.goto(`${ORIGIN}/${entry}`);
+}
+
+/** Production components and SDK CSS with an offline bridge; no native app or account access. */
+export function openMain(page: Page, options: BridgeOptions) {
+  return openWindow(page, "main-window.html", options);
+}
+
+export function openPanel(page: Page, surface: "capture" | "menubar", options: BridgeOptions) {
+  return openWindow(page, `panel-window.html#${surface}`, options);
 }
 
 export function panelCalls(page: Page, channel: string) {
   return page.evaluate((name) => {
-    const panel = (globalThis as unknown as { __panel: { calls: { channel: string }[] } }).__panel;
+    const panel = (
+      globalThis as unknown as { __panel: { calls: { channel: string; args: unknown[] }[] } }
+    ).__panel;
     return panel.calls.filter((call) => call.channel === name);
   }, channel);
 }

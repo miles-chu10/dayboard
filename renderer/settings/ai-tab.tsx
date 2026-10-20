@@ -17,14 +17,21 @@ import type {
   AIProvider,
   AppSettings,
   ClaudeEffort,
-  ClaudeModel,
   CliProviderId,
   CodexModelInfo,
   ProviderStatus,
 } from "@main/shared-types";
 
-import { CLAUDE_MODEL_OPTIONS } from "../lib/ai-models";
+import { effortOptions } from "../../shared/ai-effort";
+import {
+  applyModelChoice,
+  claudeSupportsFast,
+  codexModel,
+  modelChoices,
+  savedModelEffort,
+} from "../lib/model-choices";
 import { errorMessage, invoke } from "../lib/ipc";
+import { useClaudeModels } from "../lib/ai-models";
 import { ProviderMark } from "../components/provider-logo";
 import {
   API_KEY_PROVIDERS,
@@ -39,7 +46,10 @@ import {
   ApiModelField,
   GeminiModelField,
   MuseModelField,
+  useApiKeyStatuses,
+  useApiModels,
 } from "./provider-accounts";
+import { EffortField } from "./effort-field";
 import { SettingSelect } from "./setting-select";
 
 const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
@@ -91,50 +101,6 @@ const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
 ];
 
 type SettingsEdit = (recipe: (draft: AppSettings) => void) => void;
-
-// Radix Select can't use an empty value, so "use the default" is a sentinel.
-const DEFAULT_OPTION = "__default";
-
-const CLAUDE_MODELS = CLAUDE_MODEL_OPTIONS;
-
-const CLAUDE_EFFORTS: {
-  value: ClaudeEffort;
-  label: string;
-  sublabel: string;
-}[] = [
-  { value: "default", label: "Default", sublabel: "Use Claude Code's setting" },
-  {
-    value: "low",
-    label: "Low",
-    sublabel: "Fast responses with lighter thinking",
-  },
-  { value: "medium", label: "Medium", sublabel: "Balances speed and depth" },
-  {
-    value: "high",
-    label: "High",
-    sublabel: "Deeper thinking for complex requests",
-  },
-  { value: "xhigh", label: "Extra High", sublabel: "Even more thinking" },
-  {
-    value: "max",
-    label: "Max",
-    sublabel: "Maximum thinking for the hardest problems",
-  },
-];
-
-const EFFORT_LABEL: Record<string, string> = {
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "Extra High",
-  max: "Max",
-  ultra: "Ultra",
-};
-
-function effortLabel(effort: string): string {
-  return EFFORT_LABEL[effort] ?? effort.charAt(0).toUpperCase() + effort.slice(1);
-}
 
 const CLI_LABEL: Record<CliProviderId, string> = {
   claude: "Claude Code",
@@ -218,8 +184,8 @@ function ProviderStatusRow({ provider }: { provider: CliProviderId }) {
 
 function ClaudeOptions({ settings, edit }: { settings: AppSettings; edit: SettingsEdit }) {
   const { ai } = settings;
-  const supportsEffort = ai.claudeModel !== "haiku";
-  const supportsFast = ai.claudeModel === "opus" || ai.claudeModel === "opus[1m]";
+  const claudeModels = useClaudeModels().data;
+  const supportsFast = claudeSupportsFast(ai.claudeModel);
   return (
     <>
       <Field
@@ -229,37 +195,21 @@ function ClaudeOptions({ settings, edit }: { settings: AppSettings; edit: Settin
         <SettingSelect
           label="Claude model"
           value={ai.claudeModel}
-          options={CLAUDE_MODELS}
-          onChange={(value) =>
-            edit((draft) => {
-              draft.ai.claudeModel = value as ClaudeModel;
-              if (value === "haiku") draft.ai.claudeEffort = "default";
-              if (value !== "opus" && value !== "opus[1m]") draft.ai.claudeFast = false;
-            })
-          }
+          options={modelChoices("claude", ai, { claude: claudeModels })}
+          onChange={(value) => edit((draft) => applyModelChoice(draft.ai, "claude", value, {}))}
         />
       </Field>
-      <Field
-        label="Thinking effort"
-        description={
-          supportsEffort
-            ? "More effort gives deeper answers but takes longer."
-            : "Haiku does not offer a thinking-effort setting."
+      <EffortField
+        provider="claude"
+        label="Claude thinking effort"
+        options={effortOptions("claude", ai.claudeModel)}
+        value={ai.claudeEffort === "default" ? "" : ai.claudeEffort}
+        onChange={(level) =>
+          edit((draft) => {
+            draft.ai.claudeEffort = (level || "default") as ClaudeEffort;
+          })
         }
-        disabled={!supportsEffort}
-      >
-        <SettingSelect
-          label="Claude thinking effort"
-          value={supportsEffort ? ai.claudeEffort : "default"}
-          disabled={!supportsEffort}
-          options={CLAUDE_EFFORTS}
-          onChange={(value) =>
-            edit((draft) => {
-              draft.ai.claudeEffort = value as ClaudeEffort;
-            })
-          }
-        />
-      </Field>
+      />
       <Field
         label="Fast mode"
         description={
@@ -316,69 +266,9 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
   }
 
   const models = catalog.data;
-  const selected = models.find((model) => model.slug === ai.codexModel) ?? null;
-  const efforts = selected?.efforts ?? [];
+  // Codex default runs the first listed model, so its levels and speeds apply.
+  const selected = codexModel(ai, models);
   const tiers = selected?.tiers ?? [];
-
-  const modelOptions = [
-    {
-      value: DEFAULT_OPTION,
-      label: "Codex default",
-      sublabel: "Let Codex choose its recommended default model",
-    },
-    ...models.map((model) => ({
-      value: model.slug,
-      label: model.name,
-      sublabel: model.description,
-    })),
-    ...(ai.codexModel && !selected
-      ? [
-          {
-            value: ai.codexModel,
-            label: ai.codexModel,
-            sublabel: "Not in Codex's current model list",
-          },
-        ]
-      : []),
-  ];
-  const effortOptions = [
-    {
-      value: DEFAULT_OPTION,
-      label: selected?.defaultEffort
-        ? `Default (${effortLabel(selected.defaultEffort)})`
-        : "Default",
-      sublabel: "Use the model's default",
-    },
-    ...efforts.map((level) => ({
-      value: level.effort,
-      label: effortLabel(level.effort),
-      sublabel: level.description,
-    })),
-  ];
-
-  function selectModel(slug: string) {
-    const model = models.find((candidate) => candidate.slug === slug);
-    edit((draft) => {
-      draft.ai.codexModel = slug === DEFAULT_OPTION ? "" : slug;
-      if (!model) {
-        draft.ai.codexEffort = "";
-        draft.ai.codexServiceTier = "";
-        return;
-      }
-      if (
-        draft.ai.codexEffort &&
-        !model.efforts.some((level) => level.effort === draft.ai.codexEffort)
-      ) {
-        draft.ai.codexEffort = "";
-      }
-      if (
-        draft.ai.codexServiceTier &&
-        !model.tiers.some((tier) => tier.id === draft.ai.codexServiceTier)
-      ) {
-        draft.ai.codexServiceTier = "";
-      }
-    });
-  }
 
   const setTier = (tier: string) =>
     edit((draft) => {
@@ -393,9 +283,11 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
       >
         <SettingSelect
           label="ChatGPT model"
-          value={ai.codexModel || DEFAULT_OPTION}
-          options={modelOptions}
-          onChange={selectModel}
+          value={ai.codexModel}
+          options={modelChoices("codex", ai, { codex: models })}
+          onChange={(value) =>
+            edit((draft) => applyModelChoice(draft.ai, "codex", value, { codex: models }))
+          }
         />
       </Field>
       <Field>
@@ -403,35 +295,22 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
           {refresh.isPending ? "Refreshing…" : "Refresh models"}
         </Button>
       </Field>
-      <Field
-        label="Reasoning effort"
-        description={
-          selected
-            ? "More effort gives deeper answers but takes longer."
-            : "Choose a model to customize reasoning and speed."
+      <EffortField
+        provider="codex"
+        label="ChatGPT reasoning effort"
+        options={effortOptions("codex", selected?.slug ?? "", models)}
+        descriptions={Object.fromEntries(
+          (selected?.efforts ?? []).map((level) => [level.effort, level.description]),
+        )}
+        value={ai.codexEffort}
+        onChange={(level) =>
+          edit((draft) => {
+            draft.ai.codexEffort = level;
+          })
         }
-        disabled={!selected || !efforts.length}
-      >
-        <SettingSelect
-          label="ChatGPT reasoning effort"
-          value={selected ? ai.codexEffort || DEFAULT_OPTION : DEFAULT_OPTION}
-          disabled={!selected || !efforts.length}
-          options={effortOptions}
-          onChange={(value) =>
-            edit((draft) => {
-              draft.ai.codexEffort = value === DEFAULT_OPTION ? "" : value;
-            })
-          }
-        />
-      </Field>
+      />
       {tiers.length === 0 ? (
-        <Field
-          label="Fast mode"
-          description={
-            selected ? "Not available for this model." : "Choose a model to customize speed."
-          }
-          disabled
-        >
+        <Field label="Fast mode" description="Not available for this model." disabled>
           <Switch checked={false} disabled aria-label="Fast mode" />
         </Field>
       ) : tiers.length === 1 ? (
@@ -449,10 +328,10 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
         <Field label="Speed" description="Faster tiers use more of your plan's usage.">
           <SettingSelect
             label="ChatGPT speed"
-            value={ai.codexServiceTier || DEFAULT_OPTION}
+            value={ai.codexServiceTier}
             options={[
               {
-                value: DEFAULT_OPTION,
+                value: "",
                 label: "Standard",
                 sublabel: "Normal speed and usage",
               },
@@ -462,11 +341,44 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
                 sublabel: tier.description,
               })),
             ]}
-            onChange={(value) => setTier(value === DEFAULT_OPTION ? "" : value)}
+            onChange={setTier}
           />
         </Field>
       )}
     </>
+  );
+}
+
+/** Effort for providers whose model field lives in provider-accounts: the API routes, Gemini, Muse. */
+function OtherEffort({
+  provider,
+  settings,
+  edit,
+}: {
+  provider: AIProvider;
+  settings: AppSettings;
+  edit: SettingsEdit;
+}) {
+  const apiProvider = isApiKeyProvider(provider) ? provider : null;
+  const configured = useApiKeyStatuses().data?.[apiProvider ?? "openai"].configured ?? false;
+  const api = useApiModels(apiProvider ?? "openai", Boolean(apiProvider) && configured);
+  const options = savedModelEffort(settings.ai, provider, { api: api.data });
+  return (
+    <EffortField
+      provider={provider}
+      label={`${PROVIDER_LABEL[provider]} effort`}
+      options={options}
+      value={isApiKeyProvider(provider) ? (settings.ai.apiEffort[provider] ?? "") : ""}
+      onChange={(level) =>
+        edit((draft) => {
+          if (!isApiKeyProvider(provider)) return;
+          const efforts = { ...draft.ai.apiEffort };
+          if (level) efforts[provider] = level;
+          else delete efforts[provider];
+          draft.ai.apiEffort = efforts;
+        })
+      }
+    />
   );
 }
 
@@ -512,8 +424,8 @@ export function AITab() {
                       {group.title}
                     </Text>
                     {group.providers.map((provider) => (
-                      <Label key={provider}>
-                        <RadioGroupItem value={provider} />
+                      <Label key={provider} className="items-start">
+                        <RadioGroupItem value={provider} className="mt-0.5" />
                         <span className="flex flex-col">
                           <span className="flex items-center gap-1.5">
                             <ProviderMark provider={provider} className="size-3.5" />
@@ -535,6 +447,9 @@ export function AITab() {
             {ai.provider === "muse" ? <MuseModelField settings={settings} edit={edit} /> : null}
             {isApiKeyProvider(ai.provider) ? (
               <ApiModelField provider={ai.provider} settings={settings} edit={edit} />
+            ) : null}
+            {ai.provider !== "claude" && ai.provider !== "codex" ? (
+              <OtherEffort provider={ai.provider} settings={settings} edit={edit} />
             ) : null}
           </FieldSet>
 

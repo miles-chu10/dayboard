@@ -5,15 +5,16 @@ import type {
   AssistantModelInfo,
   CodexModelInfo,
 } from "../../shared-types.js";
+import { effortOptions, supportedEffort } from "../../../shared/ai-effort.js";
+import { claudeModelName } from "../../../shared/claude-model-name.js";
 import { isApiProvider } from "./api-keys.js";
 import { API_LABEL } from "./api-providers.js";
 
 export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
   const args: string[] = [];
   if (ai.claudeModel !== "default") args.push("--model", ai.claudeModel);
-  if (ai.claudeEffort !== "default" && ai.claudeModel !== "haiku") {
-    args.push("--effort", ai.claudeEffort);
-  }
+  const effort = claudeEffort(ai);
+  if (effort) args.push("--effort", effort);
   // An explicit false prevents the user's CLI preference from enabling paid Fast mode.
   const fastMode = claudeFastOn(ai);
   args.push("--settings", JSON.stringify({ fastMode }));
@@ -61,18 +62,52 @@ const CLAUDE_NAMES: Record<string, string> = {
   "sonnet[1m]": "Claude Sonnet (1M context)",
 };
 
-// Exact IDs Claude Code resolved each alias to on earlier runs (from its init event).
+// Exact IDs Claude Code resolved each alias to on earlier runs in this app session (from its
+// init event), for labels marked as such. A request's own model note never uses them, since the
+// alias can resolve differently by then, and nothing is kept across restarts.
 const claudeResolved = new Map<string, string>();
+let claudeResolvedListener: ((models: Record<string, string>) => void) | undefined;
 
 export function rememberClaudeModel(alias: string, id: string): void {
+  if (claudeResolved.get(alias) === id) return;
   claudeResolved.set(alias, id);
+  claudeResolvedListener?.(resolvedClaudeModels());
+}
+
+/** The exact ID each Claude Code alias last ran as, keyed by alias; empty until a reply reports one. */
+export function resolvedClaudeModels(): Record<string, string> {
+  return Object.fromEntries(claudeResolved);
+}
+
+export function onClaudeModelResolved(listener: (models: Record<string, string>) => void): void {
+  claudeResolvedListener = listener;
+}
+
+/**
+ * A Claude Code alias named after the model a reply reported, such as "Claude Opus 5.5". Without
+ * a report, or with an ID it can't read, an alias keeps its own name; the default then shows the
+ * ID as reported.
+ */
+export function claudeDisplayName(alias: string, id: string | null): string {
+  const name = id ? claudeModelName(id) : null;
+  if (name) return `Claude ${name}`;
+  if (alias === "default" && id) return id;
+  return CLAUDE_NAMES[alias] ?? alias;
+}
+
+/** The saved Claude effort when the chosen alias takes one; Claude Code's default never does. */
+function claudeEffort(ai: AppSettings["ai"]): string {
+  return supportedEffort(effortOptions("claude", ai.claudeModel), ai.claudeEffort);
 }
 
 export function claudeFastOn(ai: AppSettings["ai"]): boolean {
   return ai.claudeFast && ["opus", "opus[1m]"].includes(ai.claudeModel);
 }
 
-/** What will serve the next request. Codex's default is its first listed model, passed explicitly. */
+/**
+ * What will serve the next request. Codex's default is its first listed model, passed explicitly; a
+ * saved model the catalog no longer lists stays named, so the request fails rather than run another.
+ */
 export function describeModel(
   ai: AppSettings["ai"],
   codexModels: CodexModelInfo[],
@@ -111,17 +146,20 @@ export function describeModel(
     };
   }
   if (provider === "claude") {
+    // The alias only: the exact ID arrives with this request's init event.
     return {
       provider: "claude",
-      name: CLAUDE_NAMES[ai.claudeModel] ?? ai.claudeModel,
-      id: claudeResolved.get(ai.claudeModel) ?? null,
+      name: claudeDisplayName(ai.claudeModel, null),
+      id: null,
       fast: claudeFastOn(ai),
-      effort: ai.claudeEffort === "default" ? null : ai.claudeEffort,
+      effort: claudeEffort(ai) || null,
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
     };
   }
   if (provider === "codex") {
-    const model = codexModels.find((entry) => entry.slug === ai.codexModel) ?? codexModels[0];
+    const model = ai.codexModel
+      ? codexModels.find((entry) => entry.slug === ai.codexModel)
+      : codexModels[0];
     const tier = model?.tiers.find((entry) => entry.id === ai.codexServiceTier);
     return {
       provider: "codex",

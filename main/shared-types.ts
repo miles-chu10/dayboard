@@ -114,8 +114,15 @@ export interface AppSettings {
     museModel: string;
     /** Model ID per API-key provider; empty picks the newest listed model. */
     apiModels: Record<ApiProviderId, string>;
+    /** One-click features' reasoning effort per API-key provider; missing is the model default. */
+    apiEffort: Partial<Record<ApiProviderId, string>>;
     /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
     assistantProvider: AIProvider | "";
+    /**
+     * Reasoning effort the Assistant composer sets, per provider. Missing or empty is the model
+     * default; one-click features use `claudeEffort`, `codexEffort` and `apiEffort` instead.
+     */
+    assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;
@@ -411,7 +418,10 @@ export type AIStreamChunk =
     }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
-export type AssistantResult = { text: string; usage?: RequestUsage } | { blocked: string };
+/** `model` repeats the reply's last meta chunk, so the reply records it even if a chunk is lost. */
+export type AssistantResult =
+  | { text: string; usage?: RequestUsage; model?: AssistantModelInfo }
+  | { blocked: string };
 
 export interface AssistantModelInfo {
   provider: AIProvider;
@@ -422,6 +432,8 @@ export interface AssistantModelInfo {
   fast: boolean;
   effort: string | null;
   contextWindow: number | null;
+  /** How the reply's effort is described, e.g. "Max effort requested" or "Claude Code's effort". */
+  effortLabel?: string | null;
 }
 
 /** read-only: never propose changes · ask: propose, user confirms · auto: add proposals directly. */

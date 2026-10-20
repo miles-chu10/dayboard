@@ -1,0 +1,7 @@
+# DayBoard 1.2.6
+
+- New: The Assistant's model chip opens an effort panel. Pick how hard the model thinks, go back to the model's default, turn Fast mode on or off, and switch models. The Assistant's effort is now its own setting and starts from the level you used before; Settings → AI calls its control "Effort for AI features" and uses it for briefings, triage and the other one-click features.
+- New: Type / in the Assistant for commands (new chat, history, model and effort, permissions, attach, MCP servers, settings) and ready-made prompts.
+- New: Type @ to mention an event, task, reminder or email. The Assistant gets the item in full, and your message keeps a chip for it.
+- Improved: Settings → AI and the Assistant's model menu list the same models under the same names and offer the same effort levels, Light to Max. Switching models keeps your effort and Fast mode only where the new model has them, and one-click features on an API key get their own effort setting. With Claude Code's default model, effort is off until you choose a model, since DayBoard can't tell which model Claude Code will run.
+- Improved: After Claude Code answers, "Claude Code default" shows the model it ran, such as Claude Opus 5.5, in Settings, the model menu, the sidebar and the reply. It goes back to "Claude Code default" after a restart. The model note sent with each request names only the model you chose, never an ID from an earlier reply.

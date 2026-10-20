@@ -1,7 +1,7 @@
 {
   "id": "25d26qqt",
   "name": "dayboard-personal-dashboard",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "productName": "DayBoard: Personal Dashboard",
   "description": "See your whole day at a glance",
   "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
@@ -13,7 +13,7 @@
     "dev:renderer": "sh ./glaze-node.sh dev:renderer",
     "lint": "sh ./glaze-node.sh lint",
     "type-check": "sh ./glaze-node.sh type-check",
-    "test": "tsx --test renderer/lib/agenda.test.ts renderer/lib/ai-prompts.test.ts renderer/lib/notes-lines.test.ts renderer/lib/account-scoped-queries.test.ts renderer/panel/capture-panel-state.test.ts renderer/panel/today-items.test.ts renderer/panel/menubar-capture.test.ts && node --test tests/*.test.mjs",
+    "test": "tsx --test renderer/lib/agenda.test.ts renderer/lib/ai-prompts.test.ts renderer/lib/notes-lines.test.ts renderer/lib/account-scoped-queries.test.ts renderer/panel/capture-panel-state.test.ts renderer/panel/today-items.test.ts renderer/panel/menubar-capture.test.ts renderer/lib/assistant-commands.test.ts renderer/lib/assistant-mentions.test.ts renderer/lib/model-choices.test.ts && node --test tests/*.test.mjs",
     "format": "sh ./glaze-node.sh format",
     "test:e2e": "npm run build && playwright test --tsconfig e2e/tsconfig.json",
     "verify": "sh ./glaze-node.sh verify --json",
