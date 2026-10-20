@@ -18,7 +18,18 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 13: Meeting notifications
 - [x] Task 14: Granola notes import and follow-ups
 - [x] Task 15: Porting doc, fuse proposal, handoff
-- [ ] Task 16: Full verification, packaged build, manual acceptance, REA check (automated checks, package, REA and the Codex review fix pass done; native manual acceptance pending — computer-use access was declined)
+- [ ] Task 16: Full verification, packaged build, manual acceptance and REA check.
+  - Done: automated checks, the package, REA and the Codex review fixes.
+  - Native panel-only acceptance ran on 2026-10-20 (see `HANDOFF.md`): 10 checks passed and the
+    tray placement check failed.
+  - Still open: the tray placement fix, then full-screen click-away, the re-enabled tray icon and
+    notification delivery (Miles).
+- [ ] Reconcile with the final #42 head (merge order #43, #42, #44). Use the reviewed
+      `runCompletion` repair, keep the `clipSnapshot` import, merge the test lists as a union, rerun
+      both wiring paths and full validation, then build a new combined QA artifact.
+- [ ] Tray panel placement: use the bounds from Electron's tray `click` event, not
+      `tray.getBounds()` at show time. Also look at the two minor findings: the tray click making
+      DayBoard frontmost, and Esc not closing a freshly opened menu-bar panel.
 
 ## Found along the way
 

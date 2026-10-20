@@ -72,6 +72,59 @@ changes that body (effort provider options on the API path, explicit Codex defau
 CLI path). Whichever merges second must carry both into `runCompletion` and add a wiring test that
 `ai:run` and Quick Capture's runner pass the resolved effort and Codex model. See `TASKS.md`.
 
+Integration handoff (2026-10-20): merge order is #43, then #42, then #44.
+
+- #43 merged as `41e74bb`, with successful CI run 39446372947 (as reported by its owner).
+- #42 is held at `b4c9834` while its owner adds labels showing the actual model.
+- Reconcile #44 only against the final #42 head:
+  - Carry #42's API effort provider options and its explicit default Codex model into
+    `runCompletion`, so that both `ai:run` and Quick Capture use them.
+  - Keep the `clipSnapshot` import in `main/handlers/ai.ts`.
+  - Merge the `package.json` test lists as a union.
+  - Rerun both wiring paths and full validation.
+- A scratch combined tree with the reviewed repair passed every check: `05883de` / tree `b9b6209`,
+  with #42's two `ai:run` regression tests failing before the repair and passing after.
+- Do not apply its `port-for-44-completion-ai-package.patch` blindly to an older base.
+- Evidence and patches are in
+  `/Users/mileschu/Documents/Codex/2026-10-20/task/integration-check-2026-10-20/`.
+- The `cf890ac` preview is valid for panel-only QA. Combined lifecycle acceptance needs a new build
+  from the merged tree.
+
+Native acceptance (2026-10-20, 15:09–15:22 UTC). Build: the `cf890ac` ad-hoc preview, demo mode,
+disposable profile `scratchpad/acceptance-profile`, with Chess as the other app. Ten checks passed:
+
+- the conflict message for ⌥⌘Space
+- the hotkey from windowed and from full-screen Chess
+- the panel on the display under the pointer
+- focus return after Esc (windowed and full screen), windowed click-away, and submit (the demo
+  refusal is shown and the text is kept)
+- the switches removing the hotkey, the tray icon and the Up Next card, and turning the hotkey and
+  card back on
+
+Failed: the tray panel opens under its icon on 2 of 3 opens. The third landed on the built-in
+display while the ASUS menu-bar icon was clicked: placement uses `tray.getBounds()` at show time,
+not the click event's bounds.
+
+Blocked or not run:
+
+- Full-screen click-away is blocked. The Codex "Cua Driver" overlay covers the full-screen Space,
+  so the test tool refuses clicks there.
+- The re-enabled tray icon could not be confirmed. It is probably in the menu-bar manager's hidden
+  section.
+- Notification delivery was not run. Demo mode sends none, and the first notification would raise
+  a macOS permission prompt.
+
+Other findings:
+
+- The tray click made DayBoard frontmost on 2 of 3 clicks.
+- Esc doesn't close a freshly opened menu-bar panel until focus is inside it.
+- The first keystrokes after the hotkey were lost on 2 of about 8 opens. This may be the test tool;
+  check it by hand.
+
+No canonical app or profile was touched. Full report, with permission evidence, screenshots and
+logs:
+`~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-native-acceptance-2026-10-20/README.md`.
+
 ## Verification observed
 
 - On October 7, the UI candidate passed 27 renderer tests and all 332 app/native tests, both typechecks, touched-file formatting and lint with the same three existing React dependency warnings. The first sandboxed app-test run was blocked by loopback socket and compiler-cache restrictions; the approved execution route and owned temporary compiler cache passed without changing tests or dependencies.
