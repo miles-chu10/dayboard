@@ -9,6 +9,8 @@ import { focusMainWindow, isMainRoute, takePendingNavigation } from "../window.j
 import { createHotkeyManager, type HotkeyStatus } from "./hotkey.js";
 import { hidePanel, isPanelSurface, resizePanel, showPanel, togglePanel } from "./panel-window.js";
 import { readSymbolicHotkeys } from "./symbolic-hotkeys.js";
+import { registerCaptureHandlers } from "./capture-handlers.js";
+import { notificationStatus } from "./notification-status.js";
 
 declare const __DAYBOARD_TEST_BUILD__: boolean;
 
@@ -80,6 +82,8 @@ export function startSystemPanels(): void {
   ipcMain.handle("app:takeNavigation", () => takePendingNavigation());
 
   ipcMain.handle("system:hotkeyStatus", () => hotkey.status());
+  ipcMain.handle("system:notificationStatus", () => notificationStatus());
+  registerCaptureHandlers();
   const suspendedBy = new Set<WebContents>();
   ipcMain.handle("system:suspendHotkey", async (event, value: unknown) => {
     const input = payload(value, "system:suspendHotkey");

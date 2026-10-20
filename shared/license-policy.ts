@@ -18,6 +18,8 @@ const PAID_CHANNELS = new Set([
   "ai:run",
   "ai:assistant",
   "assistant:transcribe",
+  "capture:submit",
+  "capture:undo",
 ]);
 
 export function requiresLicenseAccess(channel: string): boolean {

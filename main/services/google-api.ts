@@ -239,8 +239,11 @@ export async function setTaskCompleted(
   });
 }
 
-export async function createTask(input: CreateTaskInput): Promise<void> {
-  await googleFetch(`${TASKS}/lists/@default/tasks`, {
+/** Returns the new task's identity, so Quick Capture can undo exactly this task. */
+export async function createTask(
+  input: CreateTaskInput,
+): Promise<{ listId: string; taskId: string }> {
+  const task = await googleFetch<GTask>(`${TASKS}/lists/@default/tasks`, {
     method: "POST",
     body: {
       title: input.title,
@@ -248,6 +251,8 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
       due: input.due ? `${input.due}T00:00:00.000Z` : undefined,
     },
   });
+  if (!task?.id) throw new GoogleApiError(500, "Google Tasks did not return the new task.");
+  return { listId: "@default", taskId: task.id };
 }
 
 /** Updates only the editable fields on one Google Task and returns Google's canonical item. */
@@ -687,11 +692,16 @@ function calendarEventBody(input: CreateEventInput): Record<string, unknown> {
   };
 }
 
-export async function createEvent(input: CreateEventInput): Promise<void> {
-  await googleFetch(`${CALENDAR}/calendars/primary/events`, {
+/** Returns the new event's identity, so Quick Capture can undo exactly this event. */
+export async function createEvent(
+  input: CreateEventInput,
+): Promise<{ calendarId: string; eventId: string }> {
+  const event = await googleFetch<GEvent>(`${CALENDAR}/calendars/primary/events`, {
     method: "POST",
     body: calendarEventBody(input),
   });
+  if (!event?.id) throw new GoogleApiError(500, "Google Calendar did not return the new event.");
+  return { calendarId: "primary", eventId: event.id };
 }
 
 async function editableCalendar(calendarId: string): Promise<GoogleCalendarInfo> {

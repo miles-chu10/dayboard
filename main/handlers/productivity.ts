@@ -176,7 +176,7 @@ function requireUUID(value: unknown, channel: string): string {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-async function getAccountsStatus(): Promise<AccountsStatus> {
+export async function getAccountsStatus(): Promise<AccountsStatus> {
   if (isDemoMode()) return demoAccounts;
   const [google, reminders] = await Promise.all([getGoogleStatus(), getRemindersAccess()]);
   return { google, reminders };

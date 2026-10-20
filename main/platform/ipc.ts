@@ -43,6 +43,17 @@ export function setLicenseAccessGuard(guard: () => Promise<void>): void {
   licenseAccess = guard;
 }
 
+/**
+ * The license guard and update admission IPC applies, for actions that start outside IPC, such as
+ * a notification's Undo button.
+ */
+export function runGuardedCommand<T>(channel: string, run: () => Promise<T>): Promise<T> {
+  return runAppOperation(async () => {
+    if (requiresLicenseAccess(channel)) await licenseAccess();
+    return run();
+  });
+}
+
 export function registerTrustedWindow(
   contents: WebContents,
   entryUrl: string,

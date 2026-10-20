@@ -356,3 +356,33 @@ test("leaves unrestricted windows unchanged", async () => {
   assert.deepEqual(await invoke("tasks:list", main), ["existing task"]);
   assert.deepEqual(await invoke("mcp:list", main), []);
 });
+
+test("runGuardedCommand applies the license guard to paid commands", async () => {
+  const { adapter } = await createHarness();
+  adapter.setLicenseAccessGuard(async () => {
+    throw new Error("License required");
+  });
+  let runs = 0;
+  await assert.rejects(
+    adapter.runGuardedCommand("capture:undo", async () => ++runs),
+    /License required/,
+  );
+  assert.equal(runs, 0);
+  assert.equal(await adapter.runGuardedCommand("settings:get", async () => "free"), "free");
+});
+
+test("runGuardedCommand refuses during update preparation", async () => {
+  const { adapter } = await createHarness();
+  adapter.setLicenseAccessGuard(async () => {});
+  await adapter.pauseAndDrainAppOperations();
+  let runs = 0;
+  try {
+    await assert.rejects(
+      adapter.runGuardedCommand("capture:undo", async () => ++runs),
+      /preparing to install/,
+    );
+    assert.equal(runs, 0);
+  } finally {
+    adapter.resumeAppOperations();
+  }
+});

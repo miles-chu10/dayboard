@@ -112,8 +112,8 @@ if (acquireSingleInstanceLock()) {
         openQuickCapture: () => void showPanel("capture"),
       });
       startMcpHttpServer(MCP_PROJECT_ID);
-      await createMainWindow();
       startSystemPanels();
+      await createMainWindow();
     })
     .catch((error) => {
       logger.error("main", "Failed to start DayBoard", error);
