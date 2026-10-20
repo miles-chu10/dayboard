@@ -26,9 +26,12 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
     notification delivery (Miles).
 - [ ] Reconcile with the merged #42 (order #43, #42, #44).
   - The trial on interim `302d191` passed every check (see `HANDOFF.md`).
-  - #42 is being corrected for two final-review P2s. After it merges: merge main, apply the
-    `runCompletion` repair, keep the `clipSnapshot` import and the union of test lists, rerun both
-    wiring checks and full validation, then build a fresh artifact from the current lock.
+  - Main (#43) is already merged in as `be58946`.
+  - #42 is not final: `e0c7604` fixed both P2s, and labels are still being added. After it merges:
+    - Merge main and apply the `runCompletion` repair.
+    - Keep #42's model-identity imports and `clipSnapshot`, and the union of test lists.
+    - Rerun both wiring checks and full validation.
+    - Build a fresh artifact from the current lock and run REA on it.
 - [x] Tray panel placement: use the clicked icon's bounds (`609350d`, `tests/tray-anchor.test.mjs`).
 - [x] Esc closes a freshly opened panel (`db10cdb`, e2e regression).
 - [ ] First keystrokes lost after the hotkey: the e2e regression (each reopen path) passes, which

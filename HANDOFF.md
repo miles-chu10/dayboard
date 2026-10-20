@@ -85,8 +85,14 @@ CLI path). Whichever merges second must carry both into `runCompletion` and add 
 
 Integration handoff (2026-10-20): merge order is #43, then #42, then #44.
 
-- #43 merged as `41e74bb`, with successful CI run 39446372947 (as reported by its owner).
-- #42 is held at `b4c9834` while its owner adds labels showing the actual model.
+- #43 merged as `41e74bb`, with successful CI run 39446372947 (as reported by its owner). Main
+  was merged into this branch as `be58946` with no conflicts; it brings `updates.startAutomatic()`
+  after the main window opens and zod 4.6.7.
+  - Checks at `be58946`, after `npm ci` from the merged lock: `npm test` renderer 63/63 and backend
+    529/529 pass; lint, typecheck and `format:check` exit 0.
+  - `test:e2e`: 38 passed, 1 skipped (the opt-in native encryption test).
+- #42 is not final. At `e0c7604` it has the two P2 fixes with successful CI. Its owner is still
+  adding model-name and effective-supported-effort labels before final review and merge.
 - Reconcile #44 only against the final #42 head:
   - Carry #42's API effort provider options and its explicit default Codex model into
     `runCompletion`, so that both `ai:run` and Quick Capture use them.
