@@ -47,11 +47,12 @@ since then. It is a draft until the build is made and verified on an Apple Silic
 
 ## Install and limits
 
-Apple Silicon, macOS 14+. Same distribution as beta.11: ad-hoc signed, not notarized, in-app
-updates disabled. Quit DayBoard, replace the application in Applications and keep your data,
-which lives outside the bundle. macOS may block the first launch; the tester decides whether to
-open it through System Settings → Privacy & Security → Open Anyway. Google may restrict accounts
-outside the project's test audience. AI and MCP remain optional.
+Apple Silicon, macOS 14+. This is the first beta signed with DayBoard's Developer ID and
+notarized by Apple, so it opens normally with no Open Anyway step. In-app updates stay disabled:
+quit DayBoard, replace the application in Applications and keep your data, which lives outside
+the bundle. Because the signature changed, macOS may ask once whether DayBoard can use its saved
+key in your keychain; allow it so you stay signed in. Google may restrict accounts outside the
+project's test audience. AI and MCP remain optional.
 
 ## Before publishing
 

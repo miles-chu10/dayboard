@@ -30,6 +30,29 @@ export function releasePlan({ repo, ref, version, sha }) {
   };
 }
 
+// Manually dispatched community beta from main: Developer ID signed and notarized, licensing and
+// updates off, uploaded as a workflow artifact only. No update metadata, so no latest-mac.yml.
+export function betaPlan({ repo, event, ref, version, sha }) {
+  if (
+    repo !== repository ||
+    event !== "workflow_dispatch" ||
+    ref !== "refs/heads/main" ||
+    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.(0|[1-9]\d*)$/.test(version ?? "") ||
+    !/^[a-f0-9]{40}$/.test(sha ?? "")
+  )
+    throw new Error("A signed beta requires a manual run on main with an x.y.z-beta.n version.");
+  const dmg = `DayBoard-${version}-arm64.dmg`;
+  const zip = `DayBoard-${version}-arm64-mac.zip`;
+  return {
+    repository,
+    tag: `beta-${version}`,
+    version,
+    sha,
+    prerelease: true,
+    files: [dmg, zip, `${dmg}.blockmap`, `${zip}.blockmap`],
+  };
+}
+
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8" });
   if (result.status !== 0) throw new Error(`${command} failed during the release check.`);
@@ -279,15 +302,16 @@ async function main(command) {
   const credentials = join(temp, "dayboard-release-credentials");
   const planFile = join(temp, "dayboard-release-plan.json");
   if (command === "cleanup") return rm(credentials, { force: true, recursive: true });
-  if (command === "plan") {
+  if (command === "plan" || command === "plan-beta") {
     if (process.arch !== "arm64" || process.platform !== "darwin")
       throw new Error("An Apple Silicon macOS runner is required.");
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
     if (pkg.name !== "dayboard" || pkg.main !== "out/main/index.js")
       throw new Error("The standalone DayBoard package is required.");
     const sha = run("git", ["rev-parse", "HEAD"]).trim();
-    const plan = releasePlan({
+    const plan = (command === "plan" ? releasePlan : betaPlan)({
       repo: process.env.GITHUB_REPOSITORY,
+      event: process.env.GITHUB_EVENT_NAME,
       ref: process.env.GITHUB_REF,
       version: pkg.version,
       sha,
