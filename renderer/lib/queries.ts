@@ -22,7 +22,6 @@ import type {
   TaskItem,
 } from "@main/shared-types";
 
-import { claudeModelsKey } from "./ai-models";
 import { errorMessage, invoke } from "./ipc";
 import { settingsQueryKey, sourceOn, useSettings } from "./settings";
 import { buildTodos, linkedKeys, type Todo } from "./todos";
@@ -218,7 +217,7 @@ export function useBackendSync() {
         void queryClient.invalidateQueries({ queryKey: queryKeys.review });
       }),
       ipc.onNotification("ai:claudeModelsChanged", () => {
-        void queryClient.invalidateQueries({ queryKey: claudeModelsKey });
+        void queryClient.invalidateQueries({ queryKey: ["claude-models"] });
       }),
       ipc.onNotification("mcp:changed", () => {
         void queryClient.invalidateQueries({ queryKey: ["assistant-mcp-servers"] });

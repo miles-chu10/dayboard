@@ -27,12 +27,10 @@ export function useCodexModels(enabled: boolean) {
   });
 }
 
-export const claudeModelsKey = ["claude-models"] as const;
-
 /** The exact ID each Claude Code alias last ran as in this app session, keyed by alias. */
 export function useClaudeModels() {
   return useQuery({
-    queryKey: claudeModelsKey,
+    queryKey: ["claude-models"],
     queryFn: () => invoke<Record<string, string>>("ai:claudeModels"),
     staleTime: Infinity,
   });
