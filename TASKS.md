@@ -11,7 +11,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 6: Panel window layer, hotkey manager, menu items and Settings UI
 - [x] Task 7: Shared capture logic and AI completion runner
 - [x] Task 8: Capture pipeline in main with Undo
-- [ ] Task 9: Quick Capture panel UI (in progress: panel not re-shown after a rejected submit)
+- [x] Task 9: Quick Capture panel UI
 - [ ] Task 10: Menu-bar icon and menu-bar panel
 - [ ] Task 11: Meeting logic and calendar fields
 - [ ] Task 12: Up Next card and Meetings settings
