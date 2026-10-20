@@ -110,6 +110,7 @@ if (acquireSingleInstanceLock()) {
       setupApplicationMenu({
         checkForUpdates: () => updates!.check(),
         openQuickCapture: () => void showPanel("capture"),
+        openMenuBarAgenda: () => void showPanel("menubar"),
       });
       startMcpHttpServer(MCP_PROJECT_ID);
       startSystemPanels();

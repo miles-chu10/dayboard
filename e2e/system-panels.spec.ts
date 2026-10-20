@@ -113,3 +113,60 @@ test("submitting in demo mode shows the demo refusal in the panel", async () => 
     await demo.close();
   }
 });
+
+async function openMenuBarAgenda(app: ElectronApplication): Promise<Page> {
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some(
+          (window) =>
+            window.webContents.getURL().includes("main-window.html") && window.isVisible(),
+        ),
+      ),
+    )
+    .toBe(true);
+  const opened = app.waitForEvent("window", (page) => page.url().endsWith("#menubar"));
+  await app.evaluate(({ Menu }) =>
+    Menu.getApplicationMenu()?.getMenuItemById("menubar-agenda")?.click(),
+  );
+  return opened;
+}
+
+test("File → Menu Bar Agenda shows today's panel", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openMenuBarAgenda(demo.app);
+    await expect(panel.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(panel.getByRole("region", { name: "Today's items" })).toBeVisible();
+    await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("Open DayBoard from the menu-bar panel shows the main window", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openMenuBarAgenda(demo.app);
+    await demo.app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes("main-window.html"))
+        ?.hide();
+    });
+    await panel.getByRole("button", { name: "Open DayBoard" }).click();
+    await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(false);
+    await expect
+      .poll(() =>
+        demo.app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some(
+            (window) =>
+              window.webContents.getURL().includes("main-window.html") && window.isVisible(),
+          ),
+        ),
+      )
+      .toBe(true);
+  } finally {
+    await demo.close();
+  }
+});

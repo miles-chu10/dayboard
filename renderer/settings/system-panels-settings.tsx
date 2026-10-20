@@ -136,6 +136,21 @@ export function SystemPanelsSettings() {
           })
         }
       />
+      <Field
+        label="Menu bar icon"
+        description="Today's items, your next meeting and recent captures, one click away."
+      >
+        <Switch
+          id="menu-bar-enabled"
+          aria-label="Menu bar icon"
+          checked={settings.system.menuBar.enabled}
+          onCheckedChange={(enabled) =>
+            edit((draft) => {
+              draft.system.menuBar.enabled = enabled;
+            })
+          }
+        />
+      </Field>
     </FieldSet>
   );
 }

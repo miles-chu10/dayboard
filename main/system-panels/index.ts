@@ -1,16 +1,22 @@
 // Starts Quick Capture's hotkey and the panel IPC. Electron-specific wiring only; the logic
 // lives in hotkey.ts, panel-window.ts and the shared modules they use.
 
-import { globalShortcut, type WebContents } from "electron";
+import { app, globalShortcut, type WebContents } from "electron";
 
 import { ipcMain, logger } from "../platform/index.js";
 import { getSettings, onSettingsChanged } from "../services/settings-store.js";
-import { focusMainWindow, isMainRoute, takePendingNavigation } from "../window.js";
+import {
+  focusMainWindow,
+  isMainRoute,
+  openSettingsWindow,
+  takePendingNavigation,
+} from "../window.js";
 import { createHotkeyManager, type HotkeyStatus } from "./hotkey.js";
 import { hidePanel, isPanelSurface, resizePanel, showPanel, togglePanel } from "./panel-window.js";
 import { readSymbolicHotkeys } from "./symbolic-hotkeys.js";
 import { registerCaptureHandlers } from "./capture-handlers.js";
 import { notificationStatus } from "./notification-status.js";
+import { startTray, stopTray } from "./tray.js";
 
 declare const __DAYBOARD_TEST_BUILD__: boolean;
 
@@ -48,12 +54,29 @@ export function startSystemPanels(): void {
     onStatus: (status: HotkeyStatus) => ipcMain.broadcast("system:hotkeyStatus", status),
   });
 
+  const applyMenuBar = (enabled: boolean) => {
+    if (!nativeIntegrationsEnabled()) return;
+    if (!enabled) return stopTray();
+    startTray({
+      toggleAgenda: () => void togglePanel("menubar"),
+      openQuickCapture: () => void showPanel("capture"),
+      openDayBoard: () => void focusMainWindow(),
+      openSettings: () => void openSettingsWindow(),
+      quit: () => app.quit(),
+    });
+  };
+
   void getSettings()
-    .then((settings) => hotkey.apply(settings.system.quickCapture))
-    .catch((error) => logger.warn("panels", "Could not apply the Quick Capture shortcut", error));
+    .then((settings) => {
+      applyMenuBar(settings.system.menuBar.enabled);
+      return hotkey.apply(settings.system.quickCapture);
+    })
+    .catch((error) => logger.warn("panels", "Could not start the menu bar and shortcut", error));
   onSettingsChanged((next, previous) => {
     if (JSON.stringify(next.system.quickCapture) !== JSON.stringify(previous.system.quickCapture))
       void hotkey.apply(next.system.quickCapture);
+    if (next.system.menuBar.enabled !== previous.system.menuBar.enabled)
+      applyMenuBar(next.system.menuBar.enabled);
   });
 
   ipcMain.handle("panel:hide", (_event, value: unknown) => {
@@ -102,6 +125,8 @@ export function startSystemPanels(): void {
   });
 }
 
+/** Runs on will-quit: releases the shortcut and removes the menu-bar icon. */
 export function stopSystemPanels(): void {
   globalShortcut.unregisterAll();
+  stopTray();
 }

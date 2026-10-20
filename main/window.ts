@@ -189,6 +189,7 @@ export function getSettingsWindow(): BrowserWindow | null {
 export function setupApplicationMenu(options: {
   checkForUpdates: () => Promise<unknown>;
   openQuickCapture: () => void;
+  openMenuBarAgenda: () => void;
 }): void {
   const menu = Menu.buildFromTemplate([
     {
@@ -226,6 +227,12 @@ export function setupApplicationMenu(options: {
         // No accelerator: macOS ignores registerAccelerator: false, and a menu key equivalent
         // would fire while Settings records a new global shortcut.
         { label: "Quick Capture…", id: "quick-capture", click: () => options.openQuickCapture() },
+        // Keyboard and VoiceOver route to the menu-bar panel, which is otherwise click-only.
+        {
+          label: "Menu Bar Agenda",
+          id: "menubar-agenda",
+          click: () => options.openMenuBarAgenda(),
+        },
         { type: "separator" },
         { role: "close" },
       ],

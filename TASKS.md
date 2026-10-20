@@ -12,7 +12,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 7: Shared capture logic and AI completion runner
 - [x] Task 8: Capture pipeline in main with Undo
 - [x] Task 9: Quick Capture panel UI
-- [ ] Task 10: Menu-bar icon and menu-bar panel
+- [x] Task 10: Menu-bar icon and menu-bar panel
 - [ ] Task 11: Meeting logic and calendar fields
 - [ ] Task 12: Up Next card and Meetings settings
 - [ ] Task 13: Meeting notifications
@@ -31,4 +31,15 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - `main/index.ts`: new `app.on("will-quit", stopSystemPanels)` — only `globalShortcut.unregisterAll()`.
 - `main/index.ts`: `activate` ignores floating panels when deciding whether to show the main window.
 - Unchanged: `before-quit` save guard, `window-all-closed` (macOS already stays alive with no window), the updater's `prepareForInstall`/quit-and-install path.
-- Planned (Task 10): tray created after startup when enabled and destroyed in `will-quit`; panels are hidden windows that close normally on quit.
+- `main/system-panels/index.ts`: the tray is created after settings load when `system.menuBar.enabled` (never in test builds), recreated/removed when that switch changes, and destroyed in `stopSystemPanels()` on `will-quit`.
+- Tray menu "Quit DayBoard" calls plain `app.quit()`, so the existing `before-quit` save/drain guard and updater install path run unchanged. No hide-on-close was added anywhere; panels are hidden windows that close normally on quit.
+- Check for Updates stays in the app menu through the existing updater service; no second timer.
+
+## Integration with PR #42 (composer effort/default model, head 319b4b0)
+
+PR #42 edits the body of `ai:run` in `main/handlers/ai.ts`; this branch moved that body to `main/services/ai/completion.ts` (`runCompletion`). Whichever lands second must carry PR #42's two behaviours into `runCompletion`, not take one side:
+
+1. API path: wrap `apiPromptOptions(...)` in `withProviderOptions(..., effortProviderOptions(provider, resolveFeatureEffort(settings.ai, provider, model.id)))`.
+2. CLI path: for Codex with no configured model, `listCodexModels()` first, pass the result to `describeModel`, and pass `codexModel` to `runCliCompletion`.
+
+Wiring regression to add at reconciliation: a test that `ai:run` (and Quick Capture's `complete`) go through `runCompletion` with the resolved effort options and the explicit Codex default model.

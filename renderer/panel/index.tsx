@@ -7,6 +7,7 @@ import { applyCachedAppearance, useAppearanceSync } from "../lib/appearance";
 import { initializeDemoMode } from "../lib/demo";
 import { useBackendSync } from "../lib/queries";
 import { CapturePanel } from "./capture-panel";
+import { MenuBarPanel } from "./menubar-panel";
 import { panelSurface } from "./panel-ipc";
 import "../styles.css";
 
@@ -19,7 +20,8 @@ function PanelRoot() {
   useBackendSync();
   useAppearanceSync();
   const surface = panelSurface();
-  return surface === "capture" ? <CapturePanel /> : null;
+  if (surface === "capture") return <CapturePanel />;
+  return surface === "menubar" ? <MenuBarPanel /> : null;
 }
 
 const rootElement = document.getElementById("root");
