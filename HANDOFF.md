@@ -200,6 +200,10 @@ render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on th
   - A failed capture is a red Callout.
   - Today rows use `list-hover`, `tabular-nums` and a `title` on truncated text.
   - Button labels are sentence case.
+- **Fixed in `0e41eb8`:** menu-bar Today rows take the inset 2px keyboard ring that the app's list
+  rows use. The design e2e test checks it (it failed at offset 0px before the fix).
+- **Version 26** (`1792526832-32f0`): every design-system file used above has the same SHA-256 as
+  in `1792522028-b5ac`, and its note says app tokens and cards are unchanged. The comparison stands.
 - **Already compliant:** the panel ground is opaque. A new e2e test pins it along with the
   fixes.
 - **Left as decisions:**
@@ -218,6 +222,37 @@ render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on th
   authorization, and /design-login cannot run in this non-interactive session. Ask the user to run
   /design-login once from an interactive Claude Code session on this machine". The artifact and
   the v21 export above were used instead.
+
+Platform feature matrix (2026-10-20). Standalone is #44 at `0e41eb8`; Glaze is #45 at `e89801d`
+(base `glaze`). Neither is installed or published. The installed DayBoard and the installed Glaze
+DayBoard both predate the panels.
+
+| Feature · platform                   | Source                                   | Automated tests                                                                                                                               | Native visual                                                                                                                                                                 |
+| ------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quick Capture · standalone           | yes                                      | unit tests (capture, hotkey, shortcuts, wiring); panel e2e 12/12; full suite 529 backend + 63 renderer, e2e 39 passed / 1 skipped (`a96c70c`) | partial on `cf890ac`: hotkey, display, Esc, click-away, submit and conflict message passed; full-screen click-away blocked; first keystrokes open; fixes since not re-checked |
+| Quick Capture · Glaze                | yes, on Glaze's backend                  | unit tests 39 renderer / 316 backend (PR #45); no e2e setup                                                                                   | not run                                                                                                                                                                       |
+| Menu-bar Agenda · standalone         | yes                                      | tray-anchor ×3, placement and today-items units; e2e open, Esc on a fresh panel, Open DayBoard, design rules                                  | placement failed on `cf890ac`, fixed in `609350d`; Esc fixed in `db10cdb`; neither re-checked; tray activation open                                                           |
+| Menu-bar Agenda · Glaze              | yes, with the click-bounds and Esc fixes | placement units; no tray-anchor test                                                                                                          | not run                                                                                                                                                                       |
+| Up Next and alerts · standalone      | yes                                      | meetings and alerts units; 2 e2e                                                                                                              | card and switch passed; notifications not run                                                                                                                                 |
+| Up Next and alerts · Glaze           | yes                                      | units                                                                                                                                         | not run                                                                                                                                                                       |
+| Meeting Notes (Granola) · standalone | yes                                      | 2 unit files; no e2e                                                                                                                          | not run (needs a real Granola server)                                                                                                                                         |
+| Meeting Notes (Granola) · Glaze      | yes                                      | 2 unit files                                                                                                                                  | not run                                                                                                                                                                       |
+
+Glaze ports still missing, owned by #45's owner:
+
+- #44's design fixes from `ba10a95` and `0e41eb8`
+- `tests/tray-anchor.test.mjs`
+- #42's effort and model work, once it is final
+- e2e coverage, which the Glaze branch has no setup for
+
+Proven platform differences:
+
+- Glaze applies updates itself, so there is no updater quit path to preserve.
+- REA cannot see Glaze's window and IPC surface.
+
+Native checks on Glaze need publishing into its runtime, which replaces the installed app; that is
+not authorized. Still unproven: whether Glaze's tray click passes the icon's bounds, and how its
+panels behave over full-screen apps and across Spaces.
 
 No canonical app or profile was touched. Full report, with permission evidence, screenshots and
 logs:
