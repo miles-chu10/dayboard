@@ -43,9 +43,13 @@ export function createMeetingAlerts(deps: MeetingAlertDeps) {
         if (armedFor !== generation) return;
         cancel = null;
         sent.add(alert.key);
-        const minutes = Math.ceil(
-          (new Date(alert.event.start).getTime() - deps.now().getTime()) / 60_000,
-        );
+        const firedAt = deps.now().getTime();
+        const endsAt = new Date(alert.event.end).getTime();
+        if (!Number.isFinite(endsAt) || endsAt <= firedAt) {
+          schedule();
+          return;
+        }
+        const minutes = Math.ceil((new Date(alert.event.start).getTime() - firedAt) / 60_000);
         deps.notify({
           title: alert.event.title,
           body: minutes > 0 ? `Starts in ${minutes} min` : "Starting now",

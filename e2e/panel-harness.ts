@@ -158,6 +158,10 @@ function installBridge(options: BridgeOptions) {
   const target = globalThis as unknown as Record<string, unknown>;
   target.__panel = {
     calls,
+    setResponse(channel: string, value: unknown) {
+      options.responses ??= {};
+      options.responses[channel] = value;
+    },
     settle(channel: string, value: unknown, error?: string) {
       const call = pending.get(channel)?.shift();
       if (!call) throw new Error(`No pending ${channel} call`);
@@ -244,6 +248,20 @@ export function emitPanel(page: Page, channel: string, payload: unknown = {}) {
       panel.emit(channel, payload);
     },
     { channel, payload },
+  );
+}
+
+export function setPanelResponse(page: Page, channel: string, value: unknown) {
+  return page.evaluate(
+    ({ channel, value }) => {
+      const panel = (
+        globalThis as unknown as {
+          __panel: { setResponse: (name: string, value: unknown) => void };
+        }
+      ).__panel;
+      panel.setResponse(channel, value);
+    },
+    { channel, value },
   );
 }
 

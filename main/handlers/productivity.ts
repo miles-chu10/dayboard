@@ -98,11 +98,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
 let accountChanging = false;
 
-async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
-  await trackAccountChange(async () => {
+async function changeAccount(operation: () => Promise<unknown>): Promise<AccountsStatus> {
+  return trackAccountChange(async () => {
     accountChanging = true;
     try {
       await operation();
+      // Publish and clear old account state before another capture or provider write can enter.
+      return await broadcastAccounts();
     } finally {
       accountChanging = false;
     }
@@ -539,26 +541,22 @@ export function registerProductivityHandlers(): void {
         "That doesn't look like a Google OAuth Client ID (it should end in .apps.googleusercontent.com).",
       );
     }
-    await changeAccount(() => saveGoogleCredentials(clientId, clientSecret));
-    return broadcastAccounts();
+    return changeAccount(() => saveGoogleCredentials(clientId, clientSecret));
   });
 
   ipcMain.handle("google:clearCredentials", async () => {
     assertNotDemo("google:clearCredentials");
-    await changeAccount(clearGoogleCredentials);
-    return broadcastAccounts();
+    return changeAccount(clearGoogleCredentials);
   });
 
   ipcMain.handle("google:connect", async () => {
     assertNotDemo("google:connect");
-    await changeAccount(() => googleMutation("google:connect", connectGoogle));
-    return broadcastAccounts();
+    return changeAccount(() => googleMutation("google:connect", connectGoogle));
   });
 
   ipcMain.handle("google:disconnect", async () => {
     assertNotDemo("google:disconnect");
-    await changeAccount(disconnectGoogle);
-    return broadcastAccounts();
+    return changeAccount(disconnectGoogle);
   });
 
   ipcMain.handle("google:copyRedirectUri", () => {

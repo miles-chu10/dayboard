@@ -80,6 +80,19 @@ test("Codex effort stays separate from features and resets through the keyboard"
     settings: settings as unknown as Record<string, unknown>,
     responses: {
       "ai:availability": { glaze: true, codex: true },
+      "ai:assistant": {
+        text: "Offline Codex reply.",
+        model: {
+          provider: "codex",
+          id: "gpt-6-astra",
+          name: "GPT-6 Astra",
+          via: "Codex",
+          effort: "high",
+          effortLabel: "High effort requested",
+          fast: false,
+          contextWindow: null,
+        },
+      },
       "ai:codexModels": [
         {
           slug: "gpt-6-astra",
@@ -98,15 +111,22 @@ test("Codex effort stays separate from features and resets through the keyboard"
   });
   const chip = page.getByRole("button", { name: /^Model and effort:/ });
   await expect(chip).toHaveAttribute("title", "GPT-6 Astra High");
+  const input = page.getByRole("textbox", { name: "Message ChatGPT" });
+  await input.fill("Reply at the selected effort");
+  await input.press("Enter");
+  await expect(page.getByText("Offline Codex reply.", { exact: true })).toBeVisible();
   await chip.click();
   const panel = page.getByRole("dialog", { name: "Model and effort" });
   const slider = panel.getByRole("slider", { name: "Effort" });
+  await expect(slider).toBeFocused();
   await expect(slider).toHaveAttribute("aria-valuetext", "High");
   await slider.press("ArrowRight");
   await expect(panel.getByText(/^Next request:/)).toContainText("GPT-6 Astra Extra High");
+  await expect(panel.getByText(/^Last reply:/)).toContainText("High effort requested");
   await panel.getByRole("button", { name: "Reset effort to the model default" }).click();
   await expect(slider).toHaveAttribute("aria-valuetext", "Medium");
   await expect(panel.getByText(/^Next request:/)).toContainText("GPT-6 Astra Medium");
+  await expect(panel.getByText(/^Last reply:/)).toContainText("High effort requested");
   const updates = (await panelCalls(page, "settings:update")) as { args: AppSettings[] }[];
   expect(updates.at(-1)?.args[0].ai.codexEffort).toBe("low");
   expect(updates.at(-1)?.args[0].ai.assistantEffort.codex).toBeUndefined();

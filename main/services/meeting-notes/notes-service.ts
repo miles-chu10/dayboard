@@ -176,6 +176,10 @@ export function createNotesService(deps: NotesDeps) {
       },
       { maxOutput: MAX_OUTPUT },
     );
+    if (listed.truncated)
+      throw new Error(
+        "Granola returned an incomplete meeting list. Open Granola to find the meeting.",
+      );
     if (listed.isError) throw new Error(`Granola couldn't list meetings: ${listed.text}`);
     const { match, candidates } = matchMeeting(event, parseGranolaMeetings(listed.text));
     const offered = new Map(candidates.map((meeting) => [meeting.id, meeting]));
@@ -213,6 +217,10 @@ export function createNotesService(deps: NotesDeps) {
       { meeting_ids: [meeting.id] },
       { maxOutput: MAX_OUTPUT },
     );
+    if (result.truncated)
+      throw new Error(
+        "Granola returned incomplete notes. Nothing was saved; open Granola to read the complete notes.",
+      );
     if (result.isError) throw new Error(`Granola couldn't return these notes: ${result.text}`);
     const notes = parseGranolaNotes(result.text, meeting.id);
     const text = (notes?.text ?? result.text.replace(/<[^>]+>/g, "")).trim();

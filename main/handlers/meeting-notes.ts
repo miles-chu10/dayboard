@@ -76,10 +76,15 @@ export function registerMeetingNotesHandlers(): void {
     const channel = "meetings:importNotes";
     const input = object(value, channel);
     await requireNotesOn();
-    return service.importNotes({
+    const record = await service.importNotes({
       selection: text(input, "selection", channel, 100),
       providerMeetingId: text(input, "providerMeetingId", channel, 100),
     });
+    ipcMain.broadcast("meetings:notesChanged", {
+      calendarId: record.calendarId,
+      eventId: record.eventId,
+    });
+    return record;
   });
   ipcMain.handle("meetings:getNotes", (_event, value: unknown) => {
     const channel = "meetings:getNotes";

@@ -15,6 +15,7 @@ export function ComposerPopup({
   className,
   role,
   label,
+  focusOnOpen = false,
   children,
 }: {
   anchorRef: RefObject<HTMLElement | null>;
@@ -23,6 +24,7 @@ export function ComposerPopup({
   className: string;
   role?: "dialog";
   label?: string;
+  focusOnOpen?: boolean;
   children: ReactNode;
 }) {
   const [position, setPosition] = useState<CSSProperties>();
@@ -50,6 +52,15 @@ export function ComposerPopup({
       window.removeEventListener("scroll", place, true);
     };
   }, [anchorRef, width]);
+
+  const positioned = Boolean(position);
+  useLayoutEffect(() => {
+    if (!focusOnOpen || !positioned) return;
+    const target =
+      popupRef.current?.querySelector<HTMLElement>('[role="slider"]') ??
+      popupRef.current?.querySelector<HTMLElement>("button:not(:disabled)");
+    target?.focus();
+  }, [focusOnOpen, positioned, popupRef]);
 
   return createPortal(
     <div

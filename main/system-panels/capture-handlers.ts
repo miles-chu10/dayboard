@@ -12,6 +12,7 @@ import {
 import { ipcMain } from "../ipc.js";
 import { runCompletion } from "../services/ai/completion.js";
 import { createReminder, deleteReminder } from "../services/apple-reminders.js";
+import { completeCapture } from "../services/capture/capture-completion.js";
 import {
   createCaptureService,
   type CaptureRecord,
@@ -46,11 +47,8 @@ const service = createCaptureService({
     }),
   getSettings,
   getAccounts: getAccountsStatus,
-  complete: async (system, prompt) => {
-    const controller = new AbortController();
-    return (await runCompletion({ system, prompt, signal: controller.signal, allowGlaze: true }))
-      .text;
-  },
+  complete: (system, prompt) =>
+    completeCapture((signal) => runCompletion({ system, prompt, signal, allowGlaze: true })),
   create: {
     task: (draft) => createTask({ ...draftInput(draft), due: draft.date || undefined }),
     reminder: (draft) =>

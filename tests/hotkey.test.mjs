@@ -50,9 +50,12 @@ test("reports registration failure as in use by another app", async () => {
   assert.equal(status.conflict, "⌃⌥D is in use by another app. Choose a different shortcut.");
 });
 
-test("reports a macOS conflict from the plist", async () => {
-  const { manager } = fixture({ plist: {} });
+test("reports a macOS conflict without registering a shortcut that cannot work", async () => {
+  const { manager, registered } = fixture({ plist: {} });
+  await manager.apply(on);
   const status = await manager.apply({ enabled: true, hotkey: "Control+Alt+Space" });
+  assert.equal(status.registered, false);
+  assert.equal(registered.size, 0, "also unregisters the previous shortcut");
   assert.equal(
     status.conflict,
     "macOS uses ⌃⌥Space for Select next source in Input menu. Turn it off in System Settings → Keyboard → Keyboard Shortcuts, or choose another shortcut.",

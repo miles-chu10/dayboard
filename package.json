@@ -1,11 +1,8 @@
 {
-  "id": "25d26qqt",
   "name": "dayboard-personal-dashboard",
   "version": "1.2.6",
-  "productName": "DayBoard: Personal Dashboard",
-  "description": "See your whole day at a glance",
-  "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
   "private": true,
+  "description": "See your whole day at a glance",
   "type": "module",
   "scripts": {
     "build": "sh ./glaze-node.sh build",
@@ -96,5 +93,8 @@
       "minVersion": "0.14.3.0"
     },
     "updatedAt": 1791559938703
-  }
+  },
+  "iconDescription": "A comprehensive dashboard application for displaying real-time data, key performance indicators, and analytics in an organized, at-a-glance format. Users can monitor multiple data sources, track trends, and make informed decisions from centralized information panels. Think of a control center, a grid of gauges and charts, or a command center with illuminated displays.",
+  "id": "25d26qqt",
+  "productName": "DayBoard: Personal Dashboard"
 }

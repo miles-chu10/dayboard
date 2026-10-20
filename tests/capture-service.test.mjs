@@ -3,6 +3,7 @@ import test from "node:test";
 import { loadTs } from "./helpers/load-ts.mjs";
 
 const { createCaptureService } = await loadTs("main/services/capture/capture-service.ts");
+const { completeCapture } = await loadTs("main/services/capture/capture-completion.ts");
 
 const ACCOUNT_CHANGED = "Your account changed. Check the details and add it again.";
 
@@ -41,6 +42,7 @@ function harness(options = {}) {
     getAccounts: async () => ({ google: { connected: true }, reminders: "full-access" }),
     complete: async () => {
       calls.complete += 1;
+      if (options.complete) return options.complete();
       await options.duringComplete?.(state);
       if (options.completeError) throw new Error(options.completeError);
       return output;
@@ -332,4 +334,64 @@ test("switching away and back still discards an old failed parse", async () => {
   assert.deepEqual(service.recent(), []);
   assert.deepEqual(calls.failed, []);
   assert.deepEqual(calls.create, []);
+});
+
+test("the sixth capture does not expire an earlier notification's Undo", async () => {
+  const { service, calls } = harness();
+  const first = await service.submit({ text: "First item" });
+  for (let i = 0; i < 5; i++) await service.submit({ text: `Later item ${i}` });
+  assert.equal(
+    service.recent().some((record) => record.id === first.id),
+    false,
+  );
+  const [a, b] = await Promise.all([service.undo(first.id), service.undo(first.id)]);
+  assert.equal(a.state, "undone");
+  assert.equal(b.state, "undone");
+  assert.equal((await service.undo(first.id)).state, "undone");
+  assert.deepEqual(calls.remove, [["reminder", "r1"]]);
+});
+
+test("an evicted notification's Undo still expires after ten minutes", async () => {
+  const { service, calls, state } = harness();
+  const first = await service.submit({ text: "First item" });
+  for (let i = 0; i < 5; i++) await service.submit({ text: `Later item ${i}` });
+  state.clock = new Date(state.clock.getTime() + 10 * 60_000 + 1);
+  await assert.rejects(service.undo(first.id), /no longer available/);
+  assert.deepEqual(calls.remove, []);
+});
+
+test("Undo's ten minutes starts when provider creation succeeds", async () => {
+  const { service, state } = harness({
+    duringCreate: async (state) => {
+      state.clock = new Date(state.clock.getTime() + 5 * 60_000);
+    },
+  });
+  const first = await service.submit({ text: "Slow provider" });
+  state.clock = new Date(state.clock.getTime() + 9 * 60_000);
+  assert.equal((await service.undo(first.id)).state, "undone");
+});
+
+test("a timed-out capture preserves its text for manual recovery and ignores late success", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const entered = Promise.withResolvers();
+  const late = Promise.withResolvers();
+  const { service, calls } = harness({
+    complete: () =>
+      completeCapture(() => {
+        entered.resolve();
+        return late.promise;
+      }),
+  });
+  const submitted = service.submit({ text: "Keep my capture" });
+  await entered.promise;
+  t.mock.timers.tick(3 * 60_000);
+  const result = await submitted;
+  assert.equal(result.state, "failed");
+  assert.match(result.error, /timed out/);
+  assert.deepEqual(result.partial, { title: "Keep my capture" });
+  assert.equal(calls.create.length, 0);
+  late.resolve({ text: JSON.stringify({ kind: "task", title: "Too late" }) });
+  await Promise.resolve();
+  assert.equal(calls.create.length, 0);
+  assert.equal(service.recent()[0].state, "failed");
 });

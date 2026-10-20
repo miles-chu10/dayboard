@@ -77,6 +77,7 @@ function message(error: unknown): string {
 export function createCaptureService(deps: CaptureDeps) {
   const records: CaptureRecord[] = [];
   const receipts = new Map<string, Receipt>();
+  const undoRecords = new Map<string, { record: CaptureRecord; expires: number }>();
   const undoing = new Map<string, Promise<CaptureRecord>>();
   let generation = 0;
 
@@ -85,12 +86,24 @@ export function createCaptureService(deps: CaptureDeps) {
   }
 
   const snapshot = (record: CaptureRecord): CaptureRecord => ({ ...record });
-  const recent = () => records.map(snapshot);
+  function pruneExpired(): void {
+    const now = deps.now().getTime();
+    for (const [id, entry] of undoRecords) {
+      if (now <= entry.expires) continue;
+      entry.record.canUndo = false;
+      receipts.delete(id);
+      undoRecords.delete(id);
+    }
+  }
+  const recent = () => {
+    pruneExpired();
+    return records.map(snapshot);
+  };
   const changed = () => deps.onChange(recent());
 
   function track(record: CaptureRecord): void {
     records.unshift(record);
-    for (const dropped of records.splice(MAX_RECORDS)) receipts.delete(dropped.id);
+    records.splice(MAX_RECORDS);
     changed();
   }
 
@@ -102,23 +115,26 @@ export function createCaptureService(deps: CaptureDeps) {
   }
 
   async function create(kind: ItemKind, scope: string, draft: ItemDraft): Promise<Receipt> {
-    const expires = deps.now().getTime() + UNDO_MS;
-    if (kind === "task")
+    if (kind === "task") {
+      const ref = await deps.guardedWrite(scope, () => deps.create.task(draft));
       return {
         kind,
         scope,
-        expires,
-        ref: await deps.guardedWrite(scope, () => deps.create.task(draft)),
+        expires: deps.now().getTime() + UNDO_MS,
+        ref,
       };
-    if (kind === "event")
+    }
+    if (kind === "event") {
+      const ref = await deps.guardedWrite(scope, () => deps.create.event(draft));
       return {
         kind,
         scope,
-        expires,
-        ref: await deps.guardedWrite(scope, () => deps.create.event(draft)),
+        expires: deps.now().getTime() + UNDO_MS,
+        ref,
       };
+    }
     const { ref } = await deps.guardedWrite(scope, () => deps.create.reminder(draft));
-    return { kind, scope, expires, ref };
+    return { kind, scope, expires: deps.now().getTime() + UNDO_MS, ref };
   }
 
   async function submit(input: CaptureSubmit): Promise<CaptureRecord> {
@@ -180,6 +196,7 @@ export function createCaptureService(deps: CaptureDeps) {
       const receipt = await create(draft.kind, scope, draft);
       assertCurrent(started);
       receipts.set(record.id, receipt);
+      undoRecords.set(record.id, { record, expires: receipt.expires });
     } catch (error) {
       assertCurrent(started);
       return fail(record, message(error), draft);
@@ -223,7 +240,8 @@ export function createCaptureService(deps: CaptureDeps) {
 
   async function undo(id: string): Promise<CaptureRecord> {
     if (deps.isDemoMode()) throw new Error("Quick Capture is turned off in demo mode.");
-    const record = records.find((candidate) => candidate.id === id);
+    pruneExpired();
+    const record = records.find((candidate) => candidate.id === id) ?? undoRecords.get(id)?.record;
     if (!record) throw new Error("That capture is no longer available.");
     if (record.state === "undone") return snapshot(record);
     if (record.state !== "created") throw new Error("Only an added item can be undone.");
@@ -240,6 +258,7 @@ export function createCaptureService(deps: CaptureDeps) {
     undoing.clear();
     records.length = 0;
     receipts.clear();
+    undoRecords.clear();
     changed();
   }
 

@@ -321,7 +321,6 @@ export function AssistantComposer({
   // list claims it first.
   useEffect(() => {
     if (!effortOpen) return;
-    effortRef.current?.querySelector<HTMLElement>('[role="slider"]')?.focus();
     const close = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!effortRef.current?.contains(target) && !chipRef.current?.contains(target))
@@ -681,6 +680,7 @@ export function AssistantComposer({
                   anchorRef={chipRef}
                   popupRef={effortRef}
                   width={320}
+                  focusOnOpen
                   role="dialog"
                   label="Model and effort"
                   className="rounded-2xl border border-separator bg-[var(--color-surface-popover)] p-3 shadow-xl"
