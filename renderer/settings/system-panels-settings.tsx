@@ -9,6 +9,7 @@ import {
 } from "@shared/accelerator";
 import { invoke } from "../lib/ipc";
 import { useSettingsEditor } from "../lib/settings";
+import { SettingSelect } from "./setting-select";
 
 interface HotkeyStatus {
   accelerator: string;
@@ -147,6 +148,81 @@ export function SystemPanelsSettings() {
           onCheckedChange={(enabled) =>
             edit((draft) => {
               draft.system.menuBar.enabled = enabled;
+            })
+          }
+        />
+      </Field>
+    </FieldSet>
+  );
+}
+
+const NOTIFY_OPTIONS = [
+  { value: "1", label: "1 minute before" },
+  { value: "2", label: "2 minutes before" },
+  { value: "5", label: "5 minutes before" },
+  { value: "10", label: "10 minutes before" },
+];
+
+export function MeetingsSettings() {
+  const { settings, edit } = useSettingsEditor();
+  if (!settings) return null;
+  const meetings = settings.system.meetings;
+  return (
+    <FieldSet title="Meetings">
+      <Field
+        label="Up Next card"
+        description="Your next meeting with its join link and prep, on Today and in the menu bar."
+      >
+        <Switch
+          id="meetings-up-next"
+          aria-label="Up Next card"
+          checked={meetings.upNext}
+          onCheckedChange={(upNext) =>
+            edit((draft) => {
+              draft.system.meetings.upNext = upNext;
+            })
+          }
+        />
+      </Field>
+      <Field label="Notify before meetings" description="A macOS notification with a Join button.">
+        <Switch
+          id="meetings-notify"
+          aria-label="Notify before meetings"
+          checked={meetings.notify}
+          onCheckedChange={(notify) =>
+            edit((draft) => {
+              draft.system.meetings.notify = notify;
+            })
+          }
+        />
+      </Field>
+      {meetings.notify ? (
+        <Field label="When">
+          <SettingSelect
+            label="When to notify"
+            value={String(meetings.notifyMinutesBefore)}
+            options={NOTIFY_OPTIONS}
+            onChange={(value) =>
+              edit((draft) => {
+                draft.system.meetings.notifyMinutesBefore = Number(
+                  value,
+                ) as typeof draft.system.meetings.notifyMinutesBefore;
+              })
+            }
+          />
+        </Field>
+      ) : null}
+      <Field
+        label="Meeting notes from Granola"
+        description="After a meeting, offer to pull its notes from a Granola MCP server in Settings → MCP."
+      >
+        <Switch
+          id="meetings-notes-import"
+          aria-label="Meeting notes from Granola"
+          checked={meetings.notesImport}
+          onCheckedChange={(notesImport) =>
+            edit((draft) => {
+              draft.system.meetings.notesImport = notesImport;
             })
           }
         />

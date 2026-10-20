@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Callout, Input, Text } from "@renderer/ui";
 
 import { aiCaptureEnabled } from "@shared/capture";
+import { MeetingCard } from "../components/meeting-card";
 import { SourceDot } from "../components/source-dot";
 import { buildAgenda } from "../lib/agenda";
 import { identifyCalendarEvents } from "../lib/calendar-identity";
@@ -100,6 +101,8 @@ export function MenuBarPanel() {
           Open DayBoard
         </Button>
       </div>
+
+      <MeetingCard surface="menubar" />
 
       <section aria-label="Today's items" className="flex flex-col">
         {items.length ? (

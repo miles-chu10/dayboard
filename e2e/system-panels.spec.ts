@@ -1,5 +1,7 @@
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
-import { launchDemo } from "./fixtures";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
+import { createTestProfile, launchDemo } from "./fixtures";
 
 async function openQuickCapture(app: ElectronApplication): Promise<Page> {
   // The main window's first show takes focus, which would immediately hide a panel opened earlier.
@@ -166,6 +168,44 @@ test("Open DayBoard from the menu-bar panel shows the main window", async () => 
         ),
       )
       .toBe(true);
+  } finally {
+    await demo.close();
+  }
+});
+
+async function atTodayTime(page: Page, hours: number, minutes: number) {
+  const now = new Date();
+  await page.clock.install({
+    time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes),
+  });
+  await page.reload();
+}
+
+test("the Up Next card shows the next demo meeting on Agenda", async () => {
+  const demo = await launchDemo();
+  try {
+    await atTodayTime(demo.page, 9, 25);
+    const card = demo.page.getByRole("region", { name: "Up next meeting" });
+    await expect(card).toBeVisible();
+    await expect(card.getByText("Team standup")).toBeVisible();
+    await expect(card.getByText(/Starts in 5 min/)).toBeVisible();
+    await expect(card.getByRole("button", { name: "Join" })).toBeVisible();
+  } finally {
+    await demo.close();
+  }
+});
+
+test("turning off the Up Next card hides it on Agenda", async () => {
+  const profile = await createTestProfile();
+  await writeFile(
+    path.join(profile, "demo-settings.json"),
+    JSON.stringify({ system: { meetings: { upNext: false } } }),
+  );
+  const demo = await launchDemo(profile);
+  try {
+    await atTodayTime(demo.page, 9, 25);
+    await expect(demo.page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await expect(demo.page.getByRole("region", { name: "Up next meeting" })).toHaveCount(0);
   } finally {
     await demo.close();
   }
