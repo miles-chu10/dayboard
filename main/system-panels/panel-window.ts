@@ -91,10 +91,10 @@ function ensurePanel(surface: PanelSurface): Promise<BrowserWindow> {
   return pending;
 }
 
-function placement(surface: PanelSurface, window: BrowserWindow): Rect {
+function placement(surface: PanelSurface, window: BrowserWindow, anchor: Rect | null): Rect {
   const [width, height] = window.getSize();
   if (surface === "menubar") {
-    const tray = trayBounds();
+    const tray = anchor && anchor.width > 0 && anchor.height > 0 ? anchor : trayBounds();
     const display =
       tray && tray.width > 0
         ? screen.getDisplayMatching(tray)
@@ -105,9 +105,10 @@ function placement(surface: PanelSurface, window: BrowserWindow): Rect {
   return capturePanelBounds(display.workArea, { width, height });
 }
 
-export async function showPanel(surface: PanelSurface): Promise<void> {
+/** `anchor`: the clicked menu-bar icon, when a click opened the panel. */
+export async function showPanel(surface: PanelSurface, anchor: Rect | null = null): Promise<void> {
   const window = await ensurePanel(surface);
-  window.setBounds(placement(surface, window));
+  window.setBounds(placement(surface, window, anchor));
   shownAt.set(window, Date.now());
   window.show();
   window.focus();
@@ -123,10 +124,13 @@ export function isPanelVisible(surface: PanelSurface): boolean {
   return Boolean(window && !window.isDestroyed() && window.isVisible());
 }
 
-export async function togglePanel(surface: PanelSurface): Promise<void> {
+export async function togglePanel(
+  surface: PanelSurface,
+  anchor: Rect | null = null,
+): Promise<void> {
   if (isPanelVisible(surface)) hidePanel(surface);
   else
-    await showPanel(surface).catch((error) =>
+    await showPanel(surface, anchor).catch((error) =>
       logger.error("panels", `Could not open the ${surface} panel`, error),
     );
 }

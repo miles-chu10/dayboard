@@ -1,13 +1,14 @@
 // The menu-bar icon. Left click toggles the mini Agenda panel; right click shows a short menu.
 
-import { Menu, Tray, nativeImage } from "electron";
+import { Menu, Tray, nativeImage, type Rectangle } from "electron";
 
 import icon from "./assets/trayTemplate.png?asset";
 import icon2x from "./assets/trayTemplate@2x.png?asset";
 import { setTrayBoundsProvider } from "./panel-window.js";
 
 export interface TrayActions {
-  toggleAgenda(): void;
+  /** `anchor` is the clicked icon: on several displays `getBounds()` can report another copy. */
+  toggleAgenda(anchor: Rectangle): void;
   openQuickCapture(): void;
   openDayBoard(): void;
   openSettings(): void;
@@ -35,7 +36,7 @@ export function startTray(actions: TrayActions): void {
     { label: "Settings…", click: actions.openSettings },
     { label: "Quit DayBoard", click: actions.quit },
   ]);
-  created.on("click", actions.toggleAgenda);
+  created.on("click", (_event, bounds) => actions.toggleAgenda(bounds));
   created.on("right-click", () => created.popUpContextMenu(menu));
   setTrayBoundsProvider(() => (created.isDestroyed() ? null : created.getBounds()));
 }
