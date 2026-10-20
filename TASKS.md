@@ -30,6 +30,9 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
   - #42 is not final: `e0c7604` fixed both P2s, and labels are still being added. After it merges:
     - Merge main and apply the `runCompletion` repair.
     - Keep #42's model-identity imports and `clipSnapshot`, and the union of test lists.
+    - `renderer/main/assistant-view.tsx` (seen in a trial on `e0c7604`): keep both conflicting
+      blocks, with #42's `mentionEvents` line first.
+    - Re-evaluate every conflict against the final #42 rather than replaying earlier trials.
     - Rerun both wiring checks and full validation.
     - Build a fresh artifact from the current lock and run REA on it.
 - [x] Tray panel placement: use the clicked icon's bounds (`609350d`, `tests/tray-anchor.test.mjs`).
@@ -41,6 +44,14 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
       DayBoard or in Electron's tray and panel paths. Needs a by-hand tray click while another app
       is frontmost before choosing a fix.
 - [ ] Native re-acceptance of the tray placement and Esc fixes on a fresh build.
+  - An interim #43+#44 preview (not final, not launched) is built from `029b97d` and the current
+    lock at `release/interim-029b97d-not-final/`.
+    - DMG sha256: `87e48b05ed558aaa5c042dd9312f2d367472e7f250650d3a3908d07f1e5f2426`
+    - ZIP sha256: `482b571e414447fa6351e7b3d04d4e66ef7583f8f09bc5ff3cf7855b28e2a5f4`
+    - Ad-hoc signed, zod 4.6.7, both fixes present in `app.asar`.
+  - It is valid for panel-only checks: tray placement, Esc, tray activation and first
+    keystrokes. It is not the final combined artifact, which needs the merged #42.
+  - The `cf890ac` build is kept at `release/cf890ac/`.
 
 ## Found along the way
 
