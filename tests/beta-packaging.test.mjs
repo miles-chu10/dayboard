@@ -4,7 +4,7 @@ import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createPackage } from "@electron/asar";
 import { verifyBetaApp, verifyBetaBuild } from "../scripts/verify-beta-package.mjs";
 
@@ -133,7 +133,7 @@ for (const [name, contents, overrides, error] of [
   ["invalid client", "{}", {}, /requires a valid Desktop OAuth client/],
   ["malformed client", "private-sentinel", {}, /valid Desktop OAuth client JSON/],
   ["test mode", JSON.stringify(client), { DAYBOARD_TEST: "1" }, /cannot use DAYBOARD_TEST=1/],
-  ["release mode", JSON.stringify(client), { DAYBOARD_RELEASE: "1" }, /Release packaging requires/],
+  ["release mode", JSON.stringify(client), { DAYBOARD_RELEASE: "1" }, /Beta packaging requires/],
 ]) {
   test(`packaging fails before archive creation for ${name}`, async (t) => {
     const { directory, run } = await fixture(t, contents);
@@ -144,6 +144,51 @@ for (const [name, contents, overrides, error] of [
     await assert.rejects(readFile(path.join(directory, "packaged.json")), { code: "ENOENT" });
   });
 }
+
+test("a free release enables updates without licensing or license service configuration", async (t) => {
+  const { directory, run } = await fixture(t);
+  await writeFile(
+    path.join(directory, "entry.ts"),
+    `
+    import { GOOGLE_APP_CLIENT_ID } from ${JSON.stringify(path.join(root, "main/services/google-oauth-app-client.ts"))};
+    import { configuredLicenseProduct, isLicenseGatingDisabled } from ${JSON.stringify(path.join(root, "main/services/license/config.ts"))};
+    export const configuration = {
+      googleConfigured: Boolean(GOOGLE_APP_CLIENT_ID),
+      licensingDisabled: isLicenseGatingDisabled(),
+      licenseProduct: configuredLicenseProduct(),
+      updatesEnabled: process.env.DAYBOARD_RELEASE === "1",
+    };
+  `,
+  );
+  const built = run("build", {
+    DAYBOARD_RELEASE: "1",
+    DAYBOARD_LICENSE: "off",
+    DAYBOARD_LICENSE_API_URL: "https://license-sentinel.example",
+    DAYBOARD_STRIPE_PRODUCT_ID: "prod_sentinel",
+    DAYBOARD_LICENSE_ENVIRONMENT: "live",
+  });
+  assert.equal(built.status, 0, built.stderr);
+  const output = path.join(directory, "out/main/index.js");
+  assert.doesNotMatch(await readFile(output, "utf8"), /sentinel/);
+  const { configuration } = await import(pathToFileURL(output).href);
+  assert.deepEqual(configuration, {
+    googleConfigured: true,
+    licensingDisabled: true,
+    licenseProduct: null,
+    updatesEnabled: true,
+  });
+  await assert.rejects(readFile(path.join(directory, "out/main/beta-build.json")), {
+    code: "ENOENT",
+  });
+});
+
+test("a release with licensing on still requires the live license configuration", async (t) => {
+  const { directory, run } = await fixture(t);
+  const result = run("build", { DAYBOARD_RELEASE: "1" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Release packaging requires/);
+  await assert.rejects(readFile(path.join(directory, "out/main/index.js")), { code: "ENOENT" });
+});
 
 test("packaging rejects absent, unsafe or stale build proof without disclosing its contents", () => {
   for (const contents of [

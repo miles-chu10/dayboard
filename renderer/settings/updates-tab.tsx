@@ -25,7 +25,7 @@ export function UpdatesTab() {
   return (
     <FieldSet
       title="App updates"
-      description="You choose when to check, download, and install updates."
+      description="DayBoard checks for updates and downloads them in the background. An update installs when you restart or quit DayBoard."
     >
       {query.isError ? (
         <Field>

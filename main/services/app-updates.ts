@@ -26,6 +26,8 @@ export interface AppUpdatesOptions {
   onChange?: (state: AppUpdateState) => void;
   checkTimeoutMs?: number;
   downloadTimeoutMs?: number;
+  automaticDelayMs?: number;
+  automaticIntervalMs?: number;
 }
 
 const UNAVAILABLE_MESSAGE = "Updates are available only in official DayBoard downloads.";
@@ -39,7 +41,10 @@ function boundedPercent(value: unknown): number | null {
   return Math.max(0, Math.min(100, value));
 }
 
-/** All updater actions are invoked only by explicit user requests. */
+/**
+ * Official releases check and download in the background. A verified update installs when the
+ * person restarts from DayBoard or quits it; installation never interrupts open work.
+ */
 export function createAppUpdates(options: AppUpdatesOptions) {
   const available = () => options.isOfficialRelease && options.isPackaged && !options.isDemo();
   let state: AppUpdateState = {
@@ -54,6 +59,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
   let inFlight: Promise<AppUpdateState> | null = null;
   let installPromise: Promise<AppUpdateState> | null = null;
   let operation = 0;
+  let timedOut = 0;
   let downloadedEvent = false;
   let checkEvent: "available" | "up-to-date" | null = null;
 
@@ -76,7 +82,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       return { ...state };
     }
     if (state.phase === "unavailable")
-      publish({ phase: "idle", message: "Check for updates when you're ready." });
+      publish({ phase: "idle", message: "DayBoard checks for updates automatically." });
     return { ...state };
   }
 
@@ -98,13 +104,22 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     }
   }
 
+  /** A download can finish after its timeout, and Squirrel.Mac would still install it on quit. */
+  function downloadPending(): boolean {
+    return (
+      state.phase === "downloading" ||
+      (state.phase === "error" && timedOut === operation && inFlight !== null)
+    );
+  }
+
   async function client(): Promise<UpdateClient> {
     if (!clientPromise) {
       clientPromise = options
         .loadUpdater()
         .then((updater) => {
           updater.autoDownload = false;
-          updater.autoInstallOnAppQuit = false;
+          // Squirrel.Mac stages a verified download so the next normal quit installs it.
+          updater.autoInstallOnAppQuit = true;
           updater.allowPrerelease = /^[^+]*-/.test(options.currentVersion);
           updater.allowDowngrade = false;
           updater.setFeedURL({ provider: "github", owner: "miles-chu10", repo: "dayboard" });
@@ -121,17 +136,23 @@ export function createAppUpdates(options: AppUpdatesOptions) {
             publish({ progressPercent: boundedPercent(info.percent) });
           });
           updater.on("update-downloaded", (info: { version: string }) => {
-            if (state.phase !== "downloading" || info.version !== state.availableVersion) return;
+            if (!downloadPending() || info.version !== state.availableVersion) return;
             downloadedEvent = true;
-            publish({
-              phase: "downloaded",
-              progressPercent: 100,
-              message: "Update ready to install.",
-            });
+            if (state.phase === "downloading") publish({ progressPercent: 100 });
           });
           updater.on("error", (error: Error) => {
             if (state.phase === "preparing" || state.phase === "installing") {
               failInstall(error);
+              return;
+            }
+            // Squirrel.Mac rejected the staged update, so neither restart nor quit can install it.
+            if (state.phase === "downloaded" && !inFlight) {
+              downloadedEvent = false;
+              publish({
+                phase: "error",
+                message: "The update could not be prepared. Check again later.",
+                error: errorMessage(error),
+              });
               return;
             }
             if (!inFlight && state.phase !== "checking" && state.phase !== "downloading") return;
@@ -167,10 +188,10 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const source = task();
     const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(
-        () => reject(new Error("Update operation timed out. Restart DayBoard before retrying.")),
-        timeoutMs,
-      );
+      timer = setTimeout(() => {
+        timedOut = id;
+        reject(new Error("Update operation timed out. Restart DayBoard before retrying."));
+      }, timeoutMs);
     });
     const result = Promise.race([source, timeout])
       .then(() => ({ ...state }))
@@ -235,8 +256,15 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     return run("downloading", options.downloadTimeoutMs ?? 10 * 60_000, async () => {
       const updater = await client();
       await updater.downloadUpdate();
-      if (state.phase === "error") return;
+      if (!downloadPending()) return;
       if (!downloadedEvent) throw new Error("The updater did not verify a completed download.");
+      // On macOS the download settles only once Squirrel.Mac holds the update, so restart can work.
+      publish({
+        phase: "downloaded",
+        message: `DayBoard ${state.availableVersion} is ready. It installs when you restart or quit DayBoard.`,
+        progressPercent: 100,
+        error: null,
+      });
     });
   }
 
@@ -272,5 +300,25 @@ export function createAppUpdates(options: AppUpdatesOptions) {
     return installPromise;
   }
 
-  return { status, check, download, install };
+  /** Checks soon after launch and then periodically, downloading any update it finds. */
+  function startAutomatic(): () => void {
+    if (!available()) return () => undefined;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = (delay: number) => {
+      if (!stopped) timer = setTimeout(() => void cycle(), delay);
+    };
+    async function cycle() {
+      if (state.phase !== "available") await check();
+      if (!stopped && state.phase === "available") await download();
+      schedule(options.automaticIntervalMs ?? 6 * 60 * 60_000);
+    }
+    schedule(options.automaticDelayMs ?? 30_000);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }
+
+  return { status, check, download, install, startAutomatic };
 }
