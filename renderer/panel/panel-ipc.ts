@@ -50,7 +50,9 @@ export function usePanelShown(onShown: () => void) {
 export function usePanelEscape(surface: PanelSurface) {
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
+      // An Escape during IME composition cancels the composition, not the panel.
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
       void hidePanel(surface);
     };

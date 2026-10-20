@@ -56,6 +56,33 @@ test("Escape hides the capture panel", async () => {
   }
 });
 
+test("Escape that cancels an IME composition leaves the panel open", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openQuickCapture(demo.app);
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(true);
+    await panel.getByRole("textbox", { name: "Quick Capture" }).evaluate((node) => {
+      const { KeyboardEvent } = globalThis as unknown as {
+        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown;
+      };
+      (node as { dispatchEvent(event: unknown): boolean }).dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          isComposing: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    await panel.waitForTimeout(300);
+    expect(await panelVisible(demo.app, "#capture")).toBe(true);
+    await panel.keyboard.press("Escape");
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(false);
+  } finally {
+    await demo.close();
+  }
+});
+
 test("the capture panel cannot call unlisted channels", async () => {
   const demo = await launchDemo();
   try {
@@ -138,7 +165,8 @@ test("the first keystrokes after each reopen reach the capture input", async () 
     await panel.keyboard.type("b");
     await expect(input).toHaveValue("ab");
 
-    // Click-away: another DayBoard window takes focus after the show grace period.
+    // Click-away: another DayBoard window takes focus after the show grace period
+    // (SHOW_GRACE_MS, 300 ms, in main/system-panels/panel-window.ts).
     await panel.waitForTimeout(400);
     await demo.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
@@ -197,6 +225,7 @@ test("Escape hides a freshly shown menu-bar panel", async () => {
   try {
     const panel = await openMenuBarAgenda(demo.app);
     await expect(panel.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
     await panel.keyboard.press("Escape");
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(false);
   } finally {
