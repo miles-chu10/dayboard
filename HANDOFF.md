@@ -32,7 +32,8 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
   `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
-  exists only in production, not in this repository; commit it with the code that uses it.
+  is now in the repository, reconstructed from the live schema. Production holds suppressions,
+  but no code in the repository records them or sends mailings.
 - Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
   servers and bounded authenticated JSON before SDK validation. Zod's advisory remains
   unresolved upstream; remote MCP response validation is outside this local input mitigation.
