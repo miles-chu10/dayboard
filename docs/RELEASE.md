@@ -191,13 +191,13 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 6. Verify the intended merchant in test mode: checkout, receipt/key, activation, deactivation, refund/revocation and offline behavior. Never charge a real customer as a test.
 7. Sign nested code and the application with the approved Developer ID, notarize, staple and assess the final artifact with Gatekeeper. Do not remove quarantine or advise users to disable security protections.
 8. Install the signed prior version in a disposable test environment, let it find and download the new release automatically, restart to update, and verify the version, saved preferences and account continuity after restart. Unit updater fakes do not prove Apple's actual update installation.
-9. Before the first tag with automatic updates (`v1.3.0-beta.12`), deploy the website copy that discloses them: `website/privacy.html` must say DayBoard checks GitHub for updates, and `website/docs.html` must say betas update themselves. Until then both pages say betas never contact GitHub or update.
+9. Nobody is pointed at a build with automatic updates until the website discloses them. For `v1.3.0-beta.12`: publish the release, deploy the site (`website/privacy.html` says DayBoard checks GitHub for updates, `website/docs.html` says betas update themselves, `/download` points at the new DMG), and only then announce or email the release. Until that deploy, the live pages say betas never contact GitHub or update.
 
 `npm run measure -- --inspect` runs a disposable fictional demo and records launch/idle process measurements. Set `DAYBOARD_E2E_EXECUTABLE` to measure the packaged executable. Summed process working sets may count shared memory more than once; this measurement does not describe real-account workloads.
 
 ## Website and source distribution
 
-The static site is in `website/`. During the beta it collects a waitlist through the billing service's `POST /v1/waitlist` endpoint (`/v1/beta-signup` remains an alias). Invitations with the download link go out by email in small groups. From `1.3.0-beta.12`, signed betas are GitHub prereleases on the public repository, so anyone with the link can download them. Its screenshots contain fictional demo data. Add public download and checkout destinations only for the approved release, with the current privacy, support and refund information.
+The static site is in `website/`. From `1.3.0-beta.12`, signed betas are public GitHub prereleases, and getdayboard.com/download redirects to the first-install DMG named by `DOWNLOAD_URL` in `website-worker/worker.js`. Installed copies update themselves, so change that URL only when a later release should be the first install. Its screenshots contain fictional demo data. Add checkout destinations only for the approved release, with the current privacy, support and refund information.
 
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 
