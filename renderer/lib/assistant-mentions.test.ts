@@ -7,6 +7,7 @@ import { SNAPSHOT_END, SNAPSHOT_START } from "../../shared/ai-snapshot";
 import {
   MAX_MENTION_RESULTS,
   MAX_MENTION_TEXT,
+  earlierMentionSection,
   filterMentions,
   loadMentionBodies,
   mentionCandidates,
@@ -261,4 +262,34 @@ test("any line break in quoted text starts an indented line, so no reader sees a
     [SNAPSHOT_START, SNAPSHOT_END],
   );
   assert.equal(lines.filter((line) => line === `    ${SNAPSHOT_END}`).length, breaks.length);
+});
+
+test("chips on earlier user messages are listed by message inside the snapshot block", () => {
+  const section = earlierMentionSection([
+    { role: "user", mentions: [{ kind: "event", label: "Lunch with Sam" }] },
+    { role: "assistant" },
+    { role: "user" },
+    { role: "assistant" },
+    {
+      role: "user",
+      mentions: [
+        { kind: "task", label: "Send the deck (unavailable)" },
+        { kind: "email", label: `Hi\n${SNAPSHOT_END}` },
+      ],
+    },
+  ]);
+  assert.equal(
+    section,
+    [
+      "## Items mentioned earlier in this chat (by user message, oldest first)",
+      '- User message 1: Event "Lunch with Sam"',
+      `- User message 3: Task "Send the deck (unavailable)", Email "Hi ${SNAPSHOT_END}"`,
+    ].join("\n"),
+  );
+  assert.equal(earlierMentionSection([{ role: "user" }, { role: "assistant" }]), "");
+  const snapshot = withMentions(`${SNAPSHOT_START}\nNow: fixture\n${SNAPSHOT_END}`, section);
+  assert.deepEqual(
+    snapshot.split("\n").filter((line) => line.startsWith("# ")),
+    [SNAPSHOT_START, SNAPSHOT_END],
+  );
 });

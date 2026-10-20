@@ -238,6 +238,30 @@ export function mentionSection(
 }
 
 /**
+ * Chips saved on the earlier user messages being sent, so a follow-up such as "move it to
+ * tomorrow" can be tied to the item. Labels are quoted source text, so this goes inside the
+ * snapshot block like the full section.
+ */
+export function earlierMentionSection(
+  messages: { role: string; mentions?: AssistantMention[] }[],
+): string {
+  const lines: string[] = [];
+  let index = 0;
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    index += 1;
+    if (!message.mentions?.length) continue;
+    const items = message.mentions.map(
+      (mention) => `${KIND_NAME[mention.kind]} "${oneLine(mention.label)}"`,
+    );
+    lines.push(`- User message ${index}: ${items.join(", ")}`);
+  }
+  return lines.length
+    ? `## Items mentioned earlier in this chat (by user message, oldest first)\n${lines.join("\n")}`
+    : "";
+}
+
+/**
  * Puts the section inside the current snapshot block, just before its end marker, so the rule
  * that snapshot content is untrusted data covers it.
  */

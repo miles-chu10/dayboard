@@ -47,6 +47,7 @@ import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { useAssistantHistory } from "../lib/assistant-history";
 import type { AssistantViewAction } from "../lib/assistant-commands";
 import {
+  earlierMentionSection,
   loadMentionBodies,
   mentionCandidates,
   mentionSection,
@@ -343,14 +344,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       ...(resolved.length ? { mentions: savedMentions(resolved) } : {}),
     };
     const assistantId = crypto.randomUUID();
-    const requestMessages = [...messages, userMessage]
-      .filter((message) => message.content.trim())
-      .slice(-20)
-      .map((message) => ({
-        role: message.role,
-        content:
-          message.role === "assistant" ? splitActions(message.content).body : message.content,
-      }));
+    const sent = [...messages, userMessage].filter((message) => message.content.trim()).slice(-20);
+    const earlierMentions = earlierMentionSection(sent.slice(0, -1));
+    const requestMessages = sent.map((message) => ({
+      role: message.role,
+      content: message.role === "assistant" ? splitActions(message.content).body : message.content,
+    }));
 
     setMessages((previous) => [
       ...previous,
@@ -403,7 +402,10 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         invoke<{ text: string }>("mail:getBody", { id }).then((body) => body.text),
       );
       if (cancelRef.current !== cancellationId) return;
-      const snapshot = withMentions(currentSnapshot, mentionSection(resolved, bodies));
+      const snapshot = withMentions(
+        withMentions(currentSnapshot, earlierMentions),
+        mentionSection(resolved, bodies),
+      );
       const result = await window.dayboard.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
         {
