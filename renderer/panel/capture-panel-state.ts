@@ -43,9 +43,19 @@ export type CapturePanelAction =
       partial?: Partial<ItemDraft> | null;
     }
   | { type: "recordsChanged"; records: CaptureRecordView[] }
-  | { type: "editFailure"; key: string; defaultKind: ItemKind }
+  | {
+      type: "editFailure";
+      key: string;
+      defaultKind: ItemKind;
+      available: Record<ItemKind, boolean>;
+    }
   | { type: "dismissFailure"; key: string }
-  | { type: "shown"; aiAvailable: boolean; defaultKind: ItemKind }
+  | {
+      type: "shown";
+      aiAvailable: boolean;
+      defaultKind: ItemKind;
+      available: Record<ItemKind, boolean>;
+    }
   | { type: "formChanged"; patch: Partial<ItemDraft> }
   | { type: "useText" };
 
@@ -105,6 +115,8 @@ export function reduceCapturePanel(
       const failure = state.failures.find((item) => item.key === action.key);
       if (!failure) return state;
       const form = { ...blank(action.defaultKind), title: failure.text, ...failure.partial };
+      if (!action.available[form.kind] && action.available[action.defaultKind])
+        form.kind = action.defaultKind;
       return {
         ...state,
         mode: "form",
@@ -119,10 +131,21 @@ export function reduceCapturePanel(
         failures: state.failures.filter((item) => item.key !== action.key),
         handled: [...state.handled, action.key],
       };
-    case "shown":
-      if (!action.aiAvailable)
-        return { ...state, mode: "form", form: state.form ?? blank(action.defaultKind) };
-      return state.mode === "form" && state.form ? state : { ...state, mode: "text" };
+    case "shown": {
+      const current = state.form ?? blank(action.defaultKind);
+      const form =
+        !action.available[current.kind] && action.available[action.defaultKind]
+          ? { ...current, kind: action.defaultKind }
+          : current;
+      if (!action.aiAvailable) {
+        return {
+          ...state,
+          mode: "form",
+          form,
+        };
+      }
+      return state.mode === "form" && state.form ? { ...state, form } : { ...state, mode: "text" };
+    }
     case "formChanged":
       return state.form ? { ...state, form: { ...state.form, ...action.patch } } : state;
     case "useText":

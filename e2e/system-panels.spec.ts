@@ -19,7 +19,9 @@ async function openQuickCapture(app: ElectronApplication): Promise<Page> {
   await app.evaluate(({ Menu }) =>
     Menu.getApplicationMenu()?.getMenuItemById("quick-capture")?.click(),
   );
-  return opened;
+  const panel = await opened;
+  await expect.poll(() => panelVisible(app, "#capture")).toBe(true);
+  return panel;
 }
 
 async function panelVisible(app: ElectronApplication, hash: string): Promise<boolean> {
@@ -525,3 +527,120 @@ for (const surface of ["capture", "menubar"] as const) {
     }
   });
 }
+
+for (const surface of ["agenda", "menubar"] as const) {
+  for (const notesImport of [true, false]) {
+    test(`${surface} post-meeting notes ${notesImport ? "remain visible" : "are hidden"} with Up Next off`, async () => {
+      const profile = await createTestProfile();
+      await writeFile(
+        path.join(profile, "demo-settings.json"),
+        JSON.stringify({ system: { meetings: { upNext: false, notesImport } } }),
+      );
+      const demo = await launchDemo(profile);
+      try {
+        const page = surface === "agenda" ? demo.page : await openMenuBarAgenda(demo.app);
+        await atTodayTime(page, 9, 50);
+        await expect(page.getByRole("heading").first()).toBeVisible();
+        await expect(page.getByRole("region", { name: "Up next meeting" })).toHaveCount(0);
+        const ended = page.getByRole("region", { name: "Meeting that just ended" });
+        if (notesImport) {
+          await expect(ended).toBeVisible();
+          await expect(ended.getByText("Team standup")).toBeVisible();
+        } else {
+          await expect(ended).toHaveCount(0);
+        }
+        expect(demo.errors).toEqual([]);
+      } finally {
+        await demo.close();
+      }
+    });
+  }
+}
+
+test("manual capture waits for account availability and selects a usable destination", async () => {
+  const profile = await createTestProfile();
+  await writeFile(
+    path.join(profile, "demo-settings.json"),
+    JSON.stringify({ ai: { features: { capture: false } } }),
+  );
+  const demo = await launchDemo(profile);
+  try {
+    await demo.app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("accounts:getStatus");
+      ipcMain.handle(
+        "accounts:getStatus",
+        () =>
+          new Promise((resolve) => {
+            (globalThis as unknown as { releaseAccounts: () => void }).releaseAccounts = () =>
+              resolve({ google: { connected: true }, reminders: "denied" });
+          }),
+      );
+    });
+    const panel = await openQuickCapture(demo.app);
+    await expect(panel.getByRole("textbox", { name: "Quick Capture" })).toBeDisabled();
+    await expect
+      .poll(() =>
+        demo.app.evaluate(
+          () => typeof (globalThis as unknown as { releaseAccounts?: unknown }).releaseAccounts,
+        ),
+      )
+      .toBe("function");
+    await demo.app.evaluate(() =>
+      (globalThis as unknown as { releaseAccounts: () => void }).releaseAccounts(),
+    );
+    await expect(panel.getByRole("button", { name: "Add task", exact: true })).toBeEnabled();
+    await expect(panel.getByRole("radio", { name: "Task", exact: true })).toBeChecked();
+    await expect(panel.getByRole("radio", { name: "Reminder", exact: true })).toBeDisabled();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("a notes-changed notification refreshes Agenda and Menubar together", async () => {
+  const demo = await launchDemo();
+  try {
+    await demo.app.evaluate(({ ipcMain }) => {
+      (globalThis as unknown as { notesImported: boolean }).notesImported = false;
+      ipcMain.removeHandler("meetings:getNotes");
+      ipcMain.handle(
+        "meetings:getNotes",
+        (_event, { events }: { events: { calendarId: string; eventId: string }[] }) =>
+          Object.fromEntries(
+            events.map((event) => [
+              `${event.calendarId}/${event.eventId}`,
+              {
+                providerMeetingId: "synthetic-meeting",
+                providerUrl: null,
+                title: "Synthetic notes",
+                importedAt: "2026-10-20T09:45:00Z",
+                text: (globalThis as unknown as { notesImported: boolean }).notesImported
+                  ? "Fresh complete meeting notes"
+                  : "Previous meeting notes",
+              },
+            ]),
+          ),
+      );
+    });
+    await atTodayTime(demo.page, 9, 50);
+    const menubar = await openMenuBarAgenda(demo.app);
+    await atTodayTime(menubar, 9, 50);
+    for (const page of [demo.page, menubar])
+      await expect(page.getByText("Previous meeting notes", { exact: true })).toBeVisible();
+    await demo.app.evaluate(({ BrowserWindow }) => {
+      (globalThis as unknown as { notesImported: boolean }).notesImported = true;
+      for (const window of BrowserWindow.getAllWindows())
+        window.webContents.send("dayboard:notification", {
+          channel: "meetings:notesChanged",
+          params: { calendarId: "work", eventId: "e1" },
+        });
+    });
+    for (const page of [demo.page, menubar]) {
+      await expect(page.getByText("Fresh complete meeting notes", { exact: true })).toBeVisible();
+      await expect(page.getByText("Previous meeting notes", { exact: true })).toHaveCount(0);
+    }
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});

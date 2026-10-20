@@ -22,7 +22,7 @@ import type {
   TaskItem,
 } from "@main/shared-types";
 
-import { clearAccountScopedQueries } from "./account-scoped-queries";
+import { clearAccountScopedQueries, refreshMeetingNotes } from "./account-scoped-queries";
 import { errorMessage, invoke } from "./ipc";
 import { settingsQueryKey, sourceOn, useSettings } from "./settings";
 import { buildTodos, linkedKeys, type Todo } from "./todos";
@@ -194,6 +194,9 @@ export function useBackendSync() {
   useEffect(() => {
     const ipc = window.dayboard.ipc;
     const unsubscribers = [
+      ipc.onNotification("meetings:notesChanged", () => {
+        void refreshMeetingNotes(queryClient);
+      }),
       ipc.onNotification("accounts:changed", () => {
         // Never show a prior account's cached data during a reconnect or switch.
         for (const queryKey of [...DATA_KEYS, queryKeys.agendaScope])

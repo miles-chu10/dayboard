@@ -10,3 +10,10 @@ export function clearAccountScopedQueries(queryClient: QueryClient): void {
     queryClient.removeQueries({ queryKey });
   }
 }
+
+/** Refetch notes in every window, including Assistant snapshots, after a completed import. */
+export async function refreshMeetingNotes(queryClient: QueryClient): Promise<void> {
+  const queryKey = ["meetings"];
+  await queryClient.cancelQueries({ queryKey });
+  await queryClient.invalidateQueries({ queryKey });
+}

@@ -215,3 +215,24 @@ test("nothing is stored in demo mode", async () => {
   assert.deepEqual(await service.getNotes([{ calendarId: "primary", eventId: "event-1" }]), {});
   assert.equal(files.size, 0);
 });
+
+test("a truncated meeting list never offers an incomplete match", async () => {
+  const { service, state, files } = await ready();
+  state.responses.list_meetings.truncated = true;
+  await assert.rejects(service.findNotes(event), /incomplete meeting list/);
+  assert.equal(files.has("notes.json"), false);
+});
+
+test("truncated notes never overwrite a previously complete import", async () => {
+  const { service, state, files } = await ready();
+  const first = await service.findNotes(event);
+  await service.importNotes({ selection: first.selection, providerMeetingId: ROADMAP });
+  const before = files.get("notes.json");
+  const next = await service.findNotes(event);
+  state.responses.get_meetings = { text: "Partial replacement", isError: false, truncated: true };
+  await assert.rejects(
+    service.importNotes({ selection: next.selection, providerMeetingId: ROADMAP }),
+    /incomplete notes/,
+  );
+  assert.equal(files.get("notes.json"), before);
+});

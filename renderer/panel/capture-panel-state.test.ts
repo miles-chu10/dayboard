@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { initialCaptureState, reduceCapturePanel } from "./capture-panel-state";
 
+const available = { reminder: true, task: true, event: true };
+
 const failedRecord = {
   id: "capture-1",
   text: "Call dentist Thursday 3pm",
@@ -50,6 +52,7 @@ test("editFailure loads the failed text into the manual form", () => {
   const state = reduceCapturePanel(failed, {
     type: "editFailure",
     key: "capture-1",
+    available,
     defaultKind: "task",
   });
   assert.equal(state.mode, "form");
@@ -72,6 +75,7 @@ test("uses the manual form when AI capture is unavailable", () => {
   const state = reduceCapturePanel(initialCaptureState, {
     type: "shown",
     aiAvailable: false,
+    available,
     defaultKind: "reminder",
   });
   assert.equal(state.mode, "form");
@@ -79,6 +83,7 @@ test("uses the manual form when AI capture is unavailable", () => {
   const ai = reduceCapturePanel(initialCaptureState, {
     type: "shown",
     aiAvailable: true,
+    available,
     defaultKind: "reminder",
   });
   assert.equal(ai.mode, "text");
@@ -103,6 +108,7 @@ test("a rejected manual capture keeps every field for Edit", () => {
   const edited = reduceCapturePanel(rejected, {
     type: "editFailure",
     key: "local-2",
+    available,
     defaultKind: "task",
   });
   assert.deepEqual(edited.form, draft);
@@ -114,7 +120,67 @@ test("account reset removes old failures, recovered form and typed content", () 
   state = reduceCapturePanel(state, {
     type: "editFailure",
     key: failedRecord.id,
+    available,
     defaultKind: "task",
   });
   assert.deepEqual(reduceCapturePanel(state, { type: "accountChanged" }), initialCaptureState);
+});
+
+for (const kind of ["task", "event"] as const) {
+  test(`manual form switches from an unavailable destination to ${kind} after hydration`, () => {
+    const initial = reduceCapturePanel(initialCaptureState, {
+      type: "shown",
+      aiAvailable: false,
+      defaultKind: "reminder",
+      available: { reminder: false, task: false, event: false },
+    });
+    const typed = reduceCapturePanel(initial, {
+      type: "formChanged",
+      patch: { title: "Keep this", notes: "Details", date: "2026-10-22" },
+    });
+    const hydrated = reduceCapturePanel(typed, {
+      type: "shown",
+      aiAvailable: false,
+      defaultKind: kind,
+      available: { reminder: false, task: kind === "task", event: kind === "event" },
+    });
+    assert.deepEqual(hydrated.form, { ...typed.form, kind });
+  });
+}
+
+test("hydration preserves a valid user-selected destination and fields", () => {
+  const initial = reduceCapturePanel(initialCaptureState, {
+    type: "shown",
+    aiAvailable: false,
+    defaultKind: "reminder",
+    available,
+  });
+  const chosen = reduceCapturePanel(initial, {
+    type: "formChanged",
+    patch: { kind: "event", title: "Dentist", time: "10:00" },
+  });
+  const hydrated = reduceCapturePanel(chosen, {
+    type: "shown",
+    aiAvailable: false,
+    defaultKind: "task",
+    available,
+  });
+  assert.deepEqual(hydrated.form, chosen.form);
+});
+
+test("no available destination preserves the draft until a source becomes usable", () => {
+  const initial = reduceCapturePanel(initialCaptureState, {
+    type: "shown",
+    aiAvailable: false,
+    defaultKind: "task",
+    available,
+  });
+  const typed = reduceCapturePanel(initial, { type: "formChanged", patch: { title: "Keep this" } });
+  const disconnected = reduceCapturePanel(typed, {
+    type: "shown",
+    aiAvailable: false,
+    defaultKind: "reminder",
+    available: { reminder: false, task: false, event: false },
+  });
+  assert.deepEqual(disconnected.form, typed.form);
 });

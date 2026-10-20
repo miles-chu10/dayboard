@@ -60,6 +60,11 @@ export function CapturePanel() {
     (["reminder", "task", "event"] as const).find((kind) => available[kind]) ?? "reminder";
   const nothingAvailable =
     accounts !== undefined && !available.task && !available.reminder && !available.event;
+  const ready = Boolean(settings && accounts);
+
+  useEffect(() => {
+    if (ready) input.current?.focus();
+  }, [ready]);
 
   useEffect(() => {
     const apply = (records: unknown) => {
@@ -91,12 +96,12 @@ export function CapturePanel() {
   }, []);
 
   useEffect(() => {
-    if (settings) dispatch({ type: "shown", aiAvailable, defaultKind });
-  }, [settings, aiAvailable, defaultKind]);
+    if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
+  }, [settings, accounts, aiAvailable, defaultKind, available]);
 
   usePanelEscape("capture");
   usePanelShown(() => {
-    dispatch({ type: "shown", aiAvailable, defaultKind });
+    if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
     setFormError(null);
     input.current?.focus();
   });
@@ -143,7 +148,9 @@ export function CapturePanel() {
             <>
               <Button
                 size="small"
-                onClick={() => dispatch({ type: "editFailure", key: failure.key, defaultKind })}
+                onClick={() =>
+                  dispatch({ type: "editFailure", key: failure.key, defaultKind, available })
+                }
               >
                 Edit
               </Button>
@@ -196,7 +203,7 @@ export function CapturePanel() {
                 Type it instead
               </Button>
             ) : null}
-            <Button type="submit" disabled={nothingAvailable}>
+            <Button type="submit" disabled={!settings || !accounts || nothingAvailable}>
               {ADD_LABEL[state.form.kind]}
             </Button>
           </div>
@@ -209,7 +216,7 @@ export function CapturePanel() {
           className="h-10 text-[15px]"
           placeholder="Add a task, reminder or event…"
           value={state.text}
-          disabled={nothingAvailable}
+          disabled={!settings || !accounts || nothingAvailable}
           onChange={(event) => dispatch({ type: "typed", text: event.target.value })}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.nativeEvent.isComposing) {

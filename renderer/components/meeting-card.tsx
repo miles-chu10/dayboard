@@ -83,9 +83,9 @@ export function MeetingCard({ surface }: { surface: "agenda" | "menubar" }) {
   const settings = useSettings().data;
   const now = useAgendaClock();
   const calendar = useCalendarRange(todayISO(), 2);
-  if (!settings?.system.meetings.upNext || !sourceOn(settings, "calendar")) return null;
+  if (!settings || !sourceOn(settings, "calendar")) return null;
   const events = calendar.data?.state === "ok" ? calendar.data.items : [];
-  const upNext = pickUpNext(events, now);
+  const upNext = settings.system.meetings.upNext ? pickUpNext(events, now) : null;
   const ended = settings.system.meetings.notesImport ? justEnded(events, now) : null;
   if (!upNext && !ended) return null;
   return (

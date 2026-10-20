@@ -155,3 +155,23 @@ test("an account change cancels the armed alert before the new fetch returns", a
   state.fetches[0](null);
   await pending;
 });
+
+test("a timer delayed past a meeting's end skips it and schedules the next meeting", async () => {
+  const { alerts, state, alertTimers } = harness([meeting("ended", 10), meeting("next", 60)]);
+  await alerts.configure(on);
+  state.now = new Date(start.getTime() + 45 * 60_000);
+  alertTimers()[0].fn();
+  assert.deepEqual(state.notified, []);
+  assert.equal(alertTimers().length, 1);
+  assert.equal(alertTimers()[0].ms, 13 * 60_000);
+});
+
+test("a delayed alert still notifies for a meeting in progress", async () => {
+  const { alerts, state, alertTimers } = harness([meeting("active", 10)]);
+  await alerts.configure(on);
+  state.now = new Date(start.getTime() + 15 * 60_000);
+  alertTimers()[0].fn();
+  assert.equal(state.notified.length, 1);
+  assert.equal(state.notified[0].body, "Starting now");
+  assert.equal(alertTimers().length, 0);
+});

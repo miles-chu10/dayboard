@@ -54,7 +54,7 @@ export function createHotkeyManager(deps: HotkeyDeps) {
       const owner = plist === null ? null : symbolicHotkeyConflict(plist, accelerator);
       if (owner)
         conflict = `macOS uses ${formatAccelerator(accelerator)} for ${owner}. Turn it off in System Settings → Keyboard → Keyboard Shortcuts, or choose another shortcut.`;
-      if (!suspended) {
+      if (!suspended && !owner) {
         try {
           registered = deps.globalShortcut.register(accelerator, deps.onTrigger);
         } catch {
