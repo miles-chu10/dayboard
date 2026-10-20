@@ -190,6 +190,26 @@ Trial reconciliation (scratch worktree, not pushed), merging #42 at interim head
 - The trial resolution patch and logs are in
   `~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-trial-on-302d191/`.
 
+Design system check (2026-10-20). The panels were checked against "DayBoard Design System v21",
+render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on the local copy in
+`~/Documents/Codex/2026-10-09/task-4/design-reference/`. The live artifact revision
+`1792522028-b5ac` gives the same panel rules, with tighter contrast wording.
+
+- **Fixed in `ba10a95`:**
+  - Placeholders end in an ellipsis, and the menu-bar one no longer truncates.
+  - A failed capture is a red Callout.
+  - Today rows use `list-hover`, `tabular-nums` and a `title` on truncated text.
+  - Button labels are sentence case.
+- **Already compliant:** the panel ground is opaque. A new e2e test pins it along with the
+  fixes.
+- **Left as decisions:**
+  - the Spotlight-size capture field (`h-10 text-[15px]`)
+  - the app-wide time-range format
+  - model and effort presentation, which has no guidance in the design system (owned by #42)
+  - the hidden native vibrancy layer
+- Before and after screenshots and rendered design-system cards are in the shared notes folder's
+  `pr44-design-system-check/`.
+
 No canonical app or profile was touched. Full report, with permission evidence, screenshots and
 logs:
 `~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-native-acceptance-2026-10-20/README.md`.

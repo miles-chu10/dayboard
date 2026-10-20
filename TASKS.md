@@ -43,6 +43,10 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [ ] Tray click activating DayBoard: cause unresolved. Code inspection found no activation in
       DayBoard or in Electron's tray and panel paths. Needs a by-hand tray click while another app
       is frontmost before choosing a fix.
+- [x] Design system check of the panels against v21 (`1791573676-ee86`) and the live revision
+      `1792522028-b5ac`: fixes in `ba10a95`, with before and after screenshots (see `HANDOFF.md`).
+- [ ] After #42 merges, check whether any panel surface shows #42's model or effort presentation,
+      and align it with #42's design.
 - [ ] Native re-acceptance of the tray placement and Esc fixes on a fresh build.
   - An interim #43+#44 preview (not final, not launched) is built from `029b97d` and the current
     lock at `release/interim-029b97d-not-final/`.
