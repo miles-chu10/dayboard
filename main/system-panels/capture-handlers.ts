@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 import { Notification } from "electron";
 
 import { describeCapture, type ItemDraft } from "../../shared/capture.js";
-import { getAccountsStatus, requireAgendaScope } from "../handlers/productivity.js";
+import {
+  getAccountsStatus,
+  onAccountsChanged,
+  requireAgendaScope,
+} from "../handlers/productivity.js";
 import { ipcMain, logger } from "../platform/index.js";
 import { runGuardedCommand } from "../platform/ipc.js";
 import { runCompletion } from "../services/ai/completion.js";
@@ -131,6 +135,7 @@ function submitInput(value: unknown): CaptureSubmit {
 }
 
 export function registerCaptureHandlers(): void {
+  onAccountsChanged(() => service.clear());
   ipcMain.handle("capture:submit", (_event, value: unknown) => service.submit(submitInput(value)));
   ipcMain.handle("capture:undo", (_event, value: unknown) => {
     const id = (value as { id?: unknown } | null)?.id;

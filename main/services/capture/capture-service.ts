@@ -219,5 +219,12 @@ export function createCaptureService(deps: CaptureDeps) {
     return run;
   }
 
-  return { submit, undo, recent };
+  /** An account change drops every record and receipt: they belong to the previous account. */
+  function clear(): void {
+    records.length = 0;
+    receipts.clear();
+    changed();
+  }
+
+  return { submit, undo, recent, clear };
 }
