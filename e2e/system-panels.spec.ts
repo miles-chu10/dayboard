@@ -116,6 +116,51 @@ test("submitting in demo mode shows the demo refusal in the panel", async () => 
   }
 });
 
+async function reopenQuickCapture(app: ElectronApplication) {
+  await app.evaluate(({ Menu }) =>
+    Menu.getApplicationMenu()?.getMenuItemById("quick-capture")?.click(),
+  );
+  await expect.poll(() => panelVisible(app, "#capture")).toBe(true);
+}
+
+test("the first keystrokes after each reopen reach the capture input", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openQuickCapture(demo.app);
+    const input = panel.getByRole("textbox", { name: "Quick Capture" });
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(true);
+    await panel.keyboard.type("a");
+    await expect(input).toHaveValue("a");
+
+    await panel.keyboard.press("Escape");
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(false);
+    await reopenQuickCapture(demo.app);
+    await panel.keyboard.type("b");
+    await expect(input).toHaveValue("ab");
+
+    // Click-away: another DayBoard window takes focus after the show grace period.
+    await panel.waitForTimeout(400);
+    await demo.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes("main-window.html"))
+        ?.focus(),
+    );
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(false);
+    await reopenQuickCapture(demo.app);
+    await panel.keyboard.type("c");
+    await expect(input).toHaveValue("abc");
+
+    // A rejected submit hides the panel and shows it again with the refusal.
+    await panel.keyboard.press("Enter");
+    await expect(panel.getByText(/turned off in demo mode/)).toBeVisible();
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(true);
+    await panel.keyboard.type("d");
+    await expect(input).toHaveValue("d");
+  } finally {
+    await demo.close();
+  }
+});
+
 async function openMenuBarAgenda(app: ElectronApplication): Promise<Page> {
   await expect
     .poll(() =>
@@ -142,6 +187,18 @@ test("File → Menu Bar Agenda shows today's panel", async () => {
     await expect(panel.getByRole("region", { name: "Today's items" })).toBeVisible();
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
     expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("Escape hides a freshly shown menu-bar panel", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openMenuBarAgenda(demo.app);
+    await expect(panel.getByRole("heading", { name: "Today" })).toBeVisible();
+    await panel.keyboard.press("Escape");
+    await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(false);
   } finally {
     await demo.close();
   }

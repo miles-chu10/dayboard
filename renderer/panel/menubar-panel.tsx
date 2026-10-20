@@ -14,7 +14,13 @@ import { buildTodos, mergeLinkedTodos } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import type { CaptureRecordView } from "./capture-panel-state";
 import { afterRejection } from "./menubar-capture";
-import { hidePanel, showPanel, useFitPanelHeight, usePanelShown } from "./panel-ipc";
+import {
+  hidePanel,
+  showPanel,
+  useFitPanelHeight,
+  usePanelEscape,
+  usePanelShown,
+} from "./panel-ipc";
 import { todayItems } from "./today-items";
 
 function openMain(route: string, prompt?: string) {
@@ -54,6 +60,7 @@ export function MenuBarPanel() {
   const [error, setError] = useState<string | null>(null);
 
   usePanelShown(() => setError(null));
+  usePanelEscape("menubar");
 
   const on = {
     tasks: sourceOn(settings, "tasks"),
@@ -87,13 +94,7 @@ export function MenuBarPanel() {
   }
 
   return (
-    <div
-      ref={container}
-      className="flex flex-col gap-3 p-3"
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented) void hidePanel("menubar");
-      }}
-    >
+    <div ref={container} className="flex flex-col gap-3 p-3">
       <div className="flex items-baseline justify-between gap-2">
         <div>
           <Text as="h1" variant="large-strong">
