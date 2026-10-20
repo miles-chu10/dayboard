@@ -106,3 +106,100 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     await demo.close();
   }
 });
+
+test("slash menu runs actions and prompts from the keyboard", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    await navigate(demo.page, "Assistant");
+    const input = demo.page.getByRole("textbox", { name: /^Message / });
+    await expect(demo.page.locator('[data-from="user"]')).toHaveCount(1);
+    await input.fill("/");
+    const list = demo.page.getByRole("listbox", { name: "Commands" });
+    const newOption = list.getByRole("option", { name: /^\/new\b/ });
+    await expect(newOption).toHaveAttribute("aria-selected", "true");
+    await expect(list.getByRole("group", { name: "Actions" })).toBeVisible();
+    await expect(list.getByRole("group", { name: "Prompts" })).toBeVisible();
+    await expect(input).toHaveAttribute("aria-expanded", "true");
+    await expect(input).toHaveAttribute("aria-controls", String(await list.getAttribute("id")));
+    await expect(input).toHaveAttribute(
+      "aria-activedescendant",
+      String(await newOption.getAttribute("id")),
+    );
+    await demo.page.screenshot({ path: testInfo.outputPath("slash-menu.png") });
+    await input.press("ArrowDown");
+    await expect(list.getByRole("option", { name: /^\/history\b/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await input.press("ArrowUp");
+    await input.press("Enter");
+    await expect(demo.page.getByText("Ask About Your Day")).toBeVisible();
+    await expect(input).toHaveValue("");
+    await expect(list).toHaveCount(0);
+
+    // Enter while an input method is still composing neither picks nor sends.
+    await input.fill("こんにちは");
+    await input.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+    await expect(input).toHaveValue("こんにちは");
+    await expect(demo.page.locator('[data-from="user"]')).toHaveCount(0);
+
+    await input.fill("/focus");
+    await input.press("Tab");
+    await expect(input).toHaveValue("What should I focus on for the rest of today?");
+    await expect(list).toHaveCount(0);
+
+    const chip = demo.page.getByRole("button", { name: /^Model and effort:/ });
+    await input.fill("/effort extra high");
+    await input.press("Enter");
+    await expect(chip).toHaveAccessibleName(
+      "Model and effort: Claude Code default, Extra High effort",
+    );
+    await input.fill("/effort ultra");
+    await input.press("Enter");
+    await expect(
+      demo.page.getByText(
+        "Ultra is available with Codex on GPT-6 Astra, GPT-6 Sol, and GPT-5.6 Sol or Terra.",
+      ),
+    ).toBeVisible();
+    await expect(chip).toHaveAccessibleName(
+      "Model and effort: Claude Code default, Extra High effort",
+    );
+
+    await input.fill("/mode auto");
+    await input.press("Enter");
+    await expect(demo.page.getByRole("button", { name: "Permissions: Auto" })).toBeVisible();
+    await input.fill("/mode");
+    await input.press("Enter");
+    await expect(demo.page.getByRole("menuitemcheckbox", { name: /^Read only/ })).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    await input.fill("/model");
+    await input.press("Enter");
+    await expect(demo.page.getByRole("dialog", { name: "Model and effort" })).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    await input.fill("/history");
+    await input.press("Enter");
+    await expect(demo.page.getByRole("dialog", { name: "Chat history" })).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    await input.fill("/mcp");
+    await input.press("Enter");
+    await expect(demo.page.getByRole("dialog", { name: "MCP Servers" })).toBeVisible();
+    await demo.page.keyboard.press("Escape");
+
+    await input.fill("/attach");
+    await expect(list).toHaveCount(0);
+
+    await input.fill("/brief");
+    await input.press("Enter");
+    await expect(demo.page.locator('[data-from="user"]')).toContainText(
+      "Give me a short briefing for today",
+    );
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});

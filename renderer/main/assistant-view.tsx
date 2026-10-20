@@ -44,6 +44,7 @@ import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
 import { dayHeading, formatClock } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { useAssistantHistory } from "../lib/assistant-history";
+import type { AssistantViewAction } from "../lib/assistant-commands";
 import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
@@ -546,6 +547,14 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     }
   }
 
+  function runAction(name: AssistantViewAction) {
+    if (name === "new") void newChat();
+    else if (name === "history") {
+      if (!history.switching && !adding) setHistoryOpen(true);
+    } else if (name === "mcp") setMcpOpen(true);
+    else void openSettings("ai");
+  }
+
   const subtitle = enabled
     ? [
         messages.length ? history.chat.title : null,
@@ -634,6 +643,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 setAttachments={setAttachments}
                 onSend={() => void send(input)}
                 onStop={stop}
+                onAction={runAction}
+                onPrompt={(prompt) => void send(prompt)}
                 running={Boolean(runningId)}
                 disabled={history.switching}
                 usage={usage}

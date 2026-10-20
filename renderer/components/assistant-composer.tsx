@@ -1,4 +1,4 @@
-import { useCallback, useState, type ChangeEvent } from "react";
+import { useCallback, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import {
   AIChat,
   Button,
@@ -60,12 +60,21 @@ import {
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
 import {
+  effortCommand,
   effortOptions,
   effortSelection,
   selectionLabel,
   supportedEffort,
   ultraNote,
 } from "../../shared/ai-effort";
+import {
+  commandSections,
+  parseModeArgument,
+  slashInput,
+  type AssistantCommand,
+  type AssistantViewAction,
+} from "../lib/assistant-commands";
+import { ComposerMenu, type ComposerMenuModel } from "./composer-menu";
 import { EffortPanel } from "./effort-panel";
 
 const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS];
@@ -157,6 +166,8 @@ export function AssistantComposer({
   setAttachments,
   onSend,
   onStop,
+  onAction,
+  onPrompt,
   running,
   disabled,
   usage,
@@ -168,6 +179,10 @@ export function AssistantComposer({
   setAttachments: (updater: (previous: AssistantAttachment[]) => AssistantAttachment[]) => void;
   onSend: () => void;
   onStop: () => void;
+  /** Slash-command actions the Assistant view owns. */
+  onAction: (name: AssistantViewAction) => void;
+  /** Sends a prompt command's text. */
+  onPrompt: (prompt: string) => void;
   running: boolean;
   disabled: boolean;
   usage: ContextUsage | null;
@@ -349,6 +364,105 @@ export function AssistantComposer({
     });
   }
 
+  const listId = useId();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [permissionOpen, setPermissionOpen] = useState(false);
+
+  function runCommand(command: AssistantCommand, via: "enter" | "tab") {
+    const argument = slashInput(input)?.argument ?? "";
+    if (command.kind === "prompt") {
+      const prompt = command.prompt ?? "";
+      // While a reply runs, keep the prompt in the composer to send when it finishes.
+      if (via === "tab" || running) setInput(() => prompt);
+      else onPrompt(prompt);
+      return;
+    }
+    setInput(() => "");
+    switch (command.name) {
+      case "new":
+        onAction("new");
+        return;
+      case "history":
+        onAction("history");
+        return;
+      case "mcp":
+        onAction("mcp");
+        return;
+      case "settings":
+        onAction("settings");
+        return;
+      case "model":
+        setEffortOpen(true);
+        return;
+      case "effort": {
+        if (!argument) {
+          setEffortOpen(true);
+          return;
+        }
+        const result = effortCommand(effort, argument, ultraNote(codexModels.data));
+        if ("level" in result) setEffort(result.level);
+        else toast(result.message);
+        return;
+      }
+      case "mode": {
+        if (!argument) {
+          setPermissionOpen(true);
+          return;
+        }
+        const mode = parseModeArgument(argument);
+        if (mode)
+          edit((draft) => {
+            draft.ai.assistantPermission = mode;
+          });
+        else toast("Use /mode read-only, /mode ask or /mode auto.");
+        return;
+      }
+      case "attach":
+        void addAttachments();
+        return;
+    }
+  }
+
+  const slash = commandSections(input, { demo });
+  const slashMenu: ComposerMenuModel | null = slash.length
+    ? {
+        label: "Commands",
+        sections: slash.map((section) => ({
+          id: section.title.toLowerCase(),
+          title: section.title,
+          entries: section.commands.map((command) => ({
+            id: `${listId}-${command.name}`,
+            label: `/${command.name}${command.argument ? ` ${command.argument}` : ""}`,
+            detail: command.description,
+            run: (via: "enter" | "tab") => runCommand(command, via),
+          })),
+        })),
+      }
+    : null;
+  const menu = dismissed === input ? null : slashMenu;
+  const entries = menu ? menu.sections.flatMap((section) => section.entries) : [];
+  const activeEntry = entries.length ? entries[Math.min(activeIndex, entries.length - 1)] : null;
+
+  function handleMenuKey(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!menu || event.nativeEvent.isComposing) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDismissed(input);
+      return;
+    }
+    if (!activeEntry) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((entries.indexOf(activeEntry) + step + entries.length) % entries.length);
+    } else if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+      event.preventDefault();
+      activeEntry.run(event.key === "Enter" ? "enter" : "tab");
+    }
+  }
+
   return (
     <AIChat.Composer.Root
       onSubmit={(event) => {
@@ -356,7 +470,22 @@ export function AssistantComposer({
         onSend();
       }}
     >
-      <AIChat.Composer.Surface>
+      <ComposerMenu
+        listId={listId}
+        menu={menu}
+        activeId={activeEntry?.id ?? null}
+        anchorRef={surfaceRef}
+        onHover={(id) =>
+          setActiveIndex(
+            Math.max(
+              0,
+              entries.findIndex((entry) => entry.id === id),
+            ),
+          )
+        }
+        onDismiss={() => setDismissed(input)}
+      />
+      <AIChat.Composer.Surface ref={surfaceRef}>
         {attachments.length ? (
           <div className="flex flex-wrap gap-1.5 px-2 pt-2">
             {attachments.map((attachment) => (
@@ -390,10 +519,16 @@ export function AssistantComposer({
           <AIChat.Composer.Input
             disabled={disabled}
             aria-label={`Message ${PROVIDER_LABEL[provider]}`}
+            aria-controls={menu ? listId : undefined}
+            aria-expanded={Boolean(menu)}
+            aria-activedescendant={activeEntry?.id}
             value={input}
-            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-              setInput(() => event.target.value)
-            }
+            onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
+              setInput(() => event.target.value);
+              setActiveIndex(0);
+              setDismissed(null);
+            }}
+            onKeyDown={handleMenuKey}
             placeholder={
               dictation.state === "recording"
                 ? "Listening… click the microphone to stop"
@@ -422,7 +557,7 @@ export function AssistantComposer({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
+            <DropdownMenu open={permissionOpen} onOpenChange={setPermissionOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="small"
