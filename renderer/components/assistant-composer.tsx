@@ -74,8 +74,15 @@ import {
   type AssistantCommand,
   type AssistantViewAction,
 } from "../lib/assistant-commands";
+import {
+  MAX_MENTIONS,
+  filterMentions,
+  mentionQuery,
+  type MentionItem,
+} from "../lib/assistant-mentions";
 import { ComposerMenu, type ComposerMenuModel } from "./composer-menu";
 import { EffortPanel } from "./effort-panel";
+import { MentionChip, MentionIcon } from "./mention-chip";
 
 const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS];
 
@@ -164,6 +171,9 @@ export function AssistantComposer({
   setInput,
   attachments,
   setAttachments,
+  mentions,
+  setMentions,
+  mentionCandidates,
   onSend,
   onStop,
   onAction,
@@ -177,6 +187,10 @@ export function AssistantComposer({
   setInput: (updater: (previous: string) => string) => void;
   attachments: AssistantAttachment[];
   setAttachments: (updater: (previous: AssistantAttachment[]) => AssistantAttachment[]) => void;
+  mentions: MentionItem[];
+  setMentions: (updater: (previous: MentionItem[]) => MentionItem[]) => void;
+  /** Everything the user can mention, from the data the Assistant already loaded. */
+  mentionCandidates: MentionItem[];
   onSend: () => void;
   onStop: () => void;
   /** Slash-command actions the Assistant view owns. */
@@ -441,7 +455,53 @@ export function AssistantComposer({
         })),
       }
     : null;
-  const menu = dismissed === input ? null : slashMenu;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(0);
+  const trigger = input.startsWith("/") ? null : mentionQuery(input, caret);
+  const mentionResults = trigger ? filterMentions(mentionCandidates, trigger.query) : [];
+  const mentionsFull = mentions.length >= MAX_MENTIONS;
+
+  function pickMention(item: MentionItem) {
+    if (!trigger) return;
+    const start = trigger.start;
+    setInput(() => input.slice(0, start) + input.slice(caret));
+    setMentions((previous) =>
+      previous.some((entry) => entry.key === item.key)
+        ? previous
+        : [...previous, item].slice(0, MAX_MENTIONS),
+    );
+    setCaret(start);
+    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(start, start));
+  }
+
+  // Open while the @ token has matches; a space after a query with none closes it.
+  const mentionMenu: ComposerMenuModel | null =
+    trigger && (mentionResults.length > 0 || !/\s/.test(trigger.query))
+      ? {
+          label: "Mentions",
+          empty: mentionsFull
+            ? `You can mention up to ${MAX_MENTIONS} items in one message.`
+            : "No matching items",
+          sections:
+            mentionsFull || !mentionResults.length
+              ? []
+              : [
+                  {
+                    id: "items",
+                    title: "Events, to-dos and email",
+                    entries: mentionResults.map((item, index) => ({
+                      id: `${listId}-mention-${index}`,
+                      label: item.label,
+                      detail: item.detail,
+                      icon: <MentionIcon kind={item.kind} />,
+                      run: () => pickMention(item),
+                    })),
+                  },
+                ],
+        }
+      : null;
+  const menu = dismissed === input ? null : (slashMenu ?? mentionMenu);
   const entries = menu ? menu.sections.flatMap((section) => section.entries) : [];
   const activeEntry = entries.length ? entries[Math.min(activeIndex, entries.length - 1)] : null;
 
@@ -486,8 +546,18 @@ export function AssistantComposer({
         onDismiss={() => setDismissed(input)}
       />
       <AIChat.Composer.Surface ref={surfaceRef}>
-        {attachments.length ? (
+        {attachments.length || mentions.length ? (
           <div className="flex flex-wrap gap-1.5 px-2 pt-2">
+            {mentions.map((mention) => (
+              <MentionChip
+                key={mention.key}
+                kind={mention.kind}
+                label={mention.label}
+                onRemove={() =>
+                  setMentions((previous) => previous.filter((item) => item.key !== mention.key))
+                }
+              />
+            ))}
             {attachments.map((attachment) => (
               <span
                 key={attachment.id}
@@ -517,6 +587,7 @@ export function AssistantComposer({
         ) : null}
         <AIChat.Composer.Row>
           <AIChat.Composer.Input
+            ref={textareaRef}
             disabled={disabled}
             aria-label={`Message ${PROVIDER_LABEL[provider]}`}
             aria-controls={menu ? listId : undefined}
@@ -525,9 +596,11 @@ export function AssistantComposer({
             value={input}
             onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
               setInput(() => event.target.value);
+              setCaret(event.target.selectionStart);
               setActiveIndex(0);
               setDismissed(null);
             }}
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
             onKeyDown={handleMenuKey}
             placeholder={
               dictation.state === "recording"

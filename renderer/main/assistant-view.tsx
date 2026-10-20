@@ -29,6 +29,7 @@ import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
+import { MentionChip } from "../components/mention-chip";
 import { BLOCKED_MESSAGE } from "../lib/ai";
 import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
 import { isRendererDemoMode } from "../lib/demo";
@@ -45,6 +46,15 @@ import { dayHeading, formatClock } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { useAssistantHistory } from "../lib/assistant-history";
 import type { AssistantViewAction } from "../lib/assistant-commands";
+import {
+  loadMentionBodies,
+  mentionCandidates,
+  mentionSection,
+  resolveMentions,
+  savedMentions,
+  withMentions,
+  type MentionItem,
+} from "../lib/assistant-mentions";
 import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
@@ -97,6 +107,17 @@ function AssistantMessageView({
   if (message.role === "user") {
     return (
       <AIChat.Message.Root from="user">
+        {message.mentions?.length ? (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {message.mentions.map((mention, index) => (
+              <MentionChip
+                key={`${mention.kind}-${index}`}
+                kind={mention.kind}
+                label={mention.label}
+              />
+            ))}
+          </div>
+        ) : null}
         <AIChat.Message.Content>{message.content}</AIChat.Message.Content>
       </AIChat.Message.Root>
     );
@@ -257,6 +278,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   );
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
+  const [mentions, setMentions] = useState<MentionItem[]>([]);
+  const candidates = mentionCandidates({
+    calendar: calendar.data,
+    todos: buildTodos(tasks.data, reminders.data),
+    mail: mail.data,
+  });
   const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -303,6 +330,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     const content = text.trim();
     if (!content || cancelRef.current || history.switching || !enabled) return;
 
+    // Chips are checked against the data loaded now; an item deleted since is dropped.
+    const resolved = resolveMentions(mentions, candidates);
     const userMessage: AssistantMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -311,6 +340,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       actions: [],
       error: null,
       blocked: null,
+      ...(resolved.length ? { mentions: savedMentions(resolved) } : {}),
     };
     const assistantId = crypto.randomUUID();
     const requestMessages = [...messages, userMessage]
@@ -339,6 +369,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     setInput("");
     const sentAttachments = attachments;
     setAttachments([]);
+    setMentions([]);
     const permission = settings?.ai.assistantPermission ?? "ask";
 
     const googleConnected = accounts.data?.google.connected ?? false;
@@ -358,7 +389,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       },
     };
     const system = buildAssistantSystem(promptInput);
-    const snapshot = buildAssistantSnapshot(promptInput);
+    const currentSnapshot = buildAssistantSnapshot(promptInput);
 
     const cancellationId = crypto.randomUUID();
     cancelRef.current = cancellationId;
@@ -367,6 +398,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     try {
       await history.flush();
       if (cancelRef.current !== cancellationId) return;
+      // Mentioned email bodies load now (mail:getBody answers from fixtures in demo mode).
+      const bodies = await loadMentionBodies(resolved, (id) =>
+        invoke<{ text: string }>("mail:getBody", { id }).then((body) => body.text),
+      );
+      if (cancelRef.current !== cancellationId) return;
+      const snapshot = withMentions(currentSnapshot, mentionSection(resolved, bodies));
       const result = await window.dayboard.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
         {
@@ -500,6 +537,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     if (await history.selectChat(null)) {
       setInput("");
       setAttachments([]);
+      setMentions([]);
       setUsage(null);
     }
   }
@@ -509,6 +547,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     stop();
     if (await history.selectChat(id)) {
       setInput("");
+      setMentions([]);
       setUsage(null);
       setHistoryOpen(false);
     }
@@ -641,6 +680,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 setInput={setInput}
                 attachments={attachments}
                 setAttachments={setAttachments}
+                mentions={mentions}
+                setMentions={setMentions}
+                mentionCandidates={candidates}
                 onSend={() => void send(input)}
                 onStop={stop}
                 onAction={runAction}

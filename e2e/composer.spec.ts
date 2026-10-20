@@ -203,3 +203,38 @@ test("slash menu runs actions and prompts from the keyboard", async ({
     await demo.close();
   }
 });
+
+test("@ mentions add a chip, and the sent message keeps it", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    await navigate(demo.page, "Assistant");
+    await demo.page.getByRole("button", { name: "New chat" }).click();
+    const input = demo.page.getByRole("textbox", { name: /^Message / });
+    const list = demo.page.getByRole("listbox", { name: "Mentions" });
+    await input.fill("bob@example.com");
+    await expect(list).toHaveCount(0);
+    await input.fill("Prep me for @lun");
+    await expect(list.getByRole("option", { name: /^Lunch with Sam/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(list.getByRole("option", { name: /^Lunch today\?/ })).toBeVisible();
+    await demo.page.screenshot({ path: testInfo.outputPath("mention-menu.png") });
+    await input.press("Enter");
+    await expect(input).toHaveValue("Prep me for ");
+    await expect(list).toHaveCount(0);
+    await expect(demo.page.getByRole("button", { name: "Remove Lunch with Sam" })).toBeVisible();
+    await input.fill("Prep me for lunch");
+    await demo.page.getByRole("button", { name: "Send", exact: true }).click();
+    const user = demo.page.locator('[data-from="user"]');
+    await expect(user).toContainText("Lunch with Sam");
+    await expect(user).toContainText("Prep me for lunch");
+    await expect(demo.page.getByRole("button", { name: "Remove Lunch with Sam" })).toHaveCount(0);
+    await expect(demo.page.locator('[data-from="assistant"]')).toContainText("Sample answer");
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
