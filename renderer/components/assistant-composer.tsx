@@ -1,4 +1,4 @@
-import { useCallback, type ChangeEvent } from "react";
+import { useCallback, useState, type ChangeEvent } from "react";
 import {
   AIChat,
   Button,
@@ -10,6 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -56,6 +59,14 @@ import {
 } from "../lib/settings";
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
+import {
+  effortOptions,
+  effortSelection,
+  selectionLabel,
+  supportedEffort,
+  ultraNote,
+} from "../../shared/ai-effort";
+import { EffortPanel } from "./effort-panel";
 
 const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS];
 
@@ -244,6 +255,18 @@ export function AssistantComposer({
       } else if (option === "gemini") draft.ai.geminiModel = value;
       else if (option === "muse") draft.ai.museModel = value;
       else if (isApiKeyProvider(option)) draft.ai.apiModels[option] = value;
+      // Keep the Assistant's effort only where the newly chosen model accepts it.
+      const modelId = isApiKeyProvider(option)
+        ? value || (apiModels[option]?.[0]?.id ?? "")
+        : value;
+      const kept = supportedEffort(
+        effortOptions(option, modelId, codexModels.data),
+        draft.ai.assistantEffort?.[option],
+      );
+      const efforts = { ...draft.ai.assistantEffort };
+      if (kept) efforts[option] = kept;
+      else delete efforts[option];
+      draft.ai.assistantEffort = efforts;
     });
   }
   const permission = ai?.assistantPermission ?? "ask";
@@ -298,6 +321,33 @@ export function AssistantComposer({
         : false;
   const codexSelected =
     codexModels.data?.find((model) => model.slug === ai?.codexModel) ?? codexModels.data?.[0];
+
+  const [effortOpen, setEffortOpen] = useState(false);
+  const effort = effortOptions(provider, current.id, codexModels.data);
+  const selection = effortSelection(effort, ai?.assistantEffort?.[provider]);
+  const effortText = effort.levels.length ? selectionLabel(selection.level) : null;
+  // Built from short parts so no line-wrapping tool can split the label's text.
+  const chipLabel = [
+    `Model and effort: ${current.label}`,
+    effortText ? `, ${effortText} effort` : "",
+    current.fast ? ", Fast" : "",
+  ].join("");
+
+  function setEffort(level: string) {
+    edit((draft) => {
+      const efforts = { ...draft.ai.assistantEffort };
+      if (level) efforts[provider] = level;
+      else delete efforts[provider];
+      draft.ai.assistantEffort = efforts;
+    });
+  }
+
+  function toggleFast() {
+    edit((draft) => {
+      if (provider === "claude") draft.ai.claudeFast = !current.fast;
+      else draft.ai.codexServiceTier = current.fast ? "" : (codexSelected?.tiers[0]?.id ?? "");
+    });
+  }
 
   return (
     <AIChat.Composer.Root
@@ -405,72 +455,81 @@ export function AssistantComposer({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="small"
-                  variant="transparent"
-                  aria-label={`Model: ${current.label}${current.fast ? ", Fast" : ""}`}
-                >
-                  <ProviderMark provider={provider} className="size-3.5" />
-                  <span className="max-w-44 truncate">{current.label}</span>
-                  {current.fast ? (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-support-yellow-10 px-1 text-small font-medium text-support-yellow">
-                      <Zap className="size-3 fill-current" aria-hidden="true" />
-                      Fast
-                    </span>
-                  ) : null}
+            <Popover open={effortOpen} onOpenChange={setEffortOpen}>
+              <PopoverTrigger asChild>
+                <Button size="small" variant="transparent" aria-label={chipLabel}>
+                  {effortOpen ? (
+                    <span>Select effort</span>
+                  ) : (
+                    <>
+                      <ProviderMark provider={provider} className="size-3.5" />
+                      <span className="max-w-44 truncate">{current.label}</span>
+                      {effortText ? <span className="text-tertiary">{effortText}</span> : null}
+                      {current.fast ? (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-support-yellow-10 px-1 text-small font-medium text-support-yellow">
+                          <Zap className="size-3 fill-current" aria-hidden="true" />
+                          Fast
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                   <ChevronDown className="size-3 opacity-60" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top">
-                <DropdownMenuLabel>Model</DropdownMenuLabel>
-                {PICKER_PROVIDERS.filter(
-                  (option) => available?.[option] || option === provider,
-                ).map((option) => (
-                  <DropdownMenuSub
-                    key={option}
-                    label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
-                  >
-                    {modelChoices(option).map((choice) => (
-                      <DropdownMenuCheckboxItem
-                        key={choice.value}
-                        sublabel={choice.sublabel}
-                        checked={option === provider && choice.selected}
-                        onCheckedChange={() => choose(option, choice.value)}
-                      >
-                        {choice.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuSub>
-                ))}
-                {fastAvailable ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuCheckboxItem
-                      icon="bolt.fill"
-                      sublabel="Faster replies; uses more of your plan"
-                      checked={current.fast}
-                      onCheckedChange={(checked) =>
-                        edit((draft) => {
-                          if (provider === "claude") draft.ai.claudeFast = checked;
-                          else
-                            draft.ai.codexServiceTier = checked
-                              ? (codexSelected?.tiers[0]?.id ?? "")
-                              : "";
-                        })
-                      }
-                    >
-                      Fast mode
-                    </DropdownMenuCheckboxItem>
-                  </>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void openSettings()}>
-                  Connect Accounts & AI Settings…
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </PopoverTrigger>
+              <PopoverContent
+                aria-label="Model and effort"
+                className="w-80"
+                onOpenAutoFocus={(event) => {
+                  const slider = (
+                    event.currentTarget as HTMLElement | null
+                  )?.querySelector<HTMLElement>('[role="slider"]');
+                  if (!slider) return;
+                  event.preventDefault();
+                  slider.focus();
+                }}
+              >
+                <EffortPanel
+                  modelLabel={current.label}
+                  levels={effort.levels}
+                  selection={selection}
+                  onChange={setEffort}
+                  fast={fastAvailable ? { on: current.fast, onToggle: toggleFast } : null}
+                  ultraNote={
+                    effort.levels.length > 0 && !effort.levels.includes("ultra")
+                      ? ultraNote(codexModels.data)
+                      : null
+                  }
+                  modelMenu={
+                    <>
+                      <DropdownMenuLabel>Model</DropdownMenuLabel>
+                      {PICKER_PROVIDERS.filter(
+                        (option) => available?.[option] || option === provider,
+                      ).map((option) => (
+                        <DropdownMenuSub
+                          key={option}
+                          label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
+                        >
+                          {modelChoices(option).map((choice) => (
+                            <DropdownMenuCheckboxItem
+                              key={choice.value}
+                              sublabel={choice.sublabel}
+                              checked={option === provider && choice.selected}
+                              onCheckedChange={() => choose(option, choice.value)}
+                            >
+                              {choice.label}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuSub>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => void openSettings()}>
+                        Connect Accounts & AI Settings…
+                      </DropdownMenuItem>
+                    </>
+                  }
+                />
+              </PopoverContent>
+            </Popover>
           </AIChat.Composer.Actions>
           <AIChat.Composer.Actions>
             <ContextRing usage={usage} fallbackWindow={current.contextWindow} />

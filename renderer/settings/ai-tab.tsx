@@ -239,11 +239,11 @@ function ClaudeOptions({ settings, edit }: { settings: AppSettings; edit: Settin
         />
       </Field>
       <Field
-        label="Thinking effort"
+        label="Effort for AI features"
         description={
           supportsEffort
-            ? "More effort gives deeper answers but takes longer."
-            : "Haiku does not offer a thinking-effort setting."
+            ? "Used by briefings, triage and other one-click features. Set the Assistant's effort in its composer."
+            : "Haiku does not offer an effort setting."
         }
         disabled={!supportsEffort}
       >
@@ -403,10 +403,10 @@ function CodexOptions({ settings, edit }: { settings: AppSettings; edit: Setting
         </Button>
       </Field>
       <Field
-        label="Reasoning effort"
+        label="Effort for AI features"
         description={
           selected
-            ? "More effort gives deeper answers but takes longer."
+            ? "Used by briefings, triage and other one-click features. Set the Assistant's effort in its composer."
             : "Choose a model to customize reasoning and speed."
         }
         disabled={!selected || !efforts.length}

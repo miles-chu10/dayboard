@@ -72,21 +72,25 @@ export function assistantProvider(settings: AppSettings | undefined): AIProvider
   return settings?.ai.assistantProvider || settings?.ai.provider || "claude";
 }
 
-/** The model the composer should show before a reply reports the exact ID. */
+/**
+ * The model the composer should show before a reply reports the exact ID. `id` keys the effort
+ * table: the Claude Code alias, the Codex slug, or the API model ID; empty when unknown.
+ */
 export function selectedModel(
   settings: AppSettings | undefined,
   codexModels: CodexModelInfo[] | undefined,
   provider: AIProvider = settings?.ai.provider ?? "claude",
   apiModels?: ApiModelInfo[],
-): { label: string; fast: boolean; contextWindow: number | null } {
+): { label: string; fast: boolean; contextWindow: number | null; id: string } {
   const ai = settings?.ai;
-  if (!ai) return { label: "Choose a model", fast: false, contextWindow: null };
+  if (!ai) return { label: "Choose a model", fast: false, contextWindow: null, id: "" };
   if (provider === "claude") {
     const option = CLAUDE_MODEL_OPTIONS.find((entry) => entry.value === ai.claudeModel);
     return {
       label: option?.label ?? ai.claudeModel,
       fast: ai.claudeFast && claudeSupportsFast(ai.claudeModel),
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
+      id: ai.claudeModel,
     };
   }
   if (provider === "gemini")
@@ -94,12 +98,14 @@ export function selectedModel(
       label: ai.geminiModel || "Gemini default",
       fast: false,
       contextWindow: null,
+      id: ai.geminiModel,
     };
   if (provider === "muse")
     return {
       label: ai.museModel || "Muse default",
       fast: false,
       contextWindow: null,
+      id: ai.museModel,
     };
   if (isApiKeyProvider(provider)) {
     const chosen = ai.apiModels[provider];
@@ -109,6 +115,7 @@ export function selectedModel(
       label: model?.name ?? (chosen || "Newest model"),
       fast: false,
       contextWindow: model?.contextWindow ?? null,
+      id: model?.id ?? chosen,
     };
   }
   const model = codexModels?.find((entry) => entry.slug === ai.codexModel) ?? codexModels?.[0];
@@ -116,6 +123,7 @@ export function selectedModel(
     label: model?.name ?? (ai.codexModel || "Codex default"),
     fast: Boolean(ai.codexServiceTier),
     contextWindow: model?.contextWindow ?? null,
+    id: model?.slug ?? ai.codexModel,
   };
 }
 
