@@ -545,7 +545,7 @@ function messagesStream(model) {
   ]);
 }
 
-async function apiRun(provider, model, assistantEffort) {
+async function apiRun(provider, model, assistantEffort, answeredAs) {
   fixture({
     provider,
     apiModels: { openai: "", anthropic: "", google: "", xai: "", [provider]: model },
@@ -559,7 +559,8 @@ async function apiRun(provider, model, assistantEffort) {
     if (init?.method !== "POST") return globalThis.Response.json({ data: [] });
     const body = JSON.parse(init.body);
     requests.push({ url: String(url), body });
-    return provider === "openai" ? responsesStream(body.model) : messagesStream(body.model);
+    const ran = answeredAs ?? body.model;
+    return provider === "openai" ? responsesStream(ran) : messagesStream(ran);
   };
   try {
     const value = await assistant.runAssistant(
@@ -778,9 +779,26 @@ test("a reply's result names the model it ran as, the same one its last meta chu
   const unreported = await run(undefined);
   assert.deepEqual(unreported.result.model, unreported.metas[0]);
   assert.equal(unreported.result.model.id, null);
-  // An API reply's result repeats its one meta chunk.
+  // An API reply's result repeats its one meta chunk when the provider answers as the model asked.
   const api = await apiRun("anthropic", "claude-opus-5-5", { anthropic: "high" });
-  assert.deepEqual(api.value.model, api.chunks.find((chunk) => chunk.type === "meta").model);
+  const apiMetas = api.chunks.filter((chunk) => chunk.type === "meta");
+  assert.equal(apiMetas.length, 1);
+  assert.deepEqual(api.value.model, apiMetas[0].model);
+  // One that answers as a dated snapshot is named after the snapshot, in a last meta chunk.
+  const dated = await apiRun(
+    "anthropic",
+    "claude-opus-5-5",
+    { anthropic: "high" },
+    "claude-opus-5-5-20261001",
+  );
+  const datedMetas = dated.chunks.filter((chunk) => chunk.type === "meta").map((c) => c.model);
+  assert.deepEqual(
+    datedMetas.map((model) => model.id),
+    ["claude-opus-5-5", "claude-opus-5-5-20261001"],
+  );
+  assert.deepEqual(dated.value.model, datedMetas.at(-1));
+  assert.equal(dated.value.model.effortLabel, datedMetas[0].effortLabel);
+  assert.equal(dated.value.usage.modelId, "claude-opus-5-5-20261001");
 });
 
 async function replyEfforts(overrides, codexModels = [], reported) {

@@ -280,6 +280,11 @@ export async function runAssistant(
         case "finish-step":
           steps.push(tokenUsage(part.usage ?? {}, provider));
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
+          // Providers can answer as a dated snapshot of the requested model; name the one that ran.
+          if (resolvedModelId && resolvedModelId !== replyModel.id) {
+            replyModel = { ...model, id: resolvedModelId };
+            send({ type: "meta", model: replyModel });
+          }
           break;
         case "finish":
           reportUsage(aggregateStepUsage(steps), startedAt);
