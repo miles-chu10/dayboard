@@ -194,6 +194,33 @@ test("changing the model keeps each effort and Fast only where the new model has
   assert.equal(backToDefault.codexEffort, "high");
   assert.equal(backToDefault.codexServiceTier, "priority");
   assert.deepEqual(backToDefault.assistantEffort, { codex: "ultra" });
+  // Before the catalog loads, nothing shows the levels are unsupported, so they stay.
+  const loading = choose(
+    settings({
+      codexModel: "gpt-6-astra",
+      codexEffort: "ultra",
+      codexServiceTier: "priority",
+      assistantEffort: { codex: "ultra" },
+    }),
+    "codex",
+    "",
+  );
+  assert.equal(loading.codexModel, "");
+  assert.equal(loading.codexEffort, "ultra");
+  assert.equal(loading.codexServiceTier, "priority");
+  assert.deepEqual(loading.assistantEffort, { codex: "ultra" });
+  const apiLoading = choose(
+    settings({
+      apiModels: { ...settings().apiModels, openai: "gpt-6-astra" },
+      apiEffort: { openai: "max" },
+      assistantEffort: { openai: "high" },
+    }),
+    "openai",
+    "",
+  );
+  assert.equal(apiLoading.apiModels.openai, "");
+  assert.deepEqual(apiLoading.apiEffort, { openai: "max" });
+  assert.deepEqual(apiLoading.assistantEffort, { openai: "high" });
 
   const api = { api: [{ id: "gpt-6-astra", name: "gpt-6-astra", contextWindow: null }] };
   const sol = choose(

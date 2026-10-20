@@ -166,7 +166,9 @@ export function modelChoices(
 
 /**
  * Saves a model choice, keeping each effort and Fast setting only where the new model has it:
- * the one-click features' effort, the Assistant's effort and Fast mode or the Codex speed.
+ * the one-click features' effort, the Assistant's effort and Fast mode or the Codex speed. While
+ * the list that names the model is still loading, the saved settings stay as they are; the send
+ * time check drops any the model turns out not to have.
  */
 export function applyModelChoice(
   ai: AppSettings["ai"],
@@ -174,6 +176,10 @@ export function applyModelChoice(
   value: string,
   lists: ModelLists,
 ): void {
+  const known =
+    provider === "codex"
+      ? lists.codex !== undefined
+      : CLI_PROVIDERS.includes(provider) || Boolean(value) || lists.api !== undefined;
   if (provider === "claude") {
     ai.claudeModel = value as ClaudeModel;
     if (!claudeSupportsFast(ai.claudeModel)) ai.claudeFast = false;
@@ -182,10 +188,13 @@ export function applyModelChoice(
   } else if (provider === "codex") {
     ai.codexModel = value;
     const model = codexModel(ai, lists.codex);
-    if (!model?.efforts.some((level) => level.effort === ai.codexEffort)) ai.codexEffort = "";
-    if (!model?.tiers.some((tier) => tier.id === ai.codexServiceTier)) ai.codexServiceTier = "";
+    if (known && !model?.efforts.some((level) => level.effort === ai.codexEffort))
+      ai.codexEffort = "";
+    if (known && !model?.tiers.some((tier) => tier.id === ai.codexServiceTier))
+      ai.codexServiceTier = "";
   } else if (provider === "gemini") ai.geminiModel = value;
   else if (provider === "muse") ai.museModel = value;
+  else if (!known) ai.apiModels[provider] = value;
   else {
     ai.apiModels[provider] = value;
     const kept = supportedEffort(
@@ -197,6 +206,7 @@ export function applyModelChoice(
     else delete efforts[provider];
     ai.apiEffort = efforts;
   }
+  if (!known) return;
   const kept = supportedEffort(
     effortOptions(provider, effortModel(provider, value, lists), lists.codex),
     ai.assistantEffort?.[provider],
