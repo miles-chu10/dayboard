@@ -513,6 +513,10 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
           `export const isDemoMode = () => true; export const assertNotDemo = (channel) => { throw new Error(channel + ": demo mode"); }; export const demoCompletion = () => "fixture completion";`,
         ],
         [
+          "../services/ai/completion.js",
+          `export const runCompletion = async () => { globalThis.__aiCounters.provider += 1; throw new Error("live generation forbidden"); };`,
+        ],
+        [
           "../services/ai/assistant.js",
           `export const runAssistant = async () => { throw new Error("assistant should not run"); };`,
         ],

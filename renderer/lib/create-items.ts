@@ -4,32 +4,15 @@ import type { SourceId } from "@main/shared-types";
 import { invoke } from "./ipc";
 import { queryKeys } from "./queries";
 
-export type ItemKind = "task" | "reminder" | "event";
+import type { ItemDraft, ItemKind } from "../../shared/capture";
 
-export interface ItemDraft {
-  kind: ItemKind;
-  title: string;
-  notes: string;
-  date: string;
-  time: string;
-  endTime: string;
-}
-
-export const KIND_LABEL: Record<ItemKind, string> = {
-  task: "Google Task",
-  reminder: "Reminder",
-  event: "Event",
-};
+export { KIND_LABEL, isItemKind, type ItemDraft, type ItemKind } from "../../shared/capture";
 
 export const KIND_SOURCE: Record<ItemKind, SourceId> = {
   task: "tasks",
   reminder: "reminders",
   event: "calendar",
 };
-
-export function isItemKind(value: unknown): value is ItemKind {
-  return value === "task" || value === "reminder" || value === "event";
-}
 
 export async function createItem(draft: ItemDraft, queryClient: QueryClient): Promise<void> {
   const title = draft.title.trim();
