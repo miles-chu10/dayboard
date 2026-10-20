@@ -53,6 +53,21 @@ test.describe("Quick Capture panel", () => {
     ]);
   });
 
+  test("Escape that cancels an IME composition leaves the panel open", async ({ page }) => {
+    await openPanel(page, "capture", { settings: await defaultSettings() });
+    const input = page.getByRole("textbox", { name: "Quick Capture" });
+    await expect(input).toBeFocused();
+    await input.dispatchEvent("keydown", {
+      key: "Escape",
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    expect(await panelCalls(page, "panel:hide")).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect.poll(() => panelCalls(page, "panel:hide")).toHaveLength(1);
+  });
+
   test("the first keystrokes after each way it opens land in the field", async ({ page }) => {
     await openPanel(page, "capture", {
       settings: await defaultSettings(),
