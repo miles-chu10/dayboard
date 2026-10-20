@@ -237,9 +237,24 @@ export function requireExpectedAgendaScope(
   }
 }
 
+const accountListeners = new Set<(status: AccountsStatus) => void>();
+
+/** In-process account change events for main-process features; windows get `accounts:changed`. */
+export function onAccountsChanged(listener: (status: AccountsStatus) => void): () => void {
+  accountListeners.add(listener);
+  return () => accountListeners.delete(listener);
+}
+
 async function broadcastAccounts(): Promise<AccountsStatus> {
   const status = await getAccountsStatus();
   ipcMain.broadcast("accounts:changed", status);
+  for (const listener of accountListeners) {
+    try {
+      listener(status);
+    } catch (error) {
+      logger.warn("productivity", "An account listener failed", error);
+    }
+  }
   return status;
 }
 

@@ -163,8 +163,27 @@ const NOTIFY_OPTIONS = [
   { value: "10", label: "10 minutes before" },
 ];
 
+const notificationStatusKey = ["system", "notification-status"] as const;
+
+function useNotificationStatus() {
+  const queryClient = useQueryClient();
+  useEffect(
+    () =>
+      window.dayboard.ipc.onNotification("system:notificationStatus", (status) =>
+        queryClient.setQueryData(notificationStatusKey, status),
+      ),
+    [queryClient],
+  );
+  return useQuery({
+    queryKey: notificationStatusKey,
+    queryFn: () =>
+      invoke<{ status: "unknown" | "delivered" | "refused" }>("system:notificationStatus"),
+  });
+}
+
 export function MeetingsSettings() {
   const { settings, edit } = useSettingsEditor();
+  const notifications = useNotificationStatus().data;
   if (!settings) return null;
   const meetings = settings.system.meetings;
   return (
@@ -184,7 +203,15 @@ export function MeetingsSettings() {
           }
         />
       </Field>
-      <Field label="Notify before meetings" description="A macOS notification with a Join button.">
+      <Field
+        label="Notify before meetings"
+        description="A macOS notification with a Join button."
+        error={
+          meetings.notify && notifications?.status === "refused"
+            ? "macOS didn't deliver DayBoard's notification. Check System Settings → Notifications."
+            : undefined
+        }
+      >
         <Switch
           id="meetings-notify"
           aria-label="Notify before meetings"
