@@ -33,7 +33,14 @@ export interface CapturePanelState {
 export type CapturePanelAction =
   | { type: "typed"; text: string }
   | { type: "submitted" }
-  | { type: "rejected"; key: string; text: string; error: string }
+  | {
+      type: "rejected";
+      key: string;
+      text: string;
+      error: string;
+      /** The submitted manual draft, so Edit restores every field. */
+      partial?: Partial<ItemDraft> | null;
+    }
   | { type: "recordsChanged"; records: CaptureRecordView[] }
   | { type: "editFailure"; key: string; defaultKind: ItemKind }
   | { type: "dismissFailure"; key: string }
@@ -76,7 +83,7 @@ export function reduceCapturePanel(
         key: action.key,
         text: action.text,
         error: action.error,
-        partial: null,
+        partial: action.partial ?? null,
       });
     case "recordsChanged":
       return action.records

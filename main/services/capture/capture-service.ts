@@ -186,6 +186,10 @@ export function createCaptureService(deps: CaptureDeps) {
       changed();
       throw new Error("Undo is no longer available for this item.");
     }
+    // One delete attempt per capture: the receipt is spent before the provider is called, so a
+    // failed Undo (e.g. the item was already removed elsewhere) can never delete twice.
+    receipts.delete(record.id);
+    record.canUndo = false;
     try {
       if (receipt.kind === "task")
         await deps.guardedWrite(receipt.scope, () => deps.remove.task(receipt.ref));
@@ -197,7 +201,6 @@ export function createCaptureService(deps: CaptureDeps) {
       changed();
       throw error;
     }
-    receipts.delete(record.id);
     Object.assign(record, { state: "undone", canUndo: false, error: null });
     changed();
     return snapshot(record);

@@ -75,7 +75,13 @@ export function CapturePanel() {
     dispatch({ type: "submitted" });
     void hidePanel("capture");
     void invoke("capture:submit", payload).catch((error: unknown) => {
-      dispatch({ type: "rejected", key, text, error: errorMessage(error) });
+      dispatch({
+        type: "rejected",
+        key,
+        text,
+        error: errorMessage(error),
+        partial: "draft" in payload ? payload.draft : null,
+      });
       void showPanel("capture").catch(() => undefined);
     });
   }

@@ -83,3 +83,27 @@ test("uses the manual form when AI capture is unavailable", () => {
   });
   assert.equal(ai.mode, "text");
 });
+
+test("a rejected manual capture keeps every field for Edit", () => {
+  const draft = {
+    kind: "event" as const,
+    title: "Dentist",
+    notes: "Bring forms",
+    date: "2026-10-22",
+    time: "15:00",
+    endTime: "16:00",
+  };
+  const rejected = reduceCapturePanel(initialCaptureState, {
+    type: "rejected",
+    key: "local-2",
+    text: "Dentist",
+    error: "License required",
+    partial: draft,
+  });
+  const edited = reduceCapturePanel(rejected, {
+    type: "editFailure",
+    key: "local-2",
+    defaultKind: "task",
+  });
+  assert.deepEqual(edited.form, draft);
+});

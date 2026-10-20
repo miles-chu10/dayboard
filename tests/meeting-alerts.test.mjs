@@ -142,3 +142,16 @@ test("includes the join URL only when it is https", async () => {
   alertTimers()[0].fn();
   assert.equal(state.notified[0].joinUrl, null);
 });
+
+test("an account change cancels the armed alert before the new fetch returns", async () => {
+  const { alerts, state, alertTimers } = harness([meeting("a", 10)]);
+  await alerts.configure(on);
+  const armed = alertTimers()[0];
+  state.hold = true;
+  const pending = alerts.refresh();
+  assert.equal(armed.cancelled, true, "the old account's alert is disarmed immediately");
+  armed.fn();
+  assert.equal(state.notified.length, 0, "a stale timer callback never notifies");
+  state.fetches[0](null);
+  await pending;
+});

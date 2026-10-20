@@ -47,6 +47,7 @@ import { useAssistantHistory } from "../lib/assistant-history";
 import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
+  useAccountScope,
   useCalendar,
   useMail,
   useAssistantMcpStatus,
@@ -250,11 +251,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     .slice(0, 60)
     .map((event) => ({ calendarId: event.calendarId, eventId: event.id }));
   // Imported meeting notes join their events in the Assistant's snapshot.
+  const scope = useAccountScope();
   const meetingNotes = useQuery({
-    queryKey: ["meetings", "snapshot-notes", snapshotEvents],
+    queryKey: ["meetings", "snapshot-notes", scope ?? "pending", snapshotEvents],
     queryFn: () =>
       invoke<Record<string, { text: string }>>("meetings:getNotes", { events: snapshotEvents }),
-    enabled: notesOn && snapshotEvents.length > 0,
+    enabled: notesOn && scope !== undefined && snapshotEvents.length > 0,
     staleTime: 5 * 60_000,
   });
   const mcpStatus = useAssistantMcpStatus();

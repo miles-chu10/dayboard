@@ -17,7 +17,7 @@ import { createItem } from "../lib/create-items";
 import { formatTimeOfDay } from "../lib/dates";
 import { notesLines } from "../lib/notes-lines";
 import { errorMessage, invoke, openExternal } from "../lib/ipc";
-import { useAccounts } from "../lib/queries";
+import { useAccountScope, useAccounts } from "../lib/queries";
 import { featureOn, useSettings } from "../lib/settings";
 
 interface NotesRecord {
@@ -35,8 +35,8 @@ interface GranolaMeeting {
 }
 
 const statusKey = ["meetings", "notes-status"] as const;
-const notesKey = (event: CalendarEventItem) =>
-  ["meetings", "notes", event.calendarId, event.id] as const;
+const notesKey = (scope: string | undefined, event: CalendarEventItem) =>
+  ["meetings", "notes", scope ?? "pending", event.calendarId, event.id] as const;
 
 /** Notes are source data: shown as plain text, with headings and bullets only. */
 function NotesText({ text, compact }: { text: string; compact: boolean }) {
@@ -174,6 +174,7 @@ export function MeetingNotes({
   const [choice, setChoice] = useState<{ selection: string; candidates: GranolaMeeting[] } | null>(
     null,
   );
+  const scope = useAccountScope();
   const enabled = Boolean(settings?.system.meetings.notesImport);
   const status = useQuery({
     queryKey: statusKey,
@@ -182,14 +183,14 @@ export function MeetingNotes({
     enabled,
   });
   const notes = useQuery({
-    queryKey: notesKey(event),
+    queryKey: notesKey(scope, event),
     queryFn: async () =>
       (
         await invoke<Record<string, NotesRecord>>("meetings:getNotes", {
           events: [{ calendarId: event.calendarId, eventId: event.id }],
         })
       )[`${event.calendarId}/${event.id}`] ?? null,
-    enabled,
+    enabled: enabled && scope !== undefined,
   });
   if (!enabled) return null;
   const record = notes.data;
@@ -198,7 +199,7 @@ export function MeetingNotes({
   async function load(selection: string, providerMeetingId: string) {
     await invoke("meetings:importNotes", { selection, providerMeetingId });
     setChoice(null);
-    await queryClient.invalidateQueries({ queryKey: notesKey(event) });
+    await queryClient.invalidateQueries({ queryKey: notesKey(scope, event) });
   }
 
   async function find() {

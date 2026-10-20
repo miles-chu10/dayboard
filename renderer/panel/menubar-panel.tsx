@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Callout, Input, Text } from "@renderer/ui";
 
 import { aiCaptureEnabled } from "@shared/capture";
@@ -13,6 +13,7 @@ import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { buildTodos, mergeLinkedTodos } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import type { CaptureRecordView } from "./capture-panel-state";
+import { afterRejection } from "./menubar-capture";
 import { hidePanel, showPanel, useFitPanelHeight, usePanelShown } from "./panel-ipc";
 import { todayItems } from "./today-items";
 
@@ -45,6 +46,11 @@ export function MenuBarPanel() {
   const planning = useAgendaState();
   const records = useRecentCaptures();
   const [text, setText] = useState("");
+  // The rejection arrives later; it must see what is typed by then, not when it was submitted.
+  const latestText = useRef(text);
+  useEffect(() => {
+    latestText.current = text;
+  }, [text]);
   const [error, setError] = useState<string | null>(null);
 
   usePanelShown(() => setError(null));
@@ -74,8 +80,9 @@ export function MenuBarPanel() {
     setText("");
     setError(null);
     void invoke("capture:submit", { text: value }).catch((reason: unknown) => {
-      setText(value);
-      setError(errorMessage(reason));
+      const next = afterRejection(latestText.current, value, errorMessage(reason));
+      setText(next.text);
+      setError(next.error);
     });
   }
 

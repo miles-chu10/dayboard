@@ -36,8 +36,11 @@ export function createMeetingAlerts(deps: MeetingAlertDeps) {
     const now = deps.now();
     const alert = nextAlert(events, now, config.notifyMinutesBefore, sent);
     if (!alert) return;
+    const armedFor = generation;
     cancel = deps.setTimer(
       () => {
+        // A timer armed before an account or settings change never fires for the old data.
+        if (armedFor !== generation) return;
         cancel = null;
         sent.add(alert.key);
         const minutes = Math.ceil(
@@ -56,10 +59,8 @@ export function createMeetingAlerts(deps: MeetingAlertDeps) {
 
   async function refresh(): Promise<void> {
     const current = ++generation;
-    if (!config.notify) {
-      clear();
-      return;
-    }
+    clear();
+    if (!config.notify) return;
     const listed = await deps.listEvents();
     // A slower fetch that started before a newer refresh must not replace its result.
     if (current !== generation) return;

@@ -99,8 +99,11 @@ export function dedupeMeetings<T extends MeetingEvent>(events: T[]): T[] {
 const time = (iso: string) => new Date(iso).getTime();
 const minutes = (ms: number) => Math.ceil(ms / 60_000);
 
+// De-duplicate before filtering, so a declined primary copy also hides its shared-calendar copies.
 function meetingsOf<T extends MeetingEvent>(events: T[]): T[] {
-  return dedupeMeetings(events.filter(isMeeting)).sort((a, b) => time(a.start) - time(b.start));
+  return dedupeMeetings(events)
+    .filter(isMeeting)
+    .sort((a, b) => time(a.start) - time(b.start));
 }
 
 /** The meeting in progress (the most recently started), else the next one within 12 hours. */

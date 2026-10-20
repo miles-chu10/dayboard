@@ -102,3 +102,30 @@ test("does not register in test builds", async () => {
   assert.equal(status.registered, false);
   assert.equal(status.conflict, null);
 });
+
+test("a superseded change never registers its shortcut", async () => {
+  const registered = new Map();
+  const reads = [];
+  const manager = createHotkeyManager({
+    nativeEnabled: true,
+    globalShortcut: {
+      register(accelerator, callback) {
+        registered.set(accelerator, callback);
+        return true;
+      },
+      unregister(accelerator) {
+        registered.delete(accelerator);
+      },
+    },
+    readSymbolicHotkeys: () => new Promise((resolve) => reads.push(resolve)),
+    onTrigger() {},
+    onStatus() {},
+  });
+  const first = manager.apply({ enabled: true, hotkey: "Control+Alt+D" });
+  const second = manager.apply({ enabled: true, hotkey: "Control+Alt+K" });
+  reads[1]({});
+  reads[0]({});
+  await Promise.all([first, second]);
+  assert.deepEqual([...registered.keys()], ["Control+Alt+K"]);
+  assert.equal(manager.status().accelerator, "Control+Alt+K");
+});

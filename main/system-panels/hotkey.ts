@@ -32,6 +32,7 @@ export function createHotkeyManager(deps: HotkeyDeps) {
   let config: SystemSettings["quickCapture"] = { enabled: false, hotkey: "" };
   let suspended = false;
   let active: string | null = null;
+  let generation = 0;
   let status: HotkeyStatus = { accelerator: "", enabled: false, registered: false, conflict: null };
 
   function release(): void {
@@ -40,12 +41,16 @@ export function createHotkeyManager(deps: HotkeyDeps) {
   }
 
   async function sync(): Promise<HotkeyStatus> {
+    const current = ++generation;
     release();
     const accelerator = normalizeAccelerator(config.hotkey) ?? config.hotkey;
     let registered = false;
     let conflict: string | null = null;
     if (config.enabled && deps.nativeEnabled && accelerator) {
       const plist = await deps.readSymbolicHotkeys();
+      // A newer change or suspension started while macOS's shortcuts were read: it owns the
+      // registration, so this one must not register a shortcut nothing will unregister.
+      if (current !== generation) return status;
       const owner = plist === null ? null : symbolicHotkeyConflict(plist, accelerator);
       if (owner)
         conflict = `macOS uses ${formatAccelerator(accelerator)} for ${owner}. Turn it off in System Settings → Keyboard → Keyboard Shortcuts, or choose another shortcut.`;

@@ -156,3 +156,17 @@ test("fires immediately when the alert time has passed but the meeting has not s
   assert.equal(alert.at.getTime(), now.getTime());
   assert.equal(meetings.nextAlert([meeting("y", -1, 30)], now, 5, new Set()), null);
 });
+
+test("a declined meeting stays hidden through its shared-calendar copy", () => {
+  const declined = meeting("p", 10, 40, { selfResponse: "declined", iCalUID: "dup@google.com" });
+  const shared = {
+    ...declined,
+    id: "p-shared",
+    calendarId: "team@group.calendar.google.com",
+    primaryCalendar: false,
+    selfInvited: true,
+    selfResponse: null,
+  };
+  assert.equal(meetings.pickUpNext([shared, declined], now), null);
+  assert.equal(meetings.nextAlert([shared, declined], now, 2, new Set()), null);
+});

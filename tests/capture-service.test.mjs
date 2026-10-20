@@ -214,8 +214,20 @@ test("undo reports a failed delete", async () => {
   const [after] = service.recent();
   assert.equal(after.state, "created");
   assert.equal(after.error, "Reminders is not reachable.");
-  assert.equal(after.canUndo, true);
+  assert.equal(after.canUndo, false, "Undo makes one delete attempt");
   assert.equal(calls.remove.length, 0);
+});
+
+test("a failed undo is never retried", async () => {
+  let attempts = 0;
+  const { service } = harness({ removeError: "Reminders is not reachable." });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  await assert.rejects(service.undo(record.id), () => {
+    attempts += 1;
+    return true;
+  });
+  await assert.rejects(service.undo(record.id), /no longer available/);
+  assert.equal(attempts, 1);
 });
 
 test("undo refuses after an account change", async () => {
