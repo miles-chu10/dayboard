@@ -2,7 +2,6 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Button, Callout, Input, Text } from "@renderer/ui";
 
 import {
-  KIND_LABEL,
   aiCaptureEnabled,
   availableKinds,
   normalizeDraft,
@@ -27,6 +26,13 @@ import {
 } from "./panel-ipc";
 
 const NONE = { task: false, reminder: false, event: false };
+
+// Sentence case, as the app's other add buttons ("Add task").
+const ADD_LABEL: Record<ItemKind, string> = {
+  task: "Add task",
+  reminder: "Add reminder",
+  event: "Add event",
+};
 
 export function CapturePanel() {
   const container = useFitPanelHeight<HTMLDivElement>("capture");
@@ -111,7 +117,7 @@ export function CapturePanel() {
       {state.failures.map((failure) => (
         <Callout
           key={failure.key}
-          color="orange"
+          color="red"
           actions={
             <>
               <Button
@@ -166,11 +172,11 @@ export function CapturePanel() {
           <div className="flex justify-end gap-2">
             {aiAvailable ? (
               <Button variant="transparent" onClick={() => dispatch({ type: "useText" })}>
-                Type It Instead
+                Type it instead
               </Button>
             ) : null}
             <Button type="submit" disabled={nothingAvailable}>
-              Add {KIND_LABEL[state.form.kind]}
+              {ADD_LABEL[state.form.kind]}
             </Button>
           </div>
         </form>
@@ -180,7 +186,7 @@ export function CapturePanel() {
           autoFocus
           aria-label="Quick Capture"
           className="h-10 text-[15px]"
-          placeholder="Add a task, reminder or event — e.g. Call dentist Thursday 3pm"
+          placeholder="Add a task, reminder or event…"
           value={state.text}
           disabled={nothingAvailable}
           onChange={(event) => dispatch({ type: "typed", text: event.target.value })}

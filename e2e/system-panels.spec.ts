@@ -204,6 +204,57 @@ test("Escape hides a freshly shown menu-bar panel", async () => {
   }
 });
 
+// DayBoard Design System (v21, render 1791573676-ee86; live 1792522028-b5ac): popovers stay
+// solid, placeholders end in an ellipsis, rows show their full title on hover and line up their
+// times, failures with a way forward are red, labels are sentence case.
+type DomGlobal = {
+  document: { documentElement: unknown };
+  getComputedStyle(node: unknown): { backgroundColor: string; fontVariantNumeric: string };
+};
+
+test("the panels follow the design system's ground, input, row and copy rules", async () => {
+  const demo = await launchDemo();
+  try {
+    const capture = await openQuickCapture(demo.app);
+    const opaque = (page: Page) =>
+      page.evaluate(() => {
+        const dom = globalThis as unknown as DomGlobal;
+        return dom.getComputedStyle(dom.document.documentElement).backgroundColor;
+      });
+    expect(await opaque(capture)).toMatch(/^rgb\(/);
+    const input = capture.getByRole("textbox", { name: "Quick Capture" });
+    await expect(input).toHaveAttribute("placeholder", /…$/);
+    await input.fill("Call dentist Thursday 3pm");
+    await input.press("Enter");
+    const failure = capture.getByText(/turned off in demo mode/);
+    await expect(failure).toBeVisible();
+    expect(
+      await failure.evaluate((node) => node.closest("[class*='bg-support-']")?.className ?? ""),
+    ).toContain("bg-support-red-10");
+    await capture.keyboard.press("Escape");
+
+    const menubar = await openMenuBarAgenda(demo.app);
+    expect(await opaque(menubar)).toMatch(/^rgb\(/);
+    await expect(menubar.getByRole("textbox", { name: "Add or ask" })).toHaveAttribute(
+      "placeholder",
+      /^.{1,32}…$/,
+    );
+    const row = menubar.getByRole("region", { name: "Today's items" }).getByRole("button").first();
+    const title = row.locator("span").last();
+    await expect(title).toHaveAttribute("title", (await title.textContent()) ?? "");
+    expect(
+      await row
+        .locator("span")
+        .nth(1)
+        .evaluate(
+          (node) => (globalThis as unknown as DomGlobal).getComputedStyle(node).fontVariantNumeric,
+        ),
+    ).toContain("tabular-nums");
+  } finally {
+    await demo.close();
+  }
+});
+
 test("Open DayBoard from the menu-bar panel shows the main window", async () => {
   const demo = await launchDemo();
   try {
