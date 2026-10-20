@@ -17,6 +17,10 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
   `npm test` skips it).
+- PR #42 builds the Assistant composer from `docs/composer/`: a per-provider effort panel on the
+  model chip, `/` commands and `@` mentions. Glaze gets the same as DayBoard 1.2.6 through the
+  patch series in the project files (`dayboard/glaze-1.2.6-composer/`), applied, verified and
+  published from the Mac.
 - Miles bought Apple Developer Program enrollment on October 20. Beta.12 onward should be
   Developer ID signed and notarized through the manual **Signed macOS beta** workflow (see
   `docs/RELEASE.md`), once the `macos-release` environment holds the Apple and Google entries.
