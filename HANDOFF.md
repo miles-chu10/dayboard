@@ -223,6 +223,18 @@ render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on th
   /design-login once from an interactive Claude Code session on this machine". The artifact and
   the v21 export above were used instead.
 
+Independent review (2026-10-20): local Codex review of exact `cc4e473..1f87dc7`, COMPLETE.
+
+- **Important** (it predates this range): Escape during IME composition hid the panel. Fixed in
+  `ade0ea0` with an e2e regression.
+- **Minor:**
+  - The tray tests skipped `index.ts`'s forwarding. Covered by a `startSystemPanels` test in
+    `f68652b`, which fails if the forwarding is removed.
+  - The Escape e2e test now confirms the panel is natively visible first.
+  - A stale TASKS.md line was corrected.
+- After the fixes: `npm test` renderer 63/63 and backend 530/530; lint, typecheck and
+  `format:check` exit 0; panel e2e 13/13.
+
 Platform feature matrix (2026-10-20). Standalone is #44 at `0e41eb8`; Glaze is #45 at `e89801d`
 (base `glaze`). Neither is installed or published. The installed DayBoard and the installed Glaze
 DayBoard both predate the panels.

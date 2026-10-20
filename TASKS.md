@@ -22,8 +22,9 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
   - Done: automated checks, the package, REA and the Codex review fixes.
   - Native panel-only acceptance ran on 2026-10-20 (see `HANDOFF.md`): 10 checks passed and the
     tray placement check failed.
-  - Still open: the tray placement fix, then full-screen click-away, the re-enabled tray icon and
-    notification delivery (Miles).
+  - Placement and Esc fixes are in (`609350d`, `db10cdb`).
+  - Still open: native re-acceptance of those fixes on a fresh combined build, full-screen
+    click-away, the re-enabled tray icon, and notification delivery (Miles).
 - [ ] Reconcile with the merged #42 (order #43, #42, #44).
   - The trial on interim `302d191` passed every check (see `HANDOFF.md`).
   - Main (#43) is already merged in as `be58946`.
