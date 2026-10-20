@@ -71,3 +71,39 @@ for (const surface of ["capture", "menubar"] as const) {
     expect(await panelCalls(page, "panel:show")).toEqual([]);
   });
 }
+
+test("account invalidation closes an already reopened capture rejection", async ({ page }) => {
+  await openPanel(page, "capture", {
+    settings: await captureSettings(),
+    defer: ["capture:submit"],
+  });
+  const input = page.getByRole("textbox", { name: "Quick Capture" });
+  await input.fill("Private synthetic account A submission");
+  await input.press("Enter");
+  await expect.poll(() => panelCalls(page, "capture:submit")).toHaveLength(1);
+  await settlePanel(page, "capture:submit", null, "Private synthetic old-account error");
+  await expect(page.getByText(/Private synthetic old-account error/)).toBeVisible();
+  await expect.poll(() => panelCalls(page, "panel:show")).toHaveLength(1);
+  await emitPanel(page, "accounts:changed");
+  await expect.poll(() => panelCalls(page, "panel:hide")).toHaveLength(2);
+  await expect(page.getByText(/Private synthetic old-account error/)).toHaveCount(0);
+  await expect(input).toHaveValue("");
+});
+
+test("account invalidation hides a delayed rejection recovery show", async ({ page }) => {
+  await openPanel(page, "capture", {
+    settings: await captureSettings(),
+    defer: ["capture:submit", "panel:show"],
+  });
+  const input = page.getByRole("textbox", { name: "Quick Capture" });
+  await input.fill("Private synthetic account A submission");
+  await input.press("Enter");
+  await expect.poll(() => panelCalls(page, "capture:submit")).toHaveLength(1);
+  await settlePanel(page, "capture:submit", null, "Private synthetic old-account error");
+  await expect.poll(() => panelCalls(page, "panel:show")).toHaveLength(1);
+  await emitPanel(page, "accounts:changed");
+  await settlePanel(page, "panel:show", null);
+  await expect.poll(() => panelCalls(page, "panel:hide")).toHaveLength(3);
+  await expect(page.getByText(/Private synthetic old-account error/)).toHaveCount(0);
+  await expect(input).toHaveValue("");
+});

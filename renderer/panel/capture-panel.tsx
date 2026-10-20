@@ -77,6 +77,7 @@ export function CapturePanel() {
       accountRevision.current += 1;
       dispatch({ type: "accountChanged" });
       setFormError(null);
+      void hidePanel("capture").catch(() => undefined);
     });
     const stopRecords = window.glazeAPI.glaze.ipc.onNotification("capture:changed", (params) => {
       revision += 1;
@@ -121,7 +122,12 @@ export function CapturePanel() {
         error: errorMessage(error),
         partial: "draft" in payload ? payload.draft : null,
       });
-      void showPanel("capture").catch(() => undefined);
+      void showPanel("capture")
+        .then(() => {
+          // The account notification can arrive while the native show is still in flight.
+          if (started !== accountRevision.current) return hidePanel("capture");
+        })
+        .catch(() => undefined);
     });
   }
 

@@ -101,11 +101,17 @@ let accountChanging = false;
 async function changeAccount(operation: () => Promise<unknown>): Promise<AccountsStatus> {
   return trackAccountChange(async () => {
     accountChanging = true;
+    let published = false;
     try {
       await operation();
       // Publish and clear old account state before another capture or provider write can enter.
-      return await broadcastAccounts();
+      const status = await broadcastAccounts();
+      published = true;
+      return status;
     } finally {
+      // Credentials may already have changed when a later status read or mutation fails.
+      // Invalidate without claiming a new status, and preserve the original error.
+      if (!published) publishAccountsChanged();
       accountChanging = false;
     }
   });
@@ -243,24 +249,33 @@ export function requireExpectedAgendaScope(
   }
 }
 
-const accountListeners = new Set<(status: AccountsStatus) => void>();
+const accountListeners = new Set<() => void>();
 
 /** In-process account change events for main-process features; windows get `accounts:changed`. */
-export function onAccountsChanged(listener: (status: AccountsStatus) => void): () => void {
+export function onAccountsChanged(listener: () => void): () => void {
   accountListeners.add(listener);
   return () => accountListeners.delete(listener);
 }
 
-async function broadcastAccounts(): Promise<AccountsStatus> {
-  const status = await getAccountsStatus();
-  ipcMain.broadcast("accounts:changed", status);
+function publishAccountsChanged(status?: AccountsStatus): void {
   for (const listener of accountListeners) {
     try {
-      listener(status);
+      listener();
     } catch (error) {
       logger.warn("productivity", "An account listener failed", error);
     }
   }
+  try {
+    ipcMain.broadcast("accounts:changed", status);
+  } catch (error) {
+    // A closing window must not prevent local invalidation or mask a failed account operation.
+    logger.warn("productivity", "Could not notify an account change", error);
+  }
+}
+
+async function broadcastAccounts(): Promise<AccountsStatus> {
+  const status = await getAccountsStatus();
+  publishAccountsChanged(status);
   return status;
 }
 
