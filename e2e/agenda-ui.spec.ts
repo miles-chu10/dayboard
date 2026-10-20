@@ -150,6 +150,13 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
     await settings.emulateMedia({ colorScheme: null });
     await settings.getByRole("tab", { name: "General", exact: true }).click();
     await settings.getByRole("radio", { name: "Side panel", exact: true }).click();
+    // Each radio sits beside its label text, so the label is one line tall, not two.
+    for (const name of ["Auto", "Default", "Side panel"]) {
+      const radio = settings.getByRole("radio", { name, exact: true });
+      const radioBox = await radio.boundingBox();
+      const labelBox = await settings.locator("label").filter({ has: radio }).boundingBox();
+      expect(labelBox!.height, name).toBeLessThan(radioBox!.height * 2);
+    }
 
     for (const theme of ["Light", "Dark"]) {
       await settings.getByRole("radio", { name: theme, exact: true }).click();

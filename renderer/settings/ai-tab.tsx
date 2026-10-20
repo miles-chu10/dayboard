@@ -436,8 +436,8 @@ export function AITab() {
                       {group.title}
                     </Text>
                     {group.providers.map((provider) => (
-                      <Label key={provider}>
-                        <RadioGroupItem value={provider} />
+                      <Label key={provider} className="items-start">
+                        <RadioGroupItem value={provider} className="mt-0.5" />
                         <span className="flex flex-col">
                           <span className="flex items-center gap-1.5">
                             <ProviderMark provider={provider} className="size-3.5" />
