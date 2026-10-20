@@ -600,7 +600,12 @@ export function AssistantComposer({
 
             <Popover open={effortOpen} onOpenChange={setEffortOpen}>
               <PopoverTrigger asChild>
-                <Button size="small" variant="transparent" aria-label={chipLabel}>
+                <Button
+                  size="small"
+                  variant="transparent"
+                  aria-label={chipLabel}
+                  title={modelSummary(current)}
+                >
                   {effortOpen ? (
                     <span>Select effort</span>
                   ) : (

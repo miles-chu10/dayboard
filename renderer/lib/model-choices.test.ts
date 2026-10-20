@@ -8,6 +8,7 @@ import {
   assistantEffortPart,
   codexModel,
   lastReplyLabel,
+  MODEL_NOT_RECORDED,
   modelChoices,
   modelSummary,
   savedModelEffort,
@@ -346,17 +347,16 @@ test("the next request names its model with the composer's effort, apart from th
   assert.equal(next(settings(), "gemini", "gemini-3-pro"), "gemini-3-pro");
 
   // The last reply's evidence is what that reply recorded, never the next request's setting.
-  const reply = (modelLabel?: string) => ({ role: "assistant", modelLabel });
-  const user = { role: "user" };
+  const reply = (modelLabel?: string, id = "a") => ({ id, role: "assistant", modelLabel });
+  const user = { id: "u", role: "user" };
+  const opus = reply("Claude Opus 5.5 · Max effort requested", "a1");
   assert.equal(lastReplyLabel([]), null);
   assert.equal(lastReplyLabel([user]), null);
-  assert.equal(
-    lastReplyLabel([reply("Claude Opus 5.5 · Max effort requested"), user]),
-    "Claude Opus 5.5 · Max effort requested",
-  );
-  // A newer reply that recorded nothing (it failed first) hides the older evidence.
-  assert.equal(
-    lastReplyLabel([reply("Claude Opus 5.5 · Max effort requested"), user, reply()]),
-    null,
-  );
+  assert.equal(lastReplyLabel([opus, user]), "Claude Opus 5.5 · Max effort requested");
+  // A newer reply that recorded nothing (demo, or it failed first) says so instead of
+  // showing the older evidence.
+  assert.equal(lastReplyLabel([opus, user, reply(undefined, "a2")]), MODEL_NOT_RECORDED);
+  // The reply still running isn't the last reply yet.
+  assert.equal(lastReplyLabel([opus, user, reply(undefined, "a2")], "a2"), opus.modelLabel);
+  assert.equal(lastReplyLabel([user, reply(undefined, "a2")], "a2"), null);
 });

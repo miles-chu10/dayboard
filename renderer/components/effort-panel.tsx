@@ -99,7 +99,8 @@ export function EffortPanel({
           <button
             type="button"
             aria-label={`Change model: ${modelLabel}`}
-            className="mx-auto flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-0.5 text-regular text-secondary hover:bg-control-subtle focus-visible:outline-2 focus-visible:outline-accent"
+            title={modelLabel}
+            className="mx-auto flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-0.5 text-regular text-secondary hover:bg-control-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <span className="truncate">{modelLabel}</span>
             <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />

@@ -276,11 +276,20 @@ export function modelSummary(model: {
   return `${withEffort(model.label, model.effort)}${model.fast ? " · Fast" : ""}`;
 }
 
-/** What the chat's latest reply recorded about its model and effort; null before it reports. */
+export const MODEL_NOT_RECORDED = "model not recorded";
+
+/**
+ * What the chat's latest finished reply recorded about its model and effort: null before any
+ * reply, MODEL_NOT_RECORDED for one that recorded nothing (demo, a failed run, an older chat).
+ */
 export function lastReplyLabel(
-  messages: readonly { role: string; modelLabel?: string }[],
+  messages: readonly { id?: string; role: string; modelLabel?: string }[],
+  runningId?: string | null,
 ): string | null {
-  for (let index = messages.length - 1; index >= 0; index--)
-    if (messages[index].role === "assistant") return messages[index].modelLabel || null;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role !== "assistant" || (runningId && message.id === runningId)) continue;
+    return message.modelLabel || MODEL_NOT_RECORDED;
+  }
   return null;
 }

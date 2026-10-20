@@ -47,6 +47,7 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     await navigate(demo.page, "Assistant");
     const chip = demo.page.getByRole("button", { name: /^Model and effort:/ });
     await expect(chip).toHaveAccessibleName("Model and effort: Claude Code default");
+    await expect(chip).toHaveAttribute("title", "Claude Code default");
     await chip.click();
     await expect(chip).toContainText("Select effort");
     const panel = demo.page.getByRole("dialog", { name: "Model and effort" });
@@ -56,8 +57,8 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     );
     await expect(panel.getByRole("slider")).toHaveCount(0);
     await expect(panel).toContainText("Next request: Claude Code default");
-    // No reply has run in this chat, so the panel offers no evidence beside the setting.
-    await expect(panel).not.toContainText("Last reply:");
+    // The demo chat's sample reply recorded no model, and the panel says so beside the setting.
+    await expect(panel).toContainText("Last reply: model not recorded");
     await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
     await expect(demo.page.getByRole("button", { name: "Change model: Opus" })).toBeFocused();
     await demo.page.keyboard.press("Escape");
@@ -112,6 +113,7 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     // Leaving Opus turned paid Fast mode off, as choosing a model in Settings does.
     // With no level of its own, the Assistant runs at Claude Code's effort setting.
     await expect(chip).toHaveAccessibleName("Model and effort: Opus, Claude Code's effort");
+    await expect(chip).toHaveAttribute("title", "Opus · Claude Code's effort");
     await expect(chip).not.toContainText("Select effort");
 
     const settings = await openSettingsTab(demo.app, demo.page, "AI");
@@ -282,6 +284,12 @@ test("@ mentions add a chip, and the sent message keeps it", async ({
     await expect(user).toContainText("Prep me for lunch");
     await expect(demo.page.getByRole("button", { name: "Remove Lunch with Sam" })).toHaveCount(0);
     await expect(demo.page.locator('[data-from="assistant"]')).toContainText("Sample answer");
+    // Demo replies report no model, and the panel says so rather than borrowing the next request's.
+    await demo.page.getByRole("button", { name: /^Model and effort:/ }).click();
+    const panel = demo.page.getByRole("dialog", { name: "Model and effort" });
+    await expect(panel).toContainText("Next request: Claude Code default");
+    await expect(panel).toContainText("Last reply: model not recorded");
+    await demo.page.keyboard.press("Escape");
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();

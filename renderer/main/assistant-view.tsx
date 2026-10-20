@@ -142,7 +142,7 @@ function AssistantMessageView({
             {PROVIDER_LABEL[author]}
           </Text>
           {message.modelLabel ? (
-            <Text variant="small" color="tertiary" truncate>
+            <Text variant="small" color="tertiary" truncate title={message.modelLabel}>
               {message.modelLabel}
             </Text>
           ) : null}
@@ -699,7 +699,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 disabled={history.switching}
                 usage={usage}
                 demo={demo}
-                lastReply={lastReplyLabel(messages)}
+                lastReply={lastReplyLabel(messages, runningId)}
               />
             </LicenseGate>
           </div>
