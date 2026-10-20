@@ -49,7 +49,7 @@ app.whenReady().then(async () => {
   const target =
     size === 128
       ? path.join(os.tmpdir(), NAMES[size])
-      : path.join(root, "resources", "tray", NAMES[size]);
+      : path.join(root, "main", "system-panels", "assets", NAMES[size]);
   fs.writeFileSync(target, image.resize({ width: size, height: size }).toPNG());
   console.log(`wrote ${target}`);
   app.quit();

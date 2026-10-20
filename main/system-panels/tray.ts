@@ -2,8 +2,8 @@
 
 import { Menu, Tray, nativeImage } from "electron";
 
-import icon from "../../resources/tray/trayTemplate.png?asset";
-import icon2x from "../../resources/tray/trayTemplate@2x.png?asset";
+import icon from "./assets/trayTemplate.png?asset";
+import icon2x from "./assets/trayTemplate@2x.png?asset";
 import { setTrayBoundsProvider } from "./panel-window.js";
 
 export interface TrayActions {
