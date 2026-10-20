@@ -1,7 +1,12 @@
 import { Field } from "@renderer/ui";
 import type { AIProvider } from "@main/shared-types";
 
-import { effortLabel, supportedEffort, type EffortOptions } from "../../shared/ai-effort";
+import {
+  effortLabel,
+  noEffortNote,
+  supportedEffort,
+  type EffortOptions,
+} from "../../shared/ai-effort";
 import { SettingSelect } from "./setting-select";
 
 const LEVEL_HINT: Record<string, string> = {
@@ -39,7 +44,7 @@ export function EffortField({
       description={
         available
           ? "Used by briefings, triage and other one-click features. Set the Assistant's effort in its composer."
-          : "This model doesn't have effort settings."
+          : noEffortNote(options)
       }
       disabled={!available}
     >

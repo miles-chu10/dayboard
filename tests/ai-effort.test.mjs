@@ -97,9 +97,16 @@ const codexCatalog = [
 ];
 
 test("effort levels follow the route and model table, including dated snapshots", () => {
-  for (const model of ["default", "fable", "opus", "sonnet", "opus[1m]", "sonnet[1m]"])
+  for (const model of ["fable", "opus", "sonnet", "opus[1m]", "sonnet[1m]"])
     assert.deepEqual(levels("claude", model), lightToMax, model);
   assert.deepEqual(levels("claude", "haiku"), []);
+  // Claude Code resolves its default only when it runs, so DayBoard offers no level and says why.
+  assert.deepEqual(levels("claude", "default"), []);
+  assert.equal(
+    effort.noEffortNote(effort.effortOptions("claude", "default")),
+    effort.CLAUDE_DEFAULT_NOTE,
+  );
+  assert.equal(effort.noEffortNote(effort.effortOptions("claude", "haiku")), effort.NO_EFFORT_NOTE);
   // On the OpenAI API only GPT-6 Astra and GPT-6.1 Sol offer effort, Light to Max.
   for (const model of [
     "gpt-6-astra",
@@ -243,6 +250,12 @@ test("labels, the picker selection and /effort arguments", () => {
   assert.deepEqual(effort.effortCommand(effort.effortOptions("claude", "haiku"), "high", "note"), {
     message: "This model doesn't have effort settings.",
   });
+  assert.deepEqual(
+    effort.effortCommand(effort.effortOptions("claude", "default"), "high", "note"),
+    {
+      message: "Claude Code picks its default model when it runs. Choose a model to set effort.",
+    },
+  );
 });
 
 function aiSettings(overrides = {}) {
@@ -272,6 +285,10 @@ test("the saved Assistant effort is checked against the model that will run", ()
     main.resolveAssistantEffort(aiSettings(overrides), provider, catalog, apiModel);
   assert.equal(resolve({ assistantEffort: { claude: "max" } }, "claude"), "max");
   assert.equal(resolve({ claudeModel: "haiku", assistantEffort: { claude: "max" } }, "claude"), "");
+  assert.equal(
+    resolve({ claudeModel: "default", assistantEffort: { claude: "max" } }, "claude"),
+    "",
+  );
   // Codex runs the first catalog model when none is chosen; Ultra passes only where it's listed.
   assert.equal(resolve({ assistantEffort: { codex: "ultra" } }, "codex", codexCatalog), "ultra");
   assert.equal(
@@ -575,6 +592,14 @@ test("CLI routes pass the Assistant effort and describe it in the model note", a
   });
   assert.equal(haiku.effort, "");
   assert.doesNotMatch(haiku.system, /Reasoning effort/);
+  const claudeDefault = await cliRun({
+    provider: "claude",
+    claudeModel: "default",
+    claudeEffort: "max",
+    assistantEffort: { claude: "high" },
+  });
+  assert.equal(claudeDefault.effort, "");
+  assert.doesNotMatch(claudeDefault.system, /Reasoning effort/);
   const codex = await cliRun(
     { provider: "codex", assistantEffort: { codex: "ultra" } },
     codexCatalog,

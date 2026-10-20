@@ -5,15 +5,15 @@ import type {
   AssistantModelInfo,
   CodexModelInfo,
 } from "../../shared-types.js";
+import { effortOptions, supportedEffort } from "../../../shared/ai-effort.js";
 import { isApiProvider } from "./api-keys.js";
 import { API_LABEL } from "./api-providers.js";
 
 export function claudeModelArgs(ai: AppSettings["ai"]): string[] {
   const args: string[] = [];
   if (ai.claudeModel !== "default") args.push("--model", ai.claudeModel);
-  if (ai.claudeEffort !== "default" && ai.claudeModel !== "haiku") {
-    args.push("--effort", ai.claudeEffort);
-  }
+  const effort = claudeEffort(ai);
+  if (effort) args.push("--effort", effort);
   // An explicit false prevents the user's CLI preference from enabling paid Fast mode.
   const fastMode = claudeFastOn(ai);
   args.push("--settings", JSON.stringify({ fastMode }));
@@ -68,6 +68,11 @@ export function rememberClaudeModel(alias: string, id: string): void {
   claudeResolved.set(alias, id);
 }
 
+/** The saved Claude effort when the chosen alias takes one; Claude Code's default never does. */
+function claudeEffort(ai: AppSettings["ai"]): string {
+  return supportedEffort(effortOptions("claude", ai.claudeModel), ai.claudeEffort);
+}
+
 export function claudeFastOn(ai: AppSettings["ai"]): boolean {
   return ai.claudeFast && ["opus", "opus[1m]"].includes(ai.claudeModel);
 }
@@ -116,7 +121,7 @@ export function describeModel(
       name: CLAUDE_NAMES[ai.claudeModel] ?? ai.claudeModel,
       id: claudeResolved.get(ai.claudeModel) ?? null,
       fast: claudeFastOn(ai),
-      effort: ai.claudeEffort === "default" ? null : ai.claudeEffort,
+      effort: claudeEffort(ai) || null,
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
     };
   }

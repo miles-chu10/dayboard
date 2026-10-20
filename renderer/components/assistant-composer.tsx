@@ -61,6 +61,7 @@ import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
 import {
   effortCommand,
+  noEffortNote,
   effortOptions,
   effortSelection,
   selectionLabel,
@@ -626,6 +627,7 @@ export function AssistantComposer({
                 <EffortPanel
                   modelLabel={current.label}
                   levels={effort.levels}
+                  note={noEffortNote(effort)}
                   selection={selection}
                   onChange={setEffort}
                   fast={fastAvailable ? { on: current.fast, onToggle: toggleFast } : null}

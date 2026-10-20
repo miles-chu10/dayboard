@@ -19,6 +19,8 @@ export interface EffortPanelProps {
   modelLabel: string;
   /** Levels the model accepts, lowest first; empty when it has no effort control. */
   levels: string[];
+  /** Shown in place of the slider when `levels` is empty. */
+  note: string;
   /** The level shown; `explicit` is false while the model default applies. */
   selection: { level: string | null; explicit: boolean };
   /** Saves a level, or "" to return to the model default. */
@@ -35,6 +37,7 @@ export interface EffortPanelProps {
 export function EffortPanel({
   modelLabel,
   levels,
+  note,
   selection,
   onChange,
   fast,
@@ -145,7 +148,7 @@ export function EffortPanel({
         <Text variant="small" color="secondary" align="center">
           {levels.length === 1
             ? `${effortLabel(levels[0])} is the only effort for this model.`
-            : "This model doesn't have effort settings."}
+            : note}
         </Text>
       )}
       {selection.level === "ultra" ? (

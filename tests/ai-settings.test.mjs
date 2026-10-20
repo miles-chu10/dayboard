@@ -180,6 +180,14 @@ test("Claude Fast off explicitly overrides the CLI and cannot switch another mod
   });
   assert.ok(haiku.includes('{"fastMode":false}'));
   assert.equal(haiku.includes("--effort"), false);
+  // Claude Code's default resolves at run time, so the saved feature effort isn't sent to it.
+  const claudeDefault = claudeModelArgs({ ...ai, claudeModel: "default", claudeEffort: "high" });
+  assert.equal(claudeDefault.includes("--effort"), false);
+  assert.equal(claudeDefault.includes("--model"), false);
+  assert.deepEqual(
+    claudeModelArgs({ ...ai, claudeModel: "sonnet", claudeEffort: "high" }).slice(0, 4),
+    ["--model", "sonnet", "--effort", "high"],
+  );
 });
 
 test("legacy Glaze choice stays disabled until a standalone provider is chosen", () => {

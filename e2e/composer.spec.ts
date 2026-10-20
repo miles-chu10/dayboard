@@ -46,12 +46,20 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
   try {
     await navigate(demo.page, "Assistant");
     const chip = demo.page.getByRole("button", { name: /^Model and effort:/ });
-    await expect(chip).toHaveAccessibleName(
-      "Model and effort: Claude Code default, Default effort",
-    );
+    await expect(chip).toHaveAccessibleName("Model and effort: Claude Code default");
     await chip.click();
     await expect(chip).toContainText("Select effort");
     const panel = demo.page.getByRole("dialog", { name: "Model and effort" });
+    // Claude Code resolves its default only when it runs, so the panel offers no level for it.
+    await expect(panel).toContainText(
+      "Claude Code picks its default model when it runs. Choose a model to set effort.",
+    );
+    await expect(panel.getByRole("slider")).toHaveCount(0);
+    await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
+    await expect(demo.page.getByRole("button", { name: "Change model: Opus" })).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await chip.click();
     const slider = panel.getByRole("slider", { name: "Effort" });
     await expect(slider).toBeFocused();
     await expect(slider).toHaveAttribute("aria-valuetext", "Default");
@@ -75,16 +83,16 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     );
     await demo.page.screenshot({ path: testInfo.outputPath("effort-panel.png") });
 
-    // Switching models keeps the effort where the new model has it and clears it where it doesn't.
-    await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
-    await expect(slider).toHaveAttribute("aria-valuetext", "Max");
     const bolt = panel.getByRole("button", { name: "Fast mode" });
     await expect(bolt).toHaveAttribute("aria-pressed", "false");
     await bolt.click();
     await expect(bolt).toHaveAttribute("aria-pressed", "true");
-    await chooseClaudeModel(demo.page, "Opus", /^Haiku/);
-    await expect(panel).toContainText("This model doesn't have effort settings.");
+    // Switching models keeps the effort where the new model has it and clears it where it doesn't.
+    await chooseClaudeModel(demo.page, "Opus", /^Sonnet\s*Latest/);
+    await expect(slider).toHaveAttribute("aria-valuetext", "Max");
     await expect(panel.getByRole("button", { name: "Fast mode" })).toHaveCount(0);
+    await chooseClaudeModel(demo.page, "Sonnet", /^Haiku/);
+    await expect(panel).toContainText("This model doesn't have effort settings.");
     await expect.poll(() => assistantEffort(demo.page)).toEqual({});
     await chooseClaudeModel(demo.page, "Haiku", /^Opus\s*Latest/);
     await expect(slider).toHaveAttribute("aria-valuetext", "Default");
@@ -96,7 +104,7 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
 
     await demo.page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
-    // Leaving Opus turns paid Fast mode off, as choosing a model in Settings does.
+    // Leaving Opus turned paid Fast mode off, as choosing a model in Settings does.
     await expect(chip).toHaveAccessibleName("Model and effort: Opus, Default effort");
     await expect(chip).not.toContainText("Select effort");
 
@@ -107,6 +115,14 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     await expect(settings.getByRole("option", { name: /^Light/ })).toBeVisible();
     await expect(settings.getByRole("option", { name: /^Extra High/ })).toBeVisible();
     await settings.keyboard.press("Escape");
+    await settings.getByRole("combobox", { name: "Claude model" }).click();
+    await settings.getByRole("option", { name: /^Claude Code default/ }).click();
+    await expect(settings.getByRole("combobox", { name: "Claude thinking effort" })).toBeDisabled();
+    await expect(
+      settings.getByText(
+        "Claude Code picks its default model when it runs. Choose a model to set effort.",
+      ),
+    ).toBeVisible();
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();
@@ -159,9 +175,20 @@ test("slash menu runs actions and prompts from the keyboard", async ({
     const chip = demo.page.getByRole("button", { name: /^Model and effort:/ });
     await input.fill("/effort extra high");
     await input.press("Enter");
-    await expect(chip).toHaveAccessibleName(
-      "Model and effort: Claude Code default, Extra High effort",
-    );
+    await expect(
+      demo.page.getByText(
+        "Claude Code picks its default model when it runs. Choose a model to set effort.",
+      ),
+    ).toBeVisible();
+    await expect(chip).toHaveAccessibleName("Model and effort: Claude Code default");
+    await chip.click();
+    await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
+    await expect(demo.page.getByRole("button", { name: "Change model: Opus" })).toBeFocused();
+    await demo.page.keyboard.press("Escape");
+    await expect(demo.page.getByRole("dialog", { name: "Model and effort" })).toHaveCount(0);
+    await input.fill("/effort extra high");
+    await input.press("Enter");
+    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Extra High effort");
     await input.fill("/effort ultra");
     await input.press("Enter");
     await expect(
@@ -169,9 +196,7 @@ test("slash menu runs actions and prompts from the keyboard", async ({
         "Ultra is available with Codex on GPT-6 Astra, GPT-6 Sol, and GPT-5.6 Sol or Terra.",
       ),
     ).toBeVisible();
-    await expect(chip).toHaveAccessibleName(
-      "Model and effort: Claude Code default, Extra High effort",
-    );
+    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Extra High effort");
 
     await input.fill("/mode auto");
     await input.press("Enter");

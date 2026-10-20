@@ -19,7 +19,9 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   `npm test` skips it).
 - PR #42 builds the Assistant composer from `docs/composer/`: a per-provider effort panel on the
   model chip, `/` commands and `@` mentions. Settings → AI and the composer's model menu share one
-  model list, effort table and model-change rule, and one-click features get API-route effort. Glaze gets the same as DayBoard 1.2.6 through the
+  model list, effort table and model-change rule, and one-click features get API-route effort.
+  Claude Code's `default` model offers no effort anywhere, since what it resolves to is unknown
+  until the CLI runs. Glaze gets the same as DayBoard 1.2.6 through the
   patch series in the project files (`dayboard/glaze-1.2.6-composer/`), applied, verified and
   published from the Mac.
 - Miles bought Apple Developer Program enrollment on October 20. Beta.12 onward should be

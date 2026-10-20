@@ -14,7 +14,14 @@ export interface EffortOptions {
   levels: string[];
   /** The level the model uses when DayBoard sends none; null when the provider doesn't say. */
   defaultLevel: string | null;
+  /** Why `levels` is empty when the reason isn't that the model lacks effort. */
+  note?: string;
 }
+
+export const NO_EFFORT_NOTE = "This model doesn't have effort settings.";
+
+export const CLAUDE_DEFAULT_NOTE =
+  "Claude Code picks its default model when it runs. Choose a model to set effort.";
 
 export const ULTRA_WARNING = "Runs several agents at once and uses your limit much faster.";
 
@@ -88,8 +95,11 @@ export function effortOptions(
   modelId: string,
   codexCatalog: CodexModelInfo[] = [],
 ): EffortOptions {
-  if (provider === "claude")
+  if (provider === "claude") {
+    // Claude Code resolves its default only when it runs, so DayBoard can't check that model.
+    if (modelId === "default") return { ...noEffort(), note: CLAUDE_DEFAULT_NOTE };
     return modelId === "haiku" ? noEffort() : { levels: [...LIGHT_TO_MAX], defaultLevel: null };
+  }
   if (provider === "codex") {
     const model = codexCatalog.find((entry) => entry.slug === modelId);
     if (!model) return noEffort();
@@ -100,6 +110,11 @@ export function effortOptions(
   if (provider === "openai") return tableLevels(OPENAI_LEVELS, modelId);
   if (provider === "anthropic") return tableLevels(ANTHROPIC_LEVELS, modelId);
   return noEffort();
+}
+
+/** What the panel, Settings and `/effort` say when a model has no levels. */
+export function noEffortNote(options: EffortOptions): string {
+  return options.note ?? NO_EFFORT_NOTE;
 }
 
 /** The saved level when the model accepts it; "" means send the model default. */
@@ -158,7 +173,7 @@ export function effortCommand(
   argument: string,
   ultra: string,
 ): { level: string } | { message: string } {
-  if (!options.levels.length) return { message: "This model doesn't have effort settings." };
+  if (!options.levels.length) return { message: noEffortNote(options) };
   const level = parseEffortArgument(argument);
   if (level && options.levels.includes(level)) return { level };
   if (level === "ultra") return { message: ultra };

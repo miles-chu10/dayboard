@@ -156,6 +156,14 @@ test("changing the model keeps each effort and Fast only where the new model has
   );
   assert.equal(sonnet.claudeEffort, "xhigh");
   assert.deepEqual(sonnet.assistantEffort, { claude: "max" });
+  // Claude Code's default resolves at run time, so neither effort carries over to it.
+  const claudeDefault = choose(
+    settings({ claudeEffort: "high", assistantEffort: { claude: "max" } }),
+    "claude",
+    "default",
+  );
+  assert.equal(claudeDefault.claudeEffort, "default");
+  assert.deepEqual(claudeDefault.assistantEffort, {});
 
   const luna = choose(
     settings({
