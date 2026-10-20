@@ -46,6 +46,30 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 - Assistant requests send the stable policy first; explicit cache controls apply only on the direct OpenAI API route for listed models (`docs/PROMPT-CACHING.md`). Token and cache usage are recorded per request; no live savings are measured.
 
+## Unreleased branch: system panels (PR #44, draft)
+
+`claude/system-panels-bb42de` adds Quick Capture (global hotkey panel), the menu-bar mini Agenda and
+the meeting-aware Up Next card with optional notifications and Granola notes import. Design:
+`docs/superpowers/specs/2026-10-20-system-panels-design.md`; plan and decision log:
+`docs/superpowers/plans/2026-10-20-system-panels.md`; Glaze port guide:
+`docs/porting-system-panels.md`; fuse proposal: `docs/proposals/electron-fuses.md`.
+
+Lifecycle changes for release-owner review (the updater's quit/install path is unchanged):
+
+- `startSystemPanels()` runs before `createMainWindow()`; it registers the hotkey and panel IPC,
+  creates the tray when enabled (never in test builds), and starts meeting alerts.
+- `app.on("will-quit", stopSystemPanels)` unregisters global shortcuts and destroys the tray.
+- `activate` ignores floating panels when deciding whether to show the main window.
+- Tray "Quit DayBoard" calls plain `app.quit()`, so the `before-quit` save guard runs. No
+  hide-on-close was added. `window-all-closed`, `before-quit`, the quit guard, the updater
+  service and `runtime-activity` are untouched. Check for Updates stays in the app menu.
+- Meeting alerts hold one `setTimeout` and, only while on, a refresh `setInterval`.
+
+PR #42 overlap: this branch moved the `ai:run` body into `main/services/ai/completion.ts`. PR #42
+changes that body (effort provider options on the API path, explicit Codex default model on the
+CLI path). Whichever merges second must carry both into `runCompletion` and add a wiring test that
+`ai:run` and Quick Capture's runner pass the resolved effort and Codex model. See `TASKS.md`.
+
 ## Verification observed
 
 - On October 7, the UI candidate passed 27 renderer tests and all 332 app/native tests, both typechecks, touched-file formatting and lint with the same three existing React dependency warnings. The first sandboxed app-test run was blocked by loopback socket and compiler-cache restrictions; the approved execution route and owned temporary compiler cache passed without changing tests or dependencies.

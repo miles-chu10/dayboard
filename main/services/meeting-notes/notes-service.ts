@@ -5,11 +5,7 @@
 import { createHash } from "node:crypto";
 
 import type { McpServerConfig } from "../../shared-types.js";
-import {
-  parseGranolaMeetings,
-  parseGranolaNotes,
-  type GranolaMeeting,
-} from "./granola-parse.js";
+import { parseGranolaMeetings, parseGranolaNotes, type GranolaMeeting } from "./granola-parse.js";
 import { matchMeeting } from "./match.js";
 
 export interface NotesRecord {
@@ -62,20 +58,12 @@ const GRANOLA_TOOLS = ["list_meetings", "get_meetings"];
 const MAX_OUTPUT = 60_000;
 const MAX_RECORDS = 200;
 const SELECTION_MS = 10 * 60_000;
-const ACCOUNT_CHANGED =
-  "Your account changed while getting these notes. Try again.";
+const ACCOUNT_CHANGED = "Your account changed while getting these notes. Try again.";
 
 /** Identifies a server by what it runs, not its ID: Test runs on the unsaved form. */
 export function serverConfigHash(server: McpServerConfig): string {
   return createHash("sha256")
-    .update(
-      JSON.stringify([
-        server.transport,
-        server.command,
-        server.args,
-        server.url,
-      ]),
-    )
+    .update(JSON.stringify([server.transport, server.command, server.args, server.url]))
     .digest("hex");
 }
 
@@ -85,8 +73,7 @@ function localDate(iso: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-const notesKey = (calendarId: string, eventId: string) =>
-  `${calendarId}/${eventId}`;
+const notesKey = (calendarId: string, eventId: string) => `${calendarId}/${eventId}`;
 
 export function createNotesService(deps: NotesDeps) {
   const selections = new Map<string, Selection>();
@@ -98,10 +85,7 @@ export function createNotesService(deps: NotesDeps) {
     return next;
   }
 
-  async function readJson<T>(
-    name: "providers.json" | "notes.json",
-    fallback: T,
-  ): Promise<T> {
+  async function readJson<T>(name: "providers.json" | "notes.json", fallback: T): Promise<T> {
     const raw = await deps.readFile(name);
     if (!raw) return fallback;
     try {
@@ -122,9 +106,7 @@ export function createNotesService(deps: NotesDeps) {
     if (deps.isDemoMode()) return null;
     const hashes = new Set(await granolaHashes());
     return (
-      (await deps.enabledServers()).find((server) =>
-        hashes.has(serverConfigHash(server)),
-      ) ?? null
+      (await deps.enabledServers()).find((server) => hashes.has(serverConfigHash(server))) ?? null
     );
   }
 
@@ -133,10 +115,7 @@ export function createNotesService(deps: NotesDeps) {
     return Array.isArray(value.records) ? (value.records as NotesRecord[]) : [];
   }
 
-  function recordFingerprint(
-    server: McpServerConfig,
-    tools: string[],
-  ): Promise<void> {
+  function recordFingerprint(server: McpServerConfig, tools: string[]): Promise<void> {
     return serial(async () => {
       if (deps.isDemoMode()) return;
       const hash = serverConfigHash(server);
@@ -145,10 +124,7 @@ export function createNotesService(deps: NotesDeps) {
       if (isGranola === hashes.has(hash)) return;
       if (isGranola) hashes.add(hash);
       else hashes.delete(hash);
-      await deps.writeFile(
-        "providers.json",
-        JSON.stringify({ granola: [...hashes] }),
-      );
+      await deps.writeFile("providers.json", JSON.stringify({ granola: [...hashes] }));
     });
   }
 
@@ -186,12 +162,10 @@ export function createNotesService(deps: NotesDeps) {
     match: GranolaMeeting | null;
     candidates: GranolaMeeting[];
   }> {
-    if (deps.isDemoMode())
-      throw new Error("Meeting notes are turned off in demo mode.");
+    if (deps.isDemoMode()) throw new Error("Meeting notes are turned off in demo mode.");
     const scope = await deps.currentScope();
     const server = await provider();
-    if (!server)
-      throw new Error("Set up a Granola MCP server in Settings → MCP first.");
+    if (!server) throw new Error("Set up a Granola MCP server in Settings → MCP first.");
     const listed = await deps.callTool(
       server,
       "list_meetings",
@@ -202,12 +176,8 @@ export function createNotesService(deps: NotesDeps) {
       },
       { maxOutput: MAX_OUTPUT },
     );
-    if (listed.isError)
-      throw new Error(`Granola couldn't list meetings: ${listed.text}`);
-    const { match, candidates } = matchMeeting(
-      event,
-      parseGranolaMeetings(listed.text),
-    );
+    if (listed.isError) throw new Error(`Granola couldn't list meetings: ${listed.text}`);
+    const { match, candidates } = matchMeeting(event, parseGranolaMeetings(listed.text));
     const offered = new Map(candidates.map((meeting) => [meeting.id, meeting]));
     if (match) offered.set(match.id, match);
     const selection = deps.newId();
@@ -226,17 +196,14 @@ export function createNotesService(deps: NotesDeps) {
     selection: string;
     providerMeetingId: string;
   }): Promise<NotesRecord> {
-    if (deps.isDemoMode())
-      throw new Error("Meeting notes are turned off in demo mode.");
+    if (deps.isDemoMode()) throw new Error("Meeting notes are turned off in demo mode.");
     const selection = selections.get(input.selection);
     selections.delete(input.selection);
     if (!selection || deps.now().getTime() > selection.expires)
       throw new Error("This notes search expired. Search again.");
     const meeting = selection.offered.get(input.providerMeetingId);
-    if (!meeting)
-      throw new Error("That meeting wasn't offered for this event.");
-    if ((await deps.currentScope()) !== selection.scope)
-      throw new Error(ACCOUNT_CHANGED);
+    if (!meeting) throw new Error("That meeting wasn't offered for this event.");
+    if ((await deps.currentScope()) !== selection.scope) throw new Error(ACCOUNT_CHANGED);
     const server = await provider();
     if (!server || serverConfigHash(server) !== selection.configHash)
       throw new Error("The Granola server changed. Search again.");
@@ -246,13 +213,11 @@ export function createNotesService(deps: NotesDeps) {
       { meeting_ids: [meeting.id] },
       { maxOutput: MAX_OUTPUT },
     );
-    if (result.isError)
-      throw new Error(`Granola couldn't return these notes: ${result.text}`);
+    if (result.isError) throw new Error(`Granola couldn't return these notes: ${result.text}`);
     const notes = parseGranolaNotes(result.text, meeting.id);
     const text = (notes?.text ?? result.text.replace(/<[^>]+>/g, "")).trim();
     if (!text) throw new Error("Granola returned no notes for this meeting.");
-    if ((await deps.currentScope()) !== selection.scope)
-      throw new Error(ACCOUNT_CHANGED);
+    if ((await deps.currentScope()) !== selection.scope) throw new Error(ACCOUNT_CHANGED);
     const record: NotesRecord = {
       scope: selection.scope,
       calendarId: selection.calendarId,
@@ -287,9 +252,7 @@ export function createNotesService(deps: NotesDeps) {
   ): Promise<Record<string, NotesRecord>> {
     if (deps.isDemoMode() || !events.length) return {};
     const scope = await deps.currentScope();
-    const wanted = new Set(
-      events.map((event) => notesKey(event.calendarId, event.eventId)),
-    );
+    const wanted = new Set(events.map((event) => notesKey(event.calendarId, event.eventId)));
     const result: Record<string, NotesRecord> = {};
     for (const record of await records()) {
       const key = notesKey(record.calendarId, record.eventId);
