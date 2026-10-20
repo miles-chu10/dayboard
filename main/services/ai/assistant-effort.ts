@@ -1,4 +1,9 @@
-import { effortOptions, supportedEffort } from "../../../shared/ai-effort.js";
+import {
+  effortOptions,
+  effortPart,
+  requestedEffort,
+  supportedEffort,
+} from "../../../shared/ai-effort.js";
 import type {
   AIProvider,
   ApiProviderId,
@@ -55,6 +60,25 @@ export function resolveAssistantEffort(
   );
   // Settings objects written before assistantEffort existed have no record at all.
   return supportedEffort(options, ai.assistantEffort?.[provider]);
+}
+
+/**
+ * How an Assistant reply's effort is described: `sent` is the level the request carries ("" for
+ * none), shown as requested, else who picks the level.
+ */
+export function assistantEffortLabel(
+  ai: AppSettings["ai"],
+  provider: AIProvider,
+  codexModels: CodexModelInfo[],
+  apiModelId: string | undefined,
+  sent: string,
+): string | null {
+  const options = effortOptions(
+    provider,
+    effortModelId(ai, provider, codexModels, apiModelId),
+    codexModels,
+  );
+  return requestedEffort(effortPart(provider, options, sent));
 }
 
 /** One-click features' effort on an API route, checked against the model that will run. */

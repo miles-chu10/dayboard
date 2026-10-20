@@ -136,6 +136,52 @@ export function selectionLabel(level: string | null): string {
   return level ? effortLabel(level) : "Default";
 }
 
+export const CLAUDE_CODE_EFFORT = "Claude Code's effort";
+export const DEFAULT_EFFORT = "Default effort";
+
+/** The effort part of a model label; `level` is false when it names who picks the level. */
+export interface EffortPart {
+  text: string;
+  level: boolean;
+}
+
+/**
+ * The effort a request runs at, for labels: the level DayBoard sends (for Codex, the catalog
+ * default it sends when none is chosen), else who picks it. Claude Code applies its own setting
+ * whenever DayBoard sends no level; an API model with levels uses its default. Null when the
+ * route has no effort to name.
+ */
+export function effortPart(
+  provider: AIProvider,
+  options: EffortOptions,
+  level: string | null | undefined,
+): EffortPart | null {
+  if (level) return { text: effortLabel(level), level: true };
+  if (provider === "claude") return { text: CLAUDE_CODE_EFFORT, level: false };
+  return options.levels.length ? { text: DEFAULT_EFFORT, level: false } : null;
+}
+
+/** "Opus 5.5 Max", or "Opus 5.5 · Claude Code's effort" when DayBoard doesn't set the level. */
+export function withEffort(model: string, part: EffortPart | null): string {
+  if (!part) return model;
+  return part.level ? `${model} ${part.text}` : `${model} · ${part.text}`;
+}
+
+/** "Max effort", or who picks the level. */
+export function effortPhrase(part: EffortPart): string {
+  return part.level ? `${part.text} effort` : part.text;
+}
+
+/**
+ * How a reply's effort is described. A level is the one DayBoard requested: Claude Code lowers a
+ * level the model lacks or an organization caps without saying so, and no route reports the
+ * level it ran at.
+ */
+export function requestedEffort(part: EffortPart | null): string | null {
+  if (!part) return null;
+  return part.level ? `${effortPhrase(part)} requested` : part.text;
+}
+
 function listPhrase(names: string[]): string {
   if (names.length <= 2) return names.join(" and ");
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;

@@ -191,8 +191,9 @@ before(async () => {
       "../lib/ai": `export const BLOCKED_MESSAGE = {};`,
       "../lib/ai-models": `
         export const assistantProvider = () => "fixture";
-        export const selectedModel = () => ({ label: "Fixture model" });
-        export const useCodexModels = () => ({ data: [] });`,
+        export const useAssistantModel = () => ({ label: "Fixture model", effort: null });`,
+      "../lib/model-choices": `
+        export const modelSummary = model => model.label, lastReplyLabel = () => null;`,
       "../lib/demo": `export const isRendererDemoMode = () => false;`,
       "../lib/ai-prompts": `export const buildAssistantSnapshot = () => "", buildAssistantSystem = () => "";`,
       "../lib/assistant": `
@@ -203,11 +204,14 @@ before(async () => {
       "../lib/create-items": `
         export const KIND_LABEL = { task: "Task" }, KIND_SOURCE = { task: "tasks" };
         export const createItem = action => globalThis.__fixture.createItem(action);`,
-      "../lib/dates": `export const dayHeading = value => value, formatClock = value => value;`,
+      "../lib/dates": `
+        export const dayHeading = value => value, formatClock = value => value;
+        export const todayISO = () => "2026-10-20";`,
       "../lib/queries": `
         const query = () => ({ data: undefined });
         export const useAccounts = query, useCalendar = query, useMail = query,
-          useAssistantMcpStatus = query, useReminders = query, useTasks = query;`,
+          useAssistantMcpStatus = query, useReminders = query, useTasks = query,
+          useCalendarRange = query;`,
       "../lib/settings": `
         export const PROVIDER_LABEL = { fixture: "Fixture" };
         export const featureOn = settings => settings?.enabled === true;

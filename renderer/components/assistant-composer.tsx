@@ -46,6 +46,7 @@ import {
   claudeSupportsFast,
   codexModel,
   modelChoices,
+  modelSummary,
   savedModel,
   type ModelLists,
 } from "../lib/model-choices";
@@ -64,8 +65,8 @@ import {
   effortCommand,
   noEffortNote,
   effortOptions,
+  effortPhrase,
   effortSelection,
-  selectionLabel,
   ultraNote,
 } from "../../shared/ai-effort";
 import {
@@ -183,6 +184,7 @@ export function AssistantComposer({
   disabled,
   usage,
   demo,
+  lastReply,
 }: {
   input: string;
   setInput: (updater: (previous: string) => string) => void;
@@ -202,6 +204,8 @@ export function AssistantComposer({
   disabled: boolean;
   usage: ContextUsage | null;
   demo: boolean;
+  /** The model and effort the chat's last reply recorded, as evidence beside the next request's. */
+  lastReply: string | null;
 }) {
   const { settings, edit } = useSettingsEditor();
   const ai = settings?.ai;
@@ -286,11 +290,10 @@ export function AssistantComposer({
   const [effortOpen, setEffortOpen] = useState(false);
   const effort = effortOptions(provider, current.id, codexModels.data);
   const selection = effortSelection(effort, ai?.assistantEffort?.[provider]);
-  const effortText = effort.levels.length ? selectionLabel(selection.level) : null;
   // Built from short parts so no line-wrapping tool can split the label's text.
   const chipLabel = [
     `Model and effort: ${current.label}`,
-    effortText ? `, ${effortText} effort` : "",
+    current.effort ? `, ${effortPhrase(current.effort)}` : "",
     current.fast ? ", Fast" : "",
   ].join("");
 
@@ -604,7 +607,9 @@ export function AssistantComposer({
                     <>
                       <ProviderMark provider={provider} className="size-3.5" />
                       <span className="max-w-44 truncate">{current.label}</span>
-                      {effortText ? <span className="text-tertiary">{effortText}</span> : null}
+                      {current.effort ? (
+                        <span className="text-tertiary">{current.effort.text}</span>
+                      ) : null}
                       {current.fast ? (
                         <span className="inline-flex items-center gap-0.5 rounded bg-support-yellow-10 px-1 text-small font-medium text-support-yellow">
                           <Zap className="size-3 fill-current" aria-hidden="true" />
@@ -630,6 +635,8 @@ export function AssistantComposer({
               >
                 <EffortPanel
                   modelLabel={current.label}
+                  nextRequest={modelSummary(current)}
+                  lastReply={lastReply}
                   levels={effort.levels}
                   note={noEffortNote(effort)}
                   selection={selection}

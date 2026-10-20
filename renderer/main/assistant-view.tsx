@@ -31,12 +31,8 @@ import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { MentionChip } from "../components/mention-chip";
 import { BLOCKED_MESSAGE } from "../lib/ai";
-import {
-  assistantProvider,
-  selectedModel,
-  useClaudeModels,
-  useCodexModels,
-} from "../lib/ai-models";
+import { assistantProvider, useAssistantModel } from "../lib/ai-models";
+import { lastReplyLabel, modelSummary } from "../lib/model-choices";
 import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSnapshot, buildAssistantSystem } from "../lib/ai-prompts";
 import {
@@ -85,9 +81,11 @@ function describeAction(action: AssistantAction): string {
     .join(" · ");
 }
 
+/** What a reply records about its run, e.g. "Claude Opus 5.5 · Max effort requested · claude-opus-5-5". */
 function modelLabel(model: AssistantModelInfo): string {
   return [
     model.name,
+    model.effortLabel,
     model.id && model.id !== model.name ? model.id : null,
     model.fast ? "Fast" : null,
   ]
@@ -277,8 +275,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const calendar = useCalendar();
   const mentionEvents = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const mcpStatus = useAssistantMcpStatus();
-  const codexModels = useCodexModels(provider === "codex").data;
-  const model = selectedModel(settings, codexModels, provider, undefined, useClaudeModels().data);
+  const model = useAssistantModel(settings);
 
   const history = useAssistantHistory(initialHistory, demo);
   const { messages, setMessages } = history;
@@ -608,7 +605,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const subtitle = enabled
     ? [
         messages.length ? history.chat.title : null,
-        `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
+        `${PROVIDER_LABEL[provider]} · ${modelSummary(model)}`,
         demo ? "Sample data" : null,
         providerUsesMcp(provider) && mcpServers.data?.length
           ? `MCP: ${mcpServers.data.map((server) => server.name).join(", ")}`
@@ -702,6 +699,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 disabled={history.switching}
                 usage={usage}
                 demo={demo}
+                lastReply={lastReplyLabel(messages)}
               />
             </LicenseGate>
           </div>

@@ -406,6 +406,8 @@ export interface AssistantModelInfo {
   fast: boolean;
   effort: string | null;
   contextWindow: number | null;
+  /** How the reply's effort is described, e.g. "Max effort requested" or "Claude Code's effort". */
+  effortLabel?: string | null;
 }
 
 /** read-only: never propose changes · ask: propose, user confirms · auto: add proposals directly. */

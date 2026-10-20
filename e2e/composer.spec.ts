@@ -55,11 +55,15 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
       "Claude Code picks its default model when it runs. Choose a model to set effort.",
     );
     await expect(panel.getByRole("slider")).toHaveCount(0);
+    await expect(panel).toContainText("Next request: Claude Code default");
+    // No reply has run in this chat, so the panel offers no evidence beside the setting.
+    await expect(panel).not.toContainText("Last reply:");
     await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
     await expect(demo.page.getByRole("button", { name: "Change model: Opus" })).toBeFocused();
     await demo.page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
     await chip.click();
+    await expect(panel).toContainText("Next request: Opus · Claude Code's effort");
     const slider = panel.getByRole("slider", { name: "Effort" });
     await expect(slider).toBeFocused();
     await expect(slider).toHaveAttribute("aria-valuetext", "Default");
@@ -70,6 +74,7 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     await slider.press("ArrowRight");
     await expect(slider).toHaveAttribute("aria-valuetext", "Extra High");
     await expect(panel.getByText("Extra High", { exact: true })).toBeVisible();
+    await expect(panel).toContainText("Next request: Opus Extra High");
     await expect.poll(() => assistantEffort(demo.page)).toEqual({ claude: "xhigh" });
     await slider.press("End");
     await slider.press("ArrowRight");
@@ -105,7 +110,8 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
     await demo.page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
     // Leaving Opus turned paid Fast mode off, as choosing a model in Settings does.
-    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Default effort");
+    // With no level of its own, the Assistant runs at Claude Code's effort setting.
+    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Claude Code's effort");
     await expect(chip).not.toContainText("Select effort");
 
     const settings = await openSettingsTab(demo.app, demo.page, "AI");

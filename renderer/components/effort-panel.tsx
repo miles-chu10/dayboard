@@ -31,6 +31,10 @@ export interface EffortPanelProps {
   ultraNote: string | null;
   /** Items of the provider and model menu that the model line opens. */
   modelMenu: ReactNode;
+  /** The model, effort and Fast mode the next request uses. */
+  nextRequest: string;
+  /** What the chat's last reply recorded; null before any reply. */
+  lastReply: string | null;
 }
 
 /** The Codex-style model and effort panel above the composer's model chip. */
@@ -43,6 +47,8 @@ export function EffortPanel({
   fast,
   ultraNote,
   modelMenu,
+  nextRequest,
+  lastReply,
 }: EffortPanelProps) {
   // With an unknown default the thumb rests on the middle stop, and a press there must still count.
   const movedRef = useRef(false);
@@ -156,6 +162,16 @@ export function EffortPanel({
           {ULTRA_WARNING}
         </Text>
       ) : null}
+      <div className="flex flex-col gap-0.5 border-t border-separator pt-2">
+        <Text variant="small" color="secondary">
+          Next request: {nextRequest}
+        </Text>
+        {lastReply ? (
+          <Text variant="small" color="tertiary">
+            Last reply: {lastReply}
+          </Text>
+        ) : null}
+      </div>
     </div>
   );
 }

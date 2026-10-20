@@ -207,6 +207,45 @@ test("Ultra availability comes from the Codex catalog, with the known models as 
   );
 });
 
+test("model labels pair the model with the effort DayBoard requests, or say who picks it", () => {
+  const part = (provider, model, level, catalog) =>
+    effort.effortPart(provider, effort.effortOptions(provider, model, catalog), level);
+  // A level DayBoard sends, named as the panel and Settings name it.
+  assert.deepEqual(part("claude", "opus", "max"), { text: "Max", level: true });
+  assert.equal(effort.withEffort("Opus 5.5", part("claude", "opus", "max")), "Opus 5.5 Max");
+  assert.equal(
+    effort.withEffort("GPT-6 Astra", part("codex", "gpt-6-astra", "xhigh", codexCatalog)),
+    "GPT-6 Astra Extra High",
+  );
+  assert.equal(effort.effortPhrase(part("claude", "opus", "xhigh")), "Extra High effort");
+  // Claude Code applies its own setting whenever DayBoard sends no level, whatever the alias.
+  for (const alias of ["opus", "haiku", "default"])
+    assert.equal(
+      effort.withEffort("Opus 5.5", part("claude", alias, "")),
+      "Opus 5.5 · Claude Code's effort",
+      alias,
+    );
+  // An API model with levels but none chosen runs at its own default, which DayBoard can't name.
+  assert.equal(
+    effort.withEffort("GPT-6 Astra", part("openai", "gpt-6-astra", "")),
+    "GPT-6 Astra · Default effort",
+  );
+  // Routes without an effort control add nothing rather than a guessed level.
+  for (const [provider, model] of [
+    ["gemini", ""],
+    ["muse", ""],
+    ["openai", "gpt-5.5"],
+    ["codex", "gone"],
+  ])
+    assert.equal(part(provider, model, "", codexCatalog), null, provider);
+  assert.equal(effort.withEffort("Gemini 3 Pro", null), "Gemini 3 Pro");
+  // A reply says the level was requested: no route reports the level it ran at.
+  assert.equal(effort.requestedEffort(part("claude", "opus", "max")), "Max effort requested");
+  assert.equal(effort.requestedEffort(part("claude", "opus", "")), "Claude Code's effort");
+  assert.equal(effort.requestedEffort(part("openai", "gpt-6-astra", "")), "Default effort");
+  assert.equal(effort.requestedEffort(null), null);
+});
+
 test("labels, the picker selection and /effort arguments", () => {
   assert.deepEqual(
     ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "turbo"].map(
@@ -514,6 +553,7 @@ async function apiRun(provider, model, assistantEffort) {
   });
   const original = globalThis.fetch;
   const requests = [];
+  const chunks = [];
   globalThis.fetch = async (url, init) => {
     // Model listings are GETs; every generation request is a POST.
     if (init?.method !== "POST") return globalThis.Response.json({ data: [] });
@@ -528,10 +568,10 @@ async function apiRun(provider, model, assistantEffort) {
         messages: [{ role: "user", content: "hello" }],
         snapshot: "fresh snapshot",
       },
-      () => {},
+      (chunk) => chunks.push(chunk),
       new globalThis.AbortController().signal,
     );
-    return { value, requests };
+    return { value, requests, chunks };
   } finally {
     globalThis.fetch = original;
   }
@@ -656,12 +696,15 @@ test("Claude Code's default takes the name of the model a reply reported, and on
     JSON.stringify({ fastMode: false }),
   ]);
 
-  // Explicit override: the chosen alias keeps its own name and arguments.
+  // Explicit override: the request keeps the alias's own name and arguments, and a reply that
+  // reports its model is named after it.
   const opus = aiSettings({ claudeModel: "opus", claudeEffort: "max" });
   modelOptions.rememberClaudeModel("opus", "claude-opus-5-5");
   assert.equal(describe(opus).name, "Claude Opus");
   assert.equal(describe(opus).id, null);
-  assert.equal(modelOptions.claudeDisplayName("opus", "claude-opus-5-5"), "Claude Opus");
+  assert.equal(modelOptions.claudeDisplayName("opus", "claude-opus-5-5"), "Claude Opus 5.5");
+  assert.equal(modelOptions.claudeDisplayName("opus", "gateway-model-7"), "Claude Opus");
+  assert.equal(modelOptions.claudeDisplayName("opus", null), "Claude Opus");
   assert.deepEqual(modelOptions.claudeModelArgs(opus).slice(0, 4), [
     "--model",
     "opus",
@@ -708,4 +751,75 @@ test("an Assistant reply through Claude Code's default names the model it report
     nextChunks.filter((chunk) => chunk.type === "meta").at(-1).model.name,
     "Claude Sonnet 5.5",
   );
+});
+
+async function replyEfforts(overrides, codexModels = [], reported) {
+  fixture(overrides, codexModels);
+  const chunks = [];
+  await assistant.runAssistant(
+    { system: "stable policy", messages: [{ role: "user", content: "hello" }] },
+    (chunk) => chunks.push(chunk),
+    new globalThis.AbortController().signal,
+  );
+  if (reported) globalThis.__effortFixture.cli[0].onModel(reported);
+  return chunks.filter((chunk) => chunk.type === "meta").map((chunk) => chunk.model);
+}
+
+test("a reply records the effort its request carried, or who picked it", async () => {
+  // Explicit override on an alias: the level sent, kept when the reply reports its model.
+  const opus = await replyEfforts(
+    { claudeModel: "opus", claudeEffort: "low", assistantEffort: { claude: "max" } },
+    [],
+    "claude-opus-5-5",
+  );
+  assert.deepEqual(
+    opus.map((model) => [model.name, model.effortLabel]),
+    [
+      ["Claude Opus", "Max effort requested"],
+      ["Claude Opus 5.5", "Max effort requested"],
+    ],
+  );
+  // No Assistant level: Claude Code's own setting applies, not the features' saved effort.
+  const unset = await replyEfforts({ claudeModel: "opus", claudeEffort: "max" });
+  assert.equal(unset[0].effortLabel, "Claude Code's effort");
+  // Claude Code's default and Haiku take no level from DayBoard, so the CLI picks it.
+  for (const claudeModel of ["default", "haiku"]) {
+    const [model] = await replyEfforts({ claudeModel, assistantEffort: { claude: "high" } });
+    assert.equal(model.effortLabel, "Claude Code's effort", claudeModel);
+  }
+
+  // Codex: the catalog default is sent when none is chosen, and a level it lacks falls back.
+  const codexDefault = await replyEfforts({ provider: "codex" }, codexCatalog);
+  assert.equal(codexDefault[0].name, "GPT-6 Astra");
+  assert.equal(codexDefault[0].effortLabel, "Medium effort requested");
+  const ultra = await replyEfforts(
+    { provider: "codex", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(ultra[0].effortLabel, "Ultra effort requested");
+  const luna = await replyEfforts(
+    { provider: "codex", codexModel: "gpt-6-luna", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(luna[0].effortLabel, "High effort requested");
+  const gone = await replyEfforts({ provider: "codex", codexModel: "gone" }, codexCatalog);
+  assert.equal(gone[0].effortLabel, null);
+  const [gemini] = await replyEfforts({ provider: "gemini" });
+  assert.equal(gemini.effortLabel, null);
+});
+
+test("an API reply records the effort it sent, or the model's own default", async () => {
+  const labels = ({ chunks }) =>
+    chunks.filter((chunk) => chunk.type === "meta").map((chunk) => chunk.model.effortLabel);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", { openai: "high" })), [
+    "High effort requested",
+  ]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", {})), ["Default effort"]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", { openai: "none" })), [
+    "Default effort",
+  ]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-5.5", { openai: "high" })), [null]);
+  assert.deepEqual(labels(await apiRun("anthropic", "claude-opus-5-5", { anthropic: "xhigh" })), [
+    "Extra High effort requested",
+  ]);
 });

@@ -5,8 +5,11 @@ import type { AppSettings, CodexModelInfo } from "@main/shared-types";
 import { claudeModelName } from "../../shared/claude-model-name";
 import {
   applyModelChoice,
+  assistantEffortPart,
   codexModel,
+  lastReplyLabel,
   modelChoices,
+  modelSummary,
   savedModelEffort,
   type ModelLists,
 } from "./model-choices";
@@ -277,10 +280,17 @@ test("Claude Code's default is named after the model a reply reported, and only 
   assert.equal(chosen.claudeModel, "default");
   assert.equal(chosen.claudeEffort, "default");
 
-  // Explicit override: the chosen alias keeps its own name whatever the default reported.
+  // Explicit override: an alias is named only after what a reply reported for that alias.
   const opus = settings({ claudeModel: "opus" });
   assert.equal(label(opus, { default: "claude-sonnet-4-5" }), "Opus");
-  assert.equal(label(opus, { opus: "claude-opus-5-5" }), "Opus");
+  assert.deepEqual(
+    modelChoices("claude", opus, { claude: { opus: "claude-opus-5-5" } }).find(
+      (choice) => choice.value === "opus",
+    ),
+    { value: "opus", label: "Opus 5.5", sublabel: "The Opus alias, as of its last reply" },
+  );
+  // An alias whose report can't be read keeps its own name rather than the raw ID.
+  assert.equal(label(opus, { opus: "gateway-model-7" }), "Opus");
 
   // Unavailable metadata: no report for the default keeps its generic name.
   const unreported: (Record<string, string> | undefined)[] = [
@@ -291,4 +301,62 @@ test("Claude Code's default is named after the model a reply reported, and only 
   for (const claude of unreported) assert.equal(label(byDefault, claude), "Claude Code default");
   // An ID of another shape is shown exactly as reported rather than renamed.
   assert.equal(label(byDefault, { default: "gateway-model-7" }), "gateway-model-7");
+});
+
+test("the next request names its model with the composer's effort, apart from the last reply", () => {
+  const next = (
+    ai: AppSettings["ai"],
+    provider: Parameters<typeof assistantEffortPart>[1],
+    modelId: string,
+    claude?: Record<string, string>,
+    fast = false,
+  ) =>
+    modelSummary({
+      label: modelId,
+      fast,
+      effort: assistantEffortPart(ai, provider, modelId, codex, claude),
+    });
+  // Explicit override: the level the composer saved for this route.
+  const max = settings({ claudeEffort: "low", assistantEffort: { claude: "max" } });
+  assert.equal(next(max, "claude", "opus"), "opus Max");
+  assert.equal(next(max, "claude", "opus", undefined, true), "opus Max · Fast");
+  // Configured default: no Assistant level leaves the effort to Claude Code's own setting.
+  assert.equal(
+    next(settings({ claudeEffort: "max" }), "claude", "opus"),
+    "opus · Claude Code's effort",
+  );
+  // Claude Code's default names nothing extra until a reply reports its model.
+  assert.equal(next(max, "claude", "default"), "default");
+  assert.equal(
+    next(max, "claude", "default", { default: "claude-opus-5-5" }),
+    "default · Claude Code's effort",
+  );
+  // Codex: the catalog default it sends, or a saved level the model lists.
+  assert.equal(next(settings(), "codex", "gpt-6-astra"), "gpt-6-astra Medium");
+  const ultra = settings({ assistantEffort: { codex: "ultra" } });
+  assert.equal(next(ultra, "codex", "gpt-6-astra"), "gpt-6-astra Ultra");
+  assert.equal(next(ultra, "codex", "gpt-6-luna"), "gpt-6-luna Medium");
+  assert.equal(next(ultra, "codex", "gone"), "gone");
+  // API routes: the saved level, else the model's own default; no effort concept adds nothing.
+  assert.equal(
+    next(settings({ assistantEffort: { openai: "high" } }), "openai", "gpt-6-astra"),
+    "gpt-6-astra High",
+  );
+  assert.equal(next(settings(), "openai", "gpt-6-astra"), "gpt-6-astra · Default effort");
+  assert.equal(next(settings(), "gemini", "gemini-3-pro"), "gemini-3-pro");
+
+  // The last reply's evidence is what that reply recorded, never the next request's setting.
+  const reply = (modelLabel?: string) => ({ role: "assistant", modelLabel });
+  const user = { role: "user" };
+  assert.equal(lastReplyLabel([]), null);
+  assert.equal(lastReplyLabel([user]), null);
+  assert.equal(
+    lastReplyLabel([reply("Claude Opus 5.5 · Max effort requested"), user]),
+    "Claude Opus 5.5 · Max effort requested",
+  );
+  // A newer reply that recorded nothing (it failed first) hides the older evidence.
+  assert.equal(
+    lastReplyLabel([reply("Claude Opus 5.5 · Max effort requested"), user, reply()]),
+    null,
+  );
 });

@@ -435,7 +435,7 @@ test("demo Assistant replies locally without CLI, provider API, or MCP access", 
         ],
         [
           "./assistant-effort.js",
-          `export const resolveAssistantEffort = () => { globalThis.__demoLiveCalls += 1; }; export const withAssistantEffort = resolveAssistantEffort; export const effortProviderOptions = resolveAssistantEffort; export const withProviderOptions = resolveAssistantEffort;`,
+          `export const resolveAssistantEffort = () => { globalThis.__demoLiveCalls += 1; }; export const withAssistantEffort = resolveAssistantEffort; export const effortProviderOptions = resolveAssistantEffort; export const withProviderOptions = resolveAssistantEffort; export const assistantEffortLabel = resolveAssistantEffort;`,
         ],
       ]);
       api.onResolve({ filter: /.*/ }, (args) =>

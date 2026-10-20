@@ -25,6 +25,7 @@ import {
   rememberClaudeModel,
 } from "./model-options.js";
 import {
+  assistantEffortLabel,
   effortProviderOptions,
   resolveAssistantEffort,
   withAssistantEffort,
@@ -102,12 +103,24 @@ export async function runAssistant(
     : undefined;
   // The composer's effort, checked against the model that will run; "" is the model default.
   const effort = resolveAssistantEffort(settings.ai, provider, codexModels, apiModel?.id);
-  const model = describeModel(
+  const described = describeModel(
     withAssistantEffort(settings.ai, provider, effort),
     codexModels,
     provider,
     apiModel,
   );
+  // API routes leave effort out of the model note to keep the cached prefix, so their level
+  // comes from `effort`; the CLI routes' note carries the level they send.
+  const model = {
+    ...described,
+    effortLabel: assistantEffortLabel(
+      settings.ai,
+      provider,
+      codexModels,
+      apiModel?.id,
+      isApiProvider(provider) ? effort : (described.effort ?? ""),
+    ),
+  };
   send({ type: "meta", model });
   const attached = params.attachments?.length ? await attachmentContext(params.attachments) : "";
   if (attached) {

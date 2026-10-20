@@ -83,12 +83,15 @@ export function onClaudeModelResolved(listener: (models: Record<string, string>)
   claudeResolvedListener = listener;
 }
 
-/** Claude Code's default is named after the model it last ran as, once a reply has reported it. */
+/**
+ * A Claude Code alias named after the model a reply reported, such as "Claude Opus 5.5". Without
+ * a report, or with an ID it can't read, an alias keeps its own name; the default then shows the
+ * ID as reported.
+ */
 export function claudeDisplayName(alias: string, id: string | null): string {
-  if (alias === "default" && id) {
-    const name = claudeModelName(id);
-    return name ? `Claude ${name}` : id;
-  }
+  const name = id ? claudeModelName(id) : null;
+  if (name) return `Claude ${name}`;
+  if (alias === "default" && id) return id;
   return CLAUDE_NAMES[alias] ?? alias;
 }
 

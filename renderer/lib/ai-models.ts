@@ -7,9 +7,11 @@ import type {
   ProviderAvailability,
 } from "@main/shared-types";
 
+import type { EffortPart } from "../../shared/ai-effort";
 import { invoke } from "./ipc";
 import {
   DEFAULT_MODEL_LABEL,
+  assistantEffortPart,
   claudeChoices,
   claudeSupportsFast,
   codexModel,
@@ -44,14 +46,47 @@ export function useProviderAvailability() {
   });
 }
 
+/**
+ * The Assistant's next request for the sidebar and the Assistant's header: the composer's model
+ * and effort, using the API model list the composer fetched. Reading that list here never starts
+ * a request of its own; until the composer lists it, an unchosen API model stays "Newest model".
+ */
+export function useAssistantModel(settings: AppSettings | undefined): SelectedModel {
+  const provider = assistantProvider(settings);
+  const codexModels = useCodexModels(provider === "codex").data;
+  const claudeModels = useClaudeModels().data;
+  const apiModels = useQuery({
+    queryKey: ["api-models", provider],
+    queryFn: () => invoke<ApiModelInfo[]>("ai:apiModels", { provider }),
+    enabled: false,
+  }).data;
+  return selectedModel(
+    settings,
+    codexModels,
+    provider,
+    isApiKeyProvider(provider) ? apiModels : undefined,
+    claudeModels,
+  );
+}
+
 /** The provider the Assistant uses: its own pick, or the default. */
 export function assistantProvider(settings: AppSettings | undefined): AIProvider {
   return settings?.ai.assistantProvider || settings?.ai.provider || "claude";
 }
 
+export interface SelectedModel {
+  label: string;
+  fast: boolean;
+  contextWindow: number | null;
+  /** Keys the effort table: the Claude Code alias, the Codex slug, or the API model ID. */
+  id: string;
+  /** The Assistant's effort for the next request; null when the route has none to name. */
+  effort: EffortPart | null;
+}
+
 /**
- * The model the composer should show before a reply reports the exact ID. `id` keys the effort
- * table: the Claude Code alias, the Codex slug, or the API model ID; empty when unknown.
+ * The model and effort the Assistant's next request uses. A Claude Code alias is named after the
+ * model its last reply reported; the effort is the composer's, checked against this model.
  */
 export function selectedModel(
   settings: AppSettings | undefined,
@@ -59,7 +94,22 @@ export function selectedModel(
   provider: AIProvider = settings?.ai.provider ?? "claude",
   apiModels?: ApiModelInfo[],
   claudeModels?: Record<string, string>,
-): { label: string; fast: boolean; contextWindow: number | null; id: string } {
+): SelectedModel {
+  const model = modelOnly(settings, codexModels, provider, apiModels, claudeModels);
+  if (!settings) return { ...model, effort: null };
+  return {
+    ...model,
+    effort: assistantEffortPart(settings.ai, provider, model.id, codexModels, claudeModels),
+  };
+}
+
+function modelOnly(
+  settings: AppSettings | undefined,
+  codexModels: CodexModelInfo[] | undefined,
+  provider: AIProvider,
+  apiModels?: ApiModelInfo[],
+  claudeModels?: Record<string, string>,
+): Omit<SelectedModel, "effort"> {
   const ai = settings?.ai;
   if (!ai) return { label: "Choose a model", fast: false, contextWindow: null, id: "" };
   if (provider === "claude") {

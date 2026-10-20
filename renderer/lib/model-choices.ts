@@ -5,7 +5,14 @@ import type {
   ClaudeModel,
   CodexModelInfo,
 } from "@main/shared-types";
-import { effortOptions, supportedEffort } from "../../shared/ai-effort";
+import {
+  effortOptions,
+  effortPart,
+  effortSelection,
+  supportedEffort,
+  withEffort,
+  type EffortPart,
+} from "../../shared/ai-effort";
 import { claudeModelName } from "../../shared/claude-model-name";
 
 /**
@@ -56,21 +63,25 @@ export const CLAUDE_MODEL_OPTIONS: {
 ];
 
 /**
- * Claude Code's choices. Its default is named after the model a reply last reported; with no
- * report it keeps its generic name rather than a guessed model.
+ * Claude Code's choices, each named after the model a reply last reported for that alias, such
+ * as "Opus 5.5". With no report an alias keeps its own name rather than a guessed model; an ID
+ * that can't be read names the default as reported and leaves the other aliases as they are.
  */
 export function claudeChoices(resolved: Record<string, string> | undefined): ModelChoice[] {
-  const id = resolved?.default;
-  if (!id) return CLAUDE_MODEL_OPTIONS;
-  return CLAUDE_MODEL_OPTIONS.map((option) =>
-    option.value === "default"
-      ? {
-          ...option,
-          label: claudeModelName(id) ?? id,
-          sublabel: "Claude Code's default, as of its last reply",
-        }
-      : option,
-  );
+  return CLAUDE_MODEL_OPTIONS.map((option) => {
+    const id = resolved?.[option.value];
+    if (!id) return option;
+    const name = claudeModelName(id) ?? (option.value === "default" ? id : null);
+    if (!name) return option;
+    return {
+      ...option,
+      label: name,
+      sublabel:
+        option.value === "default"
+          ? "Claude Code's default, as of its last reply"
+          : `The ${option.label} alias, as of its last reply`,
+    };
+  });
 }
 
 /** Muse Code models; empty follows the CLI's default. */
@@ -236,4 +247,40 @@ export function applyModelChoice(
   if (kept) efforts[provider] = kept;
   else delete efforts[provider];
   ai.assistantEffort = efforts;
+}
+
+/**
+ * The effort the Assistant's next request names beside `modelId`: the composer's level checked
+ * against that model, else who picks it.
+ */
+export function assistantEffortPart(
+  ai: AppSettings["ai"],
+  provider: AIProvider,
+  modelId: string,
+  codexModels: CodexModelInfo[] | undefined,
+  claudeModels: Record<string, string> | undefined,
+): EffortPart | null {
+  // "Claude Code default" before any report already leaves both model and effort to Claude Code.
+  if (provider === "claude" && modelId === "default" && !claudeModels?.default) return null;
+  const options = effortOptions(provider, modelId, codexModels);
+  const { level } = effortSelection(options, ai.assistantEffort?.[provider]);
+  return effortPart(provider, options, level);
+}
+
+/** The next request's model, effort and Fast mode, e.g. "Opus 5.5 Max · Fast". */
+export function modelSummary(model: {
+  label: string;
+  effort: EffortPart | null;
+  fast: boolean;
+}): string {
+  return `${withEffort(model.label, model.effort)}${model.fast ? " · Fast" : ""}`;
+}
+
+/** What the chat's latest reply recorded about its model and effort; null before it reports. */
+export function lastReplyLabel(
+  messages: readonly { role: string; modelLabel?: string }[],
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index--)
+    if (messages[index].role === "assistant") return messages[index].modelLabel || null;
+  return null;
 }
