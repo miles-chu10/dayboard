@@ -2,13 +2,14 @@ import { Button, Callout, Markdown, Status, Text, cn } from "@renderer/ui";
 import { Sparkles, Video } from "lucide-react";
 import type { CalendarEventItem } from "@main/shared-types";
 
-import { pickUpNext, startLabel, type UpNext } from "@shared/meetings";
+import { justEnded, pickUpNext, startLabel, type UpNext } from "@shared/meetings";
 import { eventTimeRange, todayISO } from "../lib/dates";
 import { openExternal } from "../lib/ipc";
 import { useMeetingPrep } from "../lib/meeting-prep";
 import { useCalendarRange } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { useAgendaClock } from "../lib/use-agenda-clock";
+import { MeetingNotes } from "./meeting-notes";
 
 function UpNextMeeting({
   upNext,
@@ -85,12 +86,31 @@ export function MeetingCard({ surface }: { surface: "agenda" | "menubar" }) {
   if (!settings?.system.meetings.upNext || !sourceOn(settings, "calendar")) return null;
   const events = calendar.data?.state === "ok" ? calendar.data.items : [];
   const upNext = pickUpNext(events, now);
-  if (!upNext) return null;
+  const ended = settings.system.meetings.notesImport ? justEnded(events, now) : null;
+  if (!upNext && !ended) return null;
   return (
-    <UpNextMeeting
-      key={`${upNext.event.calendarId}/${upNext.event.id}`}
-      upNext={upNext}
-      compact={surface === "menubar"}
-    />
+    <>
+      {upNext ? (
+        <UpNextMeeting
+          key={`${upNext.event.calendarId}/${upNext.event.id}`}
+          upNext={upNext}
+          compact={surface === "menubar"}
+        />
+      ) : null}
+      {ended ? (
+        <section
+          aria-label="Meeting that just ended"
+          className="flex flex-col gap-1.5 rounded-lg border border-separator px-3 py-2.5"
+        >
+          <Text as="p" variant="small" color="secondary">
+            Just ended · {eventTimeRange(ended)}
+          </Text>
+          <Text as="p" variant="regular" className="font-semibold" truncate>
+            {ended.title}
+          </Text>
+          <MeetingNotes event={ended} compact={surface === "menubar"} />
+        </section>
+      ) : null}
+    </>
   );
 }

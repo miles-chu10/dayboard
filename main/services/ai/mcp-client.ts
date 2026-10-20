@@ -85,7 +85,7 @@ async function connect(server: McpServerConfig): Promise<McpConnection> {
   return { client, close };
 }
 
-function formatToolResult(result: unknown): string {
+function toolText(result: unknown): { text: string; isError: boolean } {
   const record = (typeof result === "object" && result !== null ? result : {}) as {
     content?: unknown;
     isError?: unknown;
@@ -104,8 +104,41 @@ function formatToolResult(result: unknown): string {
     : [];
   if (!parts.length && record.structuredContent !== undefined)
     parts.push(JSON.stringify(record.structuredContent));
-  const text = parts.join("\n").slice(0, MAX_TOOL_OUTPUT);
-  return record.isError ? `Tool error: ${text}` : text || "(no output)";
+  return { text: parts.join("\n"), isError: Boolean(record.isError) };
+}
+
+function formatToolResult(result: unknown): string {
+  const { text: full, isError } = toolText(result);
+  const text = full.slice(0, MAX_TOOL_OUTPUT);
+  return isError ? `Tool error: ${text}` : text || "(no output)";
+}
+
+/**
+ * Calls one tool on one server outside the Assistant, keeping the tool's error flag and any
+ * truncation separate from its text (meeting notes must never store an error as content).
+ */
+export async function callMcpTool(
+  server: McpServerConfig,
+  tool: string,
+  args: Record<string, unknown>,
+  options: { maxOutput: number },
+): Promise<{ text: string; isError: boolean; truncated: boolean }> {
+  const connection = await connect(server);
+  try {
+    const result = await withTimeout(
+      connection.client.callTool({ name: tool, arguments: args }),
+      TOOL_TIMEOUT_MS,
+      `${server.name} took too long to respond.`,
+    );
+    const { text, isError } = toolText(result);
+    return {
+      text: text.slice(0, options.maxOutput),
+      isError,
+      truncated: text.length > options.maxOutput,
+    };
+  } finally {
+    await connection.close();
+  }
 }
 
 export async function openMcpSession(servers: McpServerConfig[]): Promise<McpSession> {

@@ -27,6 +27,7 @@ import {
 } from "../services/ai/api-keys.js";
 import { listApiModels } from "../services/ai/api-providers.js";
 import { testMcpServer } from "../services/ai/mcp-client.js";
+import { mcpServerTested } from "../services/ai/mcp-test-events.js";
 import {
   checkAssistantMcpConnection,
   getActiveAssistantMcpServerConfig,
@@ -193,7 +194,10 @@ export function registerAIHandlers(): void {
   ipcMain.handle("mcp:test", async (_event, payload: unknown) => {
     assertNotDemo("mcp:test");
     try {
-      return await testMcpServer(normalizeMcpServer(payload));
+      const server = normalizeMcpServer(payload);
+      const result = await testMcpServer(server);
+      if (result.ok) mcpServerTested(server, result.tools);
+      return result;
     } catch (error) {
       return {
         ok: false,

@@ -192,6 +192,8 @@ export interface AssistantPromptInput {
   userName?: string;
   canCreate: { task: boolean; reminder: boolean; event: boolean };
   permission?: AssistantPermission;
+  /** Imported meeting notes by `calendarId/eventId`, appended to that event's line. */
+  meetingNotes?: Record<string, string>;
 }
 
 export function buildAssistantSystem(
@@ -230,7 +232,14 @@ Now: ${nowContext()}
 User: ${input.userName ? `${oneLine(input.userName)} (${userEmail ?? "no email"})` : (userEmail ?? "unknown")}
 
 ## Calendar (upcoming)
-${sectionLines(input.calendar, (events) => events.slice(0, 60).map(eventLine))}
+${sectionLines(input.calendar, (events) =>
+  events.slice(0, 60).map((event) => {
+    const notes = input.meetingNotes?.[`${event.calendarId}/${event.id}`];
+    return notes
+      ? `${eventLine(event)} | notes: ${oneLine(notes).slice(0, 1_500)}`
+      : eventLine(event);
+  }),
+)}
 
 ## Open tasks and reminders
 ${input.todosAvailable ? (openTodos.length ? openTodos.map((todo) => todoLine(todo)).join("\n") : "(none)") : "(not connected)"}

@@ -181,6 +181,43 @@ function useNotificationStatus() {
   });
 }
 
+function GranolaStatus() {
+  const queryClient = useQueryClient();
+  const [checking, setChecking] = useState(false);
+  const status = useQuery({
+    queryKey: ["meetings", "notes-status"],
+    queryFn: () =>
+      invoke<{ provider: { id: string; name: string } | null }>("meetings:notesStatus"),
+  });
+  const provider = status.data?.provider;
+  return (
+    <Field
+      label="Granola server"
+      description={
+        provider
+          ? `Using ${provider.name}.`
+          : "None found yet. Add Granola in Settings → MCP and press Test, or check here."
+      }
+    >
+      <Button
+        size="small"
+        disabled={checking}
+        onClick={() => {
+          setChecking(true);
+          void invoke("meetings:checkProviders")
+            .catch(() => undefined)
+            .finally(() => {
+              setChecking(false);
+              void queryClient.invalidateQueries({ queryKey: ["meetings", "notes-status"] });
+            });
+        }}
+      >
+        {checking ? "Checking…" : "Check MCP Servers"}
+      </Button>
+    </Field>
+  );
+}
+
 export function MeetingsSettings() {
   const { settings, edit } = useSettingsEditor();
   const notifications = useNotificationStatus().data;
@@ -254,6 +291,7 @@ export function MeetingsSettings() {
           }
         />
       </Field>
+      {meetings.notesImport ? <GranolaStatus /> : null}
     </FieldSet>
   );
 }
