@@ -179,6 +179,10 @@ async function loadHarness(state) {
   const url = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
   const module = await import(url);
   module.registerProductivityHandlers();
+  state.accountInvalidations = 0;
+  module.onAccountsChanged(() => {
+    state.accountInvalidations++;
+  });
   return async (channel, payload) => {
     const handler = state.handlers.get(channel);
     assert.ok(handler, `missing handler ${channel}`);
@@ -416,7 +420,7 @@ test("account replacement holds write and scope admission through status read an
   });
 });
 
-test("a failed account change releases admission without claiming an account notification", async () => {
+test("a failed account change invalidates stale state without inventing account status", async () => {
   await withFixture(async (state) => {
     const invoke = await loadHarness(state);
     const previousScope = await invoke("agenda:getScope");
@@ -425,9 +429,31 @@ test("a failed account change releases admission without claiming an account not
     };
     await assert.rejects(invoke("google:connect"), /Connection cancelled/);
     assert.equal(await invoke("agenda:getScope"), previousScope);
-    assert.equal(
-      state.broadcasts.filter(({ channel }) => channel === "accounts:changed").length,
-      0,
+    assert.deepEqual(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed"),
+      [{ channel: "accounts:changed", payload: undefined }],
     );
+    assert.equal(state.accountInvalidations, 1);
+  });
+});
+
+test("a failed status read after account replacement still clears old state before admission resumes", async () => {
+  await withFixture(async (state) => {
+    const invoke = await loadHarness(state);
+    const previousScope = await invoke("agenda:getScope");
+    state.onConnect = () => {
+      state.email = "new-account@example.test";
+      state.beforeRemindersAccess = async () => {
+        throw new Error("Status unavailable");
+      };
+    };
+    await assert.rejects(invoke("google:connect"), /Status unavailable/);
+    assert.deepEqual(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed"),
+      [{ channel: "accounts:changed", payload: undefined }],
+    );
+    assert.equal(state.accountInvalidations, 1);
+    assert.notEqual(await invoke("agenda:getScope"), previousScope);
+    await invoke("tasks:create", { title: "New account capture" });
   });
 });
