@@ -97,3 +97,19 @@ test("Dock activation shows the main window while a panel is open", async () => 
     await demo.close();
   }
 });
+
+test("submitting in demo mode shows the demo refusal in the panel", async () => {
+  const demo = await launchDemo();
+  try {
+    const panel = await openQuickCapture(demo.app);
+    const input = panel.getByRole("textbox", { name: "Quick Capture" });
+    await input.fill("Call dentist Thursday 3pm");
+    await input.press("Enter");
+    await expect(panel.getByText("Couldn’t add “Call dentist Thursday 3pm”.")).toBeVisible();
+    await expect(panel.getByText(/turned off in demo mode/)).toBeVisible();
+    await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(true);
+    await expect(input).toHaveValue("");
+  } finally {
+    await demo.close();
+  }
+});
