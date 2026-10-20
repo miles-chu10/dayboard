@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 import { Notification, logger } from "@glaze/core/backend";
 
 import { describeCapture, type ItemDraft } from "../../shared/capture.js";
-import { getAccountsStatus, requireAgendaScope } from "../handlers/productivity.js";
+import {
+  getAccountsStatus,
+  onAccountsChanged,
+  requireAgendaScope,
+} from "../handlers/productivity.js";
 import { ipcMain } from "../ipc.js";
 import { runCompletion } from "../services/ai/completion.js";
 import { createReminder, deleteReminder } from "../services/apple-reminders.js";
@@ -131,6 +135,11 @@ function submitInput(value: unknown): CaptureSubmit {
 }
 
 export function registerCaptureHandlers(): void {
+  onAccountsChanged(() => {
+    service.clear();
+    for (const notification of liveNotifications) notification.close();
+    liveNotifications.clear();
+  });
   ipcMain.handle("capture:submit", (_event, value: unknown) => service.submit(submitInput(value)));
   ipcMain.handle("capture:undo", (_event, value: unknown) => {
     const id = (value as { id?: unknown } | null)?.id;

@@ -42,6 +42,7 @@ export function DraftFields({
       </Field>
       <Field label="Title">
         <Input
+          aria-label="Title"
           className="w-64"
           autoFocus={autoFocusTitle}
           value={draft.title}
@@ -53,6 +54,7 @@ export function DraftFields({
         description={draft.kind === "event" && !draft.date ? "Events need a date." : undefined}
       >
         <Input
+          aria-label={draft.kind === "event" ? "Date" : "Due"}
           type="date"
           className="w-64"
           value={draft.date}
@@ -65,6 +67,7 @@ export function DraftFields({
           description={draft.kind === "event" ? "Leave empty for an all-day event." : undefined}
         >
           <Input
+            aria-label={draft.kind === "event" ? "Starts" : "Time"}
             type="time"
             className="w-64"
             value={draft.time}
@@ -75,6 +78,7 @@ export function DraftFields({
       {draft.kind === "event" && draft.time ? (
         <Field label="Ends" description="Defaults to one hour.">
           <Input
+            aria-label="Ends"
             type="time"
             className="w-64"
             value={draft.endTime}

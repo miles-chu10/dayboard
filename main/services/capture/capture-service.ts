@@ -78,6 +78,11 @@ export function createCaptureService(deps: CaptureDeps) {
   const records: CaptureRecord[] = [];
   const receipts = new Map<string, Receipt>();
   const undoing = new Map<string, Promise<CaptureRecord>>();
+  let generation = 0;
+
+  function assertCurrent(started: number): void {
+    if (started !== generation) throw new Error("Your account changed. Add the item again.");
+  }
 
   const snapshot = (record: CaptureRecord): CaptureRecord => ({ ...record });
   const recent = () => records.map(snapshot);
@@ -121,8 +126,10 @@ export function createCaptureService(deps: CaptureDeps) {
     const text = "text" in input && typeof input.text === "string" ? input.text.trim() : "";
     if ("text" in input && (!text || text.length > MAX_TEXT))
       throw new Error("Type what to add, in up to 1,000 characters.");
+    const started = generation;
     const scope = await deps.currentScope();
     const [settings, accounts] = await Promise.all([deps.getSettings(), deps.getAccounts()]);
+    assertCurrent(started);
     const available = availableKinds({
       googleConnected: accounts.google.connected,
       remindersAccess: accounts.reminders,
@@ -156,8 +163,10 @@ export function createCaptureService(deps: CaptureDeps) {
           buildCapturePrompt(text, available, deps.now()),
         );
       } catch (error) {
+        assertCurrent(started);
         return fail(record, message(error), { title: text });
       }
+      assertCurrent(started);
       const parsed = parseDraftStrict(output, available);
       if (!parsed.ok)
         return fail(record, `${parsed.reason} Check the details, then add it.`, {
@@ -168,8 +177,11 @@ export function createCaptureService(deps: CaptureDeps) {
     }
 
     try {
-      receipts.set(record.id, await create(draft.kind, scope, draft));
+      const receipt = await create(draft.kind, scope, draft);
+      assertCurrent(started);
+      receipts.set(record.id, receipt);
     } catch (error) {
+      assertCurrent(started);
       return fail(record, message(error), draft);
     }
     Object.assign(record, { state: "created", draft, canUndo: true, error: null });
@@ -179,6 +191,7 @@ export function createCaptureService(deps: CaptureDeps) {
   }
 
   async function performUndo(record: CaptureRecord): Promise<CaptureRecord> {
+    const started = generation;
     const receipt = receipts.get(record.id);
     if (!receipt || deps.now().getTime() > receipt.expires) {
       receipts.delete(record.id);
@@ -197,10 +210,12 @@ export function createCaptureService(deps: CaptureDeps) {
         await deps.guardedWrite(receipt.scope, () => deps.remove.event(receipt.ref));
       else await deps.guardedWrite(receipt.scope, () => deps.remove.reminder(receipt.ref));
     } catch (error) {
+      assertCurrent(started);
       record.error = message(error);
       changed();
       throw error;
     }
+    assertCurrent(started);
     Object.assign(record, { state: "undone", canUndo: false, error: null });
     changed();
     return snapshot(record);
@@ -219,5 +234,14 @@ export function createCaptureService(deps: CaptureDeps) {
     return run;
   }
 
-  return { submit, undo, recent };
+  /** An account change drops every record and receipt: they belong to the previous account. */
+  function clear(): void {
+    generation += 1;
+    undoing.clear();
+    records.length = 0;
+    receipts.clear();
+    changed();
+  }
+
+  return { submit, undo, recent, clear };
 }

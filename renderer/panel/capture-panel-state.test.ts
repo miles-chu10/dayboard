@@ -107,3 +107,14 @@ test("a rejected manual capture keeps every field for Edit", () => {
   });
   assert.deepEqual(edited.form, draft);
 });
+
+test("account reset removes old failures, recovered form and typed content", () => {
+  let state = reduceCapturePanel(initialCaptureState, { type: "typed", text: "Private draft" });
+  state = reduceCapturePanel(state, { type: "recordsChanged", records: [failedRecord] });
+  state = reduceCapturePanel(state, {
+    type: "editFailure",
+    key: failedRecord.id,
+    defaultKind: "task",
+  });
+  assert.deepEqual(reduceCapturePanel(state, { type: "accountChanged" }), initialCaptureState);
+});

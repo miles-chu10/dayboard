@@ -38,6 +38,7 @@ export function CapturePanel() {
   const container = useFitPanelHeight<HTMLDivElement>("capture");
   const input = useRef<HTMLInputElement>(null);
   const sequence = useRef(0);
+  const accountRevision = useRef(0);
   const settings = useSettings().data;
   const accounts = useAccounts().data;
   const [state, dispatch] = useReducer(reduceCapturePanel, initialCaptureState);
@@ -65,10 +66,28 @@ export function CapturePanel() {
       if (Array.isArray(records))
         dispatch({ type: "recordsChanged", records: records as CaptureRecordView[] });
     };
-    void invoke<unknown>("capture:recent").then(apply, () => undefined);
-    return window.glazeAPI.glaze.ipc.onNotification("capture:changed", (params) =>
-      apply((params as { records?: unknown } | null)?.records),
+    let revision = 0;
+    const stopAccounts = window.glazeAPI.glaze.ipc.onNotification("accounts:changed", () => {
+      revision += 1;
+      accountRevision.current += 1;
+      dispatch({ type: "accountChanged" });
+      setFormError(null);
+    });
+    const stopRecords = window.glazeAPI.glaze.ipc.onNotification("capture:changed", (params) => {
+      revision += 1;
+      apply((params as { records?: unknown } | null)?.records);
+    });
+    void invoke<unknown>("capture:recent").then(
+      (records) => {
+        if (revision === 0) apply(records);
+      },
+      () => undefined,
     );
+    return () => {
+      revision += 1;
+      stopAccounts();
+      stopRecords();
+    };
   }, []);
 
   useEffect(() => {
@@ -85,9 +104,11 @@ export function CapturePanel() {
   /** Hides first, then submits; a rejection before the pipeline (license, update) comes back here. */
   function send(payload: { text: string } | { draft: ItemDraft }, text: string) {
     const key = `local-${++sequence.current}`;
+    const started = accountRevision.current;
     dispatch({ type: "submitted" });
     void hidePanel("capture");
     void invoke("capture:submit", payload).catch((error: unknown) => {
+      if (started !== accountRevision.current) return;
       dispatch({
         type: "rejected",
         key,

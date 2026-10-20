@@ -6,13 +6,13 @@ import { loadTs } from "./helpers/load-ts.mjs";
 // (effort, the explicit Codex default) also reach Quick Capture. On the Glaze line it also opts in
 // to Glaze AI, which `ai:run` leaves to the app window. Everything but the wiring is stubbed;
 // prompt-cache.test.mjs covers what runCompletion sends.
-const fixture = { completions: [], deps: null };
+const fixture = { completions: [], deps: null, accountListeners: [], cleared: 0, closed: 0 };
 globalThis.__quickCaptureWiring = fixture;
 
 const STUBS = {
-  "@glaze/core/backend": `export class Notification { static isSupported() { return false; } }
+  "@glaze/core/backend": `export class Notification { static isSupported() { return true; } on() { return this; } show() {} close() { globalThis.__quickCaptureWiring.closed += 1; } }
 export const logger = { error() {}, warn() {} };`,
-  "productivity.js": `export const getAccountsStatus = async () => ({}); export const requireAgendaScope = async () => "scope";`,
+  "productivity.js": `export const getAccountsStatus = async () => ({}); export const requireAgendaScope = async () => "scope"; export const onAccountsChanged = (listener) => globalThis.__quickCaptureWiring.accountListeners.push(listener);`,
   "ipc.js": `export const ipcMain = { handle() {}, broadcast() {} };`,
   "completion.js": `export const runCompletion = async (input) => {
     globalThis.__quickCaptureWiring.completions.push(input);
@@ -21,7 +21,7 @@ export const logger = { error() {}, warn() {} };`,
   "apple-reminders.js": `export const createReminder = async () => ({}); export const deleteReminder = async () => {};`,
   "capture-service.js": `export const createCaptureService = (deps) => {
     globalThis.__quickCaptureWiring.deps = deps;
-    return { submit: async () => {}, undo: async () => {}, recent: () => [] };
+    return { submit: async () => {}, undo: async () => {}, recent: () => [], clear: () => { globalThis.__quickCaptureWiring.cleared += 1; } };
   };`,
   "demo-data.js": `export const isDemoMode = () => false;`,
   "google-api.js": `export const createEvent = async () => ({}); export const createTask = async () => ({}); export const deleteEvent = async () => {}; export const deleteTask = async () => {};`,
@@ -47,7 +47,7 @@ const stubPlugin = {
   },
 };
 
-await loadTs("main/system-panels/capture-handlers.ts", [stubPlugin]);
+const handlers = await loadTs("main/system-panels/capture-handlers.ts", [stubPlugin]);
 
 test("Quick Capture's AI parse runs through runCompletion, like ai:run", async () => {
   assert.ok(fixture.deps, "the capture service was created");
@@ -61,4 +61,16 @@ test("Quick Capture's AI parse runs through runCompletion, like ai:run", async (
   assert.equal(call.prompt, "Call dentist Thursday 3pm");
   assert.ok(call.signal instanceof globalThis.AbortSignal);
   assert.equal(call.allowGlaze, true);
+});
+
+test("an account change clears recent captures and closes previous-account notifications", () => {
+  handlers.registerCaptureHandlers();
+  assert.equal(fixture.accountListeners.length, 1);
+  fixture.deps.onCreated({
+    id: "old-account",
+    draft: { kind: "task", title: "Private task", notes: "", date: "", time: "", endTime: "" },
+  });
+  fixture.accountListeners[0]();
+  assert.equal(fixture.cleared, 1);
+  assert.equal(fixture.closed, 1);
 });

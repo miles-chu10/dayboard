@@ -81,6 +81,8 @@ export interface BridgeOptions {
   responses?: Record<string, unknown>;
   /** Channels that reject with this message. */
   reject?: Record<string, string>;
+  /** Channels held until a spec settles their next pending call. */
+  defer?: string[];
 }
 
 /** Stands in for the native preload: records every call and lets a spec push notifications. */
@@ -88,6 +90,10 @@ function installBridge(options: BridgeOptions) {
   type Listener = (payload: unknown) => void;
   const calls: { channel: string; args: unknown[] }[] = [];
   const listeners = new Map<string, Set<Listener>>();
+  const pending = new Map<
+    string,
+    { resolve: (value: unknown) => void; reject: (error: Error) => void }[]
+  >();
   let history = {
     scope: "e2e-scope",
     chats: [] as unknown[],
@@ -124,6 +130,12 @@ function installBridge(options: BridgeOptions) {
   };
   const respond = (channel: string, args: unknown[]): Promise<unknown> => {
     calls.push({ channel, args });
+    if (options.defer?.includes(channel))
+      return new Promise((resolve, reject) => {
+        const queue = pending.get(channel) ?? [];
+        queue.push({ resolve, reject });
+        pending.set(channel, queue);
+      });
     if (options.reject && channel in options.reject)
       return Promise.reject(new Error(options.reject[channel]));
     if (channel === "settings:get") return Promise.resolve(options.settings);
@@ -146,6 +158,12 @@ function installBridge(options: BridgeOptions) {
   const target = globalThis as unknown as Record<string, unknown>;
   target.__panel = {
     calls,
+    settle(channel: string, value: unknown, error?: string) {
+      const call = pending.get(channel)?.shift();
+      if (!call) throw new Error(`No pending ${channel} call`);
+      if (error) call.reject(new Error(error));
+      else call.resolve(value);
+    },
     emit(channel: string, payload: unknown) {
       for (const listener of listeners.get(channel) ?? []) listener(payload);
     },
@@ -215,4 +233,33 @@ export function panelCalls(page: Page, channel: string) {
     ).__panel;
     return panel.calls.filter((call) => call.channel === name);
   }, channel);
+}
+
+export function emitPanel(page: Page, channel: string, payload: unknown = {}) {
+  return page.evaluate(
+    ({ channel, payload }) => {
+      const panel = (
+        globalThis as unknown as { __panel: { emit: (name: string, value: unknown) => void } }
+      ).__panel;
+      panel.emit(channel, payload);
+    },
+    { channel, payload },
+  );
+}
+
+export function settlePanel(page: Page, channel: string, value: unknown, error?: string) {
+  return page.evaluate(
+    async ({ channel, value, error }) => {
+      const panel = (
+        globalThis as unknown as {
+          __panel: { settle: (name: string, value: unknown, error?: string) => void };
+        }
+      ).__panel;
+      panel.settle(channel, value, error);
+      await new Promise((resolve) =>
+        globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(resolve)),
+      );
+    },
+    { channel, value, error },
+  );
 }
