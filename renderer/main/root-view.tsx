@@ -11,6 +11,7 @@ import { HistoryNav, useHistoryShortcuts } from "../components/history-nav";
 import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
+import { invoke } from "../lib/ipc";
 
 const LAUNCH_ROUTE: Record<
   LaunchView,
@@ -25,6 +26,10 @@ const LAUNCH_ROUTE: Record<
   review: "/review",
 };
 
+const ROUTE_BY_PATH: Record<string, (typeof LAUNCH_ROUTE)[LaunchView]> = Object.fromEntries(
+  Object.values(LAUNCH_ROUTE).map((route) => [route, route]),
+);
+
 export function RootView() {
   useTheme();
   useBackendSync();
@@ -37,6 +42,22 @@ export function RootView() {
   const settings = useSettings().data;
   const navigate = useNavigate();
   const launched = React.useRef(false);
+
+  // Panels and notifications open a view here: pulled once if this window opened for it, then
+  // pushed while the window lives. Either one replaces the launch view.
+  React.useEffect(() => {
+    const go = (value: unknown) => {
+      const target = value as { to?: unknown; prompt?: unknown } | null;
+      if (!target || typeof target.to !== "string" || !(target.to in ROUTE_BY_PATH)) return;
+      launched.current = true;
+      const to = ROUTE_BY_PATH[target.to];
+      if (to === "/assistant" && typeof target.prompt === "string")
+        void navigate({ to, search: { prompt: target.prompt } });
+      else void navigate({ to });
+    };
+    void invoke<unknown>("app:takeNavigation").then(go, () => undefined);
+    return window.dayboard.ipc.onNotification("app:navigate", go);
+  }, [navigate]);
 
   // Open the launch view chosen in Settings, once per app session.
   React.useEffect(() => {

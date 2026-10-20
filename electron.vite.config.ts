@@ -102,6 +102,7 @@ export default defineConfig({
         input: {
           main: fromRoot("main-window.html"),
           settings: fromRoot("settings-window.html"),
+          panel: fromRoot("panel-window.html"),
         },
       },
     },

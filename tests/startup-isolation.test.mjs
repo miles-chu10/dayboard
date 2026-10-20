@@ -62,6 +62,14 @@ for (const mode of ["compiled test", "runtime demo"]) {
         `export function acquireSingleInstanceLock() { globalThis.__calls.push("lock"); return true; }; export const createMainWindow = async () => { globalThis.__calls.push("window"); }; export const getMainWindow = () => null; export const setupApplicationMenu = () => { globalThis.__calls.push("menu"); };`,
       ],
       [
+        "./system-panels/index.js",
+        `export const startSystemPanels = () => { globalThis.__calls.push("panels"); }; export const stopSystemPanels = () => {};`,
+      ],
+      [
+        "./system-panels/panel-window.js",
+        `export const isPanelWindow = () => false; export const showPanel = async () => { globalThis.__calls.push("panel"); };`,
+      ],
+      [
         "./services/mcp-http-server.js",
         `export const startMcpHttpServer = () => { globalThis.__calls.push("mcp"); };`,
       ],

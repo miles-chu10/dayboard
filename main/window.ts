@@ -113,6 +113,45 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+const MAIN_ROUTES = ["/", "/tasks", "/reminders", "/calendar", "/mail", "/assistant", "/review"];
+export type MainRoute =
+  | "/"
+  | "/tasks"
+  | "/reminders"
+  | "/calendar"
+  | "/mail"
+  | "/assistant"
+  | "/review";
+export interface MainNavigation {
+  to: MainRoute;
+  prompt?: string;
+}
+
+export function isMainRoute(value: unknown): value is MainRoute {
+  return typeof value === "string" && MAIN_ROUTES.includes(value);
+}
+
+let pendingNavigation: MainNavigation | null = null;
+
+/** A main window opened for a navigation reads it once its renderer is ready. */
+export function takePendingNavigation(): MainNavigation | null {
+  const navigation = pendingNavigation;
+  pendingNavigation = null;
+  return navigation;
+}
+
+/** Brings the dashboard forward from a panel or notification, optionally at a view. */
+export async function focusMainWindow(navigation?: MainNavigation): Promise<void> {
+  const existing = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  if (navigation && !existing) pendingNavigation = navigation;
+  const window = existing ?? (await createMainWindow());
+  if (window.isMinimized()) window.restore();
+  app.focus({ steal: true });
+  window.show();
+  window.focus();
+  if (navigation && existing) ipcMain.broadcast("app:navigate", navigation);
+}
+
 export async function openSettingsWindow(tab?: SettingsTab): Promise<BrowserWindow> {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (tab) ipcMain.broadcast("settings:selectTab", { tab });
@@ -147,7 +186,10 @@ export function getSettingsWindow(): BrowserWindow | null {
   return settingsWindow;
 }
 
-export function setupApplicationMenu(options: { checkForUpdates: () => Promise<unknown> }): void {
+export function setupApplicationMenu(options: {
+  checkForUpdates: () => Promise<unknown>;
+  openQuickCapture: () => void;
+}): void {
   const menu = Menu.buildFromTemplate([
     {
       label: "DayBoard",
@@ -178,7 +220,16 @@ export function setupApplicationMenu(options: { checkForUpdates: () => Promise<u
         { role: "quit" },
       ],
     },
-    { role: "fileMenu" },
+    {
+      label: "File",
+      submenu: [
+        // No accelerator: macOS ignores registerAccelerator: false, and a menu key equivalent
+        // would fire while Settings records a new global shortcut.
+        { label: "Quick Capture…", id: "quick-capture", click: () => options.openQuickCapture() },
+        { type: "separator" },
+        { role: "close" },
+      ],
+    },
     { role: "editMenu" },
     { role: "viewMenu" },
     { role: "windowMenu" },

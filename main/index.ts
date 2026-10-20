@@ -1,11 +1,14 @@
 import { app, dialog, logger } from "./platform/index.js";
 import { registerHandlers } from "./handlers/index.js";
+import { BrowserWindow } from "electron";
 import {
   acquireSingleInstanceLock,
   createMainWindow,
   getMainWindow,
   setupApplicationMenu,
 } from "./window.js";
+import { startSystemPanels, stopSystemPanels } from "./system-panels/index.js";
+import { isPanelWindow, showPanel } from "./system-panels/panel-window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
 import { drainAgendaStore } from "./services/agenda-store.js";
 import { drainProductivityWrites } from "./handlers/productivity.js";
@@ -68,7 +71,13 @@ if (acquireSingleInstanceLock()) {
     if (process.platform !== "darwin") app.quit();
   });
 
-  app.on("activate", (_event, hasVisibleWindows) => {
+  app.on("will-quit", stopSystemPanels);
+
+  app.on("activate", () => {
+    // Floating panels don't count: a Dock click while one is open still brings the dashboard back.
+    const hasVisibleWindows = BrowserWindow.getAllWindows().some(
+      (window) => !window.isDestroyed() && window.isVisible() && !isPanelWindow(window),
+    );
     if (hasVisibleWindows) return;
     const window = getMainWindow();
     if (window && !window.isDestroyed()) {
@@ -98,9 +107,13 @@ if (acquireSingleInstanceLock()) {
         },
         resumeAfterInstallFailure: resumeAppOperations,
       });
-      setupApplicationMenu({ checkForUpdates: () => updates!.check() });
+      setupApplicationMenu({
+        checkForUpdates: () => updates!.check(),
+        openQuickCapture: () => void showPanel("capture"),
+      });
       startMcpHttpServer(MCP_PROJECT_ID);
       await createMainWindow();
+      startSystemPanels();
     })
     .catch((error) => {
       logger.error("main", "Failed to start DayBoard", error);
