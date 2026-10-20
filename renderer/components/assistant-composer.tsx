@@ -31,23 +31,23 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type {
-  AIProvider,
-  AssistantAttachment,
-  AssistantPermission,
-  ClaudeModel,
-} from "@main/shared-types";
+import type { AIProvider, AssistantAttachment, AssistantPermission } from "@main/shared-types";
 
 import {
-  CLAUDE_MODEL_OPTIONS,
-  MUSE_MODEL_OPTIONS,
   assistantProvider,
-  claudeSupportsFast,
   formatTokens,
   selectedModel,
   useCodexModels,
   useProviderAvailability,
 } from "../lib/ai-models";
+import {
+  applyModelChoice,
+  claudeSupportsFast,
+  codexModel,
+  modelChoices,
+  savedModel,
+  type ModelLists,
+} from "../lib/model-choices";
 import { useAllApiModels, useGeminiModels } from "../settings/provider-accounts";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import {
@@ -64,7 +64,6 @@ import {
   effortOptions,
   effortSelection,
   selectionLabel,
-  supportedEffort,
   ultraNote,
 } from "../../shared/ai-effort";
 import {
@@ -216,57 +215,12 @@ export function AssistantComposer({
     isApiKeyProvider(provider) ? apiModels[provider] : undefined,
   );
 
-  type Choice = {
-    value: string;
-    label: string;
-    sublabel?: string;
-    selected: boolean;
-  };
-  function modelChoices(option: AIProvider): Choice[] {
-    if (!ai) return [];
-    if (option === "claude")
-      return CLAUDE_MODEL_OPTIONS.map((entry) => ({
-        value: entry.value,
-        label: entry.label,
-        sublabel: entry.sublabel,
-        selected: ai.claudeModel === entry.value,
-      }));
-    if (option === "codex") {
-      const selected =
-        codexModels.data?.find((model) => model.slug === ai.codexModel) ?? codexModels.data?.[0];
-      return (codexModels.data ?? []).map((model) => ({
-        value: model.slug,
-        label: model.name,
-        sublabel: model.slug,
-        selected: selected?.slug === model.slug,
-      }));
-    }
-    if (option === "gemini")
-      return [
-        { value: "", label: "Antigravity default", selected: !ai.geminiModel },
-        ...(geminiModels.data ?? []).map((model) => ({
-          value: model,
-          label: model,
-          selected: ai.geminiModel === model,
-        })),
-      ];
-    if (option === "muse")
-      return MUSE_MODEL_OPTIONS.map((model) => ({
-        value: model.value,
-        label: model.label,
-        selected: ai.museModel === model.value,
-      }));
-    if (!isApiKeyProvider(option)) return [];
-    const chosen = ai.apiModels[option];
-    return [
-      { value: "", label: "Newest available", selected: !chosen },
-      ...(apiModels[option] ?? []).slice(0, 25).map((model) => ({
-        value: model.id,
-        label: model.name,
-        sublabel: model.id !== model.name ? model.id : undefined,
-        selected: chosen === model.id,
-      })),
-    ];
+  function lists(option: AIProvider): ModelLists {
+    return {
+      codex: codexModels.data,
+      gemini: geminiModels.data,
+      api: isApiKeyProvider(option) ? apiModels[option] : undefined,
+    };
   }
 
   function choose(option: AIProvider, value: string) {
@@ -274,28 +228,7 @@ export function AssistantComposer({
       draft.ai.assistantProvider = option === draft.ai.provider ? "" : option;
       draft.ai.providerChosen = true;
       draft.ai.enabled = true;
-      if (option === "claude") draft.ai.claudeModel = value as ClaudeModel;
-      else if (option === "codex") {
-        draft.ai.codexModel = value;
-        draft.ai.codexEffort = "";
-        const model = codexModels.data?.find((entry) => entry.slug === value);
-        if (!model?.tiers.some((tier) => tier.id === draft.ai.codexServiceTier))
-          draft.ai.codexServiceTier = "";
-      } else if (option === "gemini") draft.ai.geminiModel = value;
-      else if (option === "muse") draft.ai.museModel = value;
-      else if (isApiKeyProvider(option)) draft.ai.apiModels[option] = value;
-      // Keep the Assistant's effort only where the newly chosen model accepts it.
-      const modelId = isApiKeyProvider(option)
-        ? value || (apiModels[option]?.[0]?.id ?? "")
-        : value;
-      const kept = supportedEffort(
-        effortOptions(option, modelId, codexModels.data),
-        draft.ai.assistantEffort?.[option],
-      );
-      const efforts = { ...draft.ai.assistantEffort };
-      if (kept) efforts[option] = kept;
-      else delete efforts[option];
-      draft.ai.assistantEffort = efforts;
+      applyModelChoice(draft.ai, option, value, lists(option));
     });
   }
   const permission = ai?.assistantPermission ?? "ask";
@@ -337,19 +270,13 @@ export function AssistantComposer({
     }
   }
 
+  const codexSelected = ai ? codexModel(ai, codexModels.data) : undefined;
   const fastAvailable =
     provider === "claude"
       ? claudeSupportsFast(ai?.claudeModel ?? "default")
       : provider === "codex"
-        ? Boolean(
-            (
-              codexModels.data?.find((model) => model.slug === ai?.codexModel) ??
-              codexModels.data?.[0]
-            )?.tiers.length,
-          )
+        ? Boolean(codexSelected?.tiers.length)
         : false;
-  const codexSelected =
-    codexModels.data?.find((model) => model.slug === ai?.codexModel) ?? codexModels.data?.[0];
 
   const [effortOpen, setEffortOpen] = useState(false);
   const effort = effortOptions(provider, current.id, codexModels.data);
@@ -717,11 +644,15 @@ export function AssistantComposer({
                           key={option}
                           label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
                         >
-                          {modelChoices(option).map((choice) => (
+                          {(ai ? modelChoices(option, ai, lists(option)) : []).map((choice) => (
                             <DropdownMenuCheckboxItem
                               key={choice.value}
                               sublabel={choice.sublabel}
-                              checked={option === provider && choice.selected}
+                              checked={
+                                option === provider && ai
+                                  ? savedModel(ai, option) === choice.value
+                                  : false
+                              }
                               onCheckedChange={() => choose(option, choice.value)}
                             >
                               {choice.label}

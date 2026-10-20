@@ -1,5 +1,11 @@
 import { effortOptions, supportedEffort } from "../../../shared/ai-effort.js";
-import type { AIProvider, AppSettings, ClaudeEffort, CodexModelInfo } from "../../shared-types.js";
+import type {
+  AIProvider,
+  ApiProviderId,
+  AppSettings,
+  ClaudeEffort,
+  CodexModelInfo,
+} from "../../shared-types.js";
 
 type JsonValue =
   | null
@@ -48,6 +54,15 @@ export function resolveAssistantEffort(
   );
   // Settings objects written before assistantEffort existed have no record at all.
   return supportedEffort(options, ai.assistantEffort?.[provider]);
+}
+
+/** One-click features' effort on an API route, checked against the model that will run. */
+export function resolveFeatureEffort(
+  ai: AppSettings["ai"],
+  provider: ApiProviderId,
+  modelId: string,
+): string {
+  return supportedEffort(effortOptions(provider, modelId), ai.apiEffort?.[provider]);
 }
 
 /**

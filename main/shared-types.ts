@@ -116,11 +116,13 @@ export interface AppSettings {
     museModel: string;
     /** Model ID per API-key provider; empty picks the newest listed model. */
     apiModels: Record<ApiProviderId, string>;
+    /** One-click features' reasoning effort per API-key provider; missing is the model default. */
+    apiEffort: Partial<Record<ApiProviderId, string>>;
     /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
     assistantProvider: AIProvider | "";
     /**
      * Reasoning effort the Assistant composer sets, per provider. Missing or empty is the model
-     * default; one-click features use `claudeEffort` and `codexEffort` instead.
+     * default; one-click features use `claudeEffort`, `codexEffort` and `apiEffort` instead.
      */
     assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;

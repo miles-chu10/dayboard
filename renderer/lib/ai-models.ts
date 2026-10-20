@@ -3,46 +3,18 @@ import type {
   AIProvider,
   ApiModelInfo,
   AppSettings,
-  ClaudeModel,
   CodexModelInfo,
   ProviderAvailability,
 } from "@main/shared-types";
 
 import { invoke } from "./ipc";
+import {
+  CLAUDE_MODEL_OPTIONS,
+  DEFAULT_MODEL_LABEL,
+  claudeSupportsFast,
+  codexModel,
+} from "./model-choices";
 import { isApiKeyProvider } from "./settings";
-
-export const CLAUDE_MODEL_OPTIONS: {
-  value: ClaudeModel;
-  label: string;
-  sublabel: string;
-}[] = [
-  {
-    value: "default",
-    label: "Claude Code default",
-    sublabel: "The model set in Claude Code",
-  },
-  { value: "fable", label: "Fable", sublabel: "Latest Claude Fable" },
-  { value: "opus", label: "Opus", sublabel: "Latest Claude Opus" },
-  { value: "sonnet", label: "Sonnet", sublabel: "Latest Claude Sonnet" },
-  { value: "haiku", label: "Haiku", sublabel: "Latest Claude Haiku" },
-  {
-    value: "opus[1m]",
-    label: "Opus (1M context)",
-    sublabel: "Opus with a 1 million token context window",
-  },
-  {
-    value: "sonnet[1m]",
-    label: "Sonnet (1M context)",
-    sublabel: "Sonnet with a 1 million token context window",
-  },
-];
-
-/** Muse Code models; empty follows the CLI's default. */
-export const MUSE_MODEL_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Muse Code default" },
-  { value: "muse-spark-1.3", label: "Muse Spark 1.3" },
-  { value: "muse-spark-1.2", label: "Muse Spark 1.2" },
-];
 
 export const codexModelsKey = ["codex-models"] as const;
 
@@ -53,10 +25,6 @@ export function useCodexModels(enabled: boolean) {
     staleTime: 10 * 60_000,
     enabled,
   });
-}
-
-export function claudeSupportsFast(model: ClaudeModel): boolean {
-  return model === "opus" || model === "opus[1m]";
 }
 
 export function useProviderAvailability() {
@@ -95,14 +63,14 @@ export function selectedModel(
   }
   if (provider === "gemini")
     return {
-      label: ai.geminiModel || "Gemini default",
+      label: ai.geminiModel || DEFAULT_MODEL_LABEL.gemini,
       fast: false,
       contextWindow: null,
       id: ai.geminiModel,
     };
   if (provider === "muse")
     return {
-      label: ai.museModel || "Muse default",
+      label: ai.museModel || DEFAULT_MODEL_LABEL.muse,
       fast: false,
       contextWindow: null,
       id: ai.museModel,
@@ -118,9 +86,9 @@ export function selectedModel(
       id: model?.id ?? chosen,
     };
   }
-  const model = codexModels?.find((entry) => entry.slug === ai.codexModel) ?? codexModels?.[0];
+  const model = codexModel(ai, codexModels);
   return {
-    label: model?.name ?? (ai.codexModel || "Codex default"),
+    label: model?.name ?? (ai.codexModel || DEFAULT_MODEL_LABEL.codex),
     fast: Boolean(ai.codexServiceTier),
     contextWindow: model?.contextWindow ?? null,
     id: model?.slug ?? ai.codexModel,

@@ -111,6 +111,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       ApiProviderId,
       string
     >,
+    apiEffort: {},
     assistantProvider: "",
     assistantEffort: {},
     useMcpInAssistant: true,
@@ -233,6 +234,12 @@ export function normalizeSettings(value: unknown): AppSettings {
       apiModels: Object.fromEntries(
         API_PROVIDERS.map((provider) => [provider, modelId(record(ai.apiModels)[provider])]),
       ) as Record<ApiProviderId, string>,
+      apiEffort: Object.fromEntries(
+        API_PROVIDERS.flatMap((provider): [ApiProviderId, string][] => {
+          const level = token(record(ai.apiEffort)[provider]);
+          return level ? [[provider, level]] : [];
+        }),
+      ),
       assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
       // Settings saved before the composer had its own effort keep the level the Assistant used.
       assistantEffort: Object.fromEntries(

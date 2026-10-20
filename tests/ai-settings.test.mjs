@@ -151,6 +151,14 @@ test("Unsupported model, reasoning and speed fail before launching a paid reques
   );
 });
 
+test("API feature effort keeps a level per API provider and drops anything else", () => {
+  const { apiEffort } = normalizeSettings({
+    ai: { apiEffort: { openai: "high", anthropic: "max", claude: "low", xai: "Bad Level" } },
+  }).ai;
+  assert.deepEqual(apiEffort, { openai: "high", anthropic: "max" });
+  assert.deepEqual(normalizeSettings({}).ai.apiEffort, {});
+});
+
 test("Codex default does not carry options from a previously selected model", () => {
   assert.deepEqual(
     codexModelArgs(

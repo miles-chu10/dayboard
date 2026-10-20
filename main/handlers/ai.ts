@@ -28,6 +28,11 @@ import {
 } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
 import { describeModel } from "../services/ai/model-options.js";
+import {
+  effortProviderOptions,
+  resolveFeatureEffort,
+  withProviderOptions,
+} from "../services/ai/assistant-effort.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
@@ -387,12 +392,18 @@ export function registerAIHandlers(): void {
           const startedAt = Date.now();
           const result = streamText({
             model: languageModel,
-            ...apiPromptOptions(
-              provider,
-              model.id,
-              system,
-              [{ role: "user", content: prompt }],
-              "explicit",
+            ...withProviderOptions(
+              apiPromptOptions(
+                provider,
+                model.id,
+                system,
+                [{ role: "user", content: prompt }],
+                "explicit",
+              ),
+              effortProviderOptions(
+                provider,
+                resolveFeatureEffort(settings.ai, provider, model.id),
+              ),
             ),
             maxOutputTokens: 4000,
             abortSignal: context.signal,
@@ -441,11 +452,17 @@ export function registerAIHandlers(): void {
         }
         let usage: RequestUsage | undefined;
         let modelId: string | null = null;
-        // Only a configured model is requested here; without one the CLI picks its own default.
-        const requestedModelId = describeModel(settings.ai, [], provider).id;
+        // Codex default is its first listed model, passed explicitly as the Assistant does; other
+        // CLIs pick their own default when no model is configured.
+        const codexModels =
+          provider === "codex" && !settings.ai.codexModel
+            ? await listCodexModels().catch(() => [])
+            : [];
+        const requestedModelId = describeModel(settings.ai, codexModels, provider).id;
         const startedAt = Date.now();
         const text = await runCliCompletion({
           provider,
+          codexModel: provider === "codex" ? (requestedModelId ?? undefined) : undefined,
           system,
           prompt,
           mcpServers: [],

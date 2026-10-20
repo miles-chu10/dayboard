@@ -96,11 +96,17 @@ test("effort panel sets the Assistant's effort, resets it and keeps Ultra out of
 
     await demo.page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
-    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Default effort, Fast");
+    // Leaving Opus turns paid Fast mode off, as choosing a model in Settings does.
+    await expect(chip).toHaveAccessibleName("Model and effort: Opus, Default effort");
     await expect(chip).not.toContainText("Select effort");
 
     const settings = await openSettingsTab(demo.app, demo.page, "AI");
+    await expect(settings.getByRole("combobox", { name: "Claude model" })).toContainText("Opus");
     await expect(settings.getByText("Effort for AI features")).toBeVisible();
+    await settings.getByRole("combobox", { name: "Claude thinking effort" }).click();
+    await expect(settings.getByRole("option", { name: /^Light/ })).toBeVisible();
+    await expect(settings.getByRole("option", { name: /^Extra High/ })).toBeVisible();
+    await settings.keyboard.press("Escape");
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();

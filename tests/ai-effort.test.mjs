@@ -304,6 +304,17 @@ test("the saved Assistant effort is checked against the model that will run", ()
   );
 });
 
+test("API feature effort is checked against the model that will run, apart from the Assistant's", () => {
+  const resolve = (overrides, provider, model) =>
+    main.resolveFeatureEffort(aiSettings(overrides), provider, model);
+  assert.equal(resolve({ apiEffort: { openai: "max" } }, "openai", "gpt-6-astra"), "max");
+  assert.equal(resolve({ apiEffort: { openai: "max" } }, "openai", "gpt-6-sol"), "");
+  assert.equal(resolve({ apiEffort: { anthropic: "xhigh" } }, "anthropic", "claude-opus-4-6"), "");
+  assert.equal(resolve({ assistantEffort: { openai: "max" } }, "openai", "gpt-6-astra"), "");
+  const { apiEffort: _unset, ...older } = aiSettings({});
+  assert.equal(main.resolveFeatureEffort(older, "openai", "gpt-6-astra"), "");
+});
+
 test("CLI arguments carry the Assistant effort while the feature path stays as saved", () => {
   const ai = aiSettings({ claudeEffort: "max", codexModel: "gpt-6-astra", codexEffort: "low" });
   assert.equal(main.withAssistantEffort(ai, "claude", undefined), ai);
