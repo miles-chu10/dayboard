@@ -190,3 +190,99 @@ test("a failed stream rejects after its end marker, and IDs stay unique while ru
   await assert.rejects(run, /Provider failed/);
   assert.deepEqual(seen, [{ type: "tool", id: "t1", status: "error" }]);
 });
+
+test(
+  "a failure that never reached main rejects after a short wait for its end marker",
+  { timeout: 5000 },
+  async () => {
+    const { createStreamClient } = await loadStreamClient();
+    const client = createStreamClient(20);
+    const failing = () =>
+      client.run(
+        "s3",
+        () => {},
+        async () => {
+          throw new Error("An object could not be cloned.");
+        },
+      );
+    await assert.rejects(failing(), /could not be cloned/);
+    // The stream is gone, so the same ID can run again.
+    await assert.rejects(failing(), /could not be cloned/);
+  },
+);
+
+async function loadPreload() {
+  const result = await build({
+    entryPoints: [path.join(root, "electron/preload.ts")],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    write: false,
+    logLevel: "silent",
+    plugins: [
+      {
+        name: "fixture-electron",
+        setup(api) {
+          api.onResolve({ filter: /^electron$/ }, () => ({
+            path: "electron",
+            namespace: "fixture",
+          }));
+          api.onLoad({ filter: /^electron$/, namespace: "fixture" }, () => ({
+            contents: `const f = globalThis.__dayboardPreloadFixture;
+              export const contextBridge = f.contextBridge;
+              export const ipcRenderer = f.ipcRenderer;`,
+            loader: "js",
+          }));
+        },
+      },
+    ],
+  });
+  const listeners = new Map();
+  const invokes = [];
+  const fixture = {
+    exposed: {},
+    contextBridge: { exposeInMainWorld: (name, api) => (fixture.exposed[name] = api) },
+    ipcRenderer: {
+      on: (channel, listener) => listeners.set(channel, listener),
+      send: () => {},
+      invoke: (channel, request) =>
+        new Promise((resolve, reject) => invokes.push({ channel, request, resolve, reject })),
+    },
+  };
+  globalThis.__dayboardPreloadFixture = fixture;
+  const source = `${result.outputFiles[0].text}\n// bundle-${bundleSequence++}`;
+  await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+  const deliver = (message) => listeners.get("dayboard:stream:chunk")({}, message);
+  return { bridge: fixture.exposed.dayboard, invokes, deliver };
+}
+
+test(
+  "the preload's stream keeps chunks that arrive after its reply, and never hangs",
+  { timeout: 5000 },
+  async () => {
+    const { bridge, invokes, deliver } = await loadPreload();
+    const seen = [];
+    const run = bridge.ipc.stream("ai:assistant", { system: "s" }, (chunk) => seen.push(chunk), {
+      cancellationId: "p1",
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(invokes[0].channel, "dayboard:stream:start");
+    assert.deepEqual(invokes[0].request, {
+      id: "p1",
+      channel: "ai:assistant",
+      args: { system: "s" },
+    });
+    invokes[0].resolve({ text: "hi" });
+    await new Promise((resolve) => setImmediate(resolve));
+    deliver({ id: "p1", chunk: { type: "meta", model: "resolved" } });
+    deliver({ id: "p1", end: true });
+    assert.deepEqual(await run, { text: "hi" });
+    assert.deepEqual(seen, [{ type: "meta", model: "resolved" }]);
+
+    // An invoke that fails in the renderer gets no end marker from main, and still rejects.
+    const failed = bridge.ipc.stream("ai:assistant", {}, () => {}, { cancellationId: "p2" });
+    await new Promise((resolve) => setImmediate(resolve));
+    invokes[1].reject(new Error("An object could not be cloned."));
+    await assert.rejects(failed, /could not be cloned/);
+  },
+);

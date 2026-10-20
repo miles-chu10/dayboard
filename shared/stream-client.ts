@@ -9,8 +9,10 @@ interface OpenStream {
  * The preload's side of a stream. Electron can deliver an invoke's reply before messages that
  * main sent earlier with `webContents.send`, so a stream settles only once its end marker, which
  * follows the last chunk, has arrived. Chunks that arrive after the reply still reach `onChunk`.
+ * A failed request may never have reached main's handler (an uncloneable payload, an untrusted
+ * sender), so a failure waits for its marker only `failedEndGraceMs` before it rejects.
  */
-export function createStreamClient() {
+export function createStreamClient(failedEndGraceMs = 1000) {
   const streams = new Map<string, OpenStream>();
   return {
     receive(message: StreamMessage): void {
@@ -31,9 +33,17 @@ export function createStreamClient() {
           (value) => ({ ok: true as const, value }),
           (error: unknown) => ({ ok: false as const, error }),
         );
-        await ended;
-        if (!outcome.ok) throw outcome.error;
-        return outcome.value;
+        if (outcome.ok) {
+          await ended;
+          return outcome.value;
+        }
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          ended,
+          new Promise<void>((resolve) => (timer = setTimeout(resolve, failedEndGraceMs))),
+        ]);
+        clearTimeout(timer);
+        throw outcome.error;
       } finally {
         streams.delete(id);
       }
