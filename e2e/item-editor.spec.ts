@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { root } from "./fixtures";
+import { launchEnvironment, root } from "./fixtures";
 
 // This isolated renderer component test uses real React/UI components and a fake IPC boundary.
 // It does not run the packaged app or use any account, native permission, or provider service.
@@ -92,12 +92,10 @@ test("event editor blocks reloads, recovers from a failed load, and ignores stal
     app.whenReady().then(()=>new BrowserWindow({show:false,width:1000,height:850,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}}).loadFile(${JSON.stringify(path.join(directory, "fixture.html"))}));
   `,
     );
-    const environment = Object.fromEntries(
-      ["PATH", "HOME", "TMPDIR", "LANG"]
-        .filter((key) => process.env[key])
-        .map((key) => [key, process.env[key]!]),
-    );
-    app = await electron.launch({ args: [path.join(directory, "main.cjs")], env: environment });
+    app = await electron.launch({
+      args: [path.join(directory, "main.cjs")],
+      env: launchEnvironment(),
+    });
     const page = await app.firstWindow();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
