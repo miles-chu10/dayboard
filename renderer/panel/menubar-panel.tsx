@@ -118,7 +118,7 @@ export function MenuBarPanel() {
             <button
               key={item.key}
               type="button"
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-list-hover"
+              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
               onClick={() => void openMain(item.kind === "event" ? "/calendar" : "/")}
             >
               <SourceDot source={item.source} />

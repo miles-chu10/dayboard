@@ -208,8 +208,14 @@ test("Escape hides a freshly shown menu-bar panel", async () => {
 // solid, placeholders end in an ellipsis, rows show their full title on hover and line up their
 // times, failures with a way forward are red, labels are sentence case.
 type DomGlobal = {
-  document: { documentElement: unknown };
-  getComputedStyle(node: unknown): { backgroundColor: string; fontVariantNumeric: string };
+  document: { documentElement: unknown; activeElement: unknown };
+  getComputedStyle(node: unknown): {
+    backgroundColor: string;
+    fontVariantNumeric: string;
+    outlineOffset: string;
+    outlineWidth: string;
+    outlineStyle: string;
+  };
 };
 
 test("the panels follow the design system's ground, input, row and copy rules", async () => {
@@ -250,6 +256,22 @@ test("the panels follow the design system's ground, input, row and copy rules", 
           (node) => (globalThis as unknown as DomGlobal).getComputedStyle(node).fontVariantNumeric,
         ),
     ).toContain("tabular-nums");
+
+    // Rows take an inset 2px keyboard ring, like the app's other list rows (ListRow).
+    for (let step = 0; step < 12; step += 1) {
+      if (
+        await row.evaluate(
+          (node) => node === (globalThis as unknown as DomGlobal).document.activeElement,
+        )
+      )
+        break;
+      await menubar.keyboard.press("Tab");
+    }
+    const ring = await row.evaluate((node) => {
+      const style = (globalThis as unknown as DomGlobal).getComputedStyle(node);
+      return { offset: style.outlineOffset, width: style.outlineWidth, style: style.outlineStyle };
+    });
+    expect(ring).toEqual({ offset: "-2px", width: "2px", style: "solid" });
   } finally {
     await demo.close();
   }
