@@ -27,6 +27,10 @@ const output = await build({
             ? `export const app = { getPath: () => "/tmp" };
                export const logger = { warn: (...a) => globalThis.warns.push(a), info() {}, error() {} };
                export class OAuthTokenStateChangedError extends Error {}
+               export class OAuthRefreshRejectedError extends Error {
+                 constructor(message, code) { super(message); this.code = code; }
+               }
+               globalThis.OAuthRefreshRejectedError = OAuthRefreshRejectedError;
                export class OAuthService {
                  getTokens() { return globalThis.oauth.getTokens(); }
                  getAccessToken() { return globalThis.oauth.getAccessToken(); }
@@ -81,17 +85,72 @@ test("returns the token for a connected account", async () => {
   );
 });
 
-test("still reports an expired session when refreshing a connected account fails", async () => {
-  await assert.rejects(
-    accessWith({
-      getTokens: async () => ({ accessToken: "t" }),
-      getAccessToken: async () => {
-        throw new Error("invalid_grant");
-      },
-    }),
-    (error) =>
-      error instanceof auth.GoogleAuthError &&
-      error.message === "Google session expired. Sign in again.",
-  );
-  assert.equal(globalThis.warns.length, 1);
-});
+for (const code of ["invalid_grant", "access_denied", null]) {
+  test(`reports an expired session for a refused grant (${code ?? "no refresh token"})`, async () => {
+    await assert.rejects(
+      accessWith({
+        getTokens: async () => ({ accessToken: "t" }),
+        getAccessToken: async () => {
+          throw new globalThis.OAuthRefreshRejectedError("private description", code);
+        },
+      }),
+      (error) =>
+        error instanceof auth.GoogleAuthError &&
+        error.reason === "not-connected" &&
+        error.message === "Google session expired. Sign in again.",
+    );
+    assert.deepEqual(globalThis.warns, [
+      [
+        "google-auth",
+        "Google token refresh failed",
+        { kind: "reauthentication", code: code ?? "missing_refresh_token" },
+      ],
+    ]);
+  });
+}
+
+for (const code of ["invalid_client", "unauthorized_client", "invalid_scope"]) {
+  test(`reports app configuration, not a lost sign-in, for ${code}`, async () => {
+    const failure = new globalThis.OAuthRefreshRejectedError("private description", code);
+    await assert.rejects(
+      accessWith({
+        getTokens: async () => ({ accessToken: "t" }),
+        getAccessToken: async () => {
+          throw failure;
+        },
+      }),
+      (error) =>
+        !(error instanceof auth.GoogleAuthError) &&
+        error.message ===
+          "Google rejected the app sign-in configuration. Try again after an update." &&
+        error.cause === failure,
+    );
+    assert.deepEqual(globalThis.warns[0][2], { kind: "configuration", code });
+  });
+}
+
+for (const [name, failure] of [
+  ["a network failure", new TypeError("fetch failed")],
+  ["a Google outage", new Error('Token refresh for provider "google" failed: HTTP 503')],
+  [
+    "an unrecognized refusal",
+    new globalThis.OAuthRefreshRejectedError("private description", "temporarily_unavailable"),
+  ],
+]) {
+  test(`keeps the account connected when a refresh hits ${name}`, async () => {
+    await assert.rejects(
+      accessWith({
+        getTokens: async () => ({ accessToken: "t" }),
+        getAccessToken: async () => {
+          throw failure;
+        },
+      }),
+      (error) =>
+        !(error instanceof auth.GoogleAuthError) &&
+        error.message === "Couldn't reach Google to renew your sign-in. Check your connection." &&
+        error.cause === failure,
+    );
+    assert.equal(globalThis.warns.length, 1);
+    assert.equal(globalThis.warns[0][2].kind, "temporary");
+  });
+}

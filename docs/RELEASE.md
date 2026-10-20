@@ -97,11 +97,28 @@ remain disabled; replace the application bundle manually while preserving the us
 
 Every build generates third-party notices from installed production dependencies, bundled renderer libraries and Electron. Version-pinned overrides retain their source provenance. The inventory explicitly labels two MIT declarations whose packages omit separate license files; it uses canonical SPDX terms without inventing copyright holders. Missing or changed inputs fail the build. Both the app's GPL text and the third-party notices ship in Resources; the Help menu opens the notices.
 
+## Local installation and QA copies
+
+Use `/Applications/DayBoard.app` as the single standalone installation and preserve
+`com.mileschu.dayboard` and its user-data directory across replacements. Build output,
+installer-mounted apps and rollback bundles are not additional installations. macOS
+can register those bundles in app search even when their filenames start with a dot.
+
+Before a local replacement, retain a verified rollback ZIP with its version, source
+revision and checksum. After acceptance, move redundant unpacked bundles to recoverable
+Trash with an exact path manifest. Preserve source, active worktrees, user data, and
+any app/runtime still required by ongoing QA. Coordinate retirement of Glaze separately.
+Keep durable rollback and QA archives as ZIPs so they do not appear as launchable apps.
+
 ## Manual updates
 
 Official builds embed `DAYBOARD_RELEASE=1`; source, preview and demo builds cannot contact the updater. The DayBoard menu and Settings → Updates let users check, download and install explicitly. Automatic checks, downloads and installation on ordinary quit are disabled. Preparation freezes editing and new IPC/MCP operations, drains existing work and saves, then preserves the updater's own quit sequence. A failed preparation or installation restores normal app use. Publisher verification remains enabled.
 
 macOS updates require the ZIP payload alongside the DMG. Publish both and the matching `*-mac.yml` update metadata in the same approved GitHub release. Prerelease builds can request prereleases; stable builds do not. Keep existing release assets available for existing users. A signed upgrade from an older installed version remains a mandatory real release test.
+
+An updater-disabled local build needs an approved initial replacement with an official
+signed build; changing launch-time environment variables cannot enable code removed
+during packaging. A single installed bundle does not prove the signed update path.
 
 ## Required commercial configuration
 

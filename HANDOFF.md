@@ -4,10 +4,34 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 
 ## Current state
 
-- Community UI beta follow-up: `1.3.0-beta.10` retains beta.9's visuals, D icon and credential-free
-  build configuration. MCP SDK is pinned to 1.32.0; both local servers enable tool-input limits,
-  and authenticated JSON is bounded before SDK validation. Zod's advisory remains unresolved
-  upstream; remote MCP response validation is outside this local input mitigation.
+- Latest published beta: `1.3.0-beta.11` (prerelease `beta-1.3.0-beta.11`, October 9) restores
+  Google sign-in through `npm run build:beta`, which fails if the Desktop OAuth client is missing.
+  It keeps beta.10's MCP input limits and reports refresh failures and partial results alongside
+  cached sidebar summaries. Notes: `docs/release-notes-1.3.0-beta.11.md`.
+- Unreleased on `main` since beta.11: ⌘N New Item with a clickable sidebar + (PR #25), beta
+  packaging that enforces the Google configuration through final macOS packaging (PR #33), the
+  macOS shell, sidebar and responsive inspector refinement (PR #34), billing tooling updates
+  (PR #22) and the website Road Map (PR #36). `package.json` still reads `1.3.0-beta.11`.
+- PR #37 also carries the offline Google refresh fix (only a refused grant signs out) and the
+  recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
+  effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
+  `npm test` skips it).
+- Glaze 1.2.5 was rebuilt from the 2026-10-14 recovery packet: remote `glaze` df4d574 plus
+  patches 01, 02 and 03. All 53 files match the packet's hashes. Its shared fixes are ported into
+  PR #37: Glaze's three-way Google refresh classification, one-line snapshot fields with MCP
+  errors kept inside the snapshot, the pinned Anthropic base URL, usage accounting, the
+  mid-stream error message, and queued settings reads. The original owner then pushed the
+  preserved history to `glaze` (5bc351e, 1.2.5, same tree as the rebuild); that is the Glaze
+  baseline. Standalone's `accentColors` theming and `useId` field labels are not ported: Glaze's
+  SDK components read only `--accent-contrast`, which Glaze already computes to 3:1, and its
+  inputs already carry `aria-label`s.
+- Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
+  `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
+- Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
+  exists only in production, not in this repository; commit it with the code that uses it.
+- Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
+  servers and bounded authenticated JSON before SDK validation. Zod's advisory remains
+  unresolved upstream; remote MCP response validation is outside this local input mitigation.
 
 - Standalone Electron integration is implemented: platform services, sandboxed preload, native window lifecycle, React UI, Swift Reminders helper, Google Desktop OAuth, AI provider selection, local MCP, preferences and history.
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
@@ -44,8 +68,8 @@ Earlier standalone observations follow; their counts and live-account results ar
 ## Remaining work
 
 For the approved UI-only manual beta, checkout, pricing and paid AI are separate feature gates.
-The community artifact described in `docs/RELEASE.md` reports Google sign-in as unconfigured.
-Configured Google access needs its own approved audience. Apple signing/notarization and real
+Beta.9 and beta.10 shipped with Google sign-in unconfigured; beta.11 restores it for accounts
+in the Google project's approved test audience. Apple signing/notarization and real
 account acceptance remain follow-up work, not release blockers for this limited ad-hoc beta.
 
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.

@@ -8,6 +8,7 @@ import {
   GoogleTasksLogo,
 } from "../components/source-logos";
 import { useSettings } from "./settings";
+import { SOURCE_LABEL } from "./source-labels";
 
 export { sourceColorVar } from "./source-colors";
 
@@ -21,10 +22,10 @@ export const SOURCE_META: Record<
     icon: ComponentType<{ className?: string }>;
   }
 > = {
-  tasks: { label: "Google Tasks", route: "/tasks", icon: GoogleTasksLogo },
-  reminders: { label: "Apple Reminders", route: "/reminders", icon: AppleRemindersLogo },
-  mail: { label: "Gmail", route: "/mail", icon: GmailLogo },
-  calendar: { label: "Calendar", route: "/calendar", icon: GoogleCalendarLogo },
+  tasks: { label: SOURCE_LABEL.tasks, route: "/tasks", icon: GoogleTasksLogo },
+  reminders: { label: SOURCE_LABEL.reminders, route: "/reminders", icon: AppleRemindersLogo },
+  mail: { label: SOURCE_LABEL.mail, route: "/mail", icon: GmailLogo },
+  calendar: { label: SOURCE_LABEL.calendar, route: "/calendar", icon: GoogleCalendarLogo },
 };
 
 const DEFAULT_COLORS: Record<SourceId, SourceColor> = {
