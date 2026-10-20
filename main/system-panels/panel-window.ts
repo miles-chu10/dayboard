@@ -21,6 +21,8 @@ export const MIN_PANEL_HEIGHT = 48;
 export const MAX_PANEL_HEIGHT = 560;
 
 const panels = new Map<PanelSurface, BrowserWindow>();
+const shownAt = new WeakMap<BrowserWindow, number>();
+const SHOW_GRACE_MS = 300;
 const creating = new Map<PanelSurface, Promise<BrowserWindow>>();
 let trayBounds: () => Rect | null = () => null;
 
@@ -61,8 +63,15 @@ async function createPanel(surface: PanelSurface): Promise<BrowserWindow> {
     nativeTheme.removeListener("updated", updateMaterial);
     if (panels.get(surface) === window) panels.delete(surface);
   });
+  // Hiding a panel lets macOS make another window key asynchronously; when the panel is shown
+  // again right away (a rejected capture re-shows it) that late key change arrives as a blur.
+  // A blur that soon after showing re-focuses the panel; a later one is a real click-away.
   window.on("blur", () => {
-    if (!window.isDestroyed()) window.hide();
+    setTimeout(() => {
+      if (window.isDestroyed() || !window.isVisible() || window.isFocused()) return;
+      if (Date.now() - (shownAt.get(window) ?? 0) < SHOW_GRACE_MS) window.focus();
+      else window.hide();
+    }, 0);
   });
   const url = entryUrl("panel-window.html");
   hardenWindow(window, url, { channels: PANEL_CHANNELS });
@@ -99,6 +108,7 @@ function placement(surface: PanelSurface, window: BrowserWindow): Rect {
 export async function showPanel(surface: PanelSurface): Promise<void> {
   const window = await ensurePanel(surface);
   window.setBounds(placement(surface, window));
+  shownAt.set(window, Date.now());
   window.show();
   window.focus();
 }
