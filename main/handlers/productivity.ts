@@ -94,11 +94,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
 let accountChanging = false;
 
-async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
-  await trackAccountChange(async () => {
+async function changeAccount(operation: () => Promise<unknown>): Promise<AccountsStatus> {
+  return trackAccountChange(async () => {
     accountChanging = true;
     try {
       await operation();
+      // Publish and clear old account state before another capture or provider write can enter.
+      return await broadcastAccounts();
     } finally {
       accountChanging = false;
     }
@@ -526,14 +528,12 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("google:connect", async () => {
     assertNotDemo("google:connect");
-    await changeAccount(() => googleMutation("google:connect", connectGoogle));
-    return broadcastAccounts();
+    return changeAccount(() => googleMutation("google:connect", connectGoogle));
   });
 
   ipcMain.handle("google:disconnect", async () => {
     assertNotDemo("google:disconnect");
-    await changeAccount(disconnectGoogle);
-    return broadcastAccounts();
+    return changeAccount(disconnectGoogle);
   });
 
   // Google Tasks

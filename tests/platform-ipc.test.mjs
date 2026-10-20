@@ -386,3 +386,27 @@ test("runGuardedCommand refuses during update preparation", async () => {
     adapter.resumeAppOperations();
   }
 });
+
+for (const switches of [1, 2]) {
+  test(`capture submission waiting for license admission is rejected after ${switches} account changes`, async () => {
+    const { adapter, makeSender, invoke } = await createHarness();
+    const sender = makeSender(60);
+    adapter.registerTrustedWindow(sender, entryUrl);
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    adapter.setLicenseAccessGuard(async () => {
+      entered.resolve();
+      await released.promise;
+    });
+    let captures = 0;
+    adapter.ipcMain.handle("capture:submit", () => ++captures);
+    const pending = invoke("capture:submit", sender, { text: "Old account text" });
+    const rejected = assert.rejects(pending, /account changed/i);
+    await entered.promise;
+    for (let i = 0; i < switches; i++) adapter.ipcMain.broadcast("accounts:changed", {});
+    released.resolve();
+    await rejected;
+    assert.equal(captures, 0);
+    assert.equal(await invoke("capture:submit", sender, { text: "New account text" }), 1);
+  });
+}
