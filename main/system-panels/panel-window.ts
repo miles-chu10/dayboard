@@ -71,6 +71,13 @@ async function createPanel(surface: PanelSurface): Promise<BrowserWindow> {
   });
   registerPanelWindow(window.id);
   window.setAlwaysOnTop(true, "floating");
+  // Glaze's runtime treats full-screen visibility as a separate request (its NSPanel code checks
+  // isVisibleOnFullScreenRequested), so ask for it. skipTransformProcessType avoids the Dock and
+  // windows briefly hiding as the process type changes. Confirm over a full-screen app in Glaze.
+  window.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+    skipTransformProcessType: true,
+  });
   const updateMaterial = () => {
     if (!window.isDestroyed()) window.setVibrancy(material());
   };

@@ -50,6 +50,7 @@ export class BrowserWindow {
     fixture.windows.push(this);
   }
   setAlwaysOnTop() {}
+  setVisibleOnAllWorkspaces() {}
   setVibrancy() {}
   on() {}
   once() {}
