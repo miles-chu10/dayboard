@@ -33,6 +33,12 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
     - Keep #42's model-identity imports and `clipSnapshot`, and the union of test lists.
     - `renderer/main/assistant-view.tsx` (seen in a trial on `e0c7604`): keep both conflicting
       blocks, with #42's `mentionEvents` line first.
+    - `main/platform/ipc.ts` (from the integration watcher's `d07af53` trial):
+      - Take #42's `emit` / `try` / `finally` stream block.
+      - Put `assertChannelAllowed(trusted, request.channel)` first inside the `try`, so a denied
+        panel stream still gets `{ id, end: true }` and can't hang.
+      - Add a regression test that a denied panel stream ends (receives the end marker and
+        rejects), not only that it is rejected.
     - Re-evaluate every conflict against the final #42 rather than replaying earlier trials.
     - Rerun both wiring checks and full validation.
     - Build a fresh artifact from the current lock and run REA on it.
