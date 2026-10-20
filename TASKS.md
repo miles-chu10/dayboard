@@ -15,7 +15,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 10: Menu-bar icon and menu-bar panel
 - [x] Task 11: Meeting logic and calendar fields
 - [x] Task 12: Up Next card and Meetings settings
-- [ ] Task 13: Meeting notifications
+- [x] Task 13: Meeting notifications
 - [ ] Task 14: Granola notes import and follow-ups
 - [ ] Task 15: Porting doc, fuse proposal, handoff
 - [ ] Task 16: Full verification, packaged build, manual acceptance, REA check
@@ -34,6 +34,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - `main/system-panels/index.ts`: the tray is created after settings load when `system.menuBar.enabled` (never in test builds), recreated/removed when that switch changes, and destroyed in `stopSystemPanels()` on `will-quit`.
 - Tray menu "Quit DayBoard" calls plain `app.quit()`, so the existing `before-quit` save/drain guard and updater install path run unchanged. No hide-on-close was added anywhere; panels are hidden windows that close normally on quit.
 - Check for Updates stays in the app menu through the existing updater service; no second timer.
+- Meeting alerts (`main/system-panels/meeting-notifications.ts`) keep one `setTimeout` for the next alert and, only while alerts are on, a refresh `setInterval`; neither touches quit, install or window lifecycle.
 
 ## Integration with PR #42 (composer effort/default model, head 319b4b0)
 
