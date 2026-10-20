@@ -63,7 +63,8 @@ const CLAUDE_NAMES: Record<string, string> = {
 };
 
 // Exact IDs Claude Code resolved each alias to on earlier runs in this app session (from its
-// init event). Nothing is kept across restarts, since Claude Code's default can change meanwhile.
+// init event), for labels marked as such. A request's own model note never uses them, since the
+// alias can resolve differently by then, and nothing is kept across restarts.
 const claudeResolved = new Map<string, string>();
 let claudeResolvedListener: ((models: Record<string, string>) => void) | undefined;
 
@@ -139,11 +140,11 @@ export function describeModel(
     };
   }
   if (provider === "claude") {
-    const id = claudeResolved.get(ai.claudeModel) ?? null;
+    // The alias only: the exact ID arrives with this request's init event.
     return {
       provider: "claude",
-      name: claudeDisplayName(ai.claudeModel, id),
-      id,
+      name: claudeDisplayName(ai.claudeModel, null),
+      id: null,
       fast: claudeFastOn(ai),
       effort: claudeEffort(ai) || null,
       contextWindow: ai.claudeModel.endsWith("[1m]") ? 1_000_000 : 200_000,
