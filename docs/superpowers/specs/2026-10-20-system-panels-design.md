@@ -82,15 +82,15 @@ Space, returns focus to where he was, and can be turned off in Settings.
 
 ## Decisions made by Miles
 
-| Question | Answer |
-| --- | --- |
+| Question                      | Answer                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
 | Where pulled Granola notes go | Kept in DayBoard with the event, plus one-click follow-up Tasks/Reminders from action items |
-| Capture without AI | Small manual form in the panel; no new dependency |
-| Menu-bar-only mode | No; keep the Dock icon |
-| Default hotkey | ⌃⌥Space, changeable in Settings |
-| After Enter in Quick Capture | Hide now; parse and create in the background; confirm afterwards with Undo |
-| Granola output sample | One read-only `list_meetings` + `get_meetings` call allowed; only the structure is kept |
-| Probe before UI | Yes (done; results below) |
+| Capture without AI            | Small manual form in the panel; no new dependency                                           |
+| Menu-bar-only mode            | No; keep the Dock icon                                                                      |
+| Default hotkey                | ⌃⌥Space, changeable in Settings                                                             |
+| After Enter in Quick Capture  | Hide now; parse and create in the background; confirm afterwards with Undo                  |
+| Granola output sample         | One read-only `list_meetings` + `get_meetings` call allowed; only the structure is kept     |
+| Probe before UI               | Yes (done; results below)                                                                   |
 
 ## Probe results (2026-10-20, Electron 44.4.4, this Mac)
 
@@ -121,8 +121,10 @@ The hash selects the surface (`#capture`, `#menubar`). Each is a React root with
 `QueryClientProvider`, `TooltipProvider` and `Toaster`, like the settings window.
 
 **Panel window factory** (`main/system-panels/panel-window.ts`, Electron-specific). Panels are
-created lazily on first use, never at startup, so e2e `firstWindow()` and `activate` behaviour
-are unchanged. Options proven by the probe: `type: "panel"`, `frame: false`,
+created lazily on first use, never at startup, so e2e `firstWindow()` is unchanged. The `activate`
+handler (`main/index.ts`) currently returns when any window is visible; it changes to look at the
+main window only, so clicking the Dock icon while a panel is open still brings the dashboard
+back. Options proven by the probe: `type: "panel"`, `frame: false`,
 `resizable: false`, `skipTaskbar: true`, `hiddenInMissionControl: true`,
 `fullscreenable: false`, `show: false`, `setAlwaysOnTop(true, "floating")`, vibrancy
 `popover` dropped under Reduce Transparency or Increase Contrast (as `createMainWindow` does).
@@ -144,7 +146,7 @@ set and are unchanged. The panel set lives in `main/system-panels/panel-channels
 - Meeting prep: `ai:run` (stream), `mail:related`.
 - Meetings: `meetings:notesStatus`, `meetings:findNotes`, `meetings:importNotes`,
   `meetings:getNotes`, `tasks:create`, `reminders:create` (follow-ups).
-- Panel control: `panel:hide`, `panel:openMain` (focus main window at a route), 
+- Panel control: `panel:hide`, `panel:openMain` (focus main window at a route),
   `window:openSettings`, `app:openExternal`.
 
 A unit test asserts the exact set. Broadcasts (`settings:changed`, `data:changed`) still reach
@@ -155,14 +157,19 @@ feature switches when AI is off, and Quick Capture must work without AI):
 
 ```ts
 system: {
-  quickCapture: { enabled: boolean; hotkey: string };      // true, "Control+Alt+Space"
-  menuBar: { enabled: boolean };                           // true
+  quickCapture: {
+    enabled: boolean;
+    hotkey: string;
+  } // true, "Control+Alt+Space"
+  menuBar: {
+    enabled: boolean;
+  } // true
   meetings: {
-    upNext: boolean;                                       // true
-    notify: boolean;                                       // false (opt-in)
-    notifyMinutesBefore: 1 | 2 | 5 | 10;                   // 2
-    notesImport: boolean;                                  // true
-  };
+    upNext: boolean; // true
+    notify: boolean; // false (opt-in)
+    notifyMinutesBefore: 1 | 2 | 5 | 10; // 2
+    notesImport: boolean; // true
+  }
 }
 ```
 
@@ -190,14 +197,23 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
 ### 2. Quick Capture panel ("hide now, confirm after")
 
 - The hotkey toggles the capture panel, focused on a one-line input.
-- **AI on and a provider chosen:** Enter sends `capture:submit { text }` and the panel hides
-  immediately. Main runs the pipeline:
-  1. `availableKinds` (shared, from Google connection, Reminders access and source switches).
+- **AI capture on** (`ai.enabled && ai.providerChosen && ai.features.capture`, the existing
+  capture opt-out included, enforced in main): Enter sends `capture:submit { text }` and the
+  panel hides immediately. Main runs the pipeline:
+  1. Record the account scope (`requireAgendaScope()`) and `availableKinds` (shared, from
+     Google connection, Reminders access and source switches) at submission.
   2. AI parse with the existing `CAPTURE_SYSTEM`/`buildCapturePrompt`, through the same
      runner `ai:run` uses (refactored into a callable function, not duplicated).
-  3. `parseDraft` (moved to `shared/capture.ts`) validates the draft.
-  4. Create via the same service functions as `tasks:create`/`reminders:create`/
-     `calendar:create`, then broadcast `data:changed`.
+  3. Strict validation (`parseDraftStrict` in `shared/capture.ts`): an unknown or unavailable
+     kind, a malformed date or time, or an event without a date is not "fixed up". The capture
+     goes to the manual form instead, prefilled with what parsed cleanly, with a short reason.
+     The lenient `parseDraft` stays for the ⌘N dialog, where Miles reviews the draft anyway.
+  4. Revalidate the account scope inside the existing write guard (`trackProductivityWrite`
+     plus the same scope check the edit handlers use), then create via the same service
+     functions as `tasks:create`/`reminders:create`/`calendar:create`, which now return the
+     created item's identity. Broadcast `data:changed`. If the account changed since
+     submission, nothing is created and the capture fails with "Your account changed. Check
+     the details and add it again."
   5. Confirm: macOS notification "Added to Reminders · Thu 3:00 PM" with an Undo action, and
      an entry in the menu-bar panel's "Recent captures" (last 5, Undo for 10 minutes).
 - **AI off or unavailable:** the panel opens on the small manual form (title, type, date, time,
@@ -206,15 +222,22 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
 - **Failure** (license, demo, provider, network, unparseable): the capture panel reopens on the
   pointer's display with the original text and the error. If parsing failed, it reopens on the
   manual form with the text as the title. A failure never shows only as a notification.
-- **Undo** (`capture:undo { id }`) deletes the created item through the existing delete
-  services, once, and updates the recent list.
+- **Undo** (`capture:undo { id }`) uses a single-use, 10-minute receipt (account scope +
+  container + item identity, kept in memory, never rebuilt from the title). It deletes through
+  the existing delete services only if the current account scope still matches, once, and
+  updates the recent list. The notification's Undo action calls the same guarded operation.
+- **Job lifetime:** `capture:submit` awaits the whole pipeline in main, so the existing
+  operation tracking and quit draining cover it; the renderer does not wait for it. Late
+  failures are queued in the panel and never replace text Miles is typing.
 - `capture:submit` and `capture:undo` are added to `PAID_CHANNELS`; both refuse demo mode.
 - The in-window ⌘N dialog keeps its current review flow.
 
 ### 3. Menu-bar mini Agenda
 
 - `main/system-panels/tray.ts`: a `Tray` with a monochrome template image
-  (`resources/tray/trayTemplate.png` + `@2x`, drawn from the DayBoard mark in `brand/`).
+  (`resources/tray/trayTemplate.png` + `@2x`, drawn from the DayBoard mark in `brand/`,
+  imported with electron-vite's `?asset` suffix so the files land in `out/` and ship inside
+  `app.asar`).
   Left-click toggles the panel under the icon; right-click menu: Open DayBoard, Quick Capture,
   Settings…, Quit DayBoard.
 - Panel (about 360 × 520), top to bottom: Up Next card; Today (overdue count, today's timed
@@ -229,13 +252,16 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
 
 - `extractJoinUrl(event)`: `meetLink` first, then the first Zoom, Microsoft Teams, Webex,
   Whereby or Google Meet https URL in `location`, then `description`.
-- `isMine(event, accountEmail)`: on the primary calendar (`calendarId === accountEmail`), or
-  the account email is the organizer or an attendee. Events on shared or subscribed calendars
-  where Miles isn't invited are not his meetings.
+- `isMine(event, accountEmail)`: the event's calendar has Google's `primary` flag (this also
+  covers the legacy `"primary"` fallback calendar), or the account email is the organizer or an
+  attendee. Ownership and `selfResponse` are computed in `eventToItem` from the raw attendee
+  list, before the self attendee is filtered out and the list is capped. Events on shared or
+  subscribed calendars where Miles isn't invited are not his meetings.
 - `isMeeting(event)`: timed, mine, not declined (`selfResponse !== "declined"`, taken only
   from the primary calendar's copy), and has a join URL or at least one other attendee.
-- Duplicates of one meeting across calendars collapse by `iCalUID` (newly exposed from
-  `eventToItem` with `selfResponse` and `organizer`).
+- Copies of one occurrence across calendars collapse by `iCalUID` plus occurrence start
+  (instances of a recurring series share an `iCalUID`, so the start keeps them apart), with
+  calendar ID + event ID as the fallback identity. Alerts use the same identity.
 - `pickUpNext(events, now)`: the in-progress meeting if any, else the next meeting starting
   within 12 hours; returns `{ event, phase: "now" | "soon" | "later", minutesUntil }`.
 - `justEnded(events, now)`: the most recent meeting that ended within the last 3 hours.
@@ -249,9 +275,13 @@ count, and, with AI and `meetingPrep` on, the cached prep from the existing
 reusing the existing generation. After the meeting the card shows "Get notes from Granola"
 when a provider is known. The sidebar footer's Up Next is unchanged.
 
-**Notification** (`main/system-panels/meeting-alerts.ts`). When `notify` is on and Google is
-connected, a main-process scheduler reads events with `listEventsBetween`, refreshes on
-`data:changed` and every `general.refreshMinutes`, and keeps one timer for the next alert.
+**Notification** (`main/system-panels/meeting-alerts.ts`). When `notify` is on, the Calendar
+source is enabled and Google is connected, a main-process scheduler reads events with
+`listEventsBetween` (same visibility rules as `calendar:list`), refreshes every
+`general.refreshMinutes` and on settings or account changes (in-process events, since those
+arrive as separate notifications, not `data:changed`), cancels its timer on any change, and
+discards fetch results that finish after a newer refresh started. It keeps one timer for the
+next alert.
 "Starts in 2 min" with a Join action when a join URL exists; clicking opens the menu-bar panel.
 One alert per event id + start time. Demo mode never schedules. If macOS refuses delivery
 (`failed` event), Settings → Meetings shows "macOS didn't deliver DayBoard's notification.
@@ -261,15 +291,16 @@ for the Developer ID signed beta.
 
 **Notes import** (`main/services/meeting-notes/`):
 
-- **Provider detection without background launches.** When Miles saves or tests an MCP server
-  (`mcp:save`, `mcp:test` already connect and list tools), DayBoard records whether its tools
-  include both `list_meetings` and `get_meetings` (Granola's public tool names) in
-  `userData/meeting-notes/providers.json`. The card offers "Get notes from Granola" only for an
+- **Provider detection without background launches.** When Miles tests an MCP server
+  (`mcp:test` connects and lists tools; `mcp:save` only stores the configuration), DayBoard
+  records whether its tools include both `list_meetings` and `get_meetings` (Granola's public
+  tool names) in `userData/meeting-notes/providers.json`, keyed by server ID plus a hash of the
+  server's command/arguments/URL, so editing the server invalidates the record. The card offers "Get notes from Granola" only for an
   enabled server recorded as Granola. A "Check MCP servers for meeting notes" button in Settings
   → Meetings runs detection on demand. Nothing launches an MCP server unless Miles clicks.
 - **Granola output** (from the approved sample): text containing
   `<meetings_data …><meeting id="<uuid>" title="…" meeting_at="<ISO-8601 with offset>"
-  url="https://notes.granola.ai/d/<uuid>" …>` elements with XML-escaped attributes;
+url="https://notes.granola.ai/d/<uuid>" …>` elements with XML-escaped attributes;
   `get_meetings` adds a Markdown `<summary>` with `# Heading` sections. Action items appear under
   a "Next Steps"-style heading as `- **Item**` bullets with an indented description line.
   Granola titles are AI-written and usually differ from the calendar title.
@@ -279,12 +310,16 @@ for the Developer ID signed beta.
   overlap. Exactly one match → use it; otherwise the card lists up to five candidates
   (title and time) to pick.
 - **Fetch:** `get_meetings { meeting_ids: [id] }`, through a call path with a 60,000-character
-  cap instead of the assistant's 12,000. Store the `<summary>` text, or the whole result if no
-  summary element exists.
-- **Storage:** `userData/meeting-notes/notes.json` keyed by calendar event id, written with the
-  existing `file-store` serial queue and atomic writes, like assistant history. Record:
-  `{ eventId, provider: "granola", providerMeetingId, providerUrl, title, importedAt, text }`.
-  Demo mode reads and writes nothing.
+  cap instead of the assistant's 12,000 that reports the tool's `isError` and truncation
+  separately (the assistant formatter folds errors into text). An error or empty result is
+  never stored as notes. Store the `<summary>` text, or the whole result if no summary
+  element exists.
+- **Storage:** `userData/meeting-notes/notes.json` keyed by account scope + calendar ID +
+  event ID, written with the existing `file-store` serial queue and atomic writes, like
+  assistant history. Record: `{ scope, calendarId, eventId, provider: "granola",
+providerMeetingId, providerUrl, title, importedAt, text }`. Reads return only the current
+  scope's records; an import that finishes after an account change is discarded. Demo mode
+  reads and writes nothing.
 - **Display:** a "Meeting notes" section in the event detail (rendered as plain text with
   Markdown headings and bullets only, never HTML) and a collapsed preview on the card.
 - **Follow-ups:** action items come from the notes. With AI on, `ai:run` returns a JSON list.
