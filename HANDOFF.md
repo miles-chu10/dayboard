@@ -34,8 +34,10 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
   exists only in production, not in this repository; commit it with the code that uses it.
 - Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
-  servers and bounded authenticated JSON before SDK validation. Zod's advisory remains
-  unresolved upstream; remote MCP response validation is outside this local input mitigation.
+  servers and bounded authenticated JSON before SDK validation. Zod 4.6.6 (October 11) fixes
+  SNYK-JS-ZOD-20510278: standalone requires `^4.6.6` from beta.12 and Glaze 1.2.5 pins 4.6.6.
+  The fix only stops early on arrays that declare a maximum, so keep the local input limits;
+  remote MCP response validation stays outside them.
 
 - Standalone Electron integration is implemented: platform services, sandboxed preload, native window lifecycle, React UI, Swift Reminders helper, Google Desktop OAuth, AI provider selection, local MCP, preferences and history.
 - The existing Claude platform/UI/AI/licensing packets have been incorporated and reviewed. Root fixes include account-change races, native date/list validation, explicit AI-provider selection, demo isolation, accessible editor labels, persisted theme and licensing enforcement.
