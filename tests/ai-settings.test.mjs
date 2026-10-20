@@ -234,3 +234,19 @@ test("Assistant effort keeps valid levels for known providers and drops everythi
     codex: "ultra",
   });
 });
+
+test("settings saved before the composer keep the Assistant's effort, once", () => {
+  const upgraded = normalizeSettings({ ai: { claudeEffort: "max", codexEffort: "high" } });
+  assert.deepEqual(upgraded.ai.assistantEffort, { claude: "max", codex: "high" });
+  assert.equal(upgraded.ai.claudeEffort, "max");
+  assert.deepEqual(
+    normalizeSettings({ ai: { claudeEffort: "default", codexEffort: "" } }).ai.assistantEffort,
+    {},
+  );
+  // Once saved, the Assistant's own record wins, including a reset to the model default.
+  assert.deepEqual(
+    normalizeSettings({ ai: { claudeEffort: "max", codexEffort: "high", assistantEffort: {} } }).ai
+      .assistantEffort,
+    {},
+  );
+});

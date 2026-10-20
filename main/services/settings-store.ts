@@ -234,9 +234,17 @@ export function normalizeSettings(value: unknown): AppSettings {
         API_PROVIDERS.map((provider) => [provider, modelId(record(ai.apiModels)[provider])]),
       ) as Record<ApiProviderId, string>,
       assistantProvider: oneOf(ai.assistantProvider, ["", ...PROVIDERS] as const, ""),
+      // Settings saved before the composer had its own effort keep the level the Assistant used.
       assistantEffort: Object.fromEntries(
         PROVIDERS.flatMap((provider): [AIProvider, string][] => {
-          const level = token(record(ai.assistantEffort)[provider]);
+          const saved =
+            ai.assistantEffort === undefined
+              ? {
+                  claude: ai.claudeEffort === "default" ? "" : ai.claudeEffort,
+                  codex: ai.codexEffort,
+                }
+              : ai.assistantEffort;
+          const level = token(record(saved)[provider]);
           return level ? [[provider, level]] : [];
         }),
       ),
