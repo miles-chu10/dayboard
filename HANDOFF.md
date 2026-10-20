@@ -8,14 +8,18 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   Google sign-in through `npm run build:beta`, which fails if the Desktop OAuth client is missing.
   It keeps beta.10's MCP input limits and reports refresh failures and partial results alongside
   cached sidebar summaries. Notes: `docs/release-notes-1.3.0-beta.11.md`.
-- Unreleased on `main` since beta.11: ⌘N New Item with a clickable sidebar + (PR #25), beta
-  packaging that enforces the Google configuration through final macOS packaging (PR #33), the
-  macOS shell, sidebar and responsive inspector refinement (PR #34), billing tooling updates
-  (PR #22) and the website Road Map (PR #36). `package.json` still reads `1.3.0-beta.11`.
-- PR #37 also carries the offline Google refresh fix (only a refused grant signs out) and the
+- Unreleased on `main` since beta.11, now versioned `1.3.0-beta.12`: ⌘N New Item with a
+  clickable sidebar + (PR #25), beta packaging that enforces the Google configuration through
+  final macOS packaging (PR #33), the macOS shell, sidebar and responsive inspector refinement
+  (PR #34), billing tooling updates (PR #22), the website Road Map (PR #36), and PR #37 (merged
+  October 20). No beta.12 artifact has been built yet.
+- PR #37 carries the offline Google refresh fix (only a refused grant signs out) and the
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
   `npm test` skips it).
+- Miles bought Apple Developer Program enrollment on October 20. Beta.12 onward should be
+  Developer ID signed and notarized through the manual **Signed macOS beta** workflow (see
+  `docs/RELEASE.md`), once the `macos-release` environment holds the Apple and Google entries.
 - Glaze 1.2.5 was rebuilt from the 2026-10-14 recovery packet: remote `glaze` df4d574 plus
   patches 01, 02 and 03. All 53 files match the packet's hashes. Its shared fixes are ported into
   PR #37: Glaze's three-way Google refresh classification, one-line snapshot fields with MCP
@@ -74,7 +78,7 @@ account acceptance remain follow-up work, not release blockers for this limited 
 
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.
 2. Live Gmail/AI-provider acceptance and first-time Reminders consent remain unverified feature acceptance. New consent and real Keychain checks require deliberately owned OS test state; a separate macOS account is not a requirement for fictional UI. Historical Google Tasks, Calendar and existing Reminders access were verified for the selected account; this does not prove public OAuth eligibility for every account.
-3. Approved Developer ID signing, notarization, Gatekeeper and ordinary signed launch/account continuity on an owned installation target. October 7 metadata showed two Apple Development identities, no valid Developer ID Application identity, no `macos-release` GitHub environment and no repository signing/notarization configuration names. The proposed manual beta keeps the updater disabled; signed automatic upgrade acceptance belongs to a future updater-enabled release.
+3. Developer ID signing and notarization now run in the Signed macOS beta workflow once its credentials exist; ordinary signed launch, Gatekeeper on a quarantined download and account/Keychain continuity across replacing an ad-hoc install still need an owned installation target. October 7 metadata showed two Apple Development identities, no valid Developer ID Application identity, no `macos-release` GitHub environment and no repository signing/notarization configuration names. The manual beta keeps the updater disabled; signed automatic upgrade acceptance belongs to a future updater-enabled release.
 4. Manual window-drag acceptance, source migration review and public download/site publication. The preview is ad-hoc signed, not Developer ID signed or notarized, and has no merchant configuration.
 
 The Glaze source repository and this standalone repository are separate histories and do not synchronize automatically. Preserve the public repository's history when preparing the standalone migration; do not force-push over it.

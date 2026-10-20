@@ -97,6 +97,36 @@ remain disabled; replace the application bundle manually while preserving the us
 
 Every build generates third-party notices from installed production dependencies, bundled renderer libraries and Electron. Version-pinned overrides retain their source provenance. The inventory explicitly labels two MIT declarations whose packages omit separate license files; it uses canonical SPDX terms without inventing copyright holders. Missing or changed inputs fail the build. Both the app's GPL text and the third-party notices ship in Resources; the Help menu opens the notices.
 
+## Signed community beta
+
+From `1.3.0-beta.12`, Miles has a paid Apple Developer Program membership and asked for
+notarized betas. The manual **Signed macOS beta** workflow (`.github/workflows/macos-beta.yml`)
+runs only from `main` and only for an `x.y.z-beta.n` version. It runs the repository checks,
+builds with `npm run build:beta` (Google required; licensing and in-app updates off), signs with
+Developer ID, notarizes and staples. It then verifies the Developer ID team, hardened runtime,
+stapled ticket and Gatekeeper assessment of the app, the ZIP's app and the mounted DMG's app,
+checks the beta build proof in all three and smoke-tests the signed app with fictional data.
+The DMG, ZIP, blockmaps, `SHA256SUMS.txt` and `release-manifest.json` are uploaded as a workflow
+artifact. Nothing is published, and the release publisher refuses a beta manifest.
+
+It uses the `macos-release` GitHub environment, which must allow the `main` branch. That
+environment needs:
+
+| Kind     | Name                           | Value                                                      |
+| -------- | ------------------------------ | ---------------------------------------------------------- |
+| Variable | `APPLE_TEAM_ID`                | 10-character Apple Developer team ID                       |
+| Variable | `APPLE_API_KEY_ID`             | App Store Connect API key ID used for notarization         |
+| Variable | `APPLE_API_ISSUER`             | That key's issuer ID (UUID)                                |
+| Secret   | `MACOS_CERTIFICATE_P12_BASE64` | Base64 of the exported Developer ID Application `.p12`     |
+| Secret   | `MACOS_CERTIFICATE_PASSWORD`   | The `.p12` export password                                 |
+| Secret   | `MACOS_NOTARY_KEY_P8`          | Contents of the App Store Connect `.p8` key                |
+| Secret   | `DAYBOARD_GOOGLE_OAUTH_JSON`   | `{"clientId": …, "clientSecret": …}` of the Desktop client |
+
+The tagged commercial workflow uses the same entries. Distribution stays manual through the
+`beta-<version>` prerelease route after the Mac acceptance checks below. The first Developer ID
+build replaces ad-hoc-signed installs, so verify on an owned installation that Google sign-in and
+the Keychain-held encryption key carry over when the app is replaced in Applications.
+
 ## Local installation and QA copies
 
 Use `/Applications/DayBoard.app` as the single standalone installation and preserve

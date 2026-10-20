@@ -1,0 +1,93 @@
+name: Signed macOS beta
+
+# Manual community beta from main: Developer ID signed and notarized, with licensing and in-app
+# updates disabled. Downloads are uploaded as a workflow artifact only; nothing is published.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-beta
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'miles-chu10/dayboard' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: macos-release
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Validate beta version and main ancestry
+        id: plan
+        run: node scripts/macos-release.mjs plan-beta
+      - name: Install locked dependencies
+        run: npm ci --include=dev
+      - name: Test before loading signing credentials
+        run: |
+          npm run format:check
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run test:e2e
+      - name: Build, sign and notarize
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_NOTARY_KEY_P8: ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          DAYBOARD_GOOGLE_OAUTH_JSON: ${{ secrets.DAYBOARD_GOOGLE_OAUTH_JSON }}
+        run: |
+          node scripts/macos-release.mjs credentials
+          export CSC_LINK="$RUNNER_TEMP/dayboard-release-credentials/certificate.p12"
+          export APPLE_API_KEY="$RUNNER_TEMP/dayboard-release-credentials/notary.p8"
+          export DAYBOARD_GOOGLE_OAUTH_FILE="$RUNNER_TEMP/dayboard-release-credentials/google-oauth.json"
+          npm run build:beta
+          npx --no-install electron-builder --mac --arm64 --publish never --config.forceCodeSigning=true --config.mac.notarize=true --config.dmg.sign=true
+      - name: Remove temporary signing inputs
+        if: always()
+        run: node scripts/macos-release.mjs cleanup
+      # electron-builder deletes its temporary signing keychain only when the build finishes normally.
+      - name: Remove temporary signing keychains
+        if: always()
+        run: |
+          security list-keychains -d user | tr -d '"' | while read -r keychain; do
+            case "$keychain" in
+              */login.keychain-db | "") ;;
+              *) security delete-keychain "$keychain" || true ;;
+            esac
+          done
+      - name: Verify Developer ID, notarization and Gatekeeper for the app, DMG and ZIP
+        run: node scripts/macos-release.mjs verify
+      - name: Verify beta configuration in the app, DMG and ZIP
+        run: |
+          version=$(node -p "require('./package.json').version")
+          node scripts/verify-beta-package.mjs release/mac-arm64/DayBoard.app \
+            "release/DayBoard-$version-arm64.dmg" "release/DayBoard-$version-arm64-mac.zip"
+      - name: Smoke-test the signed package with fictional data
+        env:
+          DAYBOARD_E2E_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/DayBoard.app/Contents/MacOS/DayBoard
+        run: npx --no-install playwright test e2e/smoke.spec.ts e2e/behavior.spec.ts
+      - name: Prepare checksummed downloads
+        run: node scripts/macos-release.mjs stage
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-macos-${{ steps.plan.outputs.tag }}
+          path: ${{ runner.temp }}/dayboard-release-assets/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 14
