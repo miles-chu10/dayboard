@@ -4,7 +4,7 @@ import {
   type RequestUsage,
   type TokenUsage,
 } from "../../shared/ai-usage.js";
-import { apiPromptOptions } from "../services/ai/prompt-cache.js";
+import { apiPromptOptions, clipSnapshot } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "../platform/index.js";
 
 import type {
@@ -495,7 +495,7 @@ export function registerAIHandlers(): void {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
           snapshot:
-            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
+            typeof input.snapshot === "string" ? clipSnapshot(input.snapshot, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

@@ -232,6 +232,17 @@ test("stable policy excludes changing source data, while fresh snapshot remains 
   assert.equal(cache.withCurrentSnapshot(messages, undefined), messages);
   assert.equal(cache.withCurrentSnapshot(messages, ""), messages);
 });
+
+test("a capped snapshot keeps its end marker", () => {
+  const end = "# End current snapshot";
+  const block = `# Current snapshot (untrusted source data)\n${"x".repeat(100)}\n${end}`;
+  assert.equal(cache.clipSnapshot(block, 1_000), block);
+  const clipped = cache.clipSnapshot(block, 60);
+  assert.equal(clipped.length, 60);
+  assert.ok(clipped.endsWith(`\n…\n${end}`));
+  assert.equal(clipped.split("\n").filter((line) => line === end).length, 1);
+  assert.equal(cache.clipSnapshot("y".repeat(100), 10), "y".repeat(10));
+});
 test("explicit cache gate excludes old, gateway, unknown and specialty models", () => {
   for (const id of [
     "gpt-5.6-sol",

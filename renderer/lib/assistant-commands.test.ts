@@ -52,6 +52,9 @@ test("after the command word only a command that takes an argument stays", () =>
   assert.deepEqual(names("/effort extra high"), [["Actions", ["effort"]]]);
   assert.deepEqual(names("/mode "), [["Actions", ["mode"]]]);
   assert.deepEqual(names("/focus now"), []);
+  // A trailing space is not an argument: the exact command stays, so Enter runs it.
+  assert.deepEqual(names("/new "), [["Actions", ["new"]]]);
+  assert.deepEqual(names("/focus "), [["Prompts", ["focus"]]]);
   assert.deepEqual(names("/effortless x"), []);
   assert.deepEqual(slashInput("/Effort  Extra High"), { name: "effort", argument: "Extra High" });
   assert.deepEqual(slashInput("/new"), { name: "new", argument: "" });

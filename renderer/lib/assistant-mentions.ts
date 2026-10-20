@@ -57,12 +57,18 @@ function clip(text: string): string {
   return text.length > MAX_MENTION_TEXT ? `${text.slice(0, MAX_MENTION_TEXT)}…` : text;
 }
 
-/** Multi-line untrusted text, indented so none of its lines can pose as a snapshot marker. */
+/**
+ * Multi-line untrusted text, indented so none of its lines can pose as a snapshot marker. Every
+ * character some reader treats as a line break starts an indented line, and the cap applies after
+ * indenting so short lines can't inflate the request.
+ */
 function indented(text: string): string {
-  return clip(text)
-    .split("\n")
-    .map((line) => `    ${line}`)
-    .join("\n");
+  return clip(
+    text
+      .split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/)
+      .map((line) => `    ${line}`)
+      .join("\n"),
+  );
 }
 
 function eventStart(event: CalendarEventItem): number {
@@ -76,13 +82,16 @@ function dueText(todo: Todo): string {
   return `${todo.dueDate}${todo.dueTime ? ` ${formatClock(todo.dueTime)}` : ""}`;
 }
 
-/** The `@` token the caret is in: `@` at the start or after whitespace, up to the caret, one line. */
+/**
+ * The `@` token the caret is in: `@` at the start or after whitespace, up to the caret, on one line
+ * and not followed by a space ("lunch @ 12" is not a mention).
+ */
 export function mentionQuery(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const start = before.lastIndexOf("@");
   if (start < 0 || (start > 0 && !/\s/.test(before[start - 1]))) return null;
   const query = before.slice(start + 1);
-  return query.includes("\n") || query.length > 80 ? null : { start, query };
+  return /^\s/.test(query) || query.includes("\n") || query.length > 80 ? null : { start, query };
 }
 
 /**

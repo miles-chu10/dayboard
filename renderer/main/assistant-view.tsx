@@ -330,7 +330,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     const content = text.trim();
     if (!content || cancelRef.current || history.switching || !enabled) return;
 
-    // Chips are checked against the data loaded now; an item deleted since is dropped.
+    // Chips are checked against the data loaded now; an item gone since is sent as unavailable.
     const resolved = resolveMentions(mentions, candidates);
     const userMessage: AssistantMessage = {
       id: crypto.randomUUID(),

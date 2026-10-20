@@ -99,8 +99,8 @@ function rank(command: AssistantCommand, query: string): number {
 
 /**
  * Menu sections for the typed text: an exact name first, then name matches, then description
- * matches, in registry order within each. Once an argument follows the command word, only that
- * command stays, and only if it takes one. An empty result closes the menu.
+ * matches, in registry order within each. Once a space follows the command word, only that command
+ * stays, and only if it takes an argument or none was typed. An empty result closes the menu.
  */
 export function commandSections(text: string, options: { demo: boolean }): CommandSection[] {
   const input = slashInput(text);
@@ -113,7 +113,7 @@ export function commandSections(text: string, options: { demo: boolean }): Comma
         command,
         index,
         rank: withArgument
-          ? command.name === input.name && command.argument
+          ? command.name === input.name && (command.argument || !input.argument)
             ? 0
             : -1
           : rank(command, input.name),
