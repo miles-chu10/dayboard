@@ -17,7 +17,7 @@ Log are the source of truth). Spec: `docs/superpowers/specs/2026-10-20-system-pa
 - [x] Task 12: Up Next card and Meetings settings
 - [x] Task 13: Meeting notifications
 - [x] Task 14: Granola notes import and follow-ups
-- [ ] Task 15: Porting doc, fuse proposal, handoff
+- [x] Task 15: Porting doc, fuse proposal, handoff
 - [ ] Task 16: Full verification, packaged build, manual acceptance, REA check
 
 ## Found along the way
