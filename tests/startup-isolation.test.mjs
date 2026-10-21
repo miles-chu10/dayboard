@@ -434,13 +434,17 @@ async function runQaEntry(t, { profile, ignore = [] }) {
       get: (_t, prop) => (prop === "then" || typeof prop === "symbol" ? undefined : recorder(name + "." + prop)),
       apply: () => { calls.push(name); return recorder(name + "()"); },
       construct: () => { calls.push("new " + name); return recorder("new " + name); },
+      set: (_t, prop) => { calls.push(name + "." + String(prop) + "="); return true; },
     });
     const own = {
       getPath(name) { calls.push("app.getPath:" + name); return scenario.paths[name]; },
       setPath(name, value) { calls.push("app.setPath:" + name); if (!scenario.ignore.includes(name)) scenario.paths[name] = value; },
       exit(code) { calls.push("app.exit:" + code); },
     };
-    export const app = new Proxy(own, { get: (target, prop) => (prop in target ? target[prop] : recorder("app." + String(prop))) });
+    export const app = new Proxy(own, {
+      get: (target, prop) => (prop in target ? target[prop] : recorder("app." + String(prop))),
+      set: (_t, prop) => { calls.push("app." + String(prop) + "="); return true; },
+    });
     ${[...names].map((name) => `export const ${name} = recorder(${JSON.stringify(name)});`).join("\n")}
     `,
   );
