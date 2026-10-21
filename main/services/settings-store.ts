@@ -131,7 +131,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     },
   },
   system: {
-    quickCapture: { enabled: true, hotkey: "Control+Alt+Space" },
+    quickCapture: { enabled: true, hotkey: "Control+Alt+Shift+Space" },
     menuBar: { enabled: true },
     meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
   },

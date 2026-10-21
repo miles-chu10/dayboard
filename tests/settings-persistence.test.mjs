@@ -325,7 +325,7 @@ test("demo mode keeps the ordering and never exposes real settings or MCP server
 test("defaults the system section", async () => {
   await withStore(async ({ store }) => {
     assert.deepEqual(store.normalizeSettings({}).system, {
-      quickCapture: { enabled: true, hotkey: "Control+Alt+Space" },
+      quickCapture: { enabled: true, hotkey: "Control+Alt+Shift+Space" },
       menuBar: { enabled: true },
       meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
     });
@@ -346,8 +346,19 @@ test("falls back to the default hotkey when invalid", async () => {
   await withStore(async ({ store }) => {
     for (const hotkey of ["Command+Q", 42, "A", "Control+Alt"]) {
       const settings = store.normalizeSettings({ system: { quickCapture: { hotkey } } });
-      assert.equal(settings.system.quickCapture.hotkey, "Control+Alt+Space", String(hotkey));
+      assert.equal(settings.system.quickCapture.hotkey, "Control+Alt+Shift+Space", String(hotkey));
     }
+  });
+});
+
+test("keeps a saved ⌃⌥Space hotkey after the default changed", async () => {
+  await withStore(async ({ userData, store }) => {
+    const saved = structuredClone(store.DEFAULT_SETTINGS);
+    saved.system.quickCapture.hotkey = "Control+Alt+Space";
+    await writeFile(path.join(userData, "settings.json"), JSON.stringify(saved));
+    assert.equal((await store.getSettings()).system.quickCapture.hotkey, "Control+Alt+Space");
+    const relaunched = await loadStore();
+    assert.equal((await relaunched.getSettings()).system.quickCapture.hotkey, "Control+Alt+Space");
   });
 });
 
