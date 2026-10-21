@@ -28,6 +28,7 @@
     "package:beta": "npm run build:beta && node scripts/package-preview.mjs",
     "package:preview": "npm run package:beta",
     "package:test": "DAYBOARD_TEST=1 npm run build && node scripts/package-preview.mjs --test",
+    "package:qa": "DAYBOARD_QA=1 npm run build && node scripts/package-preview.mjs --qa",
     "test:packaging": "node --test tests/beta-packaging.integration.mjs",
     "postinstall": "electron-builder install-app-deps",
     "test:billing": "npm --prefix billing run typecheck && npm --prefix billing test"

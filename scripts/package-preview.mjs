@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { signAsync } from "@electron/osx-sign";
 import { Arch, Platform, build } from "electron-builder";
 import { verifyBetaApp, verifyBetaArtifacts, verifyBetaBuild } from "./verify-beta-package.mjs";
+import { verifyQaApp, verifyQaBuild } from "./verify-qa-package.mjs";
 
 export function assertAdHocSignature(details) {
   if (
@@ -19,23 +20,39 @@ export function assertAdHocSignature(details) {
   }
 }
 
-export async function packagePreview(testOnly = false) {
+export async function packagePreview(testOnly = false, qaOnly = false) {
+  if (testOnly && qaOnly) throw new Error("Select either test or QA packaging.");
   if (process.platform !== "darwin") throw new Error("Preview packaging requires macOS.");
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const app = path.join(root, "release", "mac-arm64", "DayBoard.app");
-  if (!testOnly) verifyBetaBuild((name) => readFileSync(path.join(root, "out", "main", name)));
+  const app = path.join(
+    root,
+    qaOnly ? "release-qa" : "release",
+    "mac-arm64",
+    qaOnly ? "DayBoard QA.app" : "DayBoard.app",
+  );
+  if (qaOnly) verifyQaBuild((name) => readFileSync(path.join(root, "out", "main", name)));
+  else if (!testOnly) verifyBetaBuild((name) => readFileSync(path.join(root, "out", "main", name)));
   const options = {
     projectDir: root,
     publish: "never",
     config: {
       extends: path.join(root, "electron-builder.yml"),
+      ...(qaOnly
+        ? {
+            appId: "com.mileschu.dayboard.qa",
+            productName: "DayBoard QA",
+            extraMetadata: { name: "dayboard-qa", productName: "DayBoard QA" },
+            directories: { output: "release-qa" },
+          }
+        : {}),
       // null skips electron-builder's identity lookup, including explicit CSC_NAME values.
       mac: { identity: null, hardenedRuntime: false, notarize: false },
       dmg: { sign: false },
     },
   };
   await build({ ...options, targets: Platform.MAC.createTarget("dir", Arch.arm64) });
-  if (!testOnly) verifyBetaApp(app);
+  if (qaOnly) verifyQaApp(app);
+  else if (!testOnly) verifyBetaApp(app);
 
   // Sign only after packaging/fuse edits, and before either archive is assembled.
   // identityValidation:false passes the literal '-' directly to codesign, without a keychain search.
@@ -63,7 +80,7 @@ export async function packagePreview(testOnly = false) {
   if (signature.status !== 0) throw new Error("Could not inspect the preview signature.");
   assertAdHocSignature(signature.stderr);
 
-  if (!testOnly) {
+  if (!testOnly && !qaOnly) {
     const artifacts = await build({
       ...options,
       prepackaged: app,
@@ -75,8 +92,8 @@ export async function packagePreview(testOnly = false) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  if (args.length > 1 || (args.length === 1 && args[0] !== "--test")) {
-    throw new Error("Usage: node scripts/package-preview.mjs [--test]");
+  if (args.length > 1 || (args.length === 1 && !["--test", "--qa"].includes(args[0]))) {
+    throw new Error("Usage: node scripts/package-preview.mjs [--test|--qa]");
   }
-  await packagePreview(args[0] === "--test");
+  await packagePreview(args[0] === "--test", args[0] === "--qa");
 }

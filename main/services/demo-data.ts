@@ -17,6 +17,7 @@ import type {
 } from "../shared-types.js";
 
 let demoMode: boolean | undefined;
+declare const __DAYBOARD_QA_BUILD__: boolean;
 
 function readDemoMarker(): boolean {
   try {
@@ -31,6 +32,7 @@ function readDemoMarker(): boolean {
 
 /** The marker is read once, before any data boundary makes a decision. */
 export function isDemoMode(): boolean {
+  if (typeof __DAYBOARD_QA_BUILD__ !== "undefined" && __DAYBOARD_QA_BUILD__) return true;
   if (demoMode === undefined) demoMode = readDemoMarker();
   return demoMode;
 }

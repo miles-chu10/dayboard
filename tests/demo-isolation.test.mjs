@@ -53,7 +53,7 @@ async function loadSettings(userData) {
   return import(moduleUrl(result.outputFiles[0].text));
 }
 
-async function loadDemoData(userData) {
+async function loadDemoData(userData, qaBuild = false) {
   globalThis.__demoUserData = userData;
   const result = await build({
     entryPoints: [path.join(root, "main/services/demo-data.ts")],
@@ -62,10 +62,17 @@ async function loadDemoData(userData) {
     platform: "node",
     write: false,
     logLevel: "silent",
+    define: { __DAYBOARD_QA_BUILD__: String(qaBuild) },
     plugins: [backendPlugin()],
   });
   return import(moduleUrl(result.outputFiles[0].text));
 }
+
+test("compiled QA never leaves demo mode even without a marker", async () => {
+  const demo = await loadDemoData("/synthetic-nonexistent-qa-profile", true);
+  assert.equal(demo.isDemoMode(), true);
+  assert.throws(() => demo.assertNotDemo("qa-mutation"), /changes are turned off/);
+});
 
 async function loadRendererDemo() {
   const result = await build({

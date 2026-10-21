@@ -30,7 +30,7 @@ function stubPlugin(stubs) {
   };
 }
 
-for (const mode of ["compiled test", "runtime demo"]) {
+for (const mode of ["compiled test", "compiled QA", "runtime demo"]) {
   test(`${mode} main entry stops before handlers, stores, single-instance lock or windows`, async (t) => {
     const directory = await temp(t);
     const normal = path.join(directory, "normal");
@@ -99,7 +99,10 @@ for (const mode of ["compiled test", "runtime demo"]) {
       format: "esm",
       platform: "node",
       write: false,
-      define: { __DAYBOARD_TEST_BUILD__: String(mode === "compiled test") },
+      define: {
+        __DAYBOARD_TEST_BUILD__: String(mode === "compiled test"),
+        __DAYBOARD_QA_BUILD__: String(mode === "compiled QA"),
+      },
       plugins: [stubPlugin(stubs)],
     });
     await writeFile(path.join(directory, "main-fixture.mjs"), result.outputFiles[0].text);
@@ -215,16 +218,21 @@ test("the actual Vite configuration embeds test-build isolation without reading 
     console.log(JSON.stringify(config.main.define));
   `,
   );
-  for (const testBuild of ["1", "0"]) {
+  for (const [testBuild, qaBuild] of [
+    ["1", "0"],
+    ["0", "0"],
+    ["0", "1"],
+  ]) {
     const child = spawnSync(process.execPath, [driver], {
       cwd: directory,
-      env: { PATH: process.env.PATH, DAYBOARD_TEST: testBuild },
+      env: { PATH: process.env.PATH, DAYBOARD_TEST: testBuild, DAYBOARD_QA: qaBuild },
       encoding: "utf8",
       timeout: 10_000,
     });
     assert.equal(child.status, 0, child.stderr);
     const definitions = JSON.parse(child.stdout.trim());
     assert.equal(definitions.__DAYBOARD_TEST_BUILD__, String(testBuild === "1"));
+    assert.equal(definitions.__DAYBOARD_QA_BUILD__, String(qaBuild === "1"));
     assert.equal(definitions["process.env.DAYBOARD_RELEASE"], '""');
     assert.equal(definitions["process.env.DAYBOARD_LICENSE_API_URL"], '""');
   }
