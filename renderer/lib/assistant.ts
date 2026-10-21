@@ -4,12 +4,9 @@ import type { AssistantAction, AssistantMessage } from "../../shared/assistant-h
 
 export type { AssistantAction, AssistantMessage } from "../../shared/assistant-history";
 
-export const ASSISTANT_SUGGESTIONS = [
-  "What should I focus on for the rest of today?",
-  "Summarize the emails that need a reply",
-  "When am I free tomorrow for an hour of deep work?",
-  "What's overdue, and what could I drop?",
-];
+// Defined with the slash commands, so the empty-state chips and /focus, /replies, /free and
+// /overdue can't drift apart.
+export { ASSISTANT_SUGGESTIONS } from "./assistant-commands";
 
 const STORAGE_KEY = "dashboard:assistant:v1";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -1,4 +1,4 @@
-import { useCallback, type ChangeEvent } from "react";
+import { useCallback, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import {
   AIChat,
   Button,
@@ -10,6 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -28,23 +31,25 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type {
-  AIProvider,
-  AssistantAttachment,
-  AssistantPermission,
-  ClaudeModel,
-} from "@main/shared-types";
+import type { AIProvider, AssistantAttachment, AssistantPermission } from "@main/shared-types";
 
 import {
-  CLAUDE_MODEL_OPTIONS,
-  MUSE_MODEL_OPTIONS,
   assistantProvider,
-  claudeSupportsFast,
   formatTokens,
   selectedModel,
+  useClaudeModels,
   useCodexModels,
   useProviderAvailability,
 } from "../lib/ai-models";
+import {
+  applyModelChoice,
+  claudeSupportsFast,
+  codexModel,
+  modelChoices,
+  modelSummary,
+  savedModel,
+  type ModelLists,
+} from "../lib/model-choices";
 import { useAllApiModels, useGeminiModels } from "../settings/provider-accounts";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import {
@@ -56,6 +61,30 @@ import {
 } from "../lib/settings";
 import { useDictation } from "../lib/use-dictation";
 import { ProviderMark } from "./provider-logo";
+import {
+  effortCommand,
+  noEffortNote,
+  effortOptions,
+  effortPhrase,
+  effortSelection,
+  ultraNote,
+} from "../../shared/ai-effort";
+import {
+  commandSections,
+  parseModeArgument,
+  slashInput,
+  type AssistantCommand,
+  type AssistantViewAction,
+} from "../lib/assistant-commands";
+import {
+  MAX_MENTIONS,
+  filterMentions,
+  mentionQuery,
+  type MentionItem,
+} from "../lib/assistant-mentions";
+import { ComposerMenu, type ComposerMenuModel } from "./composer-menu";
+import { EffortPanel } from "./effort-panel";
+import { MentionChip, MentionIcon } from "./mention-chip";
 
 const PICKER_PROVIDERS: AIProvider[] = [...SUBSCRIPTION_PROVIDERS, ...API_KEY_PROVIDERS];
 
@@ -144,23 +173,39 @@ export function AssistantComposer({
   setInput,
   attachments,
   setAttachments,
+  mentions,
+  setMentions,
+  mentionCandidates,
   onSend,
   onStop,
+  onAction,
+  onPrompt,
   running,
   disabled,
   usage,
   demo,
+  lastReply,
 }: {
   input: string;
   setInput: (updater: (previous: string) => string) => void;
   attachments: AssistantAttachment[];
   setAttachments: (updater: (previous: AssistantAttachment[]) => AssistantAttachment[]) => void;
+  mentions: MentionItem[];
+  setMentions: (updater: (previous: MentionItem[]) => MentionItem[]) => void;
+  /** Everything the user can mention, from the data the Assistant already loaded. */
+  mentionCandidates: MentionItem[];
   onSend: () => void;
   onStop: () => void;
+  /** Slash-command actions the Assistant view owns. */
+  onAction: (name: AssistantViewAction) => void;
+  /** Sends a prompt command's text. */
+  onPrompt: (prompt: string) => void;
   running: boolean;
   disabled: boolean;
   usage: ContextUsage | null;
   demo: boolean;
+  /** The model and effort the chat's last reply recorded, as evidence beside the next request's. */
+  lastReply: string | null;
 }) {
   const { settings, edit } = useSettingsEditor();
   const ai = settings?.ai;
@@ -169,64 +214,22 @@ export function AssistantComposer({
   const codexModels = useCodexModels(Boolean(available?.codex));
   const geminiModels = useGeminiModels(Boolean(available?.gemini));
   const apiModels = useAllApiModels(available);
+  const claudeModels = useClaudeModels().data;
   const current = selectedModel(
     settings,
     codexModels.data,
     provider,
     isApiKeyProvider(provider) ? apiModels[provider] : undefined,
+    claudeModels,
   );
 
-  type Choice = {
-    value: string;
-    label: string;
-    sublabel?: string;
-    selected: boolean;
-  };
-  function modelChoices(option: AIProvider): Choice[] {
-    if (!ai) return [];
-    if (option === "claude")
-      return CLAUDE_MODEL_OPTIONS.map((entry) => ({
-        value: entry.value,
-        label: entry.label,
-        sublabel: entry.sublabel,
-        selected: ai.claudeModel === entry.value,
-      }));
-    if (option === "codex") {
-      const selected =
-        codexModels.data?.find((model) => model.slug === ai.codexModel) ?? codexModels.data?.[0];
-      return (codexModels.data ?? []).map((model) => ({
-        value: model.slug,
-        label: model.name,
-        sublabel: model.slug,
-        selected: selected?.slug === model.slug,
-      }));
-    }
-    if (option === "gemini")
-      return [
-        { value: "", label: "Antigravity default", selected: !ai.geminiModel },
-        ...(geminiModels.data ?? []).map((model) => ({
-          value: model,
-          label: model,
-          selected: ai.geminiModel === model,
-        })),
-      ];
-    if (option === "muse")
-      return MUSE_MODEL_OPTIONS.map((model) => ({
-        value: model.value,
-        label: model.label,
-        selected: ai.museModel === model.value,
-      }));
-    if (!isApiKeyProvider(option)) return [];
-    const chosen = ai.apiModels[option];
-    return [
-      { value: "", label: "Newest available", selected: !chosen },
-      ...(apiModels[option] ?? []).slice(0, 25).map((model) => ({
-        value: model.id,
-        label: model.name,
-        sublabel: model.id !== model.name ? model.id : undefined,
-        selected: chosen === model.id,
-      })),
-    ];
+  function lists(option: AIProvider): ModelLists {
+    return {
+      codex: codexModels.data,
+      gemini: geminiModels.data,
+      api: isApiKeyProvider(option) ? apiModels[option] : undefined,
+      claude: claudeModels,
+    };
   }
 
   function choose(option: AIProvider, value: string) {
@@ -234,16 +237,7 @@ export function AssistantComposer({
       draft.ai.assistantProvider = option === draft.ai.provider ? "" : option;
       draft.ai.providerChosen = true;
       draft.ai.enabled = true;
-      if (option === "claude") draft.ai.claudeModel = value as ClaudeModel;
-      else if (option === "codex") {
-        draft.ai.codexModel = value;
-        draft.ai.codexEffort = "";
-        const model = codexModels.data?.find((entry) => entry.slug === value);
-        if (!model?.tiers.some((tier) => tier.id === draft.ai.codexServiceTier))
-          draft.ai.codexServiceTier = "";
-      } else if (option === "gemini") draft.ai.geminiModel = value;
-      else if (option === "muse") draft.ai.museModel = value;
-      else if (isApiKeyProvider(option)) draft.ai.apiModels[option] = value;
+      applyModelChoice(draft.ai, option, value, lists(option));
     });
   }
   const permission = ai?.assistantPermission ?? "ask";
@@ -285,19 +279,184 @@ export function AssistantComposer({
     }
   }
 
+  const codexSelected = ai ? codexModel(ai, codexModels.data) : undefined;
   const fastAvailable =
     provider === "claude"
       ? claudeSupportsFast(ai?.claudeModel ?? "default")
       : provider === "codex"
-        ? Boolean(
-            (
-              codexModels.data?.find((model) => model.slug === ai?.codexModel) ??
-              codexModels.data?.[0]
-            )?.tiers.length,
-          )
+        ? Boolean(codexSelected?.tiers.length)
         : false;
-  const codexSelected =
-    codexModels.data?.find((model) => model.slug === ai?.codexModel) ?? codexModels.data?.[0];
+
+  const [effortOpen, setEffortOpen] = useState(false);
+  const effort = effortOptions(provider, current.id, codexModels.data);
+  const selection = effortSelection(effort, ai?.assistantEffort?.[provider]);
+  // Built from short parts so no line-wrapping tool can split the label's text.
+  const chipLabel = [
+    `Model and effort: ${current.label}`,
+    current.effort ? `, ${effortPhrase(current.effort)}` : "",
+    current.fast ? ", Fast" : "",
+  ].join("");
+
+  function setEffort(level: string) {
+    edit((draft) => {
+      const efforts = { ...draft.ai.assistantEffort };
+      if (level) efforts[provider] = level;
+      else delete efforts[provider];
+      draft.ai.assistantEffort = efforts;
+    });
+  }
+
+  function toggleFast() {
+    edit((draft) => {
+      if (provider === "claude") draft.ai.claudeFast = !current.fast;
+      else draft.ai.codexServiceTier = current.fast ? "" : (codexSelected?.tiers[0]?.id ?? "");
+    });
+  }
+
+  const listId = useId();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [permissionOpen, setPermissionOpen] = useState(false);
+
+  function runCommand(command: AssistantCommand, via: "enter" | "tab") {
+    const argument = slashInput(input)?.argument ?? "";
+    if (command.kind === "prompt") {
+      const prompt = command.prompt ?? "";
+      // While a reply runs, keep the prompt in the composer to send when it finishes.
+      if (via === "tab" || running) setInput(() => prompt);
+      else onPrompt(prompt);
+      return;
+    }
+    setInput(() => "");
+    switch (command.name) {
+      case "new":
+        onAction("new");
+        return;
+      case "history":
+        onAction("history");
+        return;
+      case "mcp":
+        onAction("mcp");
+        return;
+      case "settings":
+        onAction("settings");
+        return;
+      case "model":
+        setEffortOpen(true);
+        return;
+      case "effort": {
+        if (!argument) {
+          setEffortOpen(true);
+          return;
+        }
+        const result = effortCommand(effort, argument, ultraNote(codexModels.data));
+        if ("level" in result) setEffort(result.level);
+        else toast(result.message);
+        return;
+      }
+      case "mode": {
+        if (!argument) {
+          setPermissionOpen(true);
+          return;
+        }
+        const mode = parseModeArgument(argument);
+        if (mode)
+          edit((draft) => {
+            draft.ai.assistantPermission = mode;
+          });
+        else toast("Use /mode read-only, /mode ask or /mode auto.");
+        return;
+      }
+      case "attach":
+        void addAttachments();
+        return;
+    }
+  }
+
+  const slash = commandSections(input, { demo });
+  const slashMenu: ComposerMenuModel | null = slash.length
+    ? {
+        label: "Commands",
+        sections: slash.map((section) => ({
+          id: section.title.toLowerCase(),
+          title: section.title,
+          entries: section.commands.map((command) => ({
+            id: `${listId}-${command.name}`,
+            label: `/${command.name}${command.argument ? ` ${command.argument}` : ""}`,
+            detail: command.description,
+            run: (via: "enter" | "tab") => runCommand(command, via),
+          })),
+        })),
+      }
+    : null;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(0);
+  const trigger = input.startsWith("/") ? null : mentionQuery(input, caret);
+  const mentionResults = trigger ? filterMentions(mentionCandidates, trigger.query) : [];
+  const mentionsFull = mentions.length >= MAX_MENTIONS;
+
+  function pickMention(item: MentionItem) {
+    if (!trigger) return;
+    const start = trigger.start;
+    setInput(() => input.slice(0, start) + input.slice(caret));
+    setMentions((previous) =>
+      previous.some((entry) => entry.key === item.key)
+        ? previous
+        : [...previous, item].slice(0, MAX_MENTIONS),
+    );
+    setCaret(start);
+    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(start, start));
+  }
+
+  // Open while the @ token has matches; a space after a query with none closes it.
+  const mentionMenu: ComposerMenuModel | null =
+    trigger && (mentionResults.length > 0 || !/\s/.test(trigger.query))
+      ? {
+          label: "Mentions",
+          empty: mentionsFull
+            ? `You can mention up to ${MAX_MENTIONS} items in one message.`
+            : "No matching items",
+          sections:
+            mentionsFull || !mentionResults.length
+              ? []
+              : [
+                  {
+                    id: "items",
+                    title: "Events, to-dos and email",
+                    entries: mentionResults.map((item, index) => ({
+                      id: `${listId}-mention-${index}`,
+                      label: item.label,
+                      detail: item.detail,
+                      icon: <MentionIcon kind={item.kind} />,
+                      run: () => pickMention(item),
+                    })),
+                  },
+                ],
+        }
+      : null;
+  const menu = dismissed === input ? null : (slashMenu ?? mentionMenu);
+  const entries = menu ? menu.sections.flatMap((section) => section.entries) : [];
+  const activeEntry = entries.length ? entries[Math.min(activeIndex, entries.length - 1)] : null;
+
+  function handleMenuKey(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!menu || event.nativeEvent.isComposing) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDismissed(input);
+      return;
+    }
+    if (!activeEntry) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((entries.indexOf(activeEntry) + step + entries.length) % entries.length);
+    } else if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+      event.preventDefault();
+      activeEntry.run(event.key === "Enter" ? "enter" : "tab");
+    }
+  }
 
   return (
     <AIChat.Composer.Root
@@ -306,9 +465,34 @@ export function AssistantComposer({
         onSend();
       }}
     >
-      <AIChat.Composer.Surface>
-        {attachments.length ? (
+      <ComposerMenu
+        listId={listId}
+        menu={menu}
+        activeId={activeEntry?.id ?? null}
+        anchorRef={surfaceRef}
+        onHover={(id) =>
+          setActiveIndex(
+            Math.max(
+              0,
+              entries.findIndex((entry) => entry.id === id),
+            ),
+          )
+        }
+        onDismiss={() => setDismissed(input)}
+      />
+      <AIChat.Composer.Surface ref={surfaceRef}>
+        {attachments.length || mentions.length ? (
           <div className="flex flex-wrap gap-1.5 px-2 pt-2">
+            {mentions.map((mention) => (
+              <MentionChip
+                key={mention.key}
+                kind={mention.kind}
+                label={mention.label}
+                onRemove={() =>
+                  setMentions((previous) => previous.filter((item) => item.key !== mention.key))
+                }
+              />
+            ))}
             {attachments.map((attachment) => (
               <span
                 key={attachment.id}
@@ -338,12 +522,21 @@ export function AssistantComposer({
         ) : null}
         <AIChat.Composer.Row>
           <AIChat.Composer.Input
+            ref={textareaRef}
             disabled={disabled}
             aria-label={`Message ${PROVIDER_LABEL[provider]}`}
+            aria-controls={menu ? listId : undefined}
+            aria-expanded={Boolean(menu)}
+            aria-activedescendant={activeEntry?.id}
             value={input}
-            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-              setInput(() => event.target.value)
-            }
+            onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
+              setInput(() => event.target.value);
+              setCaret(event.target.selectionStart);
+              setActiveIndex(0);
+              setDismissed(null);
+            }}
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+            onKeyDown={handleMenuKey}
             placeholder={
               dictation.state === "recording"
                 ? "Listening… click the microphone to stop"
@@ -372,7 +565,7 @@ export function AssistantComposer({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
+            <DropdownMenu open={permissionOpen} onOpenChange={setPermissionOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="small"
@@ -405,72 +598,95 @@ export function AssistantComposer({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <Popover open={effortOpen} onOpenChange={setEffortOpen}>
+              <PopoverTrigger asChild>
                 <Button
                   size="small"
                   variant="transparent"
-                  aria-label={`Model: ${current.label}${current.fast ? ", Fast" : ""}`}
+                  aria-label={chipLabel}
+                  title={modelSummary(current)}
                 >
-                  <ProviderMark provider={provider} className="size-3.5" />
-                  <span className="max-w-44 truncate">{current.label}</span>
-                  {current.fast ? (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-support-yellow-10 px-1 text-small font-medium text-support-yellow">
-                      <Zap className="size-3 fill-current" aria-hidden="true" />
-                      Fast
-                    </span>
-                  ) : null}
+                  {effortOpen ? (
+                    <span>Select effort</span>
+                  ) : (
+                    <>
+                      <ProviderMark provider={provider} className="size-3.5" />
+                      <span className="max-w-44 truncate">{current.label}</span>
+                      {current.effort ? (
+                        <span className="text-tertiary">{current.effort.text}</span>
+                      ) : null}
+                      {current.fast ? (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-support-yellow-10 px-1 text-small font-medium text-support-yellow">
+                          <Zap className="size-3 fill-current" aria-hidden="true" />
+                          Fast
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                   <ChevronDown className="size-3 opacity-60" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top">
-                <DropdownMenuLabel>Model</DropdownMenuLabel>
-                {PICKER_PROVIDERS.filter(
-                  (option) => available?.[option] || option === provider,
-                ).map((option) => (
-                  <DropdownMenuSub
-                    key={option}
-                    label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
-                  >
-                    {modelChoices(option).map((choice) => (
-                      <DropdownMenuCheckboxItem
-                        key={choice.value}
-                        sublabel={choice.sublabel}
-                        checked={option === provider && choice.selected}
-                        onCheckedChange={() => choose(option, choice.value)}
-                      >
-                        {choice.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuSub>
-                ))}
-                {fastAvailable ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuCheckboxItem
-                      icon="bolt.fill"
-                      sublabel="Faster replies; uses more of your plan"
-                      checked={current.fast}
-                      onCheckedChange={(checked) =>
-                        edit((draft) => {
-                          if (provider === "claude") draft.ai.claudeFast = checked;
-                          else
-                            draft.ai.codexServiceTier = checked
-                              ? (codexSelected?.tiers[0]?.id ?? "")
-                              : "";
-                        })
-                      }
-                    >
-                      Fast mode
-                    </DropdownMenuCheckboxItem>
-                  </>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void openSettings()}>
-                  Connect Accounts & AI Settings…
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </PopoverTrigger>
+              <PopoverContent
+                aria-label="Model and effort"
+                className="w-80"
+                onOpenAutoFocus={(event) => {
+                  const slider = (
+                    event.currentTarget as HTMLElement | null
+                  )?.querySelector<HTMLElement>('[role="slider"]');
+                  if (!slider) return;
+                  event.preventDefault();
+                  slider.focus();
+                }}
+              >
+                <EffortPanel
+                  modelLabel={current.label}
+                  nextRequest={modelSummary(current)}
+                  lastReply={lastReply}
+                  levels={effort.levels}
+                  note={noEffortNote(effort)}
+                  selection={selection}
+                  onChange={setEffort}
+                  fast={fastAvailable ? { on: current.fast, onToggle: toggleFast } : null}
+                  ultraNote={
+                    effort.levels.length > 0 && !effort.levels.includes("ultra")
+                      ? ultraNote(codexModels.data)
+                      : null
+                  }
+                  modelMenu={
+                    <>
+                      <DropdownMenuLabel>Model</DropdownMenuLabel>
+                      {PICKER_PROVIDERS.filter(
+                        (option) => available?.[option] || option === provider,
+                      ).map((option) => (
+                        <DropdownMenuSub
+                          key={option}
+                          label={`${option === provider ? "✓ " : ""}${PROVIDER_LABEL[option]}`}
+                        >
+                          {(ai ? modelChoices(option, ai, lists(option)) : []).map((choice) => (
+                            <DropdownMenuCheckboxItem
+                              key={choice.value}
+                              sublabel={choice.sublabel}
+                              checked={
+                                option === provider && ai
+                                  ? savedModel(ai, option) === choice.value
+                                  : false
+                              }
+                              onCheckedChange={() => choose(option, choice.value)}
+                            >
+                              {choice.label}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuSub>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => void openSettings()}>
+                        Connect Accounts & AI Settings…
+                      </DropdownMenuItem>
+                    </>
+                  }
+                />
+              </PopoverContent>
+            </Popover>
           </AIChat.Composer.Actions>
           <AIChat.Composer.Actions>
             <ContextRing usage={usage} fallbackWindow={current.contextWindow} />

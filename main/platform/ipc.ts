@@ -15,6 +15,7 @@ import {
   BridgeChannel,
   type MediaAccessType,
   type NativeThemeInfo,
+  type StreamMessage,
   type StreamStartRequest,
   type ThemeSource,
 } from "../../shared/bridge-protocol.js";
@@ -110,33 +111,37 @@ export function registerBridgeIpc(): void {
 
   electronIpcMain.handle(BridgeChannel.streamStart, async (event, request: StreamStartRequest) => {
     const trusted = assertTrustedSender(event);
-    if (
-      !request ||
-      typeof request.id !== "string" ||
-      !request.id ||
-      typeof request.channel !== "string" ||
-      !request.channel ||
-      request.channel.startsWith("dayboard:")
-    )
-      throw new Error("Invalid stream request");
-    assertChannelAllowed(trusted, request.channel);
-    return runAppOperation(async () => {
-      if (requiresLicenseAccess(request.channel)) await licenseAccess();
-      return registry.start(request, event.sender.id, (chunk) => {
-        if (
-          !event.sender.isDestroyed() &&
-          isAllowedWindowNavigation(
-            event.sender.getURL(),
-            trustedWindows.get(event.sender.id)?.entryUrl ?? "",
-          )
-        ) {
-          event.sender.send(BridgeChannel.streamChunk, {
-            id: request.id,
-            chunk,
-          });
-        }
+    const id = typeof request?.id === "string" ? request.id : "";
+    const emit = (message: StreamMessage) => {
+      if (
+        !event.sender.isDestroyed() &&
+        isAllowedWindowNavigation(
+          event.sender.getURL(),
+          trustedWindows.get(event.sender.id)?.entryUrl ?? "",
+        )
+      ) {
+        event.sender.send(BridgeChannel.streamChunk, message);
+      }
+    };
+    try {
+      // Checks after the sender's own go inside the try, so a refused stream still ends.
+      if (
+        !id ||
+        typeof request.channel !== "string" ||
+        !request.channel ||
+        request.channel.startsWith("dayboard:")
+      )
+        throw new Error("Invalid stream request");
+      assertChannelAllowed(trusted, request.channel);
+      return await runAppOperation(async () => {
+        if (requiresLicenseAccess(request.channel)) await licenseAccess();
+        return registry.start(request, event.sender.id, (chunk) => emit({ id, chunk }));
       });
-    });
+    } finally {
+      // The invoke reply can reach the renderer before chunks sent ahead of it, so the preload
+      // settles the stream on this marker, which follows the last chunk on the same channel.
+      if (id) emit({ id, end: true });
+    }
   });
   electronIpcMain.on(BridgeChannel.streamCancel, (event, id: string) => {
     try {

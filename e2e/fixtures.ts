@@ -19,6 +19,15 @@ export interface DemoApp {
   close: (removeProfile?: boolean) => Promise<void>;
 }
 
+/** The variables a launched Electron needs from this shell, including Linux's X display. */
+export function launchEnvironment(): Record<string, string> {
+  return Object.fromEntries(
+    ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY", "XAUTHORITY"]
+      .filter((key) => process.env[key] !== undefined)
+      .map((key) => [key, process.env[key] as string]),
+  );
+}
+
 export async function createTestProfile(mode: IsolatedProfileMode = "demo"): Promise<string> {
   const profile = await mkdtemp(path.join(tmpdir(), `dayboard-${mode}-e2e-`));
   return prepareIsolatedProfile(profile, mode);
@@ -31,11 +40,7 @@ async function launchIsolated(profile?: string, demoMode = true): Promise<DemoAp
   ]);
   prepareIsolatedProfile(userData, demoMode ? "demo" : "test");
   const errors: string[] = [];
-  const environment = Object.fromEntries(
-    ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY", "XAUTHORITY"]
-      .filter((key) => process.env[key] !== undefined)
-      .map((key) => [key, process.env[key] as string]),
-  );
+  const environment = launchEnvironment();
   const packaged = process.env.DAYBOARD_E2E_EXECUTABLE;
   const app = await electron.launch({
     ...(packaged ? { executablePath: packaged, args: [] } : { args: [root] }),

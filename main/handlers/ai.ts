@@ -13,6 +13,8 @@ import type {
 } from "../shared-types.js";
 import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data.js";
 import { runAssistant } from "../services/ai/assistant.js";
+import { clipSnapshot } from "../services/ai/prompt-cache.js";
+import { onClaudeModelResolved, resolvedClaudeModels } from "../services/ai/model-options.js";
 import { runCompletion } from "../services/ai/completion.js";
 import { checkCliProvider, listGeminiModels, resolveCli } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
@@ -228,6 +230,10 @@ export function registerAIHandlers(): void {
     return checkCliProvider(input.provider, input.verify === true);
   });
 
+  // The exact model each Claude Code alias ran as, so Settings and the composer can name the default.
+  onClaudeModelResolved((models) => ipcMain.broadcast("ai:claudeModelsChanged", models));
+  ipcMain.handle("ai:claudeModels", () => (isDemoMode() ? {} : resolvedClaudeModels()));
+
   ipcMain.handle("ai:codexModels", async (_event, payload: unknown) => {
     if (isDemoMode()) return [];
     const refresh =
@@ -374,7 +380,7 @@ export function registerAIHandlers(): void {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
           snapshot:
-            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
+            typeof input.snapshot === "string" ? clipSnapshot(input.snapshot, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

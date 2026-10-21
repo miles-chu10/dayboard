@@ -57,8 +57,9 @@ const harness = `
       return () => fixture.notifications.delete(channel);
     },
     cancelStream: () => {},
-    stream: (channel, input) => {
+    stream: (channel, input, onChunk) => {
       if (channel !== "ai:assistant") throw new Error("Unexpected fixture stream");
+      fixture.onChunk = onChunk;
       return pending(fixture.streams, input);
     },
   } };
@@ -74,8 +75,11 @@ const harness = `
   fixture.resolve = async (collection, index) => {
     await act(async () => fixture[collection][index].resolve(fixture[collection][index].data));
   };
-  fixture.finishReply = async text => {
-    await act(async () => fixture.streams.at(-1).resolve({ text }));
+  fixture.finishReply = async (text, extra) => {
+    await act(async () => fixture.streams.at(-1).resolve({ text, ...extra }));
+  };
+  fixture.chunk = async chunk => {
+    await act(async () => fixture.onChunk(chunk));
   };
   fixture.snapshot = () => ({
     calls: fixture.calls, streams: fixture.streams.map(item => item.data),
@@ -191,8 +195,9 @@ before(async () => {
       "../lib/ai": `export const BLOCKED_MESSAGE = {};`,
       "../lib/ai-models": `
         export const assistantProvider = () => "fixture";
-        export const selectedModel = () => ({ label: "Fixture model" });
-        export const useCodexModels = () => ({ data: [] });`,
+        export const useAssistantModel = () => ({ label: "Fixture model", effort: null });`,
+      "../lib/model-choices": `
+        export const modelSummary = model => model.label, lastReplyLabel = () => null;`,
       "../lib/demo": `export const isRendererDemoMode = () => false;`,
       "../lib/ai-prompts": `export const buildAssistantSnapshot = () => "", buildAssistantSystem = () => "";`,
       "../lib/assistant": `
@@ -203,11 +208,14 @@ before(async () => {
       "../lib/create-items": `
         export const KIND_LABEL = { task: "Task" }, KIND_SOURCE = { task: "tasks" };
         export const createItem = action => globalThis.__fixture.createItem(action);`,
-      "../lib/dates": `export const dayHeading = value => value, formatClock = value => value;`,
+      "../lib/dates": `
+        export const dayHeading = value => value, formatClock = value => value;
+        export const todayISO = () => "2026-10-20";`,
       "../lib/queries": `
         const query = () => ({ data: undefined });
         export const useAccounts = query, useCalendar = query, useMail = query,
-          useAssistantMcpStatus = query, useReminders = query, useTasks = query;`,
+          useAssistantMcpStatus = query, useReminders = query, useTasks = query,
+          useCalendarRange = query;`,
       "../lib/settings": `
         export const PROVIDER_LABEL = { fixture: "Fixture" };
         export const featureOn = settings => settings?.enabled === true;
@@ -367,4 +375,35 @@ test("auto actions are consumed once even as each create and save causes rerende
   const finalSave = snapshot.calls.filter(({ channel }) => channel === "assistant:saveChat").at(-1);
   assert.equal(finalSave.input.chat.messages.at(-1).actions.filter(({ added }) => added).length, 2);
   assert.equal(snapshot.streams.length, 1);
+});
+
+test("a reply records the model its result names, even when a meta chunk never arrived", async (t) => {
+  const page = await pageFixture(t, assistantBundle);
+  const requested = { name: "Claude Opus", id: null, effortLabel: "Max effort requested" };
+  const reported = {
+    name: "Claude Opus 5.5",
+    id: "claude-opus-5-5",
+    effortLabel: "Max effort requested",
+  };
+  const lastLabel = () =>
+    page.evaluate(
+      () =>
+        globalThis.__fixture.calls
+          .filter(({ channel }) => channel === "assistant:saveChat")
+          .at(-1)
+          .input.chat.messages.at(-1).modelLabel,
+    );
+  await page.evaluate(() => globalThis.__fixture.update({ prompt: "Which model?" }));
+  await page.evaluate((model) => globalThis.__fixture.chunk({ type: "meta", model }), requested);
+  assert.equal(await lastLabel(), "Claude Opus · Max effort requested");
+  // The reported model's meta chunk is lost; the result still names it.
+  await page.evaluate((model) => globalThis.__fixture.finishReply("Reply", { model }), reported);
+  assert.equal(await lastLabel(), "Claude Opus 5.5 · Max effort requested · claude-opus-5-5");
+
+  // A result without a model, such as the demo's, keeps what the chunks recorded.
+  await page.evaluate(() => globalThis.__fixture.update({ prompt: undefined }));
+  await page.evaluate(() => globalThis.__fixture.update({ prompt: "And now?" }));
+  await page.evaluate((model) => globalThis.__fixture.chunk({ type: "meta", model }), reported);
+  await page.evaluate(() => globalThis.__fixture.finishReply("Second reply"));
+  assert.equal(await lastLabel(), "Claude Opus 5.5 · Max effort requested · claude-opus-5-5");
 });

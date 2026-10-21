@@ -159,7 +159,7 @@ export function ResizeHandle({
         document.body.style.cursor = "col-resize";
       }}
       className={cn(
-        "resize-handle relative w-px shrink-0 cursor-col-resize bg-separator after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-['']",
+        "resize-handle relative z-10 w-px shrink-0 cursor-col-resize bg-separator after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-['']",
         className,
       )}
     />

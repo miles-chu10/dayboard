@@ -12,6 +12,12 @@ import { getSettings } from "../settings-store.js";
 import { isApiProvider } from "./api-keys.js";
 import { apiLanguageModel, resolveApiModel } from "./api-providers.js";
 import { isCancelled, runCliCompletion } from "./cli-providers.js";
+import {
+  effortProviderOptions,
+  resolveFeatureEffort,
+  withProviderOptions,
+} from "./assistant-effort.js";
+import { listCodexModels } from "./codex-models.js";
 import { describeModel } from "./model-options.js";
 import { apiPromptOptions } from "./prompt-cache.js";
 import { resolveConfiguredProvider } from "./provider-resolution.js";
@@ -48,12 +54,15 @@ export async function runCompletion({
       const startedAt = Date.now();
       const result = streamText({
         model: languageModel,
-        ...apiPromptOptions(
-          provider,
-          model.id,
-          system,
-          [{ role: "user", content: prompt }],
-          "explicit",
+        ...withProviderOptions(
+          apiPromptOptions(
+            provider,
+            model.id,
+            system,
+            [{ role: "user", content: prompt }],
+            "explicit",
+          ),
+          effortProviderOptions(provider, resolveFeatureEffort(settings.ai, provider, model.id)),
         ),
         maxOutputTokens: 4000,
         abortSignal: signal,
@@ -102,11 +111,16 @@ export async function runCompletion({
     }
     let usage: RequestUsage | undefined;
     let modelId: string | null = null;
-    // Only a configured model is requested here; without one the CLI picks its own default.
-    const requestedModelId = describeModel(settings.ai, [], provider).id;
+    // Pass Codex's catalog default explicitly, just as the Assistant does.
+    const codexModels =
+      provider === "codex" && !settings.ai.codexModel
+        ? await listCodexModels().catch(() => [])
+        : [];
+    const requestedModelId = describeModel(settings.ai, codexModels, provider).id;
     const startedAt = Date.now();
     const text = await runCliCompletion({
       provider,
+      codexModel: provider === "codex" ? (requestedModelId ?? undefined) : undefined,
       system,
       prompt,
       mcpServers: [],

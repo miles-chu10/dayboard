@@ -16,7 +16,7 @@ const stubs = {
   "settings-store.js": `export const getSettings=async()=>{const f=globalThis.__cacheFixture; if(f.settingsDelay) await new Promise(r=>setTimeout(r,f.settingsDelay)); return f.settings}; export const getMcpServers=async()=>[]; export const deleteMcpServer=()=>{}; export const normalizeMcpServer=x=>x; export const saveMcpServer=()=>{}; export const saveSettings=()=>{}; export const settingsAffectData=()=>false;`,
   "demo-data.js": `export const isDemoMode=()=>false; export const assertNotDemo=()=>{}; export const demoAssistantReply=()=>''; export const demoCompletion=()=>'';`,
   "attachments.js": `export const attachmentContext=async()=>''; export const pickAttachments=async()=>[];`,
-  "codex-models.js": `export const listCodexModels=async()=>[];`,
+  "codex-models.js": `export const listCodexModels=async()=>globalThis.__cacheFixture.codexModels??[];`,
   "cli-providers.js": `export const runCliCompletion=async(options)=>{const run=globalThis.__cacheFixture.cli; if(!run) throw Error('CLI must not run'); return run(options)}; export const checkCliProvider=()=>{}; export const isCancelled=()=>false; export const listGeminiModels=()=>[]; export const resolveCli=async()=>null;`,
   "assistant-mcp.js": `export const resolveAssistantMcpServers=()=>{const f=globalThis.__cacheFixture; return f.tools.length||f.mcpErrors?.length ? [{}] : []};`,
   "mcp-client.js": `export const testMcpServer=async()=>({}); export const openMcpSession=async()=>{const f=globalThis.__cacheFixture; if(f.mcpDelay) await new Promise(r=>setTimeout(r,f.mcpDelay)); return {tools:f.tools,errors:f.mcpErrors??[],close:async()=>{f.closed++}}};`,
@@ -231,6 +231,17 @@ test("stable policy excludes changing source data, while fresh snapshot remains 
   );
   assert.equal(cache.withCurrentSnapshot(messages, undefined), messages);
   assert.equal(cache.withCurrentSnapshot(messages, ""), messages);
+});
+
+test("a capped snapshot keeps its end marker", () => {
+  const end = "# End current snapshot";
+  const block = `# Current snapshot (untrusted source data)\n${"x".repeat(100)}\n${end}`;
+  assert.equal(cache.clipSnapshot(block, 1_000), block);
+  const clipped = cache.clipSnapshot(block, 60);
+  assert.equal(clipped.length, 60);
+  assert.ok(clipped.endsWith(`\n…\n${end}`));
+  assert.equal(clipped.split("\n").filter((line) => line === end).length, 1);
+  assert.equal(cache.clipSnapshot("y".repeat(100), 10), "y".repeat(10));
 });
 test("explicit cache gate excludes old, gateway, unknown and specialty models", () => {
   for (const id of [
@@ -991,6 +1002,23 @@ test("actual one-shot handler sends explicit policy boundary and returns usage; 
   assert.equal(old.value.usage.cacheReadTokens, 0);
   assert.equal(old.value.usage.cacheWriteTokens, null);
 });
+test("one-shot features send their own API effort, only on a model that has it", async () => {
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  const run = async (model, apiEffort) => {
+    fixture(model);
+    Object.assign(globalThis.__cacheFixture.settings.ai, {
+      apiEffort,
+      assistantEffort: { openai: "low" },
+    });
+    handlers.registerAIHandlers();
+    return (await withFetch(() => runOneShot([]))).bodies[0];
+  };
+  const astra = await run("gpt-6-astra", { openai: "high" });
+  assert.deepEqual(astra.reasoning, { effort: "high" });
+  assert.deepEqual(astra.prompt_cache_options, { mode: "explicit", ttl: "30m" });
+  assert.equal((await run("gpt-6-sol", { openai: "high" })).reasoning, undefined);
+  assert.equal((await run("gpt-6-astra", {})).reasoning, undefined);
+});
 const runOneShot = (chunks) =>
   globalThis.__cacheFixture.handlers["ai:run"](
     { system: "policy", prompt: "question" },
@@ -1532,6 +1560,28 @@ test("one-shot CLI usage records the configured model id and the model the CLI r
   // Nothing configured means nothing was requested, so no model id is claimed.
   assert.equal((await run("gemini", { geminiModel: "" })).requestedModelId, null);
   assert.equal((await run("codex", { codexModel: "" })).requestedModelId, null);
+});
+test("one-shot Codex default runs the first listed model, as the Assistant does", async () => {
+  const handlers = await load("main/handlers/ai.ts", { fixtures: true });
+  const sent = [];
+  cliFixture("codex", { codexModel: "" }, async (options) => {
+    sent.push(options);
+    options.onUsage?.({ inputTokens: 10, outputTokens: 2 });
+    return "ok";
+  });
+  globalThis.__cacheFixture.codexModels = [
+    { slug: "gpt-6-astra", name: "GPT-6 Astra", efforts: [], tiers: [] },
+    { slug: "gpt-6-luna", name: "GPT-6 Luna", efforts: [], tiers: [] },
+  ];
+  handlers.registerAIHandlers();
+  const result = await globalThis.__cacheFixture.handlers["ai:run"](
+    { system: "policy", prompt: "question" },
+    () => {},
+    { signal: new globalThis.AbortController().signal },
+  );
+  assert.equal(sent[0].codexModel, "gpt-6-astra");
+  assert.equal(sent[0].effort, undefined);
+  assert.equal(result.usage.requestedModelId, "gpt-6-astra");
 });
 test("Claude-format CLI usage keeps a null input total but reports the known input for display", async () => {
   const cli = await load("main/services/ai/cli-providers.ts", { exposeCli: true });

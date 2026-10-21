@@ -431,7 +431,11 @@ test("demo Assistant replies locally without CLI, provider API, or MCP access", 
         ],
         [
           "./model-options.js",
-          `export const describeModel = () => { globalThis.__demoLiveCalls += 1; }; export const modelSystemNote = describeModel; export const rememberClaudeModel = describeModel;`,
+          `export const describeModel = () => { globalThis.__demoLiveCalls += 1; }; export const modelSystemNote = describeModel; export const rememberClaudeModel = describeModel; export const claudeDisplayName = describeModel;`,
+        ],
+        [
+          "./assistant-effort.js",
+          `export const resolveAssistantEffort = () => { globalThis.__demoLiveCalls += 1; }; export const withAssistantEffort = resolveAssistantEffort; export const effortProviderOptions = resolveAssistantEffort; export const withProviderOptions = resolveAssistantEffort; export const assistantEffortLabel = resolveAssistantEffort;`,
         ],
       ]);
       api.onResolve({ filter: /.*/ }, (args) =>
@@ -530,7 +534,7 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
         ],
         [
           "../services/ai/model-options.js",
-          `export const describeModel = () => { globalThis.__aiCounters.provider += 1; };`,
+          `export const describeModel = () => { globalThis.__aiCounters.provider += 1; }; export const resolvedClaudeModels = describeModel; export const onClaudeModelResolved = () => {};`,
         ],
         [
           "../services/ai/mcp-client.js",
@@ -580,6 +584,7 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
   );
   assert.deepEqual(response, { text: "fixture completion" });
   assert.deepEqual(chunks, [{ type: "delta", text: "fixture completion" }]);
+  assert.deepEqual(await handlers.get("ai:claudeModels")(), {});
   assert.deepEqual(globalThis.__aiCounters, { provider: 0, settings: 0, cli: 0, models: 0 });
   delete globalThis.__aiCounters;
   delete globalThis.__aiIpc;

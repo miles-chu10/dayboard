@@ -29,8 +29,10 @@ import { ProviderMark, ProviderTile } from "../components/provider-logo";
 import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
+import { MentionChip } from "../components/mention-chip";
 import { BLOCKED_MESSAGE } from "../lib/ai";
-import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
+import { assistantProvider, useAssistantModel } from "../lib/ai-models";
+import { lastReplyLabel, modelSummary } from "../lib/model-choices";
 import { isRendererDemoMode } from "../lib/demo";
 import { buildAssistantSnapshot, buildAssistantSystem } from "../lib/ai-prompts";
 import {
@@ -41,14 +43,27 @@ import {
   type AssistantMessage,
 } from "../lib/assistant";
 import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
-import { dayHeading, formatClock } from "../lib/dates";
+import { dayHeading, formatClock, todayISO } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
 import { useAssistantHistory } from "../lib/assistant-history";
+import type { AssistantViewAction } from "../lib/assistant-commands";
+import {
+  MENTION_EVENT_DAYS,
+  earlierMentionSection,
+  loadMentionBodies,
+  mentionCandidates,
+  mentionSection,
+  resolveMentions,
+  savedMentions,
+  withMentions,
+  type MentionItem,
+} from "../lib/assistant-mentions";
 import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
   useAccountScope,
   useCalendar,
+  useCalendarRange,
   useMail,
   useAssistantMcpStatus,
   useReminders,
@@ -67,9 +82,11 @@ function describeAction(action: AssistantAction): string {
     .join(" · ");
 }
 
+/** What a reply records about its run, e.g. "Claude Opus 5.5 · Max effort requested · claude-opus-5-5". */
 function modelLabel(model: AssistantModelInfo): string {
   return [
     model.name,
+    model.effortLabel,
     model.id && model.id !== model.name ? model.id : null,
     model.fast ? "Fast" : null,
   ]
@@ -97,6 +114,17 @@ function AssistantMessageView({
   if (message.role === "user") {
     return (
       <AIChat.Message.Root from="user">
+        {message.mentions?.length ? (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {message.mentions.map((mention, index) => (
+              <MentionChip
+                key={`${mention.kind}-${index}`}
+                kind={mention.kind}
+                label={mention.label}
+              />
+            ))}
+          </div>
+        ) : null}
         <AIChat.Message.Content>{message.content}</AIChat.Message.Content>
       </AIChat.Message.Root>
     );
@@ -115,7 +143,7 @@ function AssistantMessageView({
             {PROVIDER_LABEL[author]}
           </Text>
           {message.modelLabel ? (
-            <Text variant="small" color="tertiary" truncate>
+            <Text variant="small" color="tertiary" truncate title={message.modelLabel}>
               {message.modelLabel}
             </Text>
           ) : null}
@@ -259,8 +287,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     enabled: notesOn && scope !== undefined && snapshotEvents.length > 0,
     staleTime: 5 * 60_000,
   });
+  const mentionEvents = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const mcpStatus = useAssistantMcpStatus();
-  const model = selectedModel(settings, useCodexModels(provider === "codex").data, provider);
+  const model = useAssistantModel(settings);
 
   const history = useAssistantHistory(initialHistory, demo);
   const { messages, setMessages } = history;
@@ -270,6 +299,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   );
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
+  const [mentions, setMentions] = useState<MentionItem[]>([]);
+  const candidates = mentionCandidates({
+    calendar: mentionEvents.data,
+    todos: buildTodos(tasks.data, reminders.data),
+    mail: mail.data,
+  });
   const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -316,6 +351,8 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     const content = text.trim();
     if (!content || cancelRef.current || history.switching || !enabled) return;
 
+    // Chips are checked against the data loaded now; an item gone since is sent as unavailable.
+    const resolved = resolveMentions(mentions, candidates);
     const userMessage: AssistantMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -324,16 +361,15 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       actions: [],
       error: null,
       blocked: null,
+      ...(resolved.length ? { mentions: savedMentions(resolved) } : {}),
     };
     const assistantId = crypto.randomUUID();
-    const requestMessages = [...messages, userMessage]
-      .filter((message) => message.content.trim())
-      .slice(-20)
-      .map((message) => ({
-        role: message.role,
-        content:
-          message.role === "assistant" ? splitActions(message.content).body : message.content,
-      }));
+    const sent = [...messages, userMessage].filter((message) => message.content.trim()).slice(-20);
+    const earlierMentions = earlierMentionSection(sent.slice(0, -1));
+    const requestMessages = sent.map((message) => ({
+      role: message.role,
+      content: message.role === "assistant" ? splitActions(message.content).body : message.content,
+    }));
 
     setMessages((previous) => [
       ...previous,
@@ -352,6 +388,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     setInput("");
     const sentAttachments = attachments;
     setAttachments([]);
+    setMentions([]);
     const permission = settings?.ai.assistantPermission ?? "ask";
 
     const googleConnected = accounts.data?.google.connected ?? false;
@@ -376,7 +413,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         : undefined,
     };
     const system = buildAssistantSystem(promptInput);
-    const snapshot = buildAssistantSnapshot(promptInput);
+    const currentSnapshot = buildAssistantSnapshot(promptInput);
 
     const cancellationId = crypto.randomUUID();
     cancelRef.current = cancellationId;
@@ -385,6 +422,15 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     try {
       await history.flush();
       if (cancelRef.current !== cancellationId) return;
+      // Mentioned email bodies load now (mail:getBody answers from fixtures in demo mode).
+      const bodies = await loadMentionBodies(resolved, (id) =>
+        invoke<{ text: string }>("mail:getBody", { id }).then((body) => body.text),
+      );
+      if (cancelRef.current !== cancellationId) return;
+      const snapshot = withMentions(
+        withMentions(currentSnapshot, earlierMentions),
+        mentionSection(resolved, bodies),
+      );
       const result = await window.dayboard.ipc.stream<AIStreamChunk, AssistantResult>(
         "ai:assistant",
         {
@@ -457,7 +503,12 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
           const finalContent = message.content || result.text;
           const actions = permission === "read-only" ? [] : splitActions(finalContent).actions;
           proposed = actions.length;
-          return { ...message, content: finalContent, actions };
+          return {
+            ...message,
+            content: finalContent,
+            actions,
+            ...(result.model ? { modelLabel: modelLabel(result.model) } : {}),
+          };
         });
         if (permission === "auto" && proposed) autoAddRef.current = assistantId;
       }
@@ -518,6 +569,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     if (await history.selectChat(null)) {
       setInput("");
       setAttachments([]);
+      setMentions([]);
       setUsage(null);
     }
   }
@@ -527,6 +579,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     stop();
     if (await history.selectChat(id)) {
       setInput("");
+      setMentions([]);
       setUsage(null);
       setHistoryOpen(false);
     }
@@ -565,10 +618,18 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     }
   }
 
+  function runAction(name: AssistantViewAction) {
+    if (name === "new") void newChat();
+    else if (name === "history") {
+      if (!history.switching && !adding) setHistoryOpen(true);
+    } else if (name === "mcp") setMcpOpen(true);
+    else void openSettings("ai");
+  }
+
   const subtitle = enabled
     ? [
         messages.length ? history.chat.title : null,
-        `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`,
+        `${PROVIDER_LABEL[provider]} · ${modelSummary(model)}`,
         demo ? "Sample data" : null,
         providerUsesMcp(provider) && mcpServers.data?.length
           ? `MCP: ${mcpServers.data.map((server) => server.name).join(", ")}`
@@ -651,12 +712,18 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 setInput={setInput}
                 attachments={attachments}
                 setAttachments={setAttachments}
+                mentions={mentions}
+                setMentions={setMentions}
+                mentionCandidates={candidates}
                 onSend={() => void send(input)}
                 onStop={stop}
+                onAction={runAction}
+                onPrompt={(prompt) => void send(prompt)}
                 running={Boolean(runningId)}
                 disabled={history.switching}
                 usage={usage}
                 demo={demo}
+                lastReply={lastReplyLabel(messages, runningId)}
               />
             </LicenseGate>
           </div>

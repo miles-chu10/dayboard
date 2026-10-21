@@ -366,7 +366,7 @@ export function AgendaView({
       if (
         (event.metaKey || event.ctrlKey) &&
         event.key.toLowerCase() === "f" &&
-        !document.querySelector('[role="dialog"]')
+        !document.querySelector('[role="dialog"], [role="alertdialog"]')
       ) {
         event.preventDefault();
         inputRef.current?.focus();

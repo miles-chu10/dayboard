@@ -165,7 +165,55 @@ test("paid source writes and AI streams fail closed until a license guard is set
   );
   assert.equal(writes, 0);
   assert.equal(aiRuns, 0);
-  assert.deepEqual(sender.sent, []);
+  // Only the end marker the preload waits for; no chunk reaches the window.
+  assert.deepEqual(sender.sent, [["dayboard:stream:chunk", { id: "ai-default", end: true }]]);
+});
+
+test("a stream's end marker follows its last chunk, whether it resolves or fails", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const sender = makeSender(8);
+  adapter.registerTrustedWindow(sender, entryUrl);
+  adapter.registerBridgeIpc();
+  adapter.setLicenseAccessGuard(async () => undefined);
+  adapter.ipcMain.handleStream("ai:run", async (fail, sendChunk) => {
+    sendChunk({ type: "meta" });
+    sendChunk({ type: "delta", text: "hi" });
+    if (fail) throw new Error("Provider failed");
+    return { text: "hi" };
+  });
+
+  const request = { id: "ordered", channel: "ai:run" };
+  assert.deepEqual(await invoke("dayboard:stream:start", sender, { ...request, args: false }), {
+    text: "hi",
+  });
+  await assert.rejects(
+    invoke("dayboard:stream:start", sender, { ...request, args: true }),
+    /Provider failed/,
+  );
+  const run = [
+    ["dayboard:stream:chunk", { id: "ordered", chunk: { type: "meta" } }],
+    ["dayboard:stream:chunk", { id: "ordered", chunk: { type: "delta", text: "hi" } }],
+    ["dayboard:stream:chunk", { id: "ordered", end: true }],
+  ];
+  assert.deepEqual(sender.sent, [...run, ...run]);
+
+  // A refused request still ends its stream, unless it has no ID to end.
+  sender.sent.length = 0;
+  for (const refused of [
+    { id: "reserved", channel: "dayboard:stream:start", args: {} },
+    { id: "nameless", channel: "", args: {} },
+    { id: "", channel: "ai:run", args: {} },
+    null,
+  ]) {
+    await assert.rejects(
+      invoke("dayboard:stream:start", sender, refused),
+      /Invalid stream request/,
+    );
+  }
+  assert.deepEqual(sender.sent, [
+    ["dayboard:stream:chunk", { id: "reserved", end: true }],
+    ["dayboard:stream:chunk", { id: "nameless", end: true }],
+  ]);
 });
 
 test("license denial stops paid handlers while settings and source reads remain usable", async () => {
@@ -344,6 +392,7 @@ test("rejects unlisted stream channels for a restricted window", async () => {
     /^Error: This DayBoard window can't use ai:assistant\.$/,
   );
   assert.equal(runs, 0);
+  assert.deepEqual(panel.sent, [["dayboard:stream:chunk", { id: "s1", end: true }]]);
 });
 
 test("leaves unrestricted windows unchanged", async () => {
