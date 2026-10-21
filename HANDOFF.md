@@ -17,6 +17,15 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
   `npm test` skips it).
+- PR #42 builds the Assistant composer from `docs/composer/`: a per-provider effort panel on the
+  model chip, `/` commands and `@` mentions. Settings → AI and the composer's model menu share one
+  model list, effort table and model-change rule, and one-click features get API-route effort.
+  Claude Code's `default` model offers no effort anywhere, since what it resolves to is unknown
+  until the CLI runs. Once an Assistant reply reports the exact model (Claude Code's init event),
+  Settings, the composer and the sidebar name the default after it ("Opus 5.5") for the rest of
+  the app session; before that, and after a restart, it reads "Claude Code default". Glaze gets
+  the same as DayBoard 1.2.6 through the patch series in the project files
+  (`dayboard/glaze-1.2.6-composer-16/`), applied, verified and published from the Mac.
 - Miles bought Apple Developer Program enrollment on October 20 and wants a notarized DayBoard
   that anyone can download and that updates itself. Beta.12 onward is a free release published by
   pushing a `v`-prefixed tag (the **Signed macOS release** workflow, `DAYBOARD_RELEASE=1` with
@@ -41,7 +50,8 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Website: the `dayboard-website` Worker was last deployed October 9 at 12:23 UTC, matching
   `main` through PR #30. The Road Map (PR #36) is merged but not deployed.
 - Waitlist: production D1 has migrations 0001 to 0005 applied. `0005_email_suppressions.sql`
-  exists only in production, not in this repository; commit it with the code that uses it.
+  is now in the repository, reconstructed from the live schema. Production holds suppressions,
+  but no code in the repository records them or sends mailings.
 - Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
   servers and bounded authenticated JSON before SDK validation. Zod 4.6.6 (October 11) fixes
   SNYK-JS-ZOD-20510278: standalone requires `^4.6.6` from beta.12 and Glaze 1.2.5 pins 4.6.6.

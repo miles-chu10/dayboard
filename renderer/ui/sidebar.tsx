@@ -253,8 +253,14 @@ export function SidebarListItem<T>({
       ) : null}
       {propsMode ? (
         <SidebarListItemContent>
-          <SidebarListItemTitle truncate>{title}</SidebarListItemTitle>
-          {subtitle ? <SidebarListItemSubtitle>{subtitle}</SidebarListItemSubtitle> : null}
+          <SidebarListItemTitle truncate title={typeof title === "string" ? title : undefined}>
+            {title}
+          </SidebarListItemTitle>
+          {subtitle ? (
+            <SidebarListItemSubtitle title={typeof subtitle === "string" ? subtitle : undefined}>
+              {subtitle}
+            </SidebarListItemSubtitle>
+          ) : null}
         </SidebarListItemContent>
       ) : (
         children

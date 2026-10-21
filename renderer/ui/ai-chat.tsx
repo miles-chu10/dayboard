@@ -38,7 +38,12 @@ const ComposerInput = React.forwardRef<HTMLTextAreaElement, React.ComponentProps
       )}
       onKeyDown={(event) => {
         onKeyDown?.(event);
-        if (event.key === "Enter" && !event.shiftKey && !event.defaultPrevented) {
+        if (
+          event.key === "Enter" &&
+          !event.shiftKey &&
+          !event.defaultPrevented &&
+          !event.nativeEvent.isComposing
+        ) {
           event.preventDefault();
           event.currentTarget.form?.requestSubmit();
         }

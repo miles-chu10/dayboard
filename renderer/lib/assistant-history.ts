@@ -51,7 +51,6 @@ export function sampleChat(): AssistantChat {
         actions: [],
         error: null,
         blocked: null,
-        provider: "glaze",
       },
     ],
   };

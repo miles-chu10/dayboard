@@ -175,7 +175,7 @@ export function DropdownMenuSub({
       <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.SubContent
           sideOffset={4}
-          className="z-50 min-w-[10rem] max-w-72 overflow-hidden rounded-xl border border-separator bg-background/95 p-1 shadow-xl backdrop-blur-xl"
+          className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[10rem] max-w-72 overflow-y-auto overflow-x-hidden rounded-xl border border-separator bg-background/95 p-1 shadow-xl backdrop-blur-xl"
         >
           {children}
         </DropdownMenuPrimitive.SubContent>

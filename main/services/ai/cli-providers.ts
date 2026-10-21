@@ -19,6 +19,7 @@ import { getToolEnv, toStringEnv } from "../shell-env.js";
 import { resolveCli } from "./cli-binaries.js";
 import { listCodexModels } from "./codex-models.js";
 import { claudeModelArgs, codexModelArgs } from "./model-options.js";
+import { withAssistantEffort } from "./assistant-effort.js";
 
 export { resolveCli } from "./cli-binaries.js";
 
@@ -49,6 +50,8 @@ export interface CliRunOptions {
   onUsage?: (usage: CliUsage) => void;
   /** Codex model slug to pass explicitly instead of the saved setting. */
   codexModel?: string;
+  /** Assistant effort to send instead of the one-click features' effort; "" sends the model default. */
+  effort?: string;
 }
 
 const LABEL: Record<CliProvider, string> = {
@@ -446,7 +449,7 @@ async function claudeArgs(options: CliRunOptions): Promise<string[]> {
     "--system-prompt",
     options.system,
   ];
-  args.push(...claudeModelArgs(settings.ai));
+  args.push(...claudeModelArgs(withAssistantEffort(settings.ai, "claude", options.effort)));
   if (options.mcpServers.length) {
     const mcpServers = Object.fromEntries(
       options.mcpServers.map((server) => [
@@ -611,7 +614,11 @@ async function runCodex(options: CliRunOptions): Promise<string> {
     "-c",
     'approval_policy="never"',
   ];
-  const ai = options.codexModel ? { ...settings.ai, codexModel: options.codexModel } : settings.ai;
+  const ai = withAssistantEffort(
+    options.codexModel ? { ...settings.ai, codexModel: options.codexModel } : settings.ai,
+    "codex",
+    options.effort,
+  );
   args.push(...codexModelArgs(ai, ai.codexModel ? await listCodexModels() : []));
   for (const server of options.mcpServers) {
     const key = `mcp_servers.${serverKey(server)}`;

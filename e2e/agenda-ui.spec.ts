@@ -3,6 +3,11 @@ import type { DayboardBridge } from "../shared/bridge-protocol";
 import { launchDemo } from "./fixtures";
 
 type AppGlobal = typeof globalThis & { dayboard: DayboardBridge };
+type HitTest = typeof globalThis & {
+  document: {
+    elementFromPoint(x: number, y: number): { getAttribute(name: string): string } | null;
+  };
+};
 
 async function navigate(page: Page, title: string) {
   const button = page
@@ -70,17 +75,28 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
     await navigate(page, "Agenda");
     await expect(mail).not.toBeChecked();
 
-    const separator = page.getByRole("separator").first();
-    const box = await separator.boundingBox();
-    expect(box).not.toBeNull();
-    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    const separator = page.getByRole("separator", { name: "Resize sidebar", exact: true });
+    const box = (await separator.boundingBox())!;
+    const y = box.y + box.height / 2;
+    // The grab area reaches past both sides of the 1px line, above the columns beside it.
+    for (const x of [box.x - 3, box.x + box.width / 2, box.x + box.width + 3]) {
+      const label = await page.evaluate(
+        ([px, py]) =>
+          (globalThis as HitTest).document.elementFromPoint(px, py)?.getAttribute("aria-label"),
+        [x, y],
+      );
+      expect(label, `x=${x}`).toBe("Resize sidebar");
+    }
+    const startWidth = Number(await separator.getAttribute("aria-valuenow"));
+    await page.mouse.move(box.x + box.width / 2, y);
     await page.mouse.down();
-    await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2);
+    await page.mouse.move(box.x + box.width / 2 + 40, y);
     await page.mouse.up();
+    await expect(separator).toHaveAttribute("aria-valuenow", String(startWidth + 40));
     const storedWidth = await page.evaluate(() =>
       localStorage.getItem("dayboard:split-view:productivity-shell:sidebar"),
     );
-    expect(Number(storedWidth)).toBeGreaterThan(220);
+    expect(storedWidth).toBe(String(startWidth + 40));
     await demo.close(false);
     relaunched = await launchDemo(demo.profile);
     await expect(
@@ -150,6 +166,13 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
     await settings.emulateMedia({ colorScheme: null });
     await settings.getByRole("tab", { name: "General", exact: true }).click();
     await settings.getByRole("radio", { name: "Side panel", exact: true }).click();
+    // Each radio sits beside its label text, so the label is one line tall, not two.
+    for (const name of ["Auto", "Default", "Side panel"]) {
+      const radio = settings.getByRole("radio", { name, exact: true });
+      const radioBox = await radio.boundingBox();
+      const labelBox = await settings.locator("label").filter({ has: radio }).boundingBox();
+      expect(labelBox!.height, name).toBeLessThan(radioBox!.height * 2);
+    }
 
     for (const theme of ["Light", "Dark"]) {
       await settings.getByRole("radio", { name: theme, exact: true }).click();

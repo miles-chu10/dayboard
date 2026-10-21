@@ -44,6 +44,17 @@ export function withCurrentSnapshot(
 }
 
 /**
+ * Caps a snapshot without cutting off its end marker, so the user's request after it is never read
+ * as part of the untrusted block.
+ */
+export function clipSnapshot(snapshot: string, max: number): string {
+  if (snapshot.length <= max) return snapshot;
+  const end = `\n${SNAPSHOT_END}`;
+  if (!snapshot.endsWith(end)) return snapshot.slice(0, max);
+  return `${snapshot.slice(0, max - end.length - 2)}\n…${end}`;
+}
+
+/**
  * Text quoted from outside sources goes inside the snapshot block, ahead of its end marker, so the
  * rule that snapshot content is untrusted data covers it. A snapshot without that block gets one.
  */

@@ -6,7 +6,7 @@ export const BRIDGE_PREFIX = "dayboard:";
 export const BridgeChannel = {
   /** invoke: StreamStartRequest → final result. Chunks arrive on streamChunk meanwhile. */
   streamStart: "dayboard:stream:start",
-  /** main → renderer: StreamChunkMessage */
+  /** main → renderer: StreamMessage, each chunk and then the stream's end marker */
   streamChunk: "dayboard:stream:chunk",
   /** renderer → main (send): stream id to abort */
   streamCancel: "dayboard:stream:cancel",
@@ -44,6 +44,14 @@ export interface StreamChunkMessage {
   id: string;
   chunk: unknown;
 }
+
+/** Sent after a stream's last chunk, before its invoke settles. */
+export interface StreamEndMessage {
+  id: string;
+  end: true;
+}
+
+export type StreamMessage = StreamChunkMessage | StreamEndMessage;
 
 export interface NotificationMessage {
   channel: string;

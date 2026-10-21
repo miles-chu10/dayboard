@@ -22,7 +22,7 @@ export function useHistoryShortcuts() {
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if (!event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
-      if (document.querySelector('[role="dialog"]')) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       const index = router.history.location.state.__TSR_index ?? 0;
       if (event.key === "[" && index > 0) {
         event.preventDefault();

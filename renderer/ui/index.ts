@@ -99,6 +99,10 @@ export { Avatar, AvatarImage, AvatarFallback, AvatarBadge, AvatarStack } from ".
 
 export { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent } from "./popover";
+
+export { Slider, type SliderProps } from "./slider";
+
 export { ScrollArea, type ScrollAreaProps, type ScrollAreaControl } from "./scroll-area";
 
 export {

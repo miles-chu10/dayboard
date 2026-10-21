@@ -123,6 +123,52 @@ test("normalizes and validates waitlist email addresses", () => {
     assert.equal(normalizeEmail(bad), null, String(bad));
 });
 
+test("suppressed and test addresses never reach the mailing or waitlist views", () => {
+  const db = new LocalDb();
+  dbs.push(db);
+  const insert = db.sql.prepare(
+    "INSERT INTO beta_signups (email, created_at, classification) VALUES (?, ?, ?)",
+  );
+  insert.run("ana@example.com", 1_000, "reviewed");
+  insert.run("bo@example.com", 2_000, "unreviewed");
+  insert.run("left@example.com", 3_000, "reviewed");
+  insert.run("probe@example.com", 4_000, "likely_test");
+  db.sql
+    .prepare(
+      "INSERT INTO email_suppressions (email, requested_at, recorded_at, reason, source_ref) VALUES (?, 1, 2, 'unsubscribe', 'reply')",
+    )
+    .run("left@example.com");
+  const column = (query: string) =>
+    db.sql
+      .prepare(query)
+      .all()
+      .map((row) => String((row as { email: string }).email));
+  assert.deepEqual(column("SELECT email FROM dayboard_mailing_recipients ORDER BY email"), [
+    "ana@example.com",
+    "bo@example.com",
+  ]);
+  assert.deepEqual(column("SELECT email FROM waitlist_signups"), [
+    "probe@example.com",
+    "bo@example.com",
+    "ana@example.com",
+  ]);
+  for (const bad of ["Left@Example.com", " left2@example.com"])
+    assert.throws(() =>
+      db.sql
+        .prepare(
+          "INSERT INTO email_suppressions (email, requested_at, recorded_at, reason, source_ref) VALUES (?, 1, 2, 'unsubscribe', 'reply')",
+        )
+        .run(bad),
+    );
+  assert.throws(() =>
+    db.sql
+      .prepare(
+        "INSERT INTO email_suppressions (email, requested_at, recorded_at, reason, source_ref) VALUES ('x@example.com', 1, 2, 'bounce', 'reply')",
+      )
+      .run(),
+  );
+});
+
 test("stores a signup once and answers new and repeated addresses the same way", async () => {
   const { signup, records } = setup();
   const first = await signup({ email: "Alex@Example.com", company: "" });

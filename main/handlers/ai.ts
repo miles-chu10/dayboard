@@ -4,7 +4,7 @@ import {
   type RequestUsage,
   type TokenUsage,
 } from "../../shared/ai-usage.js";
-import { apiPromptOptions } from "../services/ai/prompt-cache.js";
+import { apiPromptOptions, clipSnapshot } from "../services/ai/prompt-cache.js";
 import { clipboard, ipcMain, logger } from "../platform/index.js";
 
 import type {
@@ -27,7 +27,16 @@ import {
   runCliCompletion,
 } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
-import { describeModel } from "../services/ai/model-options.js";
+import {
+  describeModel,
+  onClaudeModelResolved,
+  resolvedClaudeModels,
+} from "../services/ai/model-options.js";
+import {
+  effortProviderOptions,
+  resolveFeatureEffort,
+  withProviderOptions,
+} from "../services/ai/assistant-effort.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
@@ -241,6 +250,10 @@ export function registerAIHandlers(): void {
     return checkCliProvider(input.provider, input.verify === true);
   });
 
+  // The exact model each Claude Code alias ran as, so Settings and the composer can name the default.
+  onClaudeModelResolved((models) => ipcMain.broadcast("ai:claudeModelsChanged", models));
+  ipcMain.handle("ai:claudeModels", () => (isDemoMode() ? {} : resolvedClaudeModels()));
+
   ipcMain.handle("ai:codexModels", async (_event, payload: unknown) => {
     if (isDemoMode()) return [];
     const refresh =
@@ -387,12 +400,18 @@ export function registerAIHandlers(): void {
           const startedAt = Date.now();
           const result = streamText({
             model: languageModel,
-            ...apiPromptOptions(
-              provider,
-              model.id,
-              system,
-              [{ role: "user", content: prompt }],
-              "explicit",
+            ...withProviderOptions(
+              apiPromptOptions(
+                provider,
+                model.id,
+                system,
+                [{ role: "user", content: prompt }],
+                "explicit",
+              ),
+              effortProviderOptions(
+                provider,
+                resolveFeatureEffort(settings.ai, provider, model.id),
+              ),
             ),
             maxOutputTokens: 4000,
             abortSignal: context.signal,
@@ -441,11 +460,17 @@ export function registerAIHandlers(): void {
         }
         let usage: RequestUsage | undefined;
         let modelId: string | null = null;
-        // Only a configured model is requested here; without one the CLI picks its own default.
-        const requestedModelId = describeModel(settings.ai, [], provider).id;
+        // Codex default is its first listed model, passed explicitly as the Assistant does; other
+        // CLIs pick their own default when no model is configured.
+        const codexModels =
+          provider === "codex" && !settings.ai.codexModel
+            ? await listCodexModels().catch(() => [])
+            : [];
+        const requestedModelId = describeModel(settings.ai, codexModels, provider).id;
         const startedAt = Date.now();
         const text = await runCliCompletion({
           provider,
+          codexModel: provider === "codex" ? (requestedModelId ?? undefined) : undefined,
           system,
           prompt,
           mcpServers: [],
@@ -495,7 +520,7 @@ export function registerAIHandlers(): void {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
           snapshot:
-            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
+            typeof input.snapshot === "string" ? clipSnapshot(input.snapshot, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

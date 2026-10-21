@@ -151,6 +151,14 @@ test("Unsupported model, reasoning and speed fail before launching a paid reques
   );
 });
 
+test("API feature effort keeps a level per API provider and drops anything else", () => {
+  const { apiEffort } = normalizeSettings({
+    ai: { apiEffort: { openai: "high", anthropic: "max", claude: "low", xai: "Bad Level" } },
+  }).ai;
+  assert.deepEqual(apiEffort, { openai: "high", anthropic: "max" });
+  assert.deepEqual(normalizeSettings({}).ai.apiEffort, {});
+});
+
 test("Codex default does not carry options from a previously selected model", () => {
   assert.deepEqual(
     codexModelArgs(
@@ -172,6 +180,14 @@ test("Claude Fast off explicitly overrides the CLI and cannot switch another mod
   });
   assert.ok(haiku.includes('{"fastMode":false}'));
   assert.equal(haiku.includes("--effort"), false);
+  // Claude Code's default resolves at run time, so the saved feature effort isn't sent to it.
+  const claudeDefault = claudeModelArgs({ ...ai, claudeModel: "default", claudeEffort: "high" });
+  assert.equal(claudeDefault.includes("--effort"), false);
+  assert.equal(claudeDefault.includes("--model"), false);
+  assert.deepEqual(
+    claudeModelArgs({ ...ai, claudeModel: "sonnet", claudeEffort: "high" }).slice(0, 4),
+    ["--model", "sonnet", "--effort", "high"],
+  );
 });
 
 test("legacy Glaze choice stays disabled until a standalone provider is chosen", () => {
@@ -209,4 +225,44 @@ test("unavailable chosen providers never fall back to another configured provide
 test("supported chosen providers resolve only to themselves", async () => {
   assert.equal(await resolveConfiguredProvider("codex"), "codex");
   assert.equal(await resolveConfiguredProvider("anthropic"), "anthropic");
+});
+
+test("Assistant effort keeps valid levels for known providers and drops everything else", () => {
+  const settings = normalizeSettings({
+    ai: {
+      provider: "claude",
+      assistantEffort: {
+        claude: "high",
+        codex: "ultra",
+        openai: "",
+        anthropic: "Bad Level",
+        nobody: "high",
+        google: 3,
+      },
+    },
+  });
+  assert.deepEqual(settings.ai.assistantEffort, { claude: "high", codex: "ultra" });
+  assert.deepEqual(normalizeSettings({}).ai.assistantEffort, {});
+  assert.deepEqual(normalizeSettings({ ai: { assistantEffort: "high" } }).ai.assistantEffort, {});
+  // Normalizing a saved value again changes nothing.
+  assert.deepEqual(normalizeSettings(settings).ai.assistantEffort, {
+    claude: "high",
+    codex: "ultra",
+  });
+});
+
+test("settings saved before the composer keep the Assistant's effort, once", () => {
+  const upgraded = normalizeSettings({ ai: { claudeEffort: "max", codexEffort: "high" } });
+  assert.deepEqual(upgraded.ai.assistantEffort, { claude: "max", codex: "high" });
+  assert.equal(upgraded.ai.claudeEffort, "max");
+  assert.deepEqual(
+    normalizeSettings({ ai: { claudeEffort: "default", codexEffort: "" } }).ai.assistantEffort,
+    {},
+  );
+  // Once saved, the Assistant's own record wins, including a reset to the model default.
+  assert.deepEqual(
+    normalizeSettings({ ai: { claudeEffort: "max", codexEffort: "high", assistantEffort: {} } }).ai
+      .assistantEffort,
+    {},
+  );
 });
