@@ -23,10 +23,12 @@ DayBoard brings your tasks, reminders, calendar, and inbox into a standalone mac
 see the week ahead, and act on your work from one dashboard. An optional AI assistant helps with
 briefings, prioritization, capture, and meeting preparation using a provider you choose.
 
-> **Beta preview:** the current source version is **1.3.0-beta.12**, targeting **macOS 14+ on Apple
-> Silicon**. Join the waitlist at [getdayboard.com](https://getdayboard.com/waitlist). Preview packages are ad-hoc
-> signed and are not notarized. Public downloads and purchases depend on the checks in the
-> [release guide](docs/RELEASE.md).
+> **Current download:** [1.3.0-beta.11](https://github.com/miles-chu10/dayboard/releases/tag/beta-1.3.0-beta.11)
+> is a limited community beta for **macOS 14+ on Apple Silicon**. It is ad-hoc signed, has no
+> Developer ID signature or notarization, and does not update itself. Google sign-in may be limited
+> to invited accounts. Join the [waitlist](https://getdayboard.com/waitlist) for invited onboarding.
+> The current source version, **1.3.0-beta.12**, is **unreleased**; signed builds and automatic
+> updates still require the checks in the [release guide](docs/RELEASE.md).
 
 ## What you can do
 
@@ -43,8 +45,9 @@ briefings, prioritization, capture, and meeting preparation using a provider you
 
 The current packaged app requires **an Apple Silicon Mac running macOS 14 or later**.
 
-1. **Join the waitlist** at [getdayboard.com](https://getdayboard.com/waitlist), or
-   [build from source](#development).
+1. Read the [beta.11 release notes and downloads](https://github.com/miles-chu10/dayboard/releases/tag/beta-1.3.0-beta.11)
+   and [install guide](https://getdayboard.com/beta). For invited onboarding, [join the waitlist](https://getdayboard.com/waitlist).
+   You can also [build from source](#development).
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
    Calendar; connect Apple Reminders when you are ready to grant its macOS permission.
 3. **Choose your AI provider**, if you want AI features. Each AI feature can be turned off.
