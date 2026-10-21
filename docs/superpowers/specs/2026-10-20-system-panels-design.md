@@ -19,7 +19,7 @@ Space, returns focus to where he was, and can be turned off in Settings.
 
 ## Goals
 
-- **Quick Capture panel.** A global hotkey (default ⌃⌥Space, changeable) opens a small
+- **Quick Capture panel.** A global hotkey (default ⌃⌥⇧Space, changeable) opens a small
   floating panel over any app, including full-screen apps and every Space, on the display under
   the mouse pointer. Enter sends the text through DayBoard's existing AI capture into Google
   Tasks, Apple Reminders or Google Calendar. The panel hides at once on submit, Esc or
@@ -87,7 +87,7 @@ Space, returns focus to where he was, and can be turned off in Settings.
 | Where pulled Granola notes go | Kept in DayBoard with the event, plus one-click follow-up Tasks/Reminders from action items |
 | Capture without AI            | Small manual form in the panel; no new dependency                                           |
 | Menu-bar-only mode            | No; keep the Dock icon                                                                      |
-| Default hotkey                | ⌃⌥Space, changeable in Settings                                                             |
+| Default hotkey                | ⌃⌥⇧Space for new profiles, changeable; a saved hotkey is kept                               |
 | After Enter in Quick Capture  | Hide now; parse and create in the background; confirm afterwards with Undo                  |
 | Granola output sample         | One read-only `list_meetings` + `get_meetings` call allowed; only the structure is kept     |
 | Probe before UI               | Yes (done; results below)                                                                   |
@@ -111,6 +111,7 @@ A throwaway scratchpad app, not committed:
 - `Notification.show()` from the unsigned dev binary failed with `UNErrorDomain error 1`.
 - On this Mac the macOS input-source shortcuts (⌃Space, ⌃⌥Space) are turned off, so ⌃⌥Space is
   free here. On a default macOS install ⌃⌥Space is "Select next source in Input menu".
+  For that reason new profiles default to ⌃⌥⇧Space (Miles, 2026-10-21); a saved ⌃⌥Space is kept.
 
 ## Design
 
