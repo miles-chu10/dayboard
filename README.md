@@ -23,7 +23,7 @@ DayBoard brings your tasks, reminders, calendar, and inbox into a standalone mac
 see the week ahead, and act on your work from one dashboard. An optional AI assistant helps with
 briefings, prioritization, capture, and meeting preparation using a provider you choose.
 
-> **Beta preview:** the current source version is **1.3.0-beta.8**, targeting **macOS 14+ on Apple
+> **Beta preview:** the current source version is **1.3.0-beta.12**, targeting **macOS 14+ on Apple
 > Silicon**. Join the waitlist at [getdayboard.com](https://getdayboard.com/waitlist). Preview packages are ad-hoc
 > signed and are not notarized. Public downloads and purchases depend on the checks in the
 > [release guide](docs/RELEASE.md).

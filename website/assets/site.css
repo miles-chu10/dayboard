@@ -1165,8 +1165,10 @@ p {
   display: none;
 }
 
+/* One line tall even when the question wraps, so the open state's 45° turn stays in its column. */
 .faq-list summary::after {
   content: "+";
+  align-self: flex-start;
   color: var(--ink-soft);
   font-family: var(--text);
   font-weight: 400;
