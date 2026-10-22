@@ -44,6 +44,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
+    <script src="assets/hero-video.js" defer></script>
   </head>
   <body class="c-home">
     <a class="skip" href="#main">Skip to content</a>
@@ -149,27 +150,28 @@
         <figure class="wrap c-video">
           <div class="board rise" style="--i: 4">
             <div class="window">
-              <div class="theme-picture">
-                <img
-                  class="theme-light"
-                  src="assets/screens/light-agenda-preview.png"
-                  alt="Native DayBoard Agenda preview: today's calendar events, Google Tasks and Apple Reminders with a date heading and source filters (fictional demo data)"
-                  aria-describedby="native-preview-note"
-                  width="2560"
-                  height="1640"
-                  fetchpriority="high"
+              <video
+                class="c-player"
+                controls
+                playsinline
+                preload="none"
+                poster="assets/video/dayboard-launch-poster.jpg"
+                width="1920"
+                height="1080"
+                aria-label="DayBoard in 45 seconds"
+                aria-describedby="native-preview-note"
+              >
+                <source src="assets/video/dayboard-launch-45s.mp4" type="video/mp4" />
+                <track
+                  kind="captions"
+                  src="assets/video/dayboard-launch-45s.en.vtt"
+                  srclang="en"
+                  label="English"
                 />
-                <img
-                  class="theme-dark"
-                  src="assets/screens/dark-agenda-preview.png"
-                  alt="Native DayBoard Agenda preview: today's calendar events, Google Tasks and Apple Reminders with a date heading and source filters (fictional demo data)"
-                  aria-describedby="native-preview-note"
-                  width="2560"
-                  height="1640"
-                  fetchpriority="high"
-                />
-              </div>
-              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+                <a href="assets/video/dayboard-launch-45s.mp4"
+                  >Watch DayBoard in 45 seconds (MP4)</a
+                >
+              </video>
             </div>
             <div class="note note-1 c-calendar" style="--i: 0" aria-hidden="true">
               <small><span class="dot"></span>Calendar · 3:00 PM</small><b>Q4 roadmap sync</b>
@@ -187,7 +189,8 @@
             </div>
           </div>
           <figcaption class="fine" id="native-preview-note">
-            Native app preview with fictional demo data.
+            A 45-second tour of the native app in demo mode with fictional data. It plays with
+            music.
           </figcaption>
         </figure>
       </section>

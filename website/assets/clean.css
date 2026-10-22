@@ -306,3 +306,29 @@ h2 em {
     gap: 2px;
   }
 }
+
+/* Launch video in the hero window. The pinned notes step aside once it plays. */
+.c-player {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #111;
+}
+
+/* Over the poster's empty corners, clear of its cards and the player's controls. */
+.c-video .note-1 {
+  top: 5%;
+}
+.c-video .note-3 {
+  top: 72%;
+  bottom: auto;
+}
+
+.board.is-playing .note {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0.3s;
+}
