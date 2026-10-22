@@ -70,7 +70,7 @@ jobs:
           export APPLE_API_KEY="$RUNNER_TEMP/dayboard-release-credentials/notary.p8"
           export DAYBOARD_GOOGLE_OAUTH_FILE="$RUNNER_TEMP/dayboard-release-credentials/google-oauth.json"
           npm run build
-          npx --no-install electron-builder --mac --arm64 --publish never --config.forceCodeSigning=true --config.mac.notarize=true --config.dmg.sign=true
+          npx --no-install electron-builder --mac --arm64 --publish never --config.forceCodeSigning=true --config.afterSign=./scripts/notarize.mjs --config.dmg.sign=true
       - name: Remove temporary signing inputs
         if: always()
         run: node scripts/macos-release.mjs cleanup
