@@ -1,14 +1,13 @@
-# DayBoard 1.3.0 — signed, self-updating, Quick Capture and the menu bar
+# DayBoard 1.3.0-beta.12 — signed, self-updating, Quick Capture and the menu bar
 
-DayBoard 1.3.0 is the first release signed with DayBoard's Developer ID, and the first without a
-beta label. It carries beta.11's Google sign-in forward and adds the native macOS work merged
-since then. It is a draft until the build is made and verified on an Apple Silicon Mac.
+This beta carries beta.11's Google sign-in forward and adds the native macOS work merged since
+then. It is a draft until the build is made and verified on an Apple Silicon Mac.
 
 ## New
 
-- **DayBoard now updates itself.** This is the first release signed with DayBoard's Developer
-  ID, notarized by Apple and published with update metadata. It checks for newer versions after
-  launch and every few hours, downloads them in the background, and shows **Restart to update** in the
+- **DayBoard now updates itself.** This is the first beta signed with DayBoard's Developer ID,
+  notarized by Apple and published with update metadata. It checks for newer betas after launch
+  and every few hours, downloads them in the background, and shows **Restart to update** in the
   toolbar when one is ready. If you don't restart, the update installs the next time you quit.
   Settings → Updates and DayBoard → Check for Updates… still check on request. Your data and
   sign-ins stay where they are.
@@ -70,16 +69,15 @@ since then. It is a draft until the build is made and verified on an Apple Silic
 Apple Silicon, macOS 14+. Notarized, so it opens normally with no Open Anyway step.
 
 Coming from beta.11 or earlier is a one-time manual step, because those builds can't update
-themselves: quit DayBoard, open the 1.3.0 DMG and replace the application in Applications. Your
+themselves: quit DayBoard, open the beta.12 DMG and replace the application in Applications. Your
 data lives outside the bundle and stays. Because the signature changed, macOS may ask once
 whether DayBoard can use its saved key in your keychain; allow it so you stay signed in. From
-1.3.0 on, new versions arrive in the app. Google may restrict accounts outside the
+beta.12 on, new betas arrive in the app. Google may restrict accounts outside the
 project's test audience. AI and MCP remain optional.
 
 ## Before publishing
 
 Fill in from the actual build: release source commit, tests and packaged UI cases run, and
-SHA-256 hashes in SHA256SUMS.txt. Publish by pushing tag `v1.3.0` after Miles approves; then
-confirm the release carries the DMG, ZIP, both blockmaps and `latest-mac.yml`, and that GitHub
-marks it Latest. Update the website Road Map from "beta 11" to "1.3.0" in the same change that
-links the release.
+SHA-256 hashes in SHA256SUMS.txt. Publish by pushing tag `v1.3.0-beta.12` after Miles approves;
+then confirm the release carries the DMG, ZIP, both blockmaps and `latest-mac.yml`. Update the website Road Map from "beta 11" to "beta 12" in
+the same change that links the release.

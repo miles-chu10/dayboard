@@ -77,7 +77,7 @@ The `1.3.0-beta.10` follow-up uses the same approved community configuration and
 `beta-1.3.0-beta.10` prerelease route. It pins MCP SDK 1.32.0, enables its tool-input element
 limit on both built-in servers, and bounds all authenticated HTTP JSON envelopes before SDK
 validation to 10,000 combined array elements/object members and 64 levels. The 1 MiB wire
-limit remains. Zod 4.6.6 fixes SNYK-JS-ZOD-20510278, and 1.3.0 onward requires it. That fix
+limit remains. Zod 4.6.6 fixes SNYK-JS-ZOD-20510278, and beta.12 onward requires it. That fix
 only stops early on arrays that declare a maximum, so these inbound limits stay; they do not
 bound validation of responses from user-configured external MCP servers. Use trusted external
 servers.
@@ -99,24 +99,20 @@ remain disabled; replace the application bundle manually while preserving the us
 
 Every build generates third-party notices from installed production dependencies, bundled renderer libraries and Electron. Version-pinned overrides retain their source provenance. The inventory explicitly labels two MIT declarations whose packages omit separate license files; it uses canonical SPDX terms without inventing copyright holders. Missing or changed inputs fail the build. Both the app's GPL text and the third-party notices ship in Resources; the Help menu opens the notices.
 
-## Signed releases
+## Signed community beta
 
-From `1.3.0`, Miles has a paid Apple Developer Program membership and asked for notarized,
-self-updating releases. `1.3.0` is the first signed release and carries no beta label (Miles,
-2026-10-22). Two workflows share the signing setup:
+From `1.3.0-beta.12`, Miles has a paid Apple Developer Program membership and asked for
+notarized, self-updating betas. Two workflows share the signing setup:
 
 - **Signed macOS release** (`.github/workflows/macos-release.yml`) runs when a `v`-prefixed
-  SemVer tag such as `v1.3.0` is pushed for a commit on `main` whose `package.json`
+  SemVer tag such as `v1.3.0-beta.12` is pushed for a commit on `main` whose `package.json`
   version matches. Until DayBoard has a price it builds a free release (`DAYBOARD_RELEASE=1`
   with `DAYBOARD_LICENSE=off`): Google required, in-app updates on, licensing off. It signs,
   notarizes, staples, verifies and smoke-tests like the dry run below, then publishes the DMG,
-  ZIP, blockmaps, `latest-mac.yml` and `SHA256SUMS.txt` as a GitHub release. A stable version
-  such as `1.3.0` is published as a normal release and becomes the repository's Latest release,
-  which is what installed stable builds follow. A version with a prerelease part, such as
-  `1.4.0-beta.1`, is published as a prerelease, is never marked Latest and reaches only builds
-  that are themselves prereleases.
+  ZIP, blockmaps, `latest-mac.yml` and `SHA256SUMS.txt` as a GitHub prerelease (never marked
+  latest for a prerelease version). This is how betas are distributed.
 - **Signed macOS beta** (`.github/workflows/macos-beta.yml`) is a manual signing dry run from
-  `main` for an `x.y.z` or `x.y.z-beta.n` version. It builds with `npm run build:beta` (licensing and
+  `main` for an `x.y.z-beta.n` version. It builds with `npm run build:beta` (licensing and
   in-app updates off), signs with Developer ID, notarizes and staples. It then verifies the
   Developer ID team, hardened runtime, stapled ticket and Gatekeeper assessment of the app, the
   ZIP's app and the mounted DMG's app, checks the beta build proof in all three and smoke-tests
@@ -127,7 +123,7 @@ self-updating releases. `1.3.0` is the first signed release and carries no beta 
 Pushing a release tag publishes publicly and needs Miles's approval each time. Do not create new
 `beta-<version>` releases: the updater ignores tags that are not SemVer, so only `v`-prefixed
 releases reach installed apps. Beta.11 and earlier cannot update themselves; their users install
-1.3.0 once from its DMG, and later versions arrive in the app.
+beta.12 once from its DMG, and later betas arrive in the app.
 
 Both use the `macos-release` GitHub environment, which must allow the `main` branch and `v*`
 tags. That environment needs:
@@ -195,13 +191,13 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 6. Verify the intended merchant in test mode: checkout, receipt/key, activation, deactivation, refund/revocation and offline behavior. Never charge a real customer as a test.
 7. Sign nested code and the application with the approved Developer ID, notarize, staple and assess the final artifact with Gatekeeper. Do not remove quarantine or advise users to disable security protections.
 8. Install the signed prior version in a disposable test environment, let it find and download the new release automatically, restart to update, and verify the version, saved preferences and account continuity after restart. Unit updater fakes do not prove Apple's actual update installation.
-9. The first tag with automatic updates (`v1.3.0`) waits for the website to disclose them. In order: deploy `website/` from main with the stage-1 copy, where the Updates bullet in `privacy.html` says 1.3.0 and later check GitHub after launch and every few hours, and `docs.html#updates` describes the background download, Restart to update and install on quit, without offering a 1.3.0 download. Then push the tag and publish the release. Turn on the direct download (stage 2) only after the release is published and Google sign-in is verified for production.
+9. The first tag with automatic updates (`v1.3.0-beta.12`) waits for the website to disclose them. In order: deploy `website/` from main with the stage-1 copy, where the Updates bullet in `privacy.html` says beta 12 and later check GitHub after launch and every few hours, and `docs.html#updates` describes the background download, Restart to update and install on quit, without offering a beta.12 download. Then push the tag and publish the release. Turn on the direct download (stage 2) only after the release is published and Google sign-in is verified for production.
 
 `npm run measure -- --inspect` runs a disposable fictional demo and records launch/idle process measurements. Set `DAYBOARD_E2E_EXECUTABLE` to measure the packaged executable. Summed process working sets may count shared memory more than once; this measurement does not describe real-account workloads.
 
 ## Website and source distribution
 
-The static site is in `website/`. From `1.3.0`, signed versions are public GitHub releases. Once the release is published and Google sign-in is verified for production, getdayboard.com/download redirects to the first-install DMG named by `DOWNLOAD_URL` in `website-worker/worker.js`. Installed copies update themselves, so change that URL only when a later release should be the first install. Its screenshots contain fictional demo data. Add checkout destinations only for the approved release, with the current privacy, support and refund information.
+The static site is in `website/`. From `1.3.0-beta.12`, signed betas are public GitHub prereleases. Once the release is published and Google sign-in is verified for production, getdayboard.com/download redirects to the first-install DMG named by `DOWNLOAD_URL` in `website-worker/worker.js`. Installed copies update themselves, so change that URL only when a later release should be the first install. Its screenshots contain fictional demo data. Add checkout destinations only for the approved release, with the current privacy, support and refund information.
 
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 
