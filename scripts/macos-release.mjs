@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { appendFile, copyFile, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -53,9 +54,68 @@ export function betaPlan({ repo, event, ref, version, sha }) {
   };
 }
 
-function run(command, args) {
+// Tool output goes into the job log, so it is bounded, stripped of control characters and runner
+// paths, and has GitHub workflow-command markers broken up so it cannot act on the job.
+// eslint-disable-next-line no-control-regex -- matches terminal colour codes in tool output
+const terminalCodes = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+// eslint-disable-next-line no-control-regex -- matches control characters other than tab and newline
+const controlCharacters = /[\x00-\x08\x0b-\x1f\x7f]/g;
+
+export function sanitizeOutput(text, replacements = []) {
+  // Controls go before path replacement, so a control inside a path cannot hide it from redaction.
+  let value = String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(terminalCodes, "")
+    .replace(controlCharacters, "");
+  for (const [from, to] of replacements
+    .filter(([from]) => from?.length > 1)
+    .sort((a, b) => b[0].length - a[0].length))
+    value = value.split(from).join(to);
+  const lines = value
+    .replace(/::/g, ": :")
+    .replace(/##\[/g, "# #[")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => (line.length > 300 ? `${line.slice(0, 300)}…` : line));
+  const kept = lines.slice(-20);
+  if (kept.length < lines.length)
+    kept.unshift(`(${lines.length - kept.length} earlier lines omitted)`);
+  return kept.join("\n");
+}
+
+export function describeFailure(command, args, result, label, replacements = []) {
+  const exit = result.error
+    ? `spawn error ${result.error.code ?? "unknown"}`
+    : result.signal
+      ? `signal ${result.signal}`
+      : `status ${result.status}`;
+  const stream = (name, text) => {
+    const body = sanitizeOutput(text, replacements);
+    return `${name}:\n${body ? body.replace(/^/gm, "  ") : "  (empty)"}`;
+  };
+  return [
+    `${command} failed during the release check for the ${label}.`,
+    `command: ${sanitizeOutput([command, ...args].join(" "), replacements)}`,
+    `exit: ${exit}`,
+    stream("stdout", result.stdout),
+    stream("stderr", result.stderr),
+  ].join("\n");
+}
+
+// With `artifact` ({ label, path }), a failure reports the artifact, command, exit and output.
+export function run(command, args, artifact) {
   const result = spawnSync(command, args, { encoding: "utf8" });
-  if (result.status !== 0) throw new Error(`${command} failed during the release check.`);
+  if (result.status !== 0) {
+    if (!artifact) throw new Error(`${command} failed during the release check.`);
+    const replacements = [
+      [artifact.path, `<${artifact.label}>`],
+      [process.env.RUNNER_TEMP, "<runner temp>"],
+      [process.cwd(), "<workspace>"],
+      [homedir(), "~"],
+    ];
+    throw new Error(describeFailure(command, args, result, artifact.label, replacements));
+  }
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
@@ -68,22 +128,44 @@ export function assertDeveloperIdentity(description, team) {
     throw new Error("The artifact is not signed by the configured Developer ID team.");
 }
 
-export function verifyApp(appPath, team, version, execute = run) {
-  execute("codesign", ["--verify", "--deep", "--strict", appPath]);
-  const signature = execute("codesign", ["--display", "--verbose=4", appPath]);
+export function verifyApp(appPath, team, version, execute = run, label = "app") {
+  const artifact = { label, path: appPath };
+  execute("codesign", ["--verify", "--deep", "--strict", appPath], artifact);
+  const signature = execute("codesign", ["--display", "--verbose=4", appPath], artifact);
   assertDeveloperIdentity(signature, team);
   if (!/flags=[^\n]*\bruntime\b/.test(signature)) throw new Error("Hardened runtime is required.");
   const info = join(appPath, "Contents", "Info.plist");
   if (
-    execute("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", info]).trim() !==
-    version
+    execute(
+      "plutil",
+      ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", info],
+      artifact,
+    ).trim() !== version
   )
     throw new Error("The packaged app version does not match the release tag.");
   const helper = join(appPath, "Contents", "Resources", "bin", "reminders-helper");
-  execute("codesign", ["--verify", "--strict", helper]);
-  assertDeveloperIdentity(execute("codesign", ["--display", "--verbose=4", helper]), team);
-  execute("xcrun", ["stapler", "validate", appPath]);
-  execute("spctl", ["--assess", "--type", "execute", "--verbose=2", appPath]);
+  execute("codesign", ["--verify", "--strict", helper], artifact);
+  assertDeveloperIdentity(
+    execute("codesign", ["--display", "--verbose=4", helper], artifact),
+    team,
+  );
+  execute("xcrun", ["stapler", "validate", appPath], artifact);
+  execute("spctl", ["--assess", "--type", "execute", "--verbose=2", appPath], artifact);
+}
+
+// Detaching runs either way; when both fail, the verification failure leads the report.
+export function verifyThenDetach(verify, detach) {
+  try {
+    verify();
+  } catch (error) {
+    try {
+      detach();
+    } catch (detachError) {
+      error.message += `\nDetaching the DMG also failed: ${detachError.message}`;
+    }
+    throw error;
+  }
+  detach();
 }
 
 export async function writeCredentials(env, directory) {
@@ -327,23 +409,24 @@ async function main(command) {
   if (command !== "verify") throw new Error("Unknown release command.");
   const team = process.env.APPLE_TEAM_ID;
   const app = resolve("release/mac-arm64/DayBoard.app");
-  verifyApp(app, team, plan.version);
+  verifyApp(app, team, plan.version, run, "release app");
   const zipDirectory = join(temp, "dayboard-release-zip");
   await mkdir(zipDirectory);
-  run("ditto", ["-x", "-k", resolve("release", plan.files[1]), zipDirectory]);
-  verifyApp(join(zipDirectory, "DayBoard.app"), team, plan.version);
+  const zip = resolve("release", plan.files[1]);
+  run("ditto", ["-x", "-k", zip, zipDirectory], { label: "ZIP", path: zip });
+  verifyApp(join(zipDirectory, "DayBoard.app"), team, plan.version, run, "ZIP app");
   const mount = join(temp, "dayboard-release-dmg");
   await mkdir(mount);
   const dmg = resolve("release", plan.files[0]);
-  run("hdiutil", ["verify", dmg]);
-  run("codesign", ["--verify", "--strict", dmg]);
-  assertDeveloperIdentity(run("codesign", ["--display", "--verbose=4", dmg]), team);
-  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg]);
-  try {
-    verifyApp(join(mount, "DayBoard.app"), team, plan.version);
-  } finally {
-    run("hdiutil", ["detach", mount]);
-  }
+  const image = { label: "DMG", path: dmg };
+  run("hdiutil", ["verify", dmg], image);
+  run("codesign", ["--verify", "--strict", dmg], image);
+  assertDeveloperIdentity(run("codesign", ["--display", "--verbose=4", dmg], image), team);
+  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg], image);
+  verifyThenDetach(
+    () => verifyApp(join(mount, "DayBoard.app"), team, plan.version, run, "DMG app"),
+    () => run("hdiutil", ["detach", mount], { label: "mounted DMG", path: mount }),
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
