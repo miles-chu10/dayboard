@@ -298,11 +298,20 @@ test("the panels follow the design system's ground, input, row and copy rules", 
         break;
       await menubar.keyboard.press("Tab");
     }
-    const ring = await row.evaluate((node) => {
-      const style = (globalThis as unknown as DomGlobal).getComputedStyle(node);
-      return { offset: style.outlineOffset, width: style.outlineWidth, style: style.outlineStyle };
-    });
-    expect(ring).toEqual({ offset: "-2px", width: "2px", style: "solid" });
+    // With Reduce Motion on, every property gets a 0.01ms transition, so a read in the same
+    // frame as the focus can still see the unfocused width and offset.
+    await expect
+      .poll(() =>
+        row.evaluate((node) => {
+          const style = (globalThis as unknown as DomGlobal).getComputedStyle(node);
+          return {
+            offset: style.outlineOffset,
+            width: style.outlineWidth,
+            style: style.outlineStyle,
+          };
+        }),
+      )
+      .toEqual({ offset: "-2px", width: "2px", style: "solid" });
   } finally {
     await demo.close();
   }
