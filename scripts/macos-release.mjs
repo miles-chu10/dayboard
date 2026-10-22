@@ -102,7 +102,7 @@ export function describeFailure(command, args, result, label, replacements = [])
   ].join("\n");
 }
 
-// `artifact` ({ label, path }) opts a check into a detailed failure report; the check still fails.
+// With `artifact` ({ label, path }), a failure reports the artifact, command, exit and output.
 export function run(command, args, artifact) {
   const result = spawnSync(command, args, { encoding: "utf8" });
   if (result.status !== 0) {
@@ -128,21 +128,43 @@ export function assertDeveloperIdentity(description, team) {
 }
 
 export function verifyApp(appPath, team, version, execute = run, label = "app") {
-  execute("codesign", ["--verify", "--deep", "--strict", appPath]);
-  const signature = execute("codesign", ["--display", "--verbose=4", appPath]);
+  const artifact = { label, path: appPath };
+  execute("codesign", ["--verify", "--deep", "--strict", appPath], artifact);
+  const signature = execute("codesign", ["--display", "--verbose=4", appPath], artifact);
   assertDeveloperIdentity(signature, team);
   if (!/flags=[^\n]*\bruntime\b/.test(signature)) throw new Error("Hardened runtime is required.");
   const info = join(appPath, "Contents", "Info.plist");
   if (
-    execute("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", info]).trim() !==
-    version
+    execute(
+      "plutil",
+      ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", info],
+      artifact,
+    ).trim() !== version
   )
     throw new Error("The packaged app version does not match the release tag.");
   const helper = join(appPath, "Contents", "Resources", "bin", "reminders-helper");
-  execute("codesign", ["--verify", "--strict", helper]);
-  assertDeveloperIdentity(execute("codesign", ["--display", "--verbose=4", helper]), team);
-  execute("xcrun", ["stapler", "validate", appPath], { label, path: appPath });
-  execute("spctl", ["--assess", "--type", "execute", "--verbose=2", appPath]);
+  execute("codesign", ["--verify", "--strict", helper], artifact);
+  assertDeveloperIdentity(
+    execute("codesign", ["--display", "--verbose=4", helper], artifact),
+    team,
+  );
+  execute("xcrun", ["stapler", "validate", appPath], artifact);
+  execute("spctl", ["--assess", "--type", "execute", "--verbose=2", appPath], artifact);
+}
+
+// Detaching runs either way; when both fail, the verification failure leads the report.
+export function verifyThenDetach(verify, detach) {
+  try {
+    verify();
+  } catch (error) {
+    try {
+      detach();
+    } catch (detachError) {
+      error.message += `\nDetaching the DMG also failed: ${detachError.message}`;
+    }
+    throw error;
+  }
+  detach();
 }
 
 export async function writeCredentials(env, directory) {
@@ -389,20 +411,21 @@ async function main(command) {
   verifyApp(app, team, plan.version, run, "release app");
   const zipDirectory = join(temp, "dayboard-release-zip");
   await mkdir(zipDirectory);
-  run("ditto", ["-x", "-k", resolve("release", plan.files[1]), zipDirectory]);
+  const zip = resolve("release", plan.files[1]);
+  run("ditto", ["-x", "-k", zip, zipDirectory], { label: "ZIP", path: zip });
   verifyApp(join(zipDirectory, "DayBoard.app"), team, plan.version, run, "ZIP app");
   const mount = join(temp, "dayboard-release-dmg");
   await mkdir(mount);
   const dmg = resolve("release", plan.files[0]);
-  run("hdiutil", ["verify", dmg]);
-  run("codesign", ["--verify", "--strict", dmg]);
-  assertDeveloperIdentity(run("codesign", ["--display", "--verbose=4", dmg]), team);
-  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg]);
-  try {
-    verifyApp(join(mount, "DayBoard.app"), team, plan.version, run, "DMG app");
-  } finally {
-    run("hdiutil", ["detach", mount]);
-  }
+  const image = { label: "DMG", path: dmg };
+  run("hdiutil", ["verify", dmg], image);
+  run("codesign", ["--verify", "--strict", dmg], image);
+  assertDeveloperIdentity(run("codesign", ["--display", "--verbose=4", dmg], image), team);
+  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg], image);
+  verifyThenDetach(
+    () => verifyApp(join(mount, "DayBoard.app"), team, plan.version, run, "DMG app"),
+    () => run("hdiutil", ["detach", mount], { label: "mounted DMG", path: mount }),
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -15,6 +15,7 @@ import {
   sanitizeOutput,
   stageAssets,
   verifyApp,
+  verifyThenDetach,
   writeCredentials,
 } from "../scripts/macos-release.mjs";
 
@@ -224,20 +225,41 @@ test("app verification checks hardened runtime, nested helper, version, ticket a
     assert.throws(() => verifyApp("/fixture/DayBoard.app", team, "1.3.0", signedTools(options)));
 });
 
-test("only the stapler check is labelled with its artifact", () => {
-  const labelled = [];
+test("every app check names the artifact it verifies", () => {
+  const artifacts = [];
   const tools = signedTools();
   const record = (command, args, artifact) => {
-    if (artifact) labelled.push([command, ...args.slice(0, 2), artifact]);
+    artifacts.push(artifact);
     return tools(command, args);
   };
   verifyApp("/fixture/DayBoard.app", team, "1.3.0", record, "DMG app");
-  assert.deepEqual(labelled, [
-    ["xcrun", "stapler", "validate", { label: "DMG app", path: "/fixture/DayBoard.app" }],
-  ]);
+  assert.equal(artifacts.length, 7);
+  for (const artifact of artifacts)
+    assert.deepEqual(artifact, { label: "DMG app", path: "/fixture/DayBoard.app" });
 });
 
-test("a stapler failure reports the artifact, command, exit status and sanitized output", () => {
+test("the DMG is detached after its app is checked, and the check's failure is kept", () => {
+  const calls = [];
+  const fail = (name) => () => {
+    calls.push(name);
+    throw new Error(`${name} failed`);
+  };
+  const pass = (name) => () => calls.push(name);
+  verifyThenDetach(pass("verify"), pass("detach"));
+  assert.deepEqual(calls.splice(0), ["verify", "detach"]);
+  assert.throws(() => verifyThenDetach(fail("verify"), pass("detach")), {
+    message: "verify failed",
+  });
+  assert.deepEqual(calls.splice(0), ["verify", "detach"]);
+  assert.throws(() => verifyThenDetach(fail("verify"), fail("detach")), {
+    message: "verify failed\nDetaching the DMG also failed: detach failed",
+  });
+  assert.throws(() => verifyThenDetach(pass("verify"), fail("detach")), {
+    message: "detach failed",
+  });
+});
+
+test("a failed check reports the artifact, command, exit status and sanitized output", () => {
   const path = "/Users/runner/work/_temp/dayboard-release-zip/DayBoard.app";
   const message = describeFailure(
     "xcrun",
