@@ -30,17 +30,20 @@ export function releasePlan({ repo, ref, version, sha }) {
   };
 }
 
-// Manually dispatched community beta from main: Developer ID signed and notarized, licensing and
-// updates off, uploaded as a workflow artifact only. No update metadata, so no latest-mac.yml.
+// Manually dispatched signing dry run from main, for a stable or beta version: Developer ID signed
+// and notarized, licensing and updates off, uploaded as a workflow artifact only. No update
+// metadata, so no latest-mac.yml.
 export function betaPlan({ repo, event, ref, version, sha }) {
   if (
     repo !== repository ||
     event !== "workflow_dispatch" ||
     ref !== "refs/heads/main" ||
-    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.(0|[1-9]\d*)$/.test(version ?? "") ||
+    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-beta\.(0|[1-9]\d*))?$/.test(version ?? "") ||
     !/^[a-f0-9]{40}$/.test(sha ?? "")
   )
-    throw new Error("A signed beta requires a manual run on main with an x.y.z-beta.n version.");
+    throw new Error(
+      "A signed dry run requires a manual run on main with an x.y.z or x.y.z-beta.n version.",
+    );
   const dmg = `DayBoard-${version}-arm64.dmg`;
   const zip = `DayBoard-${version}-arm64-mac.zip`;
   return {

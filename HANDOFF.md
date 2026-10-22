@@ -8,11 +8,12 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   Google sign-in through `npm run build:beta`, which fails if the Desktop OAuth client is missing.
   It keeps beta.10's MCP input limits and reports refresh failures and partial results alongside
   cached sidebar summaries. Notes: `docs/release-notes-1.3.0-beta.11.md`.
-- Unreleased on `main` since beta.11, now versioned `1.3.0-beta.12`: ⌘N New Item with a
+- Unreleased on `main` since beta.11, now versioned `1.3.0` (Miles dropped the beta label on
+  2026-10-22; it was `1.3.0-beta.12`): ⌘N New Item with a
   clickable sidebar + (PR #25), beta packaging that enforces the Google configuration through
   final macOS packaging (PR #33), the macOS shell, sidebar and responsive inspector refinement
   (PR #34), billing tooling updates (PR #22), the website Road Map (PR #36), and PR #37 (merged
-  October 20). No beta.12 artifact has been built yet.
+  October 20). The first signed dry run ran on `5489bbb` (still `1.3.0-beta.12`).
 - PR #37 carries the offline Google refresh fix (only a refused grant signs out) and the
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
@@ -27,12 +28,12 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   the same as DayBoard 1.2.6 through the patch series in the project files
   (`dayboard/glaze-1.2.6-composer-16/`), applied, verified and published from the Mac.
 - Miles bought Apple Developer Program enrollment on October 20 and wants a notarized DayBoard
-  that anyone can download and that updates itself. Beta.12 onward is a free release published by
+  that anyone can download and that updates itself. 1.3.0 onward is a free release published by
   pushing a `v`-prefixed tag (the **Signed macOS release** workflow, `DAYBOARD_RELEASE=1` with
   `DAYBOARD_LICENSE=off`): Developer ID signed, notarized, in-app updates on, licensing off. The
   manual **Signed macOS beta** workflow stays an updates-off signing dry run. Official builds
   check and download updates in the background and install on restart or quit. Each tag push
-  needs Miles's approval. Beta.11 users move to beta.12 manually once; a real beta.12 to beta.13
+  needs Miles's approval. Beta.11 users move to 1.3.0 manually once; a real 1.3.0 to 1.3.1
   in-app update must then be tested in isolated QA state. See `docs/RELEASE.md`.
 - October 20 signing setup on Miles's Mac: the `macos-release` environment exists (main and
   `v*`), with `DAYBOARD_GOOGLE_OAUTH_JSON`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` set and
@@ -54,7 +55,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   but no code in the repository records them or sends mailings.
 - Earlier, `1.3.0-beta.10` pinned MCP SDK 1.32.0, enabled tool-input limits on both local
   servers and bounded authenticated JSON before SDK validation. Zod 4.6.6 (October 11) fixes
-  SNYK-JS-ZOD-20510278: standalone requires `^4.6.6` from beta.12 and Glaze 1.2.5 pins 4.6.6.
+  SNYK-JS-ZOD-20510278: standalone requires `^4.6.6` from 1.3.0 and Glaze 1.2.5 pins 4.6.6.
   The fix only stops early on arrays that declare a maximum, so keep the local input limits;
   remote MCP response validation stays outside them.
 
@@ -67,7 +68,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 - Assistant requests send the stable policy first; explicit cache controls apply only on the direct OpenAI API route for listed models (`docs/PROMPT-CACHING.md`). Token and cache usage are recorded per request; no live savings are measured.
 
-## Unreleased branch: system panels (PR #44, draft)
+## System panels (PR #44, merged as `5489bbb`)
 
 `claude/system-panels-bb42de` adds Quick Capture (global hotkey panel), the menu-bar mini Agenda and
 the meeting-aware Up Next card with optional notifications and Granola notes import. Design:
@@ -312,7 +313,7 @@ account acceptance remain follow-up work, not release blockers for this limited 
 
 1. Pricing and activation limit are intentionally deferred by the user. Create no product/price until those terms are chosen and the external write is approved. Configure a separate Stripe sandbox and hosting account, then verify actual Checkout/payment/key delivery/refund and deployed D1 behavior. A connected Stripe account is not proof of charge/payout readiness.
 2. Live Gmail/AI-provider acceptance and first-time Reminders consent remain unverified feature acceptance. New consent and real Keychain checks require deliberately owned OS test state; a separate macOS account is not a requirement for fictional UI. Historical Google Tasks, Calendar and existing Reminders access were verified for the selected account; this does not prove public OAuth eligibility for every account.
-3. Developer ID signing and notarization run in both signed workflows once the certificate, its password and the notary key are in `macos-release`; ordinary signed launch, Gatekeeper on a quarantined download and account/Keychain continuity across replacing an ad-hoc install still need an owned installation target. Signed automatic upgrade acceptance needs two published `v` releases (beta.12, then beta.13).
+3. Developer ID signing and notarization run in both signed workflows once the certificate, its password and the notary key are in `macos-release`; ordinary signed launch, Gatekeeper on a quarantined download and account/Keychain continuity across replacing an ad-hoc install still need an owned installation target. Signed automatic upgrade acceptance needs two published `v` releases (1.3.0, then 1.3.1).
 4. Manual window-drag acceptance, source migration review and public download/site publication. The preview is ad-hoc signed, not Developer ID signed or notarized, and has no merchant configuration.
 
 The Glaze source repository and this standalone repository are separate histories and do not synchronize automatically. Preserve the public repository's history when preparing the standalone migration; do not force-push over it.

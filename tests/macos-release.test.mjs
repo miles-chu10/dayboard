@@ -147,11 +147,23 @@ test("a manual beta run on main plans signed downloads without update metadata",
   ]);
 });
 
+test("a manual dry run also plans a stable version without publishing it", () => {
+  const plan = betaPlan({ ...betaInput, version: "1.3.0" });
+  assert.equal(plan.tag, "beta-1.3.0");
+  assert.equal(plan.prerelease, true);
+  assert.deepEqual(plan.files, [
+    "DayBoard-1.3.0-arm64.dmg",
+    "DayBoard-1.3.0-arm64-mac.zip",
+    "DayBoard-1.3.0-arm64.dmg.blockmap",
+    "DayBoard-1.3.0-arm64-mac.zip.blockmap",
+  ]);
+});
+
 for (const [name, override] of [
   ["another repository", { repo: "miles-chu10/another-app" }],
   ["a tag push", { event: "push", ref: "refs/tags/v1.3.0-beta.12" }],
   ["another branch", { ref: "refs/heads/claude/feature" }],
-  ["a stable version", { version: "1.3.0" }],
+  ["leading version zeroes", { version: "01.3.0" }],
   ["a non-beta prerelease", { version: "1.3.0-rc.1" }],
   ["leading beta zeroes", { version: "1.3.0-beta.012" }],
   ["build metadata", { version: "1.3.0-beta.12+local" }],
@@ -161,28 +173,30 @@ for (const [name, override] of [
   test(`beta planning refuses ${name}`, () =>
     assert.throws(() => betaPlan({ ...betaInput, ...override })));
 
-test("staged beta downloads are checksummed and cannot go through release publishing", async (t) => {
-  const root = await temp(t);
-  const source = join(root, "source");
-  const directory = join(root, "downloads");
-  const plan = betaPlan(betaInput);
-  await mkdir(source);
-  for (const name of plan.files) await writeFile(join(source, name), `Synthetic download: ${name}`);
-  await stageAssets(plan, source, directory);
-  const sums = await readFile(join(directory, "SHA256SUMS.txt"), "utf8");
-  assert.equal(sums.trim().split("\n").length, plan.files.length);
-  const fixture = apiFixture();
-  await assert.rejects(
-    publishRelease({
-      github: fixture.github,
-      repository,
-      tag: plan.tag,
-      sha,
-      directory,
-    }),
-  );
-  assert.deepEqual(mutations(fixture), []);
-});
+for (const version of ["1.3.0-beta.12", "1.3.0"])
+  test(`staged ${version} dry-run downloads are checksummed and cannot be published`, async (t) => {
+    const root = await temp(t);
+    const source = join(root, "source");
+    const directory = join(root, "downloads");
+    const plan = betaPlan({ ...betaInput, version });
+    await mkdir(source);
+    for (const name of plan.files)
+      await writeFile(join(source, name), `Synthetic download: ${name}`);
+    await stageAssets(plan, source, directory);
+    const sums = await readFile(join(directory, "SHA256SUMS.txt"), "utf8");
+    assert.equal(sums.trim().split("\n").length, plan.files.length);
+    const fixture = apiFixture();
+    await assert.rejects(
+      publishRelease({
+        github: fixture.github,
+        repository,
+        tag: plan.tag,
+        sha,
+        directory,
+      }),
+    );
+    assert.deepEqual(mutations(fixture), []);
+  });
 
 test("ad-hoc, development and other-team signatures are refused", () => {
   assert.doesNotThrow(() => assertDeveloperIdentity(signature, team));
