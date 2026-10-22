@@ -22,6 +22,7 @@ import type {
   TaskItem,
 } from "@main/shared-types";
 
+import { clearAccountScopedQueries, refreshMeetingNotes } from "./account-scoped-queries";
 import { errorMessage, invoke } from "./ipc";
 import { settingsQueryKey, sourceOn, useSettings } from "./settings";
 import { buildTodos, linkedKeys, type Todo } from "./todos";
@@ -193,12 +194,16 @@ export function useBackendSync() {
   useEffect(() => {
     const ipc = window.dayboard.ipc;
     const unsubscribers = [
+      ipc.onNotification("meetings:notesChanged", () => {
+        void refreshMeetingNotes(queryClient);
+      }),
       ipc.onNotification("accounts:changed", () => {
         // Never show a prior account's cached data during a reconnect or switch.
         for (const queryKey of [...DATA_KEYS, queryKeys.agendaScope])
           void queryClient.resetQueries({ queryKey });
         void queryClient.cancelQueries({ queryKey: ["agenda", "state"] });
         queryClient.removeQueries({ queryKey: ["agenda", "state"] });
+        clearAccountScopedQueries(queryClient);
         void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       }),
       ipc.onNotification("settings:changed", (params) => {
@@ -528,6 +533,15 @@ export function useToggleTodo() {
     },
   });
   return mutation;
+}
+
+/** The backend's account scope; reset on every account change, so keys built from it never cross accounts. */
+export function useAccountScope() {
+  return useQuery({
+    queryKey: queryKeys.agendaScope,
+    queryFn: () => invoke<string>("agenda:getScope"),
+    staleTime: 30_000,
+  }).data;
 }
 
 export function useAgendaState() {

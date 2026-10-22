@@ -27,6 +27,7 @@ import { useStartAtLogin } from "../lib/use-start-at-login";
 import { displayName } from "../components/app-sidebar";
 import { AccentPicker } from "./accent-picker";
 import { SettingSelect } from "./setting-select";
+import { MeetingsSettings, SystemPanelsSettings } from "./system-panels-settings";
 
 const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
   { value: "today", label: "Agenda · Today" },
@@ -259,6 +260,9 @@ export function GeneralTab() {
 
       {settings ? (
         <>
+          <SystemPanelsSettings />
+          <MeetingsSettings />
+
           <FieldSet title="Startup & Refresh">
             <Field
               label="Start at login"

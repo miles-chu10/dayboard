@@ -67,6 +67,219 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 - Assistant requests send the stable policy first; explicit cache controls apply only on the direct OpenAI API route for listed models (`docs/PROMPT-CACHING.md`). Token and cache usage are recorded per request; no live savings are measured.
 
+## Unreleased branch: system panels (PR #44, draft)
+
+`claude/system-panels-bb42de` adds Quick Capture (global hotkey panel), the menu-bar mini Agenda and
+the meeting-aware Up Next card with optional notifications and Granola notes import. Design:
+`docs/superpowers/specs/2026-10-20-system-panels-design.md`; plan and decision log:
+`docs/superpowers/plans/2026-10-20-system-panels.md`; Glaze port guide:
+`docs/porting-system-panels.md`; fuse proposal: `docs/proposals/electron-fuses.md`.
+
+Lifecycle changes for release-owner review (the updater's quit/install path is unchanged):
+
+- `startSystemPanels()` runs before `createMainWindow()`; it registers the hotkey and panel IPC,
+  creates the tray when enabled (never in test builds), and starts meeting alerts.
+- `app.on("will-quit", stopSystemPanels)` unregisters global shortcuts and destroys the tray.
+- `activate` ignores floating panels when deciding whether to show the main window.
+- Tray "Quit DayBoard" calls plain `app.quit()`, so the `before-quit` save guard runs. No
+  hide-on-close was added. `window-all-closed`, `before-quit`, the quit guard, the updater
+  service and `runtime-activity` are untouched. Check for Updates stays in the app menu.
+- Meeting alerts hold one `setTimeout` and, only while on, a refresh `setInterval`.
+
+Acceptance correction (2026-10-20): the stale QA preview launched at 07:19:27 PDT (14:19:27 UTC; shell PID 81215, app PID 81216; `DAYBOARD_DEMO=1`, scratchpad `demo-profile`, built from `c316117`) was reported stopped at about 07:21 but kept running: the stop command matched an absolute path while the app had been launched with a relative one. It ran until it was stopped by PID with SIGTERM at about 07:47 PDT; its launch task exited with code 0, and a check at 14:48:08 UTC found no QA preview processes. While it ran it likely held ⌃⌥Space and showed a menu-bar icon. No canonical or user-launched DayBoard was touched. Use the fresh `cf890ac` preview package and a new empty demo profile for acceptance.
+
+PR #42 overlap: this branch moved the `ai:run` body into `main/services/ai/completion.ts`. PR #42
+changes that body (effort provider options on the API path, explicit Codex default model on the
+CLI path). Whichever merges second must carry both into `runCompletion` and add a wiring test that
+`ai:run` and Quick Capture's runner pass the resolved effort and Codex model. See `TASKS.md`.
+
+Integration handoff (2026-10-20): merge order is #43, then #42, then #44.
+
+- #43 merged as `41e74bb`, with successful CI run 39446372947 (as reported by its owner). Main
+  was merged into this branch as `be58946` with no conflicts; it brings `updates.startAutomatic()`
+  after the main window opens and zod 4.6.7.
+  - Checks at `be58946`, after `npm ci` from the merged lock: `npm test` renderer 63/63 and backend
+    529/529 pass; lint, typecheck and `format:check` exit 0.
+  - `test:e2e`: 38 passed, 1 skipped (the opt-in native encryption test).
+- #42 is not final. At `e0c7604` it has the two P2 fixes with successful CI. Its owner is still
+  adding model-name and effective-supported-effort labels before final review and merge.
+- Reconcile #44 only against the final #42 head:
+  - Carry #42's API effort provider options and its explicit default Codex model into
+    `runCompletion`, so that both `ai:run` and Quick Capture use them.
+  - Keep the `clipSnapshot` import in `main/handlers/ai.ts`.
+  - Merge the `package.json` test lists as a union.
+  - Rerun both wiring paths and full validation.
+- A scratch combined tree with the reviewed repair passed every check: `05883de` / tree `b9b6209`,
+  with #42's two `ai:run` regression tests failing before the repair and passing after.
+- Do not apply its `port-for-44-completion-ai-package.patch` blindly to an older base.
+- Evidence and patches are in
+  `/Users/mileschu/Documents/Codex/2026-10-20/task/integration-check-2026-10-20/`.
+- The `cf890ac` preview is valid for panel-only QA. Combined lifecycle acceptance needs a new build
+  from the merged tree.
+
+Native acceptance (2026-10-20, 15:09–15:22 UTC). Build: the `cf890ac` ad-hoc preview, demo mode,
+disposable profile `scratchpad/acceptance-profile`, with Chess as the other app. Ten checks passed:
+
+- the conflict message for ⌥⌘Space
+- the hotkey from windowed and from full-screen Chess
+- the panel on the display under the pointer
+- focus return after Esc (windowed and full screen), windowed click-away, and submit (the demo
+  refusal is shown and the text is kept)
+- the switches removing the hotkey, the tray icon and the Up Next card, and turning the hotkey and
+  card back on
+
+Failed: the tray panel opened under its icon on 2 of 3 opens. The third landed on the built-in
+display while the icon on the ASUS display was clicked. Electron 44.4.4's `Tray.getBounds()` reads
+the status item view's own window (`[status_item_view_ window].frame`), which can be another
+display's copy. The click event instead carries the frame of the window that was clicked
+(`event.window.frame`).
+
+Fixed in `609350d`: the click bounds now drive placement, with a `tests/tray-anchor.test.mjs`
+regression. It needs native re-acceptance.
+
+Blocked or not run:
+
+- Full-screen click-away is blocked. The Codex "Cua Driver" overlay covers the full-screen Space,
+  so the test tool refuses clicks there.
+- The re-enabled tray icon could not be confirmed. It is probably in the menu-bar manager's hidden
+  section.
+- Notification delivery was not run. Demo mode sends none, and the first notification would raise
+  a macOS permission prompt.
+
+Other findings:
+
+- **Tray click made DayBoard frontmost** on 2 of 3 clicks, in both cases the clicks that opened
+  the panel. Cause unresolved.
+  - What was checked: Electron 44.4.4's tray click handler calls no activation, `Show()`/`Focus()`
+    skip activation for panels (`if (!IsPanel())`), DayBoard calls `app.focus` only for Open
+    DayBoard, and the hotkey-opened panel never activated the app.
+  - That narrows the cause but does not rule out every native path.
+  - Leading hypotheses: macOS activating the app on a status-item click, or the test tool
+    activating the app it clicks.
+  - Not fixed: a blind fix (`app.hide()`) would hide a visible main window. A by-hand tray click
+    while another app is frontmost is the next check.
+- **Esc on a freshly opened menu-bar panel** did nothing until focus was inside it. Fixed in
+  `db10cdb`: both panels listen for Esc on the window, with an e2e regression.
+- **First keystrokes lost after the hotkey** on 2 of about 8 opens. Cause unresolved.
+  - A new e2e test types right after each way the capture panel reopens: first show, after Esc,
+    after click-away, after a rejected submit. Every keystroke lands.
+  - Playwright delivers keys to the page directly, so that test narrows the cause but does not
+    rule out native key-window routing or the renderer under OS-level input.
+  - The test tool's key injection is a further hypothesis. Next check: by hand.
+
+Verification of the acceptance fixes (2026-10-20). Each regression test was run and failed
+before its fix:
+
+- **Branch `01c4949`.**
+  - `npm test`: renderer 63/63 and backend 520/520 pass. lint, typecheck and `format:check` exit 0.
+  - `e2e/system-panels.spec.ts` (built at `db10cdb`): 11/11 pass.
+- **`tests/tray-anchor.test.mjs`: 3 tests.**
+  - Before the fix, the toggle received the click event instead of the bounds, and the panel was
+    centred at x 371 (the built-in copy) instead of 936.
+- **e2e "Escape hides a freshly shown menu-bar panel".**
+  - Before the fix the panel stayed visible: "Expected: false, Received: true".
+- **e2e "the first keystrokes after each reopen reach the capture input".** It passed before and
+  after the change, so it records existing behaviour rather than proving a fix.
+- **`tests/quick-capture-wiring.test.mjs`.** It fails when Quick Capture's `complete` bypasses
+  `runCompletion`.
+
+Trial reconciliation (scratch worktree, not pushed), merging #42 at interim head `302d191` into
+`0e73008`:
+
+- Conflicts:
+  - `main/handlers/ai.ts`: kept the slim `ai:run` and the `clipSnapshot`,
+    `onClaudeModelResolved` and `resolvedClaudeModels` imports, and dropped the unused ones.
+  - `package.json`: merged the test lists as a union.
+- Applied the reviewed `runCompletion` repair.
+- #42's two `ai:run` wiring tests fail 0/2 without the repair and pass 2/2 with it.
+- `npm ci` from the merged lock: zod 4.6.7.
+- `npm test`: renderer 82/82 and backend 548/548. lint, typecheck and `format:check` exit 0.
+  `test:e2e`: 41 passed, 1 skipped (the opt-in native encryption test).
+- `302d191` is interim: #42's final review raised two P2s that its owner is fixing. Redo this on
+  the merged #42 source, then build a fresh artifact from the current lock.
+- The trial resolution patch and logs are in
+  `~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-trial-on-302d191/`.
+
+Design system check (2026-10-20). The panels were checked against "DayBoard Design System v21",
+render `1791573676-ee86`. Its export sha256 `70b651fc…df85` was verified on the local copy in
+`~/Documents/Codex/2026-10-09/task-4/design-reference/`. The live artifact revision
+`1792522028-b5ac` gives the same panel rules, with tighter contrast wording.
+
+- **Fixed in `ba10a95`:**
+  - Placeholders end in an ellipsis, and the menu-bar one no longer truncates.
+  - A failed capture is a red Callout.
+  - Today rows use `list-hover`, `tabular-nums` and a `title` on truncated text.
+  - Button labels are sentence case.
+- **Fixed in `0e41eb8`:** menu-bar Today rows take the inset 2px keyboard ring that the app's list
+  rows use. The design e2e test checks it (it failed at offset 0px before the fix).
+- **Version 26** (`1792526832-32f0`): every design-system file used above has the same SHA-256 as
+  in `1792522028-b5ac`, and its note says app tokens and cards are unchanged. The comparison stands.
+- **Already compliant:** the panel ground is opaque. A new e2e test pins it along with the
+  fixes.
+- **Left as decisions:**
+  - The Spotlight-size capture field stays for this release. It is 40px tall with 15px text
+    (`h-10 text-[15px]`); the design system's Input sizes are 28, 32 and 36px with 13px text.
+  - the app-wide time-range format
+  - model and effort presentation, which has no guidance in the design system (owned by #42)
+  - the hidden native vibrancy layer
+- Before and after screenshots and rendered design-system cards are in the shared notes folder's
+  `pr44-design-system-check/`.
+- **Exact-head regression at `a96c70c`** (code as `ba10a95`): `npm test` renderer 63/63 and backend
+  529/529; lint, typecheck and `format:check` exit 0; `test:e2e` 39 passed, 1 skipped (the opt-in
+  native encryption test).
+- **Claude Design project (claude.ai/design): not inspected.** The `/design-sync` skill's
+  read-only `DesignSync list_projects` call failed: "DesignSync needs design-system
+  authorization, and /design-login cannot run in this non-interactive session. Ask the user to run
+  /design-login once from an interactive Claude Code session on this machine". The artifact and
+  the v21 export above were used instead.
+
+Independent review (2026-10-20): local Codex review of exact `cc4e473..1f87dc7`, COMPLETE.
+
+- **Important** (it predates this range): Escape during IME composition hid the panel. Fixed in
+  `ade0ea0` with an e2e regression.
+- **Minor:**
+  - The tray tests skipped `index.ts`'s forwarding. Covered by a `startSystemPanels` test in
+    `f68652b`, which fails if the forwarding is removed.
+  - The Escape e2e test now confirms the panel is natively visible first.
+  - A stale TASKS.md line was corrected.
+- After the fixes: `npm test` renderer 63/63 and backend 530/530; lint, typecheck and
+  `format:check` exit 0; panel e2e 13/13.
+
+Platform feature matrix (2026-10-20). Standalone is #44 at `0e41eb8`; Glaze is #45 at `e89801d`
+(base `glaze`). Neither is installed or published. The installed DayBoard and the installed Glaze
+DayBoard both predate the panels.
+
+| Feature · platform                   | Source                                   | Automated tests                                                                                                                               | Native visual                                                                                                                                                                 |
+| ------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quick Capture · standalone           | yes                                      | unit tests (capture, hotkey, shortcuts, wiring); panel e2e 12/12; full suite 529 backend + 63 renderer, e2e 39 passed / 1 skipped (`a96c70c`) | partial on `cf890ac`: hotkey, display, Esc, click-away, submit and conflict message passed; full-screen click-away blocked; first keystrokes open; fixes since not re-checked |
+| Quick Capture · Glaze                | yes, on Glaze's backend                  | unit tests 39 renderer / 316 backend (PR #45); no e2e setup                                                                                   | not run                                                                                                                                                                       |
+| Menu-bar Agenda · standalone         | yes                                      | tray-anchor ×3, placement and today-items units; e2e open, Esc on a fresh panel, Open DayBoard, design rules                                  | placement failed on `cf890ac`, fixed in `609350d`; Esc fixed in `db10cdb`; neither re-checked; tray activation open                                                           |
+| Menu-bar Agenda · Glaze              | yes, with the click-bounds and Esc fixes | placement units; no tray-anchor test                                                                                                          | not run                                                                                                                                                                       |
+| Up Next and alerts · standalone      | yes                                      | meetings and alerts units; 2 e2e                                                                                                              | card and switch passed; notifications not run                                                                                                                                 |
+| Up Next and alerts · Glaze           | yes                                      | units                                                                                                                                         | not run                                                                                                                                                                       |
+| Meeting Notes (Granola) · standalone | yes                                      | 2 unit files; no e2e                                                                                                                          | not run (needs a real Granola server)                                                                                                                                         |
+| Meeting Notes (Granola) · Glaze      | yes                                      | 2 unit files                                                                                                                                  | not run                                                                                                                                                                       |
+
+Glaze ports still missing, owned by #45's owner:
+
+- #44's design fixes from `ba10a95` and `0e41eb8`
+- `tests/tray-anchor.test.mjs`
+- #42's effort and model work, once it is final
+- e2e coverage, which the Glaze branch has no setup for
+
+Proven platform differences:
+
+- Glaze applies updates itself, so there is no updater quit path to preserve.
+- REA cannot see Glaze's window and IPC surface.
+
+Native checks on Glaze need publishing into its runtime, which replaces the installed app; that is
+not authorized. Still unproven: whether Glaze's tray click passes the icon's bounds, and how its
+panels behave over full-screen apps and across Spaces.
+
+No canonical app or profile was touched. Full report, with permission evidence, screenshots and
+logs:
+`~/Library/Application Support/Claude/side-session-notes/local_855233d0-bc2b-4355-8e3f-3d0338d5d8c5/pr44-native-acceptance-2026-10-20/README.md`.
+
 ## Verification observed
 
 - On October 7, the UI candidate passed 27 renderer tests and all 332 app/native tests, both typechecks, touched-file formatting and lint with the same three existing React dependency warnings. The first sandboxed app-test run was blocked by loopback socket and compiler-cache restrictions; the approved execution route and owned temporary compiler cache passed without changing tests or dependencies.

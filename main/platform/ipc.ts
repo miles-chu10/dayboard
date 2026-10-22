@@ -28,7 +28,15 @@ import { runAppOperation } from "../services/runtime-activity.js";
 
 const registry = new StreamRegistry();
 let bridgeRegistered = false;
-const trustedWindows = new Map<number, { contents: WebContents; entryUrl: string }>();
+let accountGeneration = 0;
+interface TrustedWindow {
+  contents: WebContents;
+  entryUrl: string;
+  /** When set, the only app channels this window may invoke or stream. */
+  channels?: ReadonlySet<string>;
+}
+
+const trustedWindows = new Map<number, TrustedWindow>();
 let licenseAccess: () => Promise<void> = async () => {
   throw new Error("License status is not ready. Try again shortly.");
 };
@@ -37,15 +45,30 @@ export function setLicenseAccessGuard(guard: () => Promise<void>): void {
   licenseAccess = guard;
 }
 
-export function registerTrustedWindow(contents: WebContents, entryUrl: string): void {
-  trustedWindows.set(contents.id, { contents, entryUrl });
+/**
+ * The license guard and update admission IPC applies, for actions that start outside IPC, such as
+ * a notification's Undo button.
+ */
+export function runGuardedCommand<T>(channel: string, run: () => Promise<T>): Promise<T> {
+  return runAppOperation(async () => {
+    if (requiresLicenseAccess(channel)) await licenseAccess();
+    return run();
+  });
+}
+
+export function registerTrustedWindow(
+  contents: WebContents,
+  entryUrl: string,
+  options: { channels?: ReadonlySet<string> } = {},
+): void {
+  trustedWindows.set(contents.id, { contents, entryUrl, channels: options.channels });
   contents.once("destroyed", () => {
     trustedWindows.delete(contents.id);
     registry.disposeSender(contents.id);
   });
 }
 
-function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): void {
+function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): TrustedWindow {
   const trusted = trustedWindows.get(event.sender.id);
   if (
     !trusted ||
@@ -58,6 +81,12 @@ function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): void {
   ) {
     throw new Error("Untrusted DayBoard IPC sender");
   }
+  return trusted;
+}
+
+function assertChannelAllowed(trusted: TrustedWindow, channel: string): void {
+  if (trusted.channels && !trusted.channels.has(channel))
+    throw new Error(`This DayBoard window can't use ${channel}.`);
 }
 
 function getNativeThemeInfo(): NativeThemeInfo {
@@ -81,7 +110,7 @@ export function registerBridgeIpc(): void {
   });
 
   electronIpcMain.handle(BridgeChannel.streamStart, async (event, request: StreamStartRequest) => {
-    assertTrustedSender(event);
+    const trusted = assertTrustedSender(event);
     const id = typeof request?.id === "string" ? request.id : "";
     const emit = (message: StreamMessage) => {
       if (
@@ -103,6 +132,7 @@ export function registerBridgeIpc(): void {
         request.channel.startsWith("dayboard:")
       )
         throw new Error("Invalid stream request");
+      assertChannelAllowed(trusted, request.channel);
       return await runAppOperation(async () => {
         if (requiresLicenseAccess(request.channel)) await licenseAccess();
         return registry.start(request, event.sender.id, (chunk) => emit({ id, chunk }));
@@ -146,9 +176,13 @@ export function registerBridgeIpc(): void {
 export const ipcMain = {
   handle(channel: string, listener: Parameters<typeof electronIpcMain.handle>[1]): void {
     electronIpcMain.handle(channel, async (event, ...args) => {
-      assertTrustedSender(event);
+      assertChannelAllowed(assertTrustedSender(event), channel);
+      const submittedAccount = accountGeneration;
       const operation = async () => {
         if (requiresLicenseAccess(channel)) await licenseAccess();
+        // Capture's own fence starts inside the listener; cover time spent awaiting admission too.
+        if (channel === "capture:submit" && submittedAccount !== accountGeneration)
+          throw new Error("Your account changed. Add the item again.");
         return listener(event, ...args);
       };
       // Updater control/status must remain callable while the app is frozen for installation.
@@ -164,6 +198,7 @@ export const ipcMain = {
     registry.registerHandler(channel, handler);
   },
   broadcast(channel: string, params: unknown): void {
+    if (channel === "accounts:changed") accountGeneration += 1;
     for (const window of BrowserWindow.getAllWindows()) {
       const trusted = trustedWindows.get(window.webContents.id);
       if (

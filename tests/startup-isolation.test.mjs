@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
@@ -30,7 +30,7 @@ function stubPlugin(stubs) {
   };
 }
 
-for (const mode of ["compiled test", "runtime demo"]) {
+for (const mode of ["compiled test", "compiled QA", "runtime demo"]) {
   test(`${mode} main entry stops before handlers, stores, single-instance lock or windows`, async (t) => {
     const directory = await temp(t);
     const normal = path.join(directory, "normal");
@@ -62,6 +62,14 @@ for (const mode of ["compiled test", "runtime demo"]) {
         `export function acquireSingleInstanceLock() { globalThis.__calls.push("lock"); return true; }; export const createMainWindow = async () => { globalThis.__calls.push("window"); }; export const getMainWindow = () => null; export const setupApplicationMenu = () => { globalThis.__calls.push("menu"); };`,
       ],
       [
+        "./system-panels/index.js",
+        `export const startSystemPanels = () => { globalThis.__calls.push("panels"); }; export const stopSystemPanels = () => {};`,
+      ],
+      [
+        "./system-panels/panel-window.js",
+        `export const isPanelWindow = () => false; export const showPanel = async () => { globalThis.__calls.push("panel"); };`,
+      ],
+      [
         "./services/mcp-http-server.js",
         `export const startMcpHttpServer = () => { globalThis.__calls.push("mcp"); };`,
       ],
@@ -91,7 +99,10 @@ for (const mode of ["compiled test", "runtime demo"]) {
       format: "esm",
       platform: "node",
       write: false,
-      define: { __DAYBOARD_TEST_BUILD__: String(mode === "compiled test") },
+      define: {
+        __DAYBOARD_TEST_BUILD__: String(mode === "compiled test"),
+        __DAYBOARD_QA_BUILD__: String(mode === "compiled QA"),
+      },
       plugins: [stubPlugin(stubs)],
     });
     await writeFile(path.join(directory, "main-fixture.mjs"), result.outputFiles[0].text);
@@ -207,16 +218,21 @@ test("the actual Vite configuration embeds test-build isolation without reading 
     console.log(JSON.stringify(config.main.define));
   `,
   );
-  for (const testBuild of ["1", "0"]) {
+  for (const [testBuild, qaBuild] of [
+    ["1", "0"],
+    ["0", "0"],
+    ["0", "1"],
+  ]) {
     const child = spawnSync(process.execPath, [driver], {
       cwd: directory,
-      env: { PATH: process.env.PATH, DAYBOARD_TEST: testBuild },
+      env: { PATH: process.env.PATH, DAYBOARD_TEST: testBuild, DAYBOARD_QA: qaBuild },
       encoding: "utf8",
       timeout: 10_000,
     });
     assert.equal(child.status, 0, child.stderr);
     const definitions = JSON.parse(child.stdout.trim());
     assert.equal(definitions.__DAYBOARD_TEST_BUILD__, String(testBuild === "1"));
+    assert.equal(definitions.__DAYBOARD_QA_BUILD__, String(qaBuild === "1"));
     assert.equal(definitions["process.env.DAYBOARD_RELEASE"], '""');
     assert.equal(definitions["process.env.DAYBOARD_LICENSE_API_URL"], '""');
   }
@@ -356,3 +372,158 @@ for (const behavior of ["ignore", "ignore-session", "throw"]) {
     assert.deepEqual(await readdir(f.normal), ["settings.json"]);
   });
 }
+
+// The order tests above bundle with esbuild. This one runs the shipped Vite/Rollup QA entry with
+// a recording `electron` stub (no Electron or native app), so it fails if the profile guard ever
+// runs after app or platform initialization in the real bundle.
+let qaEntry;
+let qaEntryDirectory;
+after(() => qaEntryDirectory && rm(qaEntryDirectory, { recursive: true, force: true }));
+function builtQaEntry() {
+  qaEntry ??= (async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "dayboard-qa-entry-"));
+    qaEntryDirectory = directory;
+    const out = path.join(directory, "out");
+    const built = spawnSync(
+      process.execPath,
+      [
+        path.join(root, "node_modules/electron-vite/bin/electron-vite.js"),
+        "build",
+        "--outDir",
+        out,
+      ],
+      {
+        cwd: root,
+        env: {
+          PATH: process.env.PATH,
+          HOME: directory,
+          DAYBOARD_QA: "1",
+          DAYBOARD_GOOGLE_OAUTH_FILE: path.join(directory, "absent-client.json"),
+        },
+        encoding: "utf8",
+        timeout: 180_000,
+      },
+    );
+    assert.equal(built.status, 0, built.stderr);
+    return path.join(out, "main/index.js");
+  })();
+  return qaEntry;
+}
+
+async function runQaEntry(t, { profile, ignore = [] }) {
+  const entry = await builtQaEntry();
+  const directory = await temp(t);
+  const paths = {};
+  for (const name of ["userData", "sessionData", "appData"]) {
+    paths[name] = path.join(directory, `default-${name}`);
+    await mkdir(paths[name]);
+  }
+  const names = new Set();
+  for (const [, list] of (await readFile(entry, "utf8")).matchAll(
+    /import \{([^}]*)\} from "electron"/g,
+  ))
+    for (const item of list.split(",")) names.add(item.trim().split(/\s+as\s+/)[0]);
+  names.delete("app");
+  const stub = path.join(directory, "electron-stub.mjs");
+  await writeFile(
+    stub,
+    `
+    const scenario = JSON.parse(process.env.QA_ENTRY_SCENARIO);
+    const calls = globalThis.__calls;
+    const recorder = (name) => new Proxy(function () {}, {
+      get: (_t, prop) => (prop === "then" || typeof prop === "symbol" ? undefined : recorder(name + "." + prop)),
+      apply: () => { calls.push(name); return recorder(name + "()"); },
+      construct: () => { calls.push("new " + name); return recorder("new " + name); },
+      set: (_t, prop) => { calls.push(name + "." + String(prop) + "="); return true; },
+    });
+    const own = {
+      getPath(name) { calls.push("app.getPath:" + name); return scenario.paths[name]; },
+      setPath(name, value) { calls.push("app.setPath:" + name); if (!scenario.ignore.includes(name)) scenario.paths[name] = value; },
+      exit(code) { calls.push("app.exit:" + code); },
+    };
+    export const app = new Proxy(own, {
+      get: (target, prop) => (prop in target ? target[prop] : recorder("app." + String(prop))),
+      set: (_t, prop) => { calls.push("app." + String(prop) + "="); return true; },
+    });
+    ${[...names].map((name) => `export const ${name} = recorder(${JSON.stringify(name)});`).join("\n")}
+    `,
+  );
+  if (profile) await mkdir(path.join(directory, profile));
+  const driver = path.join(directory, "driver.mjs");
+  await writeFile(
+    driver,
+    `
+    import { registerHooks } from "node:module";
+    import { pathToFileURL } from "node:url";
+    const [entry, stub, packageFile] = process.argv.slice(2);
+    registerHooks({
+      resolve(specifier, context, next) {
+        if (specifier === "electron") return { url: pathToFileURL(stub).href, shortCircuit: true };
+        // Externalized runtime dependencies resolve from the repository, as from app.asar.
+        if (!/^(\\.|\\/|node:|file:)/.test(specifier))
+          return next(specifier, { ...context, parentURL: pathToFileURL(packageFile).href });
+        return next(specifier, context);
+      },
+    });
+    globalThis.__calls = [];
+    try { await import(pathToFileURL(entry).href); console.log(JSON.stringify({ error: null, calls: globalThis.__calls })); }
+    catch (error) { console.log(JSON.stringify({ error: error.message, calls: globalThis.__calls })); }
+    `,
+  );
+  const child = spawnSync(
+    process.execPath,
+    [driver, entry, stub, path.join(root, "package.json")],
+    {
+      cwd: directory,
+      env: {
+        PATH: process.env.PATH,
+        QA_ENTRY_SCENARIO: JSON.stringify({ paths, ignore }),
+        ...(profile ? { DAYBOARD_USER_DATA: path.join(directory, profile) } : {}),
+      },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout.trim().split("\n").at(-1));
+}
+
+function assertStoppedAtGuard(result, message) {
+  assert.match(result.error ?? "", message);
+  assert.equal(result.calls.at(-1), "app.exit:1");
+  const before = result.calls.slice(0, -1);
+  assert.ok(
+    before.every((call) => /^app\.(getPath|setPath):/.test(call)),
+    `the bundle touched more than profile paths before stopping: ${before.join(", ")}`,
+  );
+}
+
+test("the built QA entry exits before any app or platform setup when no profile is given", async (t) => {
+  assertStoppedAtGuard(await runQaEntry(t, {}), /requires an explicit isolated DAYBOARD_USER_DATA/);
+});
+
+test("the built QA entry exits before setup when Electron ignores the userData override", async (t) => {
+  assertStoppedAtGuard(
+    await runQaEntry(t, { profile: "qa-profile", ignore: ["userData"] }),
+    /did not apply the requested profile/,
+  );
+});
+
+test("the built QA entry exits before setup when Electron keeps browser storage in place", async (t) => {
+  assertStoppedAtGuard(
+    await runQaEntry(t, { profile: "qa-profile", ignore: ["sessionData"] }),
+    /did not isolate browser storage/,
+  );
+});
+
+test("with a valid disposable profile the built QA entry goes on to platform setup", async (t) => {
+  // Control: the stub does record initialization, so the failures above are not vacuous.
+  const result = await runQaEntry(t, { profile: "qa-profile" });
+  assert.ok(!result.calls.includes("app.exit:1"), result.error ?? "");
+  const guard = result.calls.lastIndexOf("app.setPath:sessionData");
+  assert.ok(guard >= 0);
+  assert.ok(
+    result.calls.slice(guard + 1).some((call) => call.startsWith("ipcMain.")),
+    "platform IPC setup was not observed after the guard",
+  );
+});

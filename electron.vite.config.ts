@@ -5,11 +5,21 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import { createBetaBuildProofPlugin } from "./shared/beta-build.js";
 import { createGoogleOAuthClientPlugin } from "./shared/google-oauth-build.js";
+import { createQaBuildProofPlugin } from "./shared/qa-build.js";
 import { parseDesktopLicenseConfig } from "./shared/license-config.js";
 
 const root = import.meta.dirname;
 const fromRoot = (...segments: string[]) => resolve(root, ...segments);
 let googleConfigured = false;
+const qaBuild = process.env.DAYBOARD_QA === "1";
+if (
+  qaBuild &&
+  (process.env.DAYBOARD_TEST === "1" ||
+    process.env.DAYBOARD_RELEASE === "1" ||
+    process.env.DAYBOARD_REQUIRE_GOOGLE === "1")
+) {
+  throw new Error("QA builds cannot enable test, release or Google-required packaging.");
+}
 
 const alias = {
   "@main": fromRoot("main"),
@@ -24,7 +34,7 @@ function licenseDefinitions(): Record<string, string> {
     "DAYBOARD_STRIPE_PRODUCT_ID",
     "DAYBOARD_LICENSE_ENVIRONMENT",
   ] as const;
-  const disabled = !testBuild && process.env.DAYBOARD_LICENSE === "off";
+  const disabled = qaBuild || (!testBuild && process.env.DAYBOARD_LICENSE === "off");
   // Builds with licensing off never carry the license service configuration.
   const values = Object.fromEntries(
     names.map((name) => [name, testBuild || disabled ? "" : (process.env[name] ?? "").trim()]),
@@ -60,6 +70,7 @@ export default defineConfig({
     define: {
       ...licenseDefinitions(),
       __DAYBOARD_TEST_BUILD__: JSON.stringify(process.env.DAYBOARD_TEST === "1"),
+      __DAYBOARD_QA_BUILD__: JSON.stringify(qaBuild),
     },
     plugins: [
       createGoogleOAuthClientPlugin({
@@ -68,11 +79,12 @@ export default defineConfig({
           : join(homedir(), ".config", "dayboard", "google-oauth.json"),
         required:
           process.env.DAYBOARD_RELEASE === "1" || process.env.DAYBOARD_REQUIRE_GOOGLE === "1",
-        testBuild: process.env.DAYBOARD_TEST === "1",
+        testBuild: process.env.DAYBOARD_TEST === "1" || qaBuild,
         onConfigured: () => {
           googleConfigured = true;
         },
       }),
+      ...(qaBuild ? [createQaBuildProofPlugin()] : []),
       // Local beta packages are ad-hoc signed, so the proof also rejects an updater build.
       ...(process.env.DAYBOARD_REQUIRE_GOOGLE === "1"
         ? [createBetaBuildProofPlugin(() => googleConfigured)]
@@ -98,7 +110,7 @@ export default defineConfig({
     root,
     resolve: { alias },
     define: {
-      __APP_DISPLAY_NAME__: JSON.stringify("DayBoard"),
+      __APP_DISPLAY_NAME__: JSON.stringify(qaBuild ? "DayBoard QA" : "DayBoard"),
     },
     plugins: [react({ babel: { plugins: ["babel-plugin-react-compiler"] } }), tailwindcss()],
     build: {
@@ -106,6 +118,7 @@ export default defineConfig({
         input: {
           main: fromRoot("main-window.html"),
           settings: fromRoot("settings-window.html"),
+          panel: fromRoot("panel-window.html"),
         },
       },
     },

@@ -130,7 +130,7 @@ function McpServerDialog({
       onOpenChange={(open) => !open && onClose()}
       size="large"
       title={server ? "Edit MCP Server" : "Add MCP Server"}
-      description="Tools from this server become available to the Assistant."
+      description="Tools from this server become available to the Assistant. For Granola meeting notes, Granola's hosted server needs a sign-in DayBoard's web connection can't do: add it as a command that bridges to it, then Test."
       confirmLabel="Save"
       confirmDisabled={!ready}
       onConfirm={save}

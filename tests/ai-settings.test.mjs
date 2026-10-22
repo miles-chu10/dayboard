@@ -31,7 +31,7 @@ async function loadModule(file) {
           }));
           api.onLoad({ filter: /.*/, namespace: "platform-fixture" }, () => ({
             contents:
-              'export const app = { getPath: () => "/tmp" }; export const safeStorage = { encryptString: async (s) => Buffer.from(s), decryptString: async (b) => b.toString("utf8") };',
+              'export const app = { getPath: () => "/tmp" }; export const logger = { info() {}, warn() {}, error() {} }; export const safeStorage = { encryptString: async (s) => Buffer.from(s), decryptString: async (b) => b.toString("utf8") };',
             loader: "js",
           }));
         },

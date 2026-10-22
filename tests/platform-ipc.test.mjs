@@ -355,3 +355,107 @@ test("native accessibility info and updates remain restricted to trusted windows
   nativeTheme.emit("updated");
   assert.deepEqual(trusted.sent, []);
 });
+
+test("allows listed channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(40);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["settings:get"]) });
+  adapter.ipcMain.handle("settings:get", () => ({ theme: "dark" }));
+
+  assert.deepEqual(await invoke("settings:get", panel), { theme: "dark" });
+});
+
+test("rejects unlisted channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(41);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["settings:get"]) });
+  let writes = 0;
+  adapter.ipcMain.handle("tasks:create", () => ++writes);
+
+  await assert.rejects(
+    invoke("tasks:create", panel, { title: "fixture" }),
+    /^Error: This DayBoard window can't use tasks:create\.$/,
+  );
+  assert.equal(writes, 0);
+});
+
+test("rejects unlisted stream channels for a restricted window", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const panel = makeSender(42);
+  adapter.registerTrustedWindow(panel, entryUrl, { channels: new Set(["ai:run"]) });
+  adapter.registerBridgeIpc();
+  let runs = 0;
+  adapter.ipcMain.handleStream("ai:assistant", async () => ++runs);
+
+  await assert.rejects(
+    invoke("dayboard:stream:start", panel, { id: "s1", channel: "ai:assistant", args: {} }),
+    /^Error: This DayBoard window can't use ai:assistant\.$/,
+  );
+  assert.equal(runs, 0);
+  assert.deepEqual(panel.sent, [["dayboard:stream:chunk", { id: "s1", end: true }]]);
+});
+
+test("leaves unrestricted windows unchanged", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const main = makeSender(43);
+  adapter.registerTrustedWindow(main, entryUrl);
+  adapter.ipcMain.handle("tasks:list", () => ["existing task"]);
+  adapter.ipcMain.handle("mcp:list", () => []);
+
+  assert.deepEqual(await invoke("tasks:list", main), ["existing task"]);
+  assert.deepEqual(await invoke("mcp:list", main), []);
+});
+
+test("runGuardedCommand applies the license guard to paid commands", async () => {
+  const { adapter } = await createHarness();
+  adapter.setLicenseAccessGuard(async () => {
+    throw new Error("License required");
+  });
+  let runs = 0;
+  await assert.rejects(
+    adapter.runGuardedCommand("capture:undo", async () => ++runs),
+    /License required/,
+  );
+  assert.equal(runs, 0);
+  assert.equal(await adapter.runGuardedCommand("settings:get", async () => "free"), "free");
+});
+
+test("runGuardedCommand refuses during update preparation", async () => {
+  const { adapter } = await createHarness();
+  adapter.setLicenseAccessGuard(async () => {});
+  await adapter.pauseAndDrainAppOperations();
+  let runs = 0;
+  try {
+    await assert.rejects(
+      adapter.runGuardedCommand("capture:undo", async () => ++runs),
+      /preparing to install/,
+    );
+    assert.equal(runs, 0);
+  } finally {
+    adapter.resumeAppOperations();
+  }
+});
+
+for (const switches of [1, 2]) {
+  test(`capture submission waiting for license admission is rejected after ${switches} account changes`, async () => {
+    const { adapter, makeSender, invoke } = await createHarness();
+    const sender = makeSender(60);
+    adapter.registerTrustedWindow(sender, entryUrl);
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    adapter.setLicenseAccessGuard(async () => {
+      entered.resolve();
+      await released.promise;
+    });
+    let captures = 0;
+    adapter.ipcMain.handle("capture:submit", () => ++captures);
+    const pending = invoke("capture:submit", sender, { text: "Old account text" });
+    const rejected = assert.rejects(pending, /account changed/i);
+    await entered.promise;
+    for (let i = 0; i < switches; i++) adapter.ipcMain.broadcast("accounts:changed", {});
+    released.resolve();
+    await rejected;
+    assert.equal(captures, 0);
+    assert.equal(await invoke("capture:submit", sender, { text: "New account text" }), 1);
+  });
+}

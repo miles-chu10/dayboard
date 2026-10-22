@@ -199,9 +199,10 @@ export async function getReminder(ref: string): Promise<void> {
   await reminders.getReminder({ value: ref });
 }
 
-export async function createReminder(input: CreateReminderInput): Promise<void> {
+/** Returns the new reminder's reference, so Quick Capture can undo exactly this reminder. */
+export async function createReminder(input: CreateReminderInput): Promise<{ ref: string }> {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  await reminders.createReminder({
+  const created = await reminders.createReminder({
     title: input.title,
     notes: input.notes || undefined,
     due: input.dueDate
@@ -210,4 +211,5 @@ export async function createReminder(input: CreateReminderInput): Promise<void> 
         : { kind: "date", date: input.dueDate }
       : undefined,
   });
+  return { ref: created.ref.value };
 }

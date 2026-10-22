@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { join } from "node:path";
 import {
   prepareIsolatedProfile,
   resolveProfileOverride,
@@ -6,6 +7,7 @@ import {
 } from "./isolated-profile.js";
 
 declare const __DAYBOARD_TEST_BUILD__: boolean;
+declare const __DAYBOARD_QA_BUILD__: boolean;
 
 let configured = false;
 let configurationError: Error | undefined;
@@ -23,7 +25,9 @@ export function configureUserData(): void {
   try {
     // A packaged test build must fail closed even when LaunchServices drops its environment.
     const testBuild = typeof __DAYBOARD_TEST_BUILD__ !== "undefined" && __DAYBOARD_TEST_BUILD__;
-    const demo = enabled("DAYBOARD_DEMO");
+    const qaBuild = typeof __DAYBOARD_QA_BUILD__ !== "undefined" && __DAYBOARD_QA_BUILD__;
+    const runtimeDemo = enabled("DAYBOARD_DEMO");
+    const demo = qaBuild || runtimeDemo;
     const test = enabled("DAYBOARD_TEST");
     const isolated = testBuild || test || demo;
     const override = process.env.DAYBOARD_USER_DATA;
@@ -34,6 +38,8 @@ export function configureUserData(): void {
     }
     if (override !== undefined) {
       const reserved = isolated ? [app.getPath("userData"), app.getPath("sessionData")] : [];
+      // The QA app has a distinct name; its default path alone cannot protect production data.
+      if (qaBuild) reserved.push(join(app.getPath("appData"), "DayBoard"));
       const target = resolveProfileOverride(override, reserved);
       if (isolated) validateIsolatedProfile(target, demo ? "demo" : "test");
       app.setPath("userData", target);

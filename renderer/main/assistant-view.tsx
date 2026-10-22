@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   AIChat,
@@ -61,6 +61,7 @@ import {
 import { drainAssistantOperations, trackAssistantOperation } from "../lib/assistant-operations";
 import {
   useAccounts,
+  useAccountScope,
   useCalendar,
   useCalendarRange,
   useMail,
@@ -273,6 +274,19 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const reminders = useReminders();
   const mail = useMail();
   const calendar = useCalendar();
+  const notesOn = Boolean(settings?.system.meetings.notesImport);
+  const snapshotEvents = (calendar.data?.state === "ok" ? calendar.data.items : [])
+    .slice(0, 60)
+    .map((event) => ({ calendarId: event.calendarId, eventId: event.id }));
+  // Imported meeting notes join their events in the Assistant's snapshot.
+  const scope = useAccountScope();
+  const meetingNotes = useQuery({
+    queryKey: ["meetings", "snapshot-notes", scope ?? "pending", snapshotEvents],
+    queryFn: () =>
+      invoke<Record<string, { text: string }>>("meetings:getNotes", { events: snapshotEvents }),
+    enabled: notesOn && scope !== undefined && snapshotEvents.length > 0,
+    staleTime: 5 * 60_000,
+  });
   const mentionEvents = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const mcpStatus = useAssistantMcpStatus();
   const model = useAssistantModel(settings);
@@ -392,6 +406,11 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         reminder: accounts.data?.reminders === "full-access" && sourceOn(settings, "reminders"),
         event: googleConnected && sourceOn(settings, "calendar"),
       },
+      meetingNotes: notesOn
+        ? Object.fromEntries(
+            Object.entries(meetingNotes.data ?? {}).map(([key, record]) => [key, record.text]),
+          )
+        : undefined,
     };
     const system = buildAssistantSystem(promptInput);
     const currentSnapshot = buildAssistantSnapshot(promptInput);

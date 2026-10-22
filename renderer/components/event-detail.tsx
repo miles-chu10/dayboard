@@ -9,6 +9,8 @@ import { sourceColor, sourceColorVar } from "../lib/sources";
 import { DetailPanel } from "./detail-panel";
 import { ItemEditButton } from "./item-editor";
 import { useOpenMeetingPrep } from "./meeting-prep-dialog";
+import { MeetingNotes } from "./meeting-notes";
+import { useAgendaClock } from "../lib/use-agenda-clock";
 
 /** Google descriptions are HTML; show them as plain text. DOMParser never runs scripts. */
 function plainText(html: string): string {
@@ -27,6 +29,7 @@ export function EventDetail({
   onClose: () => void;
 }) {
   const settings = useSettings().data;
+  const now = useAgendaClock();
   const openPrep = useOpenMeetingPrep();
   const prepOn = featureOn(settings, "meetingPrep");
   const color = event.calendarColor ?? sourceColorVar(sourceColor(settings, "calendar"));
@@ -69,6 +72,9 @@ export function EventDetail({
           </Field>
         ) : null}
       </FieldGroup>
+      {!event.allDay && new Date(event.end).getTime() <= now.getTime() ? (
+        <MeetingNotes event={event} />
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <ItemEditButton item={event} onSaved={onClose} />
         {event.meetLink ? (

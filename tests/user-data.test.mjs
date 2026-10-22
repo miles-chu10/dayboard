@@ -10,7 +10,7 @@ import { build } from "esbuild";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 // Every Electron API and profile below is synthetic; child processes are plain Node, never Electron.
-async function fixture(t, testBuild = false) {
+async function fixture(t, testBuild = false, qaBuild = false) {
   const directory = await mkdtemp(path.join(tmpdir(), "dayboard-startup-unit-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const appData = path.join(directory, "home", "Library", "Application Support");
@@ -25,7 +25,7 @@ async function fixture(t, testBuild = false) {
     format: "esm",
     platform: "node",
     write: false,
-    define: { __DAYBOARD_TEST_BUILD__: String(testBuild) },
+    define: { __DAYBOARD_TEST_BUILD__: String(testBuild), __DAYBOARD_QA_BUILD__: String(qaBuild) },
     plugins: [
       {
         name: "synthetic-electron-app",
@@ -79,8 +79,8 @@ async function fixture(t, testBuild = false) {
     normal,
     isolated,
     appData,
-    run(env = {}, behavior = "accept") {
-      const child = spawnSync(process.execPath, [driver, normal, behavior], {
+    run(env = {}, behavior = "accept", defaultPath = normal) {
+      const child = spawnSync(process.execPath, [driver, defaultPath, behavior], {
         cwd: directory,
         env: {
           PATH: process.env.PATH,
@@ -107,6 +107,57 @@ test("demo startup requires an explicit profile before it can mark the default p
   const f = await fixture(t);
   assert.equal(f.run({ DAYBOARD_DEMO: "1" }).ok, false);
   await f.assertNormalUntouched();
+});
+
+test("native QA relaunch fails closed after losing all launch environment", async (t) => {
+  const f = await fixture(t, false, true);
+  assert.equal(f.run({ DAYBOARD_USER_DATA: f.isolated }).ok, true);
+  assert.deepEqual(
+    JSON.parse(await readFile(path.join(f.isolated, ".dayboard-isolated-profile.json"), "utf8")),
+    { version: 1, mode: "demo" },
+  );
+  assert.equal(await readFile(path.join(f.isolated, "demo-mode"), "utf8"), "");
+  for (const env of [
+    {},
+    { DAYBOARD_QA: "0", DAYBOARD_TEST: "0", DAYBOARD_DEMO: "0" },
+    { DAYBOARD_USER_DATA: "" },
+  ]) {
+    const result = f.run(env);
+    assert.equal(result.ok, false);
+    assert.equal(result.calls, 0);
+    await f.assertNormalUntouched();
+  }
+});
+
+test("native QA cannot disable demo mode with runtime flags", async (t) => {
+  const f = await fixture(t, false, true);
+  assert.equal(
+    f.run({ DAYBOARD_USER_DATA: f.isolated, DAYBOARD_QA: "0", DAYBOARD_DEMO: "0" }).ok,
+    true,
+  );
+  assert.deepEqual(
+    JSON.parse(await readFile(path.join(f.isolated, ".dayboard-isolated-profile.json"), "utf8")),
+    { version: 1, mode: "demo" },
+  );
+  await f.assertNormalUntouched();
+});
+
+test("a separately named QA app still rejects the canonical DayBoard profile", async (t) => {
+  const f = await fixture(t, false, true);
+  const qaDefault = path.join(f.appData, "DayBoard QA");
+  await mkdir(qaDefault);
+  await writeFile(
+    path.join(f.normal, ".dayboard-isolated-profile.json"),
+    JSON.stringify({ version: 1, mode: "demo" }),
+  );
+  const result = f.run({ DAYBOARD_USER_DATA: f.normal }, "accept", qaDefault);
+  assert.equal(result.ok, false);
+  assert.equal(result.calls, 0);
+  assert.equal(
+    await readFile(path.join(f.normal, "settings.json"), "utf8"),
+    "synthetic personal-profile sentinel",
+  );
+  assert.deepEqual(await readdir(qaDefault), []);
 });
 
 test("a test build fails closed even when runtime test environment variables are absent", async (t) => {

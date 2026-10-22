@@ -94,12 +94,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const agendaCreates = new Map<string, Promise<AgendaScheduledBlock>>();
 let accountChanging = false;
 
-async function changeAccount(operation: () => Promise<unknown>): Promise<void> {
-  await trackAccountChange(async () => {
+async function changeAccount(operation: () => Promise<unknown>): Promise<AccountsStatus> {
+  return trackAccountChange(async () => {
     accountChanging = true;
+    let published = false;
     try {
       await operation();
+      // Publish and clear old account state before another capture or provider write can enter.
+      const status = await broadcastAccounts();
+      published = true;
+      return status;
     } finally {
+      // Credentials may already have changed when a later status read or mutation fails.
+      // Invalidate without claiming a new status, and preserve the original error.
+      if (!published) publishAccountsChanged();
       accountChanging = false;
     }
   });
@@ -176,7 +184,7 @@ function requireUUID(value: unknown, channel: string): string {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-async function getAccountsStatus(): Promise<AccountsStatus> {
+export async function getAccountsStatus(): Promise<AccountsStatus> {
   if (isDemoMode()) return demoAccounts;
   const [google, reminders] = await Promise.all([getGoogleStatus(), getRemindersAccess()]);
   return { google, reminders };
@@ -237,9 +245,33 @@ export function requireExpectedAgendaScope(
   }
 }
 
+const accountListeners = new Set<() => void>();
+
+/** In-process account change events for main-process features; windows get `accounts:changed`. */
+export function onAccountsChanged(listener: () => void): () => void {
+  accountListeners.add(listener);
+  return () => accountListeners.delete(listener);
+}
+
+function publishAccountsChanged(status?: AccountsStatus): void {
+  for (const listener of accountListeners) {
+    try {
+      listener();
+    } catch (error) {
+      logger.warn("productivity", "An account listener failed", error);
+    }
+  }
+  try {
+    ipcMain.broadcast("accounts:changed", status);
+  } catch (error) {
+    // A closing window must not prevent local invalidation or mask a failed account operation.
+    logger.warn("productivity", "Could not notify an account change", error);
+  }
+}
+
 async function broadcastAccounts(): Promise<AccountsStatus> {
   const status = await getAccountsStatus();
-  ipcMain.broadcast("accounts:changed", status);
+  publishAccountsChanged(status);
   return status;
 }
 
@@ -511,14 +543,12 @@ export function registerProductivityHandlers(): void {
 
   ipcMain.handle("google:connect", async () => {
     assertNotDemo("google:connect");
-    await changeAccount(() => googleMutation("google:connect", connectGoogle));
-    return broadcastAccounts();
+    return changeAccount(() => googleMutation("google:connect", connectGoogle));
   });
 
   ipcMain.handle("google:disconnect", async () => {
     assertNotDemo("google:disconnect");
-    await changeAccount(disconnectGoogle);
-    return broadcastAccounts();
+    return changeAccount(disconnectGoogle);
   });
 
   // Google Tasks
@@ -676,10 +706,12 @@ export function registerProductivityHandlers(): void {
   ipcMain.handle("calendar:list", async () => {
     const settings = await getSettings();
     if (isDemoMode()) return demoEventsForDays(calendarRangeDays(settings.calendar.range));
+    const { email } = await getGoogleStatus();
     return googleBoundedList("calendar:list", () =>
       listEventsWithCoverage(
         calendarRangeDays(settings.calendar.range),
         settings.calendar.visibility,
+        email,
       ),
     );
   });
@@ -696,8 +728,9 @@ export function registerProductivityHandlers(): void {
     if (!settings.sources.calendar.enabled) return { state: "disabled" as const };
     const { start, end } = localDateRange(startDate, days as number);
     if (isDemoMode()) return demoEventsBetween(start, end);
+    const { email } = await getGoogleStatus();
     return googleBoundedList(channel, () =>
-      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility),
+      listEventsBetweenWithCoverage(start, end, settings.calendar.visibility, email),
     );
   });
 

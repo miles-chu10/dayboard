@@ -99,7 +99,7 @@ export const GOOGLE_REDIRECT_URI = "https://example.test/callback";
 export class GoogleAuthError extends Error { constructor(reason, message) { super(message); this.reason = reason; } }
 export async function getGoogleStatus() { return { hasCredentials: true, connected: true, email: fixture().email, clientIdHint: null }; }
 export async function clearGoogleCredentials() {}
-export async function connectGoogle() {}
+export async function connectGoogle() { await fixture().onConnect?.(); }
 export async function disconnectGoogle() {}
 export async function saveGoogleCredentials() {}
 `;
@@ -107,7 +107,7 @@ export async function saveGoogleCredentials() {}
 const remindersStub = `
 const fixture = () => globalThis.__agendaFixture;
 export async function getReminder(ref) { if (!fixture().reminders.has(ref)) throw new Error("missing reminder"); }
-export async function getRemindersAccess() { return "full-access"; }
+export async function getRemindersAccess() { await fixture().beforeRemindersAccess?.(); return "full-access"; }
 export async function createReminder() {}
 export async function listCompletedReminders() { return []; }
 export async function listReminders() { return []; }
@@ -179,6 +179,10 @@ async function loadHarness(state) {
   const url = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
   const module = await import(url);
   module.registerProductivityHandlers();
+  state.accountInvalidations = 0;
+  module.onAccountsChanged(() => {
+    state.accountInvalidations++;
+  });
   return async (channel, payload) => {
     const handler = state.handlers.get(channel);
     assert.ok(handler, `missing handler ${channel}`);
@@ -378,5 +382,78 @@ test("agenda and range handlers reject malformed input before any synthetic writ
     );
     assert.equal(state.calls.creates, 0);
     assert.equal(state.remoteEvents.size, 0);
+  });
+});
+
+test("account replacement holds write and scope admission through status read and broadcast", async () => {
+  await withFixture(async (state) => {
+    const invoke = await loadHarness(state);
+    const previousScope = await invoke("agenda:getScope");
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    state.onConnect = () => {
+      state.email = "new-account@example.test";
+      state.beforeRemindersAccess = async () => {
+        entered.resolve();
+        await released.promise;
+      };
+    };
+    const changing = invoke("google:connect");
+    await entered.promise;
+    await assert.rejects(invoke("agenda:getScope"), /identity is still loading/);
+    await assert.rejects(
+      invoke("tasks:create", { title: "Old account capture" }),
+      /account connection/,
+    );
+    assert.equal(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed").length,
+      0,
+    );
+    released.resolve();
+    const status = await changing;
+    assert.equal(status.google.email, "new-account@example.test");
+    assert.equal(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed").length,
+      1,
+    );
+    assert.notEqual(await invoke("agenda:getScope"), previousScope);
+  });
+});
+
+test("a failed account change invalidates stale state without inventing account status", async () => {
+  await withFixture(async (state) => {
+    const invoke = await loadHarness(state);
+    const previousScope = await invoke("agenda:getScope");
+    state.onConnect = async () => {
+      throw new Error("Connection cancelled");
+    };
+    await assert.rejects(invoke("google:connect"), /Connection cancelled/);
+    assert.equal(await invoke("agenda:getScope"), previousScope);
+    assert.deepEqual(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed"),
+      [{ channel: "accounts:changed", payload: undefined }],
+    );
+    assert.equal(state.accountInvalidations, 1);
+  });
+});
+
+test("a failed status read after account replacement still clears old state before admission resumes", async () => {
+  await withFixture(async (state) => {
+    const invoke = await loadHarness(state);
+    const previousScope = await invoke("agenda:getScope");
+    state.onConnect = () => {
+      state.email = "new-account@example.test";
+      state.beforeRemindersAccess = async () => {
+        throw new Error("Status unavailable");
+      };
+    };
+    await assert.rejects(invoke("google:connect"), /Status unavailable/);
+    assert.deepEqual(
+      state.broadcasts.filter(({ channel }) => channel === "accounts:changed"),
+      [{ channel: "accounts:changed", payload: undefined }],
+    );
+    assert.equal(state.accountInvalidations, 1);
+    assert.notEqual(await invoke("agenda:getScope"), previousScope);
+    await invoke("tasks:create", { title: "New account capture" });
   });
 });
