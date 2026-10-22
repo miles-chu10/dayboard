@@ -1,4 +1,4 @@
-import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 import type { DayboardBridge } from "../shared/bridge-protocol";
 import { launchDemo } from "./fixtures";
 
@@ -84,6 +84,62 @@ test("fictional email opens with its full body in each detail presentation", asy
       }),
     ).toBe(true);
     await demo.page.screenshot({ path: testInfo.outputPath("mail-side-panel-narrow.png") });
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("linked-item suggestions fit the side panel at its default width", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    const settings = await openSettings(demo.app, demo.page);
+    await setDetailView(settings, demo.page, "Side panel", "sidebar");
+    await demo.page.setViewportSize({ width: 1280, height: 820 });
+    await navigate(demo.page, "Agenda");
+    await demo.page.getByRole("group", { name: "Call Mom", exact: true }).first().click();
+    const details = demo.page.getByRole("complementary", { name: "Details" });
+    await expect(details).toContainText("Apple Reminders");
+
+    // The innermost element holding the action is the suggestion row itself.
+    const rowWith = (action: string) =>
+      details
+        .locator("div")
+        .filter({ has: demo.page.getByRole("button", { name: action, exact: true }) })
+        .last();
+    // The row, its title and its source each show their whole text, and the title clears the action.
+    const fits = async (row: Locator, action: string) => {
+      const title = row.getByText("Call Mom", { exact: true });
+      const unclipped = await Promise.all(
+        [row, title, row.getByText("Google Tasks · Personal")].map((part) =>
+          part.evaluate((element) => {
+            const size = element as unknown as { scrollWidth: number; clientWidth: number };
+            return size.scrollWidth <= size.clientWidth + 1;
+          }),
+        ),
+      );
+      const a = (await title.boundingBox())!;
+      const b = (await row.getByRole("button", { name: action, exact: true }).boundingBox())!;
+      const apart =
+        a.x + a.width <= b.x ||
+        b.x + b.width <= a.x ||
+        a.y + a.height <= b.y ||
+        b.y + b.height <= a.y;
+      return [...unclipped, apart];
+    };
+
+    const suggested = rowWith("Link");
+    await expect(suggested).toContainText("Suggested");
+    expect(await fits(suggested, "Link")).toEqual([true, true, true, true]);
+    await demo.page.screenshot({ path: testInfo.outputPath("link-suggestion-side-panel.png") });
+
+    await suggested.getByRole("button", { name: "Link", exact: true }).click();
+    const linked = rowWith("Unlink");
+    await expect(linked).toContainText("Linked");
+    expect(await fits(linked, "Unlink")).toEqual([true, true, true, true]);
+    await demo.page.screenshot({ path: testInfo.outputPath("linked-item-side-panel.png") });
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();
