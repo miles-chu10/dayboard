@@ -32,13 +32,6 @@
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
     <link
       rel="preload"
-      href="assets/fonts/fraunces.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
       href="assets/fonts/hanken-grotesk.woff2"
       as="font"
       type="font/woff2"
@@ -46,12 +39,13 @@
     />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
+    <link rel="stylesheet" href="assets/clean.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
   </head>
-  <body>
+  <body class="c-home">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -105,115 +99,55 @@
     </header>
 
     <main id="main">
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="wrap">
-          <div class="hero-copy">
-            <span class="pill rise" style="--i: 0"
-              ><span class="dots" aria-hidden="true"
-                ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
-                ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
-              ><span><strong>Early access by invite</strong> · for Apple Silicon Macs</span></span
-            >
-            <h1 id="hero-title" class="rise" style="--i: 1">
-              Your whole day, <em>on one board.</em>
-            </h1>
-            <p class="lead rise" style="--i: 2">
-              DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail together in
-              one calm Mac app — with an optional AI assistant that already knows your schedule.
-            </p>
-            <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
-              <div class="signup-row">
-                <label class="visually-hidden" for="email-hero">Email address</label>
-                <input
-                  id="email-hero"
-                  disabled
-                  name="email"
-                  type="email"
-                  autocomplete="email"
-                  placeholder="you@example.com"
-                  required
-                  maxlength="254"
-                />
-                <div class="trap" aria-hidden="true">
-                  <label for="company-hero">Leave this empty</label
-                  ><input id="company-hero" name="company" tabindex="-1" autocomplete="off" />
-                </div>
-                <button class="button" type="submit" disabled>Join the waitlist</button>
+      <section class="c-hero" aria-labelledby="hero-title">
+        <div class="wrap c-hero-copy">
+          <p class="c-badge rise" style="--i: 0">
+            <span class="dots" aria-hidden="true"
+              ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
+              ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
+            >Limited beta 12 · Apple silicon · macOS 14+
+          </p>
+          <h1 id="hero-title" class="rise" style="--i: 1">
+            Your whole day, <em>on one board.</em>
+          </h1>
+          <p class="c-lead rise" style="--i: 2">
+            DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail together in one
+            calm Mac app — with an optional AI assistant that already knows your schedule.
+          </p>
+          <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
+            <div class="signup-row">
+              <label class="visually-hidden" for="email-hero">Email address</label>
+              <input
+                id="email-hero"
+                disabled
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+                maxlength="254"
+              />
+              <div class="trap" aria-hidden="true">
+                <label for="company-hero">Leave this empty</label
+                ><input id="company-hero" name="company" tabindex="-1" autocomplete="off" />
               </div>
-              <p class="signup-note">
-                We invite people in small groups, with no set dates. No spam.
-              </p>
-              <p class="signup-status" role="status" aria-live="polite"></p>
-              <noscript><p class="signup-note">Turn on JavaScript to join the list.</p></noscript>
-            </form>
-            <p class="works-with rise" style="--i: 4">
-              <span class="label">Works with</span>
-              <span class="c-calendar">
-                <img
-                  class="app-icon"
-                  src="assets/app-logos/google-calendar.svg"
-                  alt=""
-                  width="24"
-                  height="24"
-                  aria-hidden="true"
-                />
-                Google Calendar
-              </span>
-              <span class="c-tasks">
-                <img
-                  class="app-icon"
-                  src="assets/app-logos/google-tasks.svg"
-                  alt=""
-                  width="24"
-                  height="24"
-                  aria-hidden="true"
-                />
-                Google Tasks
-              </span>
-              <span class="c-reminders">
-                <img
-                  class="app-icon"
-                  src="assets/app-logos/apple-reminders.webp"
-                  alt=""
-                  width="24"
-                  height="24"
-                  aria-hidden="true"
-                />
-                Apple Reminders
-              </span>
-              <span class="c-mail">
-                <img
-                  class="app-icon"
-                  src="assets/app-logos/gmail.svg"
-                  alt=""
-                  width="24"
-                  height="24"
-                  aria-hidden="true"
-                />
-                Gmail
-              </span>
-            </p>
-          </div>
-
-          <div class="board rise" style="--i: 3">
-            <div class="window window-back" aria-hidden="true">
-              <div class="theme-picture">
-                <img
-                  class="theme-light"
-                  src="assets/screens/light-calendar-month.png"
-                  alt=""
-                  width="1600"
-                  height="1025"
-                />
-                <img
-                  class="theme-dark"
-                  src="assets/screens/dark-calendar-month.png"
-                  alt=""
-                  width="1600"
-                  height="1025"
-                />
-              </div>
+              <button class="button" type="submit" disabled>Join the waitlist</button>
             </div>
+            <p class="signup-note">We invite people in small groups, with no set dates. No spam.</p>
+            <p class="signup-status" role="status" aria-live="polite"></p>
+            <noscript><p class="signup-note">Turn on JavaScript to join the list.</p></noscript>
+          </form>
+          <p class="c-access rise" style="--i: 4">
+            A limited
+            <a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+              >beta 12 community download</a
+            >
+            is on GitHub. It's notarized by Apple and updates itself, and Google sign-in may be
+            limited to invited accounts. <a href="beta.html#install">Read the install guide</a>.
+          </p>
+        </div>
+        <figure class="wrap c-video">
+          <div class="board rise" style="--i: 4">
             <div class="window">
               <div class="theme-picture">
                 <img
@@ -252,11 +186,10 @@
               ><b>Launch announcement — final copy?</b>
             </div>
           </div>
-          <p class="fine" id="native-preview-note">
-            Native app preview in development, with fictional demo data. Early access remains by
-            invite.
-          </p>
-        </div>
+          <figcaption class="fine" id="native-preview-note">
+            Native app preview with fictional demo data.
+          </figcaption>
+        </figure>
       </section>
 
       <section class="section" id="how" aria-labelledby="how-title">
@@ -598,31 +531,50 @@
         </div>
       </section>
 
-      <section class="section" id="pricing" aria-labelledby="pricing-title">
+      <section class="section" id="pricing" aria-labelledby="glance-title">
         <div class="wrap">
-          <div class="section-head" data-reveal>
-            <span class="eyebrow">Open source, fairly priced</span>
-            <h2 id="pricing-title">Free during the beta. <em>Open source for good.</em></h2>
-          </div>
-          <div class="split" data-reveal>
-            <div class="panel c-calendar">
-              <span class="stamp">Beta</span>
-              <h3>Free for invited testers</h3>
-              <p>
-                Beta testers get every feature at no cost. When DayBoard launches, a signed official
-                build will be a paid download that funds its development.
-              </p>
-            </div>
-            <div class="panel c-tasks">
-              <span class="stamp">GPL-3.0</span>
-              <h3>Read the code, or build it</h3>
-              <p>
-                DayBoard's source is on GitHub under GPL-3.0. See exactly how it handles your data,
-                or build it yourself.
-              </p>
-              <p><a href="https://github.com/miles-chu10/dayboard">View DayBoard on GitHub ↗</a></p>
-            </div>
-          </div>
+          <aside class="c-compat" aria-labelledby="glance-title" data-reveal>
+            <h2 id="glance-title">Beta 12 at a glance</h2>
+            <dl>
+              <div>
+                <dt>Mac</dt>
+                <dd>Apple silicon (M1 or later)</dd>
+              </div>
+              <div>
+                <dt>macOS</dt>
+                <dd>14 Sonoma or later</dd>
+              </div>
+              <div>
+                <dt>Signing</dt>
+                <dd>Signed with an Apple Developer ID and notarized by Apple.</dd>
+              </div>
+              <div>
+                <dt>Updates</dt>
+                <dd>
+                  Checks GitHub for new betas and installs them when you restart. On beta 11 or
+                  earlier? Install beta 12 once from its DMG.
+                </dd>
+              </div>
+              <div>
+                <dt>Google</dt>
+                <dd>Sign-in may be limited to invited accounts.</dd>
+              </div>
+              <div>
+                <dt>Price</dt>
+                <dd>Free during the beta. There is no checkout.</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>Open source under GPL-3.0, so you can read the code or build it yourself.</dd>
+              </div>
+            </dl>
+            <p class="c-compat-links">
+              <a href="beta.html#install">Install guide</a
+              ><a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+                >Beta 12 release notes</a
+              ><a href="https://github.com/miles-chu10/dayboard">DayBoard on GitHub</a>
+            </p>
+          </aside>
         </div>
       </section>
 
@@ -639,13 +591,17 @@
           <div class="roadmap-grid" data-reveal>
             <div class="roadmap-col is-available">
               <h3 class="roadmap-status">
-                <span class="status-mark" aria-hidden="true"></span>Available in beta 11
+                <span class="status-mark" aria-hidden="true"></span>Available in beta 12
               </h3>
               <p class="roadmap-lead">In the current limited community beta.</p>
               <ul class="roadmap-list" role="list">
                 <li>
-                  <strong>The standalone Mac app, beta 11.</strong> For Macs with Apple silicon
+                  <strong>The standalone Mac app, beta 12.</strong> For Macs with Apple silicon
                   running macOS 14 Sonoma or later.
+                </li>
+                <li>
+                  <strong>Signed, notarized builds that update themselves.</strong> Signed with an
+                  Apple Developer ID and notarized by Apple. New betas install when you restart.
                 </li>
                 <li>
                   <strong>Your four sources on one board.</strong> Google Calendar, Google Tasks,
@@ -662,10 +618,10 @@
               </ul>
               <p class="roadmap-aside">
                 A limited
-                <a href="https://github.com/miles-chu10/dayboard/releases/tag/beta-1.3.0-beta.11"
-                  >beta 11 download is on GitHub</a
-                >. It isn't notarized and doesn't update itself. Google access may require an
-                invite; joining the waitlist doesn't guarantee one. There is no checkout.
+                <a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+                  >beta 12 download is on GitHub</a
+                >. Google access may require an invite; joining the waitlist doesn't guarantee one.
+                There is no checkout.
               </p>
             </div>
             <div class="roadmap-col is-progress">
@@ -674,12 +630,6 @@
               </h3>
               <p class="roadmap-lead">Work underway now.</p>
               <ul class="roadmap-list" role="list">
-                <li>
-                  <strong>Signed, notarized builds that update themselves.</strong> DayBoard's Apple
-                  Developer enrollment is complete, and signed, notarized betas that update
-                  themselves are being prepared. Until then, opening a beta build takes
-                  <a href="beta.html#install">one extra step</a>.
-                </li>
                 <li>
                   <strong>A more native Mac design.</strong> Refining the window, sidebar,
                   navigation and controls so DayBoard feels at home on macOS.
@@ -744,19 +694,21 @@
                 account's address. We invite people in small groups, with no set dates, and joining
                 doesn't guarantee an invite. If you're invited, you'll get a download link and
                 onboarding steps. A limited
-                <a href="https://github.com/miles-chu10/dayboard/releases/tag/beta-1.3.0-beta.11"
-                  >beta 11 community download</a
+                <a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+                  >beta 12 community download</a
                 >
-                is also on GitHub. It isn't notarized and doesn't update itself; Google sign-in may
-                be limited to invited accounts.
+                is also on GitHub. It's notarized and updates itself; Google sign-in may be limited
+                to invited accounts.
               </p>
             </details>
             <details>
-              <summary>Why does macOS ask before opening it?</summary>
+              <summary>Will macOS let me open it?</summary>
               <p>
-                Beta builds aren't notarized by Apple yet, so the first launch needs one extra step:
-                open System Settings → Privacy &amp; Security and choose <b>Open Anyway</b>. The
-                <a href="beta.html#install">beta guide</a> walks you through it.
+                Yes. Beta 12 is signed with an Apple Developer ID and notarized by Apple, so it
+                opens like other apps you download. Beta 11 and earlier weren't notarized and can't
+                update themselves: install beta 12 over them once, and later betas arrive in the
+                app. The
+                <a href="beta.html#install">beta guide</a> has the steps.
               </p>
             </details>
             <details>

@@ -1,0 +1,308 @@
+/* DayBoard website: clean layer.
+   Loaded after site.css on every page. A near-white canvas and one sans-serif family, plus the
+   homepage's centered hero (with the launch video's slot) and the Beta 11 at a glance card.
+   site.css, site.js, theme.js and the inline head script are unchanged, so production's motion,
+   scroll reveals and tabs keep running. */
+
+:root {
+  color-scheme: light;
+  --paper: #fbfbfa;
+  --paper-raised: #ffffff;
+  --paper-sunk: #f3f3f1;
+  --ink: #1d1c1a;
+  --ink-soft: #55534f;
+  --ink-faint: #6f6d68;
+  --rule: #e7e6e2;
+  --rule-strong: #d6d4cf;
+  --button: #1d1c1a;
+  --button-text: #ffffff;
+  --shadow-window:
+    0 1px 2px rgb(0 0 0 / 0.04), 0 18px 40px -18px rgb(0 0 0 / 0.16),
+    0 48px 96px -48px rgb(0 0 0 / 0.18);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 20px -12px rgb(0 0 0 / 0.14);
+  --display: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111110;
+  --paper-raised: #1a1a19;
+  --paper-sunk: #0b0b0a;
+  --ink: #f2f1ee;
+  --ink-soft: #b1afa9;
+  --ink-faint: #8f8d87;
+  --rule: #272725;
+  --rule-strong: #383734;
+  --button: #f2f1ee;
+  --button-text: #111110;
+  --shadow-window: 0 0 0 1px rgb(255 255 255 / 0.06), 0 30px 70px -24px rgb(0 0 0 / 0.75);
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.04), 0 12px 28px -14px rgb(0 0 0 / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --paper: #111110;
+    --paper-raised: #1a1a19;
+    --paper-sunk: #0b0b0a;
+    --ink: #f2f1ee;
+    --ink-soft: #b1afa9;
+    --ink-faint: #8f8d87;
+    --rule: #272725;
+    --rule-strong: #383734;
+    --button: #f2f1ee;
+    --button-text: #111110;
+    --shadow-window: 0 0 0 1px rgb(255 255 255 / 0.06), 0 30px 70px -24px rgb(0 0 0 / 0.75);
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.04), 0 12px 28px -14px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* ── Site-wide ─────────────────────────────────────── */
+body::before {
+  content: none;
+}
+
+h1,
+h2,
+h3 {
+  font-variation-settings: normal;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+h3 {
+  letter-spacing: -0.015em;
+}
+
+h1 em,
+h2 em {
+  font-style: normal;
+  font-weight: inherit;
+}
+
+.brand {
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.button {
+  border-radius: 12px;
+}
+
+.nav .button {
+  border-radius: 10px;
+}
+
+.button-quiet {
+  background: var(--paper-raised);
+  border-color: var(--rule-strong);
+}
+
+.button-quiet:hover {
+  background: var(--paper-sunk);
+  box-shadow: none;
+}
+
+.pill {
+  border-color: var(--rule);
+}
+
+.signup-row {
+  border-radius: 14px;
+}
+
+.cta {
+  border: 1px solid var(--rule);
+  border-radius: 24px;
+  box-shadow: none;
+}
+
+.faq-list summary {
+  font-size: 1.12rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.page-head h1 {
+  font-size: clamp(2.4rem, 1.6rem + 3.4vw, 4rem);
+  letter-spacing: -0.035em;
+}
+
+/* ── Homepage ──────────────────────────────────────── */
+.c-home .section {
+  padding: 96px 0;
+}
+
+.c-home .roadmap .section-head {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 720px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.c-home .section-head h2 {
+  font-size: clamp(2rem, 1.3rem + 2.6vw, 3.1rem);
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+}
+
+.c-home .roadmap > .wrap {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.c-home .roadmap-note {
+  text-align: center;
+}
+
+.c-home .site-footer {
+  margin-top: 0;
+}
+
+/* Hero: centered copy and signup, then the launch video's stage. Until the video is published the
+   stage shows the Agenda capture with the source notes pinned around it. */
+.c-hero {
+  padding: 72px 0 40px;
+  overflow: clip;
+}
+
+.c-hero-copy {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  max-width: 860px;
+  text-align: center;
+}
+
+.c-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-weight: 550;
+}
+
+.c-hero h1 {
+  max-width: 14ch;
+  font-size: clamp(2.6rem, 1.3rem + 5.4vw, 4.75rem);
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+}
+
+.c-lead {
+  max-width: 34rem;
+  color: var(--ink-soft);
+  font-size: clamp(1.1rem, 1rem + 0.5vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.c-hero .signup {
+  margin-inline: auto;
+  text-align: left;
+}
+
+.c-hero .signup-note,
+.c-hero .signup-status {
+  text-align: center;
+}
+
+.c-access {
+  max-width: 36rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.c-video {
+  max-width: 1000px;
+  margin: 8px auto 0;
+}
+
+.c-video .fine {
+  margin-top: 18px;
+  text-align: center;
+}
+
+/* Beta 11 at a glance, in place of the pricing section */
+.c-compat {
+  max-width: 720px;
+  margin-inline: auto;
+  padding: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.c-compat h2 {
+  margin-bottom: 12px;
+  font-size: 1.1rem;
+  letter-spacing: -0.015em;
+}
+
+.c-compat dl {
+  display: grid;
+  margin: 0;
+}
+
+.c-compat dl > div {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.c-compat dt {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.c-compat dd {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.c-compat-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+/* site.css stacks feature rows at 960px, but .feature.flip's own columns outrank that rule, so
+   flipped rows stayed side by side on phones. */
+@media (max-width: 960px) {
+  .feature.flip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .c-home .section {
+    padding: 72px 0;
+  }
+  .c-hero {
+    padding-top: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .c-compat dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
