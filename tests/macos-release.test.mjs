@@ -320,6 +320,13 @@ test("tool output in failure reports is bounded", () => {
   assert.equal(sanitizeOutput("at /", [["/", "~"]]), "at /");
 });
 
+test("a control character inside a path cannot hide it from redaction", () => {
+  const home = [["/Users/runner", "~"]];
+  assert.equal(sanitizeOutput("/Users/ru\u0000nner/file", home), "~/file");
+  assert.equal(sanitizeOutput("/Users/ru\u001b[0mnner/file", home), "~/file");
+  assert.equal(sanitizeOutput("/Users/ru\u0007nner/::error::x", home), "~/: :error: :x");
+});
+
 test("a labelled check still fails closed with the real tool's exit and output", () => {
   const path = join(tmpdir(), "dayboard-release-zip", "DayBoard.app");
   const script =

@@ -62,15 +62,16 @@ const terminalCodes = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 const controlCharacters = /[\x00-\x08\x0b-\x1f\x7f]/g;
 
 export function sanitizeOutput(text, replacements = []) {
+  // Controls go before path replacement, so a control inside a path cannot hide it from redaction.
   let value = String(text ?? "")
     .replace(/\r\n?/g, "\n")
-    .replace(terminalCodes, "");
+    .replace(terminalCodes, "")
+    .replace(controlCharacters, "");
   for (const [from, to] of replacements
     .filter(([from]) => from?.length > 1)
     .sort((a, b) => b[0].length - a[0].length))
     value = value.split(from).join(to);
   const lines = value
-    .replace(controlCharacters, "")
     .replace(/::/g, ": :")
     .replace(/##\[/g, "# #[")
     .split("\n")
