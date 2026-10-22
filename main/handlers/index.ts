@@ -14,9 +14,11 @@ import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
 import { registerProfileHandlers } from "./profile.js";
 import { registerStartupHandlers } from "./startup.js";
+import { registerMeetingNotesHandlers } from "./meeting-notes.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
-import { ipcMain, logger } from "@glaze/core/backend";
+import { logger } from "@glaze/core/backend";
+import { ipcMain } from "../ipc.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +52,7 @@ export function registerHandlers(): void {
   registerAssistantHistoryHandlers();
   registerProfileHandlers();
   registerStartupHandlers();
+  registerMeetingNotesHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 }

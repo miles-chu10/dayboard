@@ -1,11 +1,6 @@
-import {
-  aggregateStepUsage,
-  tokenUsage,
-  type RequestUsage,
-  type TokenUsage,
-} from "../../shared/ai-usage.js";
-import { apiPromptOptions } from "../services/ai/prompt-cache.js";
-import { clipboard, ipcMain, logger } from "@glaze/core/backend";
+import type { RequestUsage } from "../../shared/ai-usage.js";
+import { clipboard } from "@glaze/core/backend";
+import { ipcMain } from "../ipc.js";
 
 import type {
   AIStreamChunk,
@@ -19,15 +14,11 @@ import type {
 } from "../shared-types.js";
 import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data.js";
 import { runAssistant } from "../services/ai/assistant.js";
-import {
-  checkCliProvider,
-  isCancelled,
-  listGeminiModels,
-  resolveCli,
-  runCliCompletion,
-} from "../services/ai/cli-providers.js";
+import { runCompletion } from "../services/ai/completion.js";
+import { clipSnapshot } from "../services/ai/prompt-cache.js";
+import { onClaudeModelResolved, resolvedClaudeModels } from "../services/ai/model-options.js";
+import { checkCliProvider, listGeminiModels, resolveCli } from "../services/ai/cli-providers.js";
 import { listCodexModels } from "../services/ai/codex-models.js";
-import { describeModel } from "../services/ai/model-options.js";
 import { pickAttachments } from "../services/ai/attachments.js";
 import { transcribe } from "../services/ai/dictation.js";
 import {
@@ -37,10 +28,9 @@ import {
   isApiProvider,
   saveApiKey,
 } from "../services/ai/api-keys.js";
-import { apiLanguageModel, listApiModels, resolveApiModel } from "../services/ai/api-providers.js";
-import { streamText } from "@glaze/core/ai";
+import { listApiModels } from "../services/ai/api-providers.js";
 import { testMcpServer } from "../services/ai/mcp-client.js";
-import { asError } from "../services/ai/stream-error.js";
+import { mcpServerTested } from "../services/ai/mcp-test-events.js";
 import {
   checkAssistantMcpConnection,
   getActiveAssistantMcpServerConfig,
@@ -58,8 +48,6 @@ import {
   saveSettings,
   settingsAffectData,
 } from "../services/settings-store.js";
-
-const RUN_TIMEOUT_MS = 3 * 60_000;
 
 type McpClientKind = "claude" | "codex" | "json";
 
@@ -209,7 +197,10 @@ export function registerAIHandlers(): void {
   ipcMain.handle("mcp:test", async (_event, payload: unknown) => {
     assertNotDemo("mcp:test");
     try {
-      return await testMcpServer(normalizeMcpServer(payload));
+      const server = normalizeMcpServer(payload);
+      const result = await testMcpServer(server);
+      if (result.ok) mcpServerTested(server, result.tools);
+      return result;
     } catch (error) {
       return {
         ok: false,
@@ -239,6 +230,9 @@ export function registerAIHandlers(): void {
     }
     return checkCliProvider(input.provider, input.verify === true);
   });
+
+  onClaudeModelResolved((models) => ipcMain.broadcast("ai:claudeModelsChanged", models));
+  ipcMain.handle("ai:claudeModels", () => (isDemoMode() ? {} : resolvedClaudeModels()));
 
   ipcMain.handle("ai:codexModels", async (_event, payload: unknown) => {
     if (isDemoMode()) return [];
@@ -374,111 +368,7 @@ export function registerAIHandlers(): void {
         if (!context.signal.aborted) sendChunk({ type: "delta", text });
         return { text };
       }
-      const settings = await getSettings();
-      const provider = settings.ai.provider;
-      if (provider === "glaze") throw new Error("Glaze AI requests run in the app window.");
-      try {
-        if (isApiProvider(provider)) {
-          const model = await resolveApiModel(provider, settings.ai);
-          const languageModel = await apiLanguageModel(provider, model.id);
-          const startedAt = Date.now();
-          const result = streamText({
-            model: languageModel,
-            ...apiPromptOptions(
-              provider,
-              model.id,
-              system,
-              [{ role: "user", content: prompt }],
-              "explicit",
-            ),
-            maxOutputTokens: 4000,
-            abortSignal: context.signal,
-          });
-          let text = "";
-          let requestUsage: RequestUsage | undefined;
-          const steps: TokenUsage[] = [];
-          let resolvedModelId: string | null = null;
-          for await (const rawPart of result.fullStream) {
-            const part = rawPart as {
-              type: string;
-              text?: string;
-              error?: unknown;
-              usage?: Parameters<typeof tokenUsage>[0];
-              response?: { modelId?: string };
-            };
-            if (part.type === "error") throw asError(part.error);
-            if (part.type === "text-delta") {
-              text += part.text ?? "";
-              sendChunk({ type: "delta", text: part.text ?? "" });
-            }
-            if (part.type === "finish-step") {
-              steps.push(tokenUsage(part.usage ?? {}, provider));
-              if (part.response?.modelId) resolvedModelId = part.response.modelId;
-            }
-            // An aborted request ends with an "abort" part instead, so it records no usage.
-            if (part.type === "finish") {
-              requestUsage = {
-                ...aggregateStepUsage(steps),
-                modelId: resolvedModelId,
-                requestedModelId: model.id,
-                route: provider,
-                durationMs: Date.now() - startedAt,
-              };
-              sendChunk({
-                type: "usage",
-                ...requestUsage,
-                inputTokens: requestUsage.inputTokens ?? 0,
-                outputTokens: requestUsage.outputTokens ?? 0,
-                usage: requestUsage,
-                contextWindow: model.contextWindow,
-              });
-            }
-          }
-          return { text, usage: requestUsage };
-        }
-        let usage: RequestUsage | undefined;
-        let modelId: string | null = null;
-        // Only a configured model is requested here; without one the CLI picks its own default.
-        const requestedModelId = describeModel(settings.ai, [], provider).id;
-        const startedAt = Date.now();
-        const text = await runCliCompletion({
-          provider,
-          system,
-          prompt,
-          mcpServers: [],
-          signal: context.signal,
-          timeoutMs: RUN_TIMEOUT_MS,
-          onDelta: (text) => sendChunk({ type: "delta", text }),
-          onTool: () => undefined,
-          onModel: (id) => {
-            modelId = id;
-          },
-          onUsage: (counts) => {
-            usage = {
-              ...tokenUsage(counts),
-              modelId,
-              requestedModelId,
-              route: provider,
-              durationMs: Date.now() - startedAt,
-            };
-            sendChunk({
-              type: "usage",
-              ...usage,
-              inputTokens: usage.inputTokens ?? counts.displayInputTokens ?? 0,
-              outputTokens: usage.outputTokens ?? 0,
-              usage,
-              contextWindow: null,
-            });
-          },
-        });
-        return { text, usage };
-      } catch (error) {
-        if (!isCancelled(error))
-          logger.error("ai", "ai:run failed", {
-            message: (error as Error).message,
-          });
-        throw error;
-      }
+      return runCompletion({ system, prompt, signal: context.signal, onChunk: sendChunk });
     },
   );
 
@@ -492,7 +382,7 @@ export function registerAIHandlers(): void {
           messages: parseMessages(input.messages, channel),
           system: requireString(input, "system", channel),
           snapshot:
-            typeof input.snapshot === "string" ? input.snapshot.slice(0, 400_000) : undefined,
+            typeof input.snapshot === "string" ? clipSnapshot(input.snapshot, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)
             ? input.attachments.filter((id): id is string => typeof id === "string").slice(0, 10)
             : [],

@@ -73,3 +73,66 @@ test("A calendar block uses a stable event ID and recovers a confirmed conflict"
     assert.deepEqual(await adapter.findAgendaEvent(id,new Date("2027-01-01")),{id:eventId});
   } finally {globalThis.fetch=originalFetch;}
 });
+
+test("treats a non-primary invitation as mine even beyond the 20-attendee cap", async () => {
+  const attendees = Array.from({ length: 30 }, (_, index) => ({
+    email: index === 24 ? "miles@example.com" : `person${index}@example.com`,
+    responseStatus: "accepted",
+  }));
+  globalThis.fetch = async (input) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith("/calendarList"))
+      return json({
+        items: [
+          { id: "miles@example.com", summary: "Miles", primary: true, selected: true },
+          { id: "team@group.calendar.google.com", summary: "Team", selected: true },
+        ],
+      });
+    if (url.pathname.includes("team%40group"))
+      return json({
+        items: [
+          {
+            id: "team-event",
+            iCalUID: "planning@google.com",
+            summary: "Planning",
+            start: { dateTime: "2027-01-01T10:00:00Z" },
+            end: { dateTime: "2027-01-01T11:00:00Z" },
+            attendees,
+          },
+        ],
+      });
+    return json({
+      items: [
+        {
+          id: "declined-event",
+          summary: "Optional sync",
+          start: { dateTime: "2027-01-01T12:00:00Z" },
+          end: { dateTime: "2027-01-01T12:30:00Z" },
+          attendees: [
+            { email: "miles@example.com", self: true, responseStatus: "declined" },
+            { email: "sam@example.com", responseStatus: "accepted" },
+          ],
+        },
+      ],
+    });
+  };
+  try {
+    const { items } = await adapter.listEventsBetweenWithCoverage(
+      new Date("2027-01-01"),
+      new Date("2027-01-02"),
+      {},
+      "Miles@Example.com",
+    );
+    const team = items.find((event) => event.id === "team-event");
+    assert.equal(team.selfInvited, true);
+    assert.equal(team.primaryCalendar, false);
+    assert.equal(team.iCalUID, "planning@google.com");
+    assert.equal(team.attendees.length, 20);
+    const declined = items.find((event) => event.id === "declined-event");
+    assert.equal(declined.primaryCalendar, true);
+    assert.equal(declined.selfResponse, "declined");
+    assert.equal(declined.selfInvited, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

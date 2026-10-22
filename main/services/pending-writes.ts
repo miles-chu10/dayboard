@@ -3,12 +3,12 @@ let accountChangePending = false;
 const waiters = new Set<() => void>();
 
 /** Account replacement and provider writes must never enter concurrently. */
-export async function trackAccountChange(operation: () => Promise<unknown>): Promise<void> {
+export async function trackAccountChange<T>(operation: () => Promise<T>): Promise<T> {
   if (accountChangePending || activeWrites > 0)
     throw new Error("Wait for the current save or account connection to finish, then try again.");
   accountChangePending = true;
   try {
-    await operation();
+    return await operation();
   } finally {
     accountChangePending = false;
     for (const resolve of waiters) resolve();
