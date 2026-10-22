@@ -1,7 +1,7 @@
-# DayBoard 1.3.0-beta.12 — signed, self-updating, native shell and ⌘N
+# DayBoard 1.3.0-beta.12 — signed, self-updating, Quick Capture and the menu bar
 
-This beta carries beta.11's Google sign-in forward and adds the native macOS refinements merged
-since then. It is a draft until the build is made and verified on an Apple Silicon Mac.
+This beta carries beta.11's Google sign-in forward and adds the native macOS work merged since
+then. It is a draft until the build is made and verified on an Apple Silicon Mac.
 
 ## New
 
@@ -11,7 +11,19 @@ since then. It is a draft until the build is made and verified on an Apple Silic
   toolbar when one is ready. If you don't restart, the update installs the next time you quit.
   Settings → Updates and DayBoard → Check for Updates… still check on request. Your data and
   sign-ins stay where they are.
-
+- **Quick Capture.** ⌃⌥⇧Space (changeable in Settings) opens a small panel over any app,
+  including full-screen apps, on the display under the pointer. Type a thought and press Enter:
+  the AI capture files it in Google Tasks, Apple Reminders or Google Calendar, focus goes straight
+  back to the app you were in, and a confirmation offers Undo.
+- **Menu-bar Agenda.** A menu-bar icon opens today's items, the next meeting, recent captures
+  and a capture box without bringing the whole dashboard forward.
+- **Up Next.** A card for the next meeting shows when it starts, a Join button and the AI
+  meeting prep, with an optional notification shortly before it starts. If a Granola MCP server
+  is set up in DayBoard, you can pull that meeting's notes afterwards and turn their action items
+  into Tasks or Reminders. Each of these features can be switched off in Settings.
+- **A smarter Assistant composer.** The model chip has a per-provider effort setting, `/` opens
+  commands and `@` mentions your tasks, events and mail. Settings → AI and the composer share
+  one model list.
 - **⌘N opens New Item** from Agenda, Inbox, Calendar and the other main views, including when
   focus is on a row's action controls. It is ignored while a dialog or confirmation is open, so
   it never stacks a second New Item window. The + buttons show the shortcut in their tooltip.

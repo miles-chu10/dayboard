@@ -12,7 +12,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
   clickable sidebar + (PR #25), beta packaging that enforces the Google configuration through
   final macOS packaging (PR #33), the macOS shell, sidebar and responsive inspector refinement
   (PR #34), billing tooling updates (PR #22), the website Road Map (PR #36), and PR #37 (merged
-  October 20). No beta.12 artifact has been built yet.
+  October 20), then #43, #42, #40 and #44. The first signed dry run ran on `5489bbb`.
 - PR #37 carries the offline Google refresh fix (only a refused grant signs out) and the
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
@@ -67,7 +67,7 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 - Manual update UI/service, DMG + ZIP packaging, save draining and temporary editing lock are implemented. Preview/demo builds never contact the updater. Third-party notices cover the installed dependency graph and ship with the GPL text.
 - Assistant requests send the stable policy first; explicit cache controls apply only on the direct OpenAI API route for listed models (`docs/PROMPT-CACHING.md`). Token and cache usage are recorded per request; no live savings are measured.
 
-## Unreleased branch: system panels (PR #44, draft)
+## System panels (PR #44, merged as `5489bbb`)
 
 `claude/system-panels-bb42de` adds Quick Capture (global hotkey panel), the menu-bar mini Agenda and
 the meeting-aware Up Next card with optional notifications and Granola notes import. Design:

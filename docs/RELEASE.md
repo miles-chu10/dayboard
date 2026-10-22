@@ -120,6 +120,10 @@ notarized, self-updating betas. Two workflows share the signing setup:
   `release-manifest.json` are uploaded as a workflow artifact. Nothing is published, and the
   release publisher refuses a beta manifest.
 
+Both notarize through `scripts/notarize.mjs`, an electron-builder `afterSign` hook. Apple accepts
+the submission first; if stapling then loses its connection to Apple's ticket service, the hook
+retries stapling instead of failing the run.
+
 Pushing a release tag publishes publicly and needs Miles's approval each time. Do not create new
 `beta-<version>` releases: the updater ignores tags that are not SemVer, so only `v`-prefixed
 releases reach installed apps. Beta.11 and earlier cannot update themselves; their users install
