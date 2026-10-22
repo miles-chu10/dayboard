@@ -7,9 +7,12 @@ import test from "node:test";
 import {
   assertDeveloperIdentity,
   betaPlan,
+  describeFailure,
   publishRelease,
   releasePlan,
   repository,
+  run,
+  sanitizeOutput,
   stageAssets,
   verifyApp,
   writeCredentials,
@@ -219,6 +222,105 @@ test("app verification checks hardened runtime, nested helper, version, ticket a
     { fail: "spctl" },
   ])
     assert.throws(() => verifyApp("/fixture/DayBoard.app", team, "1.3.0", signedTools(options)));
+});
+
+test("only the stapler check is labelled with its artifact", () => {
+  const labelled = [];
+  const tools = signedTools();
+  const record = (command, args, artifact) => {
+    if (artifact) labelled.push([command, ...args.slice(0, 2), artifact]);
+    return tools(command, args);
+  };
+  verifyApp("/fixture/DayBoard.app", team, "1.3.0", record, "DMG app");
+  assert.deepEqual(labelled, [
+    ["xcrun", "stapler", "validate", { label: "DMG app", path: "/fixture/DayBoard.app" }],
+  ]);
+});
+
+test("a stapler failure reports the artifact, command, exit status and sanitized output", () => {
+  const path = "/Users/runner/work/_temp/dayboard-release-zip/DayBoard.app";
+  const message = describeFailure(
+    "xcrun",
+    ["stapler", "validate", path],
+    {
+      status: 65,
+      signal: null,
+      stdout: `Processing: ${path}\n`,
+      stderr:
+        '\x1b[31mCloudKit query for DayBoard.app failed due to "Network unavailable".\x1b[0m\r\n' +
+        "::error::synthetic injection\n##[set-output name=x]y\nThe validate action failed! Error 65.\n",
+    },
+    "ZIP app",
+    [
+      [path, "<ZIP app>"],
+      ["/Users/runner/work/_temp", "<runner temp>"],
+    ],
+  );
+  assert.match(message, /^xcrun failed during the release check for the ZIP app\.$/m);
+  assert.match(message, /^command: xcrun stapler validate <ZIP app>$/m);
+  assert.match(message, /^exit: status 65$/m);
+  assert.match(message, /^stdout:\n {2}Processing: <ZIP app>$/m);
+  assert.match(
+    message,
+    /^ {2}CloudKit query for DayBoard\.app failed due to "Network unavailable"\.$/m,
+  );
+  assert.match(message, /^ {2}The validate action failed! Error 65\.$/m);
+  for (const raw of ["/Users/runner", "\x1b", "\r", "##["]) assert.ok(!message.includes(raw), raw);
+  assert.doesNotMatch(message, /^\s*::/m);
+});
+
+test("failure reports name signals and spawn errors and mark empty output", () => {
+  const signalled = describeFailure(
+    "xcrun",
+    ["stapler", "validate", "/a"],
+    {
+      status: null,
+      signal: "SIGKILL",
+      stdout: "",
+      stderr: null,
+    },
+    "app",
+  );
+  assert.match(signalled, /^exit: signal SIGKILL$/m);
+  assert.match(signalled, /^stdout:\n {2}\(empty\)\nstderr:\n {2}\(empty\)$/m);
+  const missing = describeFailure("xcrun", [], { status: null, error: { code: "ENOENT" } }, "app");
+  assert.match(missing, /^exit: spawn error ENOENT$/m);
+});
+
+test("tool output in failure reports is bounded", () => {
+  const many = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join("\n");
+  const kept = sanitizeOutput(many).split("\n");
+  assert.equal(kept.length, 21);
+  assert.equal(kept[0], "(10 earlier lines omitted)");
+  assert.equal(kept.at(-1), "line 30");
+  assert.equal(sanitizeOutput("x".repeat(500)), `${"x".repeat(300)}…`);
+  assert.equal(sanitizeOutput("\n\n"), "");
+  assert.equal(sanitizeOutput("at /", [["/", "~"]]), "at /");
+});
+
+test("a labelled check still fails closed with the real tool's exit and output", () => {
+  const path = join(tmpdir(), "dayboard-release-zip", "DayBoard.app");
+  const script =
+    "process.stdout.write(`Processing: ${process.argv[1]}\\n`);" +
+    "process.stderr.write('The validate action failed! Error 65.\\n'); process.exit(65);";
+  assert.throws(
+    () => run(process.execPath, ["-e", script, path], { label: "ZIP app", path }),
+    (error) => {
+      assert.match(error.message, /^exit: status 65$/m);
+      assert.match(error.message, /^ {2}Processing: <ZIP app>$/m);
+      assert.match(error.message, /^ {2}The validate action failed! Error 65\.$/m);
+      assert.ok(!error.message.includes(path));
+      return true;
+    },
+  );
+  assert.throws(
+    () => run("dayboard-missing-release-tool", [], { label: "app", path }),
+    /^exit: spawn error ENOENT$/m,
+  );
+  assert.throws(() => run(process.execPath, ["-e", "process.exit(65)"]), {
+    message: `${process.execPath} failed during the release check.`,
+  });
+  assert.equal(run(process.execPath, ["-e", "process.stdout.write('ok')"]), "ok");
 });
 
 const credentials = {
