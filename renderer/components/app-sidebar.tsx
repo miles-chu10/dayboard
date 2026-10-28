@@ -21,8 +21,9 @@ import { useState } from "react";
 import { CalendarCheck2, CalendarDays, Plus, Server, Settings, Video } from "lucide-react";
 import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
-import { assistantProvider, selectedModel, useCodexModels } from "../lib/ai-models";
+import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
+import { modelSummary } from "../lib/model-choices";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
@@ -105,8 +106,7 @@ export function AppSidebar() {
   const calendar = useCalendar();
   const avatar = useProfileAvatar();
   const provider = assistantProvider(settings);
-  const codexModels = useCodexModels(provider === "codex");
-  const model = selectedModel(settings, codexModels.data, provider);
+  const model = useAssistantModel(settings);
 
   const now = useAgendaClock();
   const today = toISODate(now);
@@ -379,7 +379,7 @@ export function AppSidebar() {
                   subtitle={
                     provider === "glaze"
                       ? PROVIDER_LABEL.glaze
-                      : `${PROVIDER_LABEL[provider]} · ${model.label}${model.fast ? " · Fast" : ""}`
+                      : `${PROVIDER_LABEL[provider]} · ${modelSummary(model)}`
                   }
                   selected={pathname === "/assistant"}
                   onClick={() => void navigate({ to: "/assistant" })}

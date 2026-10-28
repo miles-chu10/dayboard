@@ -9,7 +9,12 @@ import { apiPromptOptions, insertIntoSnapshot, withCurrentSnapshot } from "./pro
 import { GlazeAIError, glaze, stepCountIs, streamText, tool } from "@glaze/core/ai";
 import { logger } from "@glaze/core/backend";
 
-import type { AIStreamChunk, AssistantMessageInput, AssistantResult } from "../../shared-types.js";
+import type {
+  AIStreamChunk,
+  AssistantMessageInput,
+  AssistantModelInfo,
+  AssistantResult,
+} from "../../shared-types.js";
 import { demoAssistantReply, isDemoMode } from "../demo-data.js";
 import { getMcpServers, getSettings } from "../settings-store.js";
 import { isApiProvider } from "./api-keys.js";
@@ -17,7 +22,19 @@ import { apiLanguageModel, resolveApiModel } from "./api-providers.js";
 import { attachmentContext } from "./attachments.js";
 import { runCliCompletion, type CliUsage } from "./cli-providers.js";
 import { listCodexModels } from "./codex-models.js";
-import { describeModel, modelSystemNote, rememberClaudeModel } from "./model-options.js";
+import {
+  claudeDisplayName,
+  describeModel,
+  modelSystemNote,
+  rememberClaudeModel,
+} from "./model-options.js";
+import {
+  assistantEffortLabel,
+  effortProviderOptions,
+  resolveAssistantEffort,
+  withAssistantEffort,
+  withProviderOptions,
+} from "./assistant-effort.js";
 import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
 import { asError } from "./stream-error.js";
@@ -83,7 +100,26 @@ export async function runAssistant(
   const apiModel = isApiProvider(provider)
     ? await resolveApiModel(provider, settings.ai)
     : undefined;
-  const model = describeModel(settings.ai, codexModels, provider, apiModel);
+  // The composer's effort, checked against the model that will run; "" is the model default.
+  const effort = resolveAssistantEffort(settings.ai, provider, codexModels, apiModel?.id);
+  const described = describeModel(
+    withAssistantEffort(settings.ai, provider, effort),
+    codexModels,
+    provider,
+    apiModel,
+  );
+  // API routes leave effort out of the model note to keep the cached prefix, so their level
+  // comes from `effort`; the CLI routes' note carries the level they send.
+  const model = {
+    ...described,
+    effortLabel: assistantEffortLabel(
+      settings.ai,
+      provider,
+      codexModels,
+      apiModel?.id,
+      isApiProvider(provider) ? effort : (described.effort ?? ""),
+    ),
+  };
   send({ type: "meta", model });
   const attached = params.attachments?.length ? await attachmentContext(params.attachments) : "";
   if (attached) {
@@ -97,6 +133,7 @@ export async function runAssistant(
   const messages = withCurrentSnapshot(params.messages, params.snapshot);
   let requestUsage: RequestUsage | undefined;
   let resolvedModelId: string | null = null;
+  let replyModel: AssistantModelInfo = model;
   // Each route starts its clock immediately before the provider call, so setup work is not counted.
   const reportUsage = (usage: CliUsage, startedAt: number) => {
     requestUsage = {
@@ -135,10 +172,14 @@ export async function runAssistant(
       provider,
       system: system + (servers.length ? `\n\n${MCP_HINT}` : ""),
       codexModel: provider === "codex" ? (model.id ?? undefined) : undefined,
+      effort,
       onModel: (id) => {
         if (provider === "claude") rememberClaudeModel(settings.ai.claudeModel, id);
         resolvedModelId = id;
-        send({ type: "meta", model: { ...model, id } });
+        const name =
+          provider === "claude" ? claudeDisplayName(settings.ai.claudeModel, id) : model.name;
+        replyModel = { ...model, id, name };
+        send({ type: "meta", model: replyModel });
       },
       onUsage: (usage) => reportUsage(usage, startedAt),
       prompt: transcript(messages),
@@ -148,7 +189,7 @@ export async function runAssistant(
       onDelta: (text) => send({ type: "delta", text }),
       onTool: (event) => send({ type: "tool", ...event }),
     });
-    return { text, usage: requestUsage };
+    return { text, usage: requestUsage, model: replyModel };
   }
 
   const session = servers.length ? await openMcpSession(servers) : null;
@@ -174,12 +215,15 @@ export async function runAssistant(
     const startedAt = Date.now();
     const result = streamText({
       model: languageModel,
-      ...apiPromptOptions(
-        provider,
-        apiModel?.id ?? "",
-        system,
-        withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
-        "implicit",
+      ...withProviderOptions(
+        apiPromptOptions(
+          provider,
+          apiModel?.id ?? "",
+          system,
+          withCurrentSnapshot(params.messages, apiSnapshot(params.snapshot, session)),
+          "implicit",
+        ),
+        effortProviderOptions(provider, effort),
       ),
       tools,
       stopWhen: stepCountIs(8),
@@ -230,6 +274,11 @@ export async function runAssistant(
         case "finish-step":
           steps.push(tokenUsage(part.usage ?? {}, provider));
           if (part.response?.modelId) resolvedModelId = part.response.modelId;
+          // Providers can answer as a dated snapshot of the requested model; name the one that ran.
+          if (resolvedModelId && resolvedModelId !== replyModel.id) {
+            replyModel = { ...model, id: resolvedModelId };
+            send({ type: "meta", model: replyModel });
+          }
           break;
         case "finish":
           reportUsage(aggregateStepUsage(steps), startedAt);
@@ -238,7 +287,7 @@ export async function runAssistant(
           throw asError(part.error);
       }
     }
-    return { text, usage: requestUsage };
+    return { text, usage: requestUsage, model: replyModel };
   } catch (error) {
     if (error instanceof GlazeAIError) return { blocked: error.state };
     logger.error("ai", "Assistant request failed", error);

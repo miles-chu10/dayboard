@@ -8,6 +8,7 @@ import {
   type AssistantAction,
   type AssistantChat,
   type AssistantHistory,
+  type AssistantMention,
   type AssistantMessage,
   type AssistantProvider,
   type AssistantToolCall,
@@ -102,6 +103,18 @@ function normalizeAction(value: unknown): AssistantAction {
   };
 }
 
+function normalizeMention(value: unknown): AssistantMention {
+  if (!isRecord(value)) throw new Error("Assistant history contains an invalid mention record.");
+  if (
+    value.kind !== "event" &&
+    value.kind !== "task" &&
+    value.kind !== "reminder" &&
+    value.kind !== "email"
+  )
+    throw new Error("Assistant history contains an invalid mention kind.");
+  return { kind: value.kind, label: requireString(value.label, "mention label", 400) };
+}
+
 function normalizeMessage(value: unknown): AssistantMessage {
   if (!isRecord(value)) throw new Error("Assistant history contains an invalid message record.");
   if (value.role !== "user" && value.role !== "assistant")
@@ -109,6 +122,10 @@ function normalizeMessage(value: unknown): AssistantMessage {
   if (!Array.isArray(value.tools) || !Array.isArray(value.actions))
     throw new Error("Assistant history contains an invalid message payload.");
   const usage = normalizeRequestUsage(value.usage);
+  const rawMentions: unknown = value.mentions ?? [];
+  if (!Array.isArray(rawMentions))
+    throw new Error("Assistant history contains an invalid message payload.");
+  const mentions = rawMentions.slice(0, 10).map(normalizeMention);
   const provider = value.provider;
   if (provider !== undefined && !ASSISTANT_PROVIDERS.includes(provider as AssistantProvider))
     throw new Error("Assistant history contains an invalid message provider.");
@@ -125,6 +142,7 @@ function normalizeMessage(value: unknown): AssistantMessage {
     ...(typeof value.modelLabel === "string" && value.modelLabel
       ? { modelLabel: value.modelLabel.slice(0, 160) }
       : {}),
+    ...(mentions.length ? { mentions } : {}),
   };
 }
 

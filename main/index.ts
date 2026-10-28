@@ -19,8 +19,10 @@ import {
 } from "@glaze/core/backend";
 
 import { registerHandlers } from "./handlers/index.js";
-import { getPreloadPath, getWindowUrl } from "./windows/window-paths.js";
+import { createMainWindow, getMainWindow } from "./windows/main-window.js";
 import { openSettingsWindow } from "./windows/settings-window.js";
+import { startSystemPanels, stopSystemPanels } from "./system-panels/index.js";
+import { isPanelWindow, showPanel } from "./system-panels/panel-window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
 import { drainAgendaStore } from "./services/agenda-store.js";
 import { drainProductivityWrites } from "./handlers/productivity.js";
@@ -61,96 +63,6 @@ if (process.env.GLAZE_DEV_HARNESS === "1") {
   appAiDevHarness = (await import("./dev/app-ai-autotest.js")) as AppAiDevHarness;
 }
 
-// ── State ─────────────────────────────────────────────────────────────
-let mainWindow: BrowserWindow | null = null;
-
-// ── Window creation ───────────────────────────────────────────────────
-async function createMainWindow() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    logger.debug("main", "Main window already exists, skipping creation");
-    return;
-  }
-
-  // Read display name from package.json
-  // In production: __dirname = build/main, package.json is at ../../package.json
-  const packageJsonPath = path.join(__dirname, "..", "..", "package.json");
-
-  const minWindowWidth = 800;
-  const minWindowHeight = 600;
-  const windowWidth = 1100;
-  const windowHeight = 800;
-  let windowTitle = "Glaze App";
-
-  try {
-    if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, "utf-8"));
-      windowTitle = packageJson.productName || packageJson.appConfig?.displayName || windowTitle;
-    }
-  } catch {
-    // Use defaults
-  }
-
-  // Create main window
-  const browserWindowStartTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] Creating BrowserWindow", {
-    timestamp: new Date().toISOString(),
-  });
-
-  mainWindow = new BrowserWindow({
-    windowKey: "main", // Stable key for frame persistence
-    width: windowWidth,
-    height: windowHeight,
-    minWidth: minWindowWidth,
-    minHeight: minWindowHeight,
-    title: windowTitle,
-    show: false, // Don't show until WebView is ready (prevents flickering)
-    webPreferences: {
-      preload: getPreloadPath(),
-    },
-  });
-
-  const browserWindowEndTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] BrowserWindow constructor completed", {
-    timestamp: new Date().toISOString(),
-    duration_ms: browserWindowEndTime - browserWindowStartTime,
-  });
-
-  // Wait for ready-to-show event before showing window (prevents flickering)
-  mainWindow.once("ready-to-show", () => {
-    const showStartTime = Date.now();
-    logger.info("main", "⏱️ [COLD_START] ready-to-show event received, showing window", {
-      timestamp: new Date().toISOString(),
-    });
-
-    mainWindow?.show();
-
-    const showEndTime = Date.now();
-    logger.info("main", "⏱️ [COLD_START] Window shown", {
-      timestamp: new Date().toISOString(),
-      duration_ms: showEndTime - showStartTime,
-    });
-  });
-
-  // Determine URL to load (dev server preferred, fallback to build files)
-  const url = await getWindowUrl("main-window.html");
-  logger.info("main", "Resolved main window URL", { url });
-
-  // Load URL - window will be shown automatically when ready-to-show fires
-  const loadURLStartTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] Loading URL in window", {
-    timestamp: new Date().toISOString(),
-    url,
-  });
-
-  await mainWindow.loadURL(url);
-
-  const loadURLEndTime = Date.now();
-  logger.info("main", "⏱️ [COLD_START] URL loaded in window (waiting for ready-to-show)", {
-    timestamp: new Date().toISOString(),
-    duration_ms: loadURLEndTime - loadURLStartTime,
-  });
-}
-
 // ── Application menu ──────────────────────────────────────────────────
 async function setupApplicationMenu() {
   await initDevToolsButtonState();
@@ -183,11 +95,16 @@ async function setupApplicationMenu() {
           label: "New Item",
           accelerator: "Command+N",
           click: () => {
+            const mainWindow = getMainWindow();
             if (!mainWindow || mainWindow.isDestroyed()) return;
             if (BrowserWindow.getFocusedWindow()?.id !== mainWindow.id) return;
             ipcMain.broadcast("capture:open");
           },
         },
+        // No accelerator: a menu key equivalent would fire while Settings records a new global
+        // shortcut. Keyboard and VoiceOver reach the click-only menu-bar panel from here.
+        { label: "Quick Capture…", click: () => void showPanel("capture") },
+        { label: "Menu Bar Agenda", click: () => void showPanel("menubar") },
         { type: "separator" },
         { role: "close" },
       ],
@@ -207,7 +124,12 @@ app.on("window-all-closed", () => {
   // app.quit();
 });
 
-app.on("activate", (hasVisibleWindows) => {
+app.on("activate", () => {
+  // Floating panels don't count: a Dock click while one is open still brings the dashboard back.
+  const hasVisibleWindows = BrowserWindow.getAllWindows().some(
+    (window) => !window.isDestroyed() && window.isVisible() && !isPanelWindow(window),
+  );
+  const mainWindow = getMainWindow();
   logger.info("main", "App activate event received", {
     hasVisibleWindows,
     mainWindowExists: !!mainWindow,
@@ -218,7 +140,7 @@ app.on("activate", (hasVisibleWindows) => {
   if (!hasVisibleWindows) {
     if (!mainWindow || mainWindow.isDestroyed()) {
       logger.info("main", "Creating main window due to activate event");
-      createMainWindow();
+      void createMainWindow();
     } else {
       logger.info("main", "Showing existing main window");
       mainWindow.show();
@@ -227,6 +149,10 @@ app.on("activate", (hasVisibleWindows) => {
     logger.info("main", "Has visible windows, no action needed");
   }
 });
+
+// Releases the global shortcut and removes the menu-bar icon after the save guard has let the
+// quit through; before-quit and its pending-write drain are unchanged.
+app.on("will-quit", stopSystemPanels);
 
 const saveBeforeQuit = createSaveQuitGuard({
   drain: async () => {
@@ -288,6 +214,8 @@ app.whenReady().then(async () => {
   } catch (error) {
     logger.warn("main", "Could not start MCP server", error);
   }
+
+  startSystemPanels();
 
   createMainWindow()
     .then(() => {

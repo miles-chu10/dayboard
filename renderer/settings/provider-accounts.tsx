@@ -11,7 +11,7 @@ import type {
 } from "@main/shared-types";
 
 import { ProviderMark } from "../components/provider-logo";
-import { MUSE_MODEL_OPTIONS } from "../lib/ai-models";
+import { applyModelChoice, modelChoices } from "../lib/model-choices";
 import { errorMessage, invoke } from "../lib/ipc";
 import { API_KEY_PROVIDERS, PROVIDER_LABEL } from "../lib/settings";
 import { SettingSelect } from "./setting-select";
@@ -147,26 +147,13 @@ export function useAllApiModels(available: ProviderAvailability | undefined) {
 }
 
 export function MuseModelField({ settings, edit }: { settings: AppSettings; edit: SettingsEdit }) {
-  const current = settings.ai.museModel;
   return (
     <Field label="Model" description="Muse Spark models from your Meta account.">
       <SettingSelect
         label="Muse model"
-        value={current || NEWEST}
-        options={[
-          ...MUSE_MODEL_OPTIONS.map((option) => ({
-            value: option.value || NEWEST,
-            label: option.label,
-          })),
-          ...(current && !MUSE_MODEL_OPTIONS.some((option) => option.value === current)
-            ? [{ value: current, label: current }]
-            : []),
-        ]}
-        onChange={(value) =>
-          edit((draft) => {
-            draft.ai.museModel = value === NEWEST ? "" : value;
-          })
-        }
+        value={settings.ai.museModel}
+        options={modelChoices("muse", settings.ai, {})}
+        onChange={(value) => edit((draft) => applyModelChoice(draft.ai, "muse", value, {}))}
       />
     </Field>
   );
@@ -182,8 +169,6 @@ export function useGeminiModels(enabled: boolean) {
   });
 }
 
-const NEWEST = "__newest";
-
 export function ApiModelField({
   provider,
   settings,
@@ -195,7 +180,7 @@ export function ApiModelField({
 }) {
   const configured = useApiKeyStatuses().data?.[provider].configured ?? false;
   const models = useApiModels(provider, configured);
-  const current = settings.ai.apiModels[provider];
+  const lists = { api: models.data };
   return (
     <Field
       label="Model"
@@ -209,22 +194,9 @@ export function ApiModelField({
     >
       <SettingSelect
         label={`${PROVIDER_LABEL[provider]} model`}
-        value={current || NEWEST}
-        options={[
-          { value: NEWEST, label: "Newest available" },
-          ...(models.data ?? []).map((model) => ({
-            value: model.id,
-            label: model.name,
-          })),
-          ...(current && !models.data?.some((model) => model.id === current)
-            ? [{ value: current, label: current }]
-            : []),
-        ]}
-        onChange={(value) =>
-          edit((draft) => {
-            draft.ai.apiModels[provider] = value === NEWEST ? "" : value;
-          })
-        }
+        value={settings.ai.apiModels[provider]}
+        options={modelChoices(provider, settings.ai, lists)}
+        onChange={(value) => edit((draft) => applyModelChoice(draft.ai, provider, value, lists))}
       />
     </Field>
   );
@@ -238,7 +210,7 @@ export function GeminiModelField({
   edit: SettingsEdit;
 }) {
   const models = useGeminiModels(true);
-  const current = settings.ai.geminiModel;
+  const lists = { gemini: models.data };
   return (
     <Field
       label="Model"
@@ -250,22 +222,9 @@ export function GeminiModelField({
     >
       <SettingSelect
         label="Gemini model"
-        value={current || NEWEST}
-        options={[
-          { value: NEWEST, label: "Antigravity default" },
-          ...(models.data ?? []).map((model) => ({
-            value: model,
-            label: model,
-          })),
-          ...(current && !models.data?.includes(current)
-            ? [{ value: current, label: current }]
-            : []),
-        ]}
-        onChange={(value) =>
-          edit((draft) => {
-            draft.ai.geminiModel = value === NEWEST ? "" : value;
-          })
-        }
+        value={settings.ai.geminiModel}
+        options={modelChoices("gemini", settings.ai, lists)}
+        onChange={(value) => edit((draft) => applyModelChoice(draft.ai, "gemini", value, lists))}
       />
     </Field>
   );

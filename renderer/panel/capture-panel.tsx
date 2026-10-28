@@ -1,0 +1,237 @@
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Button, Callout, Input, Text } from "@glaze/core/components";
+
+import {
+  aiCaptureEnabled,
+  availableKinds,
+  normalizeDraft,
+  type ItemDraft,
+  type ItemKind,
+} from "../../shared/capture";
+import { DraftFields } from "../components/draft-fields";
+import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { useAccounts } from "../lib/queries";
+import { useSettings } from "../lib/settings";
+import {
+  initialCaptureState,
+  reduceCapturePanel,
+  type CaptureRecordView,
+} from "./capture-panel-state";
+import {
+  hidePanel,
+  showPanel,
+  useFitPanelHeight,
+  usePanelEscape,
+  usePanelShown,
+} from "./panel-ipc";
+
+const NONE = { task: false, reminder: false, event: false };
+
+// Sentence case, as the app's other add buttons ("Add task").
+const ADD_LABEL: Record<ItemKind, string> = {
+  task: "Add task",
+  reminder: "Add reminder",
+  event: "Add event",
+};
+
+export function CapturePanel() {
+  const container = useFitPanelHeight<HTMLDivElement>("capture");
+  const input = useRef<HTMLInputElement>(null);
+  const sequence = useRef(0);
+  const accountRevision = useRef(0);
+  const settings = useSettings().data;
+  const accounts = useAccounts().data;
+  const [state, dispatch] = useReducer(reduceCapturePanel, initialCaptureState);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const available = useMemo(
+    () =>
+      settings && accounts
+        ? availableKinds({
+            googleConnected: accounts.google.connected,
+            remindersAccess: accounts.reminders,
+            sources: settings.sources,
+          })
+        : NONE,
+    [settings, accounts],
+  );
+  const aiAvailable = settings ? aiCaptureEnabled(settings) : false;
+  const defaultKind: ItemKind =
+    (["reminder", "task", "event"] as const).find((kind) => available[kind]) ?? "reminder";
+  const nothingAvailable =
+    accounts !== undefined && !available.task && !available.reminder && !available.event;
+  const ready = Boolean(settings && accounts);
+
+  useEffect(() => {
+    if (ready) input.current?.focus();
+  }, [ready]);
+
+  useEffect(() => {
+    const apply = (records: unknown) => {
+      if (Array.isArray(records))
+        dispatch({ type: "recordsChanged", records: records as CaptureRecordView[] });
+    };
+    let revision = 0;
+    const stopAccounts = window.glazeAPI.glaze.ipc.onNotification("accounts:changed", () => {
+      revision += 1;
+      accountRevision.current += 1;
+      dispatch({ type: "accountChanged" });
+      setFormError(null);
+      void hidePanel("capture").catch(() => undefined);
+    });
+    const stopRecords = window.glazeAPI.glaze.ipc.onNotification("capture:changed", (params) => {
+      revision += 1;
+      apply((params as { records?: unknown } | null)?.records);
+    });
+    void invoke<unknown>("capture:recent").then(
+      (records) => {
+        if (revision === 0) apply(records);
+      },
+      () => undefined,
+    );
+    return () => {
+      revision += 1;
+      stopAccounts();
+      stopRecords();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
+  }, [settings, accounts, aiAvailable, defaultKind, available]);
+
+  usePanelEscape("capture");
+  usePanelShown(() => {
+    if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
+    setFormError(null);
+    input.current?.focus();
+  });
+
+  /** Hides first, then submits; a rejection before the pipeline (license, update) comes back here. */
+  function send(payload: { text: string } | { draft: ItemDraft }, text: string) {
+    const key = `local-${++sequence.current}`;
+    const started = accountRevision.current;
+    dispatch({ type: "submitted" });
+    void hidePanel("capture");
+    void invoke("capture:submit", payload).catch((error: unknown) => {
+      if (started !== accountRevision.current) return;
+      dispatch({
+        type: "rejected",
+        key,
+        text,
+        error: errorMessage(error),
+        partial: "draft" in payload ? payload.draft : null,
+      });
+      void showPanel("capture")
+        .then(() => {
+          // The account notification can arrive while the native show is still in flight.
+          if (started !== accountRevision.current) return hidePanel("capture");
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  function submitText() {
+    const text = state.text.trim();
+    if (text) send({ text }, text);
+  }
+
+  function submitForm() {
+    if (!state.form) return;
+    const draft = normalizeDraft(state.form, available);
+    if ("error" in draft) return setFormError(draft.error);
+    setFormError(null);
+    send({ draft }, draft.title);
+  }
+
+  return (
+    <div ref={container} className="flex flex-col gap-2 p-3">
+      {state.failures.map((failure) => (
+        <Callout
+          key={failure.key}
+          color="red"
+          actions={
+            <>
+              <Button
+                size="small"
+                onClick={() =>
+                  dispatch({ type: "editFailure", key: failure.key, defaultKind, available })
+                }
+              >
+                Edit
+              </Button>
+              <Button
+                size="small"
+                variant="transparent"
+                onClick={() => dispatch({ type: "dismissFailure", key: failure.key })}
+              >
+                Dismiss
+              </Button>
+            </>
+          }
+        >
+          <Text as="span" className="font-semibold">
+            Couldn’t add “{failure.text}”.
+          </Text>{" "}
+          {failure.error}
+        </Callout>
+      ))}
+      {nothingAvailable ? (
+        <Callout
+          color="orange"
+          actions={
+            <Button size="small" onClick={() => void openSettings()}>
+              Settings
+            </Button>
+          }
+        >
+          Connect Google or allow Reminders access to add items.
+        </Callout>
+      ) : null}
+      {state.mode === "form" && state.form ? (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitForm();
+          }}
+        >
+          <DraftFields
+            draft={state.form}
+            available={available}
+            autoFocusTitle
+            onChange={(patch) => dispatch({ type: "formChanged", patch })}
+          />
+          {formError ? <Callout color="orange">{formError}</Callout> : null}
+          <div className="flex justify-end gap-2">
+            {aiAvailable ? (
+              <Button variant="transparent" onClick={() => dispatch({ type: "useText" })}>
+                Type it instead
+              </Button>
+            ) : null}
+            <Button type="submit" disabled={!settings || !accounts || nothingAvailable}>
+              {ADD_LABEL[state.form.kind]}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Input
+          ref={input}
+          autoFocus
+          aria-label="Quick Capture"
+          className="h-10 text-[15px]"
+          placeholder="Add a task, reminder or event…"
+          value={state.text}
+          disabled={!settings || !accounts || nothingAvailable}
+          onChange={(event) => dispatch({ type: "typed", text: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              submitText();
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}

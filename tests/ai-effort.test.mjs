@@ -1,0 +1,875 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { fileURLToPath, URL } from "node:url";
+import test, { after } from "node:test";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { build } from "esbuild";
+
+const temporary = await mkdtemp(path.join(tmpdir(), "dayboard-effort-fixtures-"));
+after(() => rm(temporary, { recursive: true, force: true }));
+const root = fileURLToPath(new URL("../", import.meta.url));
+
+// Offline stand-ins keyed by import file name, as in prompt-cache.test.mjs. Nothing here reads
+// real settings, keys, CLIs or MCP servers; provider fetches are intercepted per test.
+const stubs = {
+  "api-keys.js": `export const API_PROVIDERS=['openai','anthropic','google','xai']; export const isApiProvider=p=>API_PROVIDERS.includes(p); export const getApiKey=async()=>'synthetic-key';`,
+  "settings-store.js": `export const getSettings=async()=>globalThis.__effortFixture.settings; export const getMcpServers=async()=>[];`,
+  "demo-data.js": `export const isDemoMode=()=>false; export const demoAssistantReply=()=>'';`,
+  "attachments.js": `export const attachmentContext=async()=>'';`,
+  "codex-models.js": `export const listCodexModels=async()=>globalThis.__effortFixture.codexModels;`,
+  "cli-providers.js": `export const runCliCompletion=async(options)=>{const f=globalThis.__effortFixture; f.cli.push(options); if (f.reports) options.onModel?.(f.reports); return 'CLI answer';};`,
+  "assistant-mcp.js": `export const resolveAssistantMcpServers=()=>[];`,
+  "mcp-client.js": `export const openMcpSession=async()=>{throw Error('MCP must not run')};`,
+  "provider-resolution.js": `export const resolveConfiguredProvider=async p=>p;`,
+};
+
+function fixtures() {
+  return {
+    name: "effort-fixtures",
+    setup(api) {
+      api.onResolve({ filter: /^@glaze\/core\/ai$/ }, () => ({ path: "ai", namespace: "fixture" }));
+      api.onLoad({ filter: /^ai$/, namespace: "fixture" }, () => ({
+        contents: `export {streamText,stepCountIs,tool} from 'ai'; export class GlazeAIError extends Error {}; export const glaze=()=>{throw Error('Glaze provider must not run')};`,
+        loader: "js",
+        resolveDir: root,
+      }));
+      api.onResolve({ filter: /(?:@glaze\/core\/backend|platform\/index\.js)$/ }, () => ({
+        path: "backend",
+        namespace: "fixture",
+      }));
+      api.onLoad({ filter: /^backend$/, namespace: "fixture" }, () => ({
+        contents: `export const app={getPath:()=>'/nonexistent-fixture'}; export const logger={error:()=>{},warn:()=>{}};`,
+        loader: "js",
+      }));
+      api.onResolve({ filter: /\.js$/ }, (args) => {
+        const key = args.path.split("/").at(-1);
+        return stubs[key] ? { path: key, namespace: "service-fixture" } : undefined;
+      });
+      api.onLoad({ filter: /.*/, namespace: "service-fixture" }, (args) => ({
+        contents: stubs[args.path],
+        loader: "js",
+      }));
+    },
+  };
+}
+
+let sequence = 0;
+async function load(file) {
+  const result = await build({
+    entryPoints: [root + file],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    banner: {
+      js: `import {createRequire} from "node:module"; const require=createRequire(import.meta.url);`,
+    },
+    write: false,
+    logLevel: "silent",
+    plugins: [fixtures()],
+  });
+  const output = path.join(temporary, `module-${sequence++}.mjs`);
+  await writeFile(output, result.outputFiles[0].text);
+  return import(output);
+}
+
+const effort = await load("shared/ai-effort.ts");
+const main = await load("main/services/ai/assistant-effort.ts");
+const modelOptions = await load("main/services/ai/model-options.ts");
+const promptCache = await load("main/services/ai/prompt-cache.ts");
+const assistant = await load("main/services/ai/assistant.ts");
+
+const lightToMax = ["low", "medium", "high", "xhigh", "max"];
+const levels = (...args) => effort.effortOptions(...args).levels;
+const catalogModel = (slug, name, efforts, defaultEffort) => ({
+  slug,
+  name,
+  description: "",
+  defaultEffort,
+  efforts: efforts.map((level) => ({ effort: level, description: "" })),
+  tiers: slug === "gpt-6-astra" ? [{ id: "priority", name: "Fast", description: "" }] : [],
+  contextWindow: null,
+});
+const codexCatalog = [
+  catalogModel("gpt-6-astra", "GPT-6 Astra", [...lightToMax, "ultra"], "medium"),
+  catalogModel("gpt-5.6-terra", "GPT-5.6 Terra", [...lightToMax, "ultra"], "medium"),
+  catalogModel("gpt-6-luna", "GPT-6 Luna", lightToMax, "high"),
+];
+
+test("effort levels follow the route and model table, including dated snapshots", () => {
+  for (const model of ["fable", "opus", "sonnet", "opus[1m]", "sonnet[1m]"])
+    assert.deepEqual(levels("claude", model), lightToMax, model);
+  assert.deepEqual(levels("claude", "haiku"), []);
+  // Claude Code resolves its default only when it runs, so DayBoard offers no level and says why.
+  assert.deepEqual(levels("claude", "default"), []);
+  assert.equal(
+    effort.noEffortNote(effort.effortOptions("claude", "default")),
+    effort.CLAUDE_DEFAULT_NOTE,
+  );
+  assert.equal(effort.noEffortNote(effort.effortOptions("claude", "haiku")), effort.NO_EFFORT_NOTE);
+  // On the OpenAI API only GPT-6 Astra and GPT-6.1 Sol offer effort, Light to Max.
+  for (const model of [
+    "gpt-6-astra",
+    "gpt-6-astra-2026-09-20",
+    "gpt-6.1-sol",
+    "gpt-6.1-sol-2026-10-01",
+  ])
+    assert.deepEqual(levels("openai", model), lightToMax, model);
+  for (const model of [
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-6-sol-2026-09-20",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna-2026-07-01",
+    "gpt-5.5",
+    "gpt-5.6",
+    "gpt-6-terra",
+    "gpt-6-sol-audio",
+    "openai/gpt-6-sol",
+    "o4-mini",
+  ])
+    assert.deepEqual(levels("openai", model), [], model);
+  for (const model of [
+    "claude-fable-5-1",
+    "claude-fable-5",
+    "claude-opus-5-5",
+    "claude-opus-5",
+    "claude-sonnet-5-5",
+    "claude-sonnet-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-haiku-5-5",
+    "claude-opus-5-5-20260915",
+  ])
+    assert.deepEqual(levels("anthropic", model), lightToMax, model);
+  for (const model of ["claude-opus-4-6", "claude-sonnet-4-6", "claude-sonnet-4-6-20260217"])
+    assert.deepEqual(levels("anthropic", model), ["low", "medium", "high", "max"], model);
+  for (const model of [
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-5",
+    "claude-fixture",
+  ])
+    assert.deepEqual(levels("anthropic", model), [], model);
+  for (const provider of [
+    "google",
+    "xai",
+    "mistral",
+    "deepseek",
+    "groq",
+    "openrouter",
+    "gemini",
+    "muse",
+    "glaze",
+  ])
+    assert.deepEqual(levels(provider, "gpt-6-sol"), [], provider);
+  assert.deepEqual(effort.effortOptions("codex", "gpt-6-astra", codexCatalog), {
+    levels: [...lightToMax, "ultra"],
+    defaultLevel: "medium",
+  });
+  assert.deepEqual(effort.effortOptions("codex", "removed-model", codexCatalog), {
+    levels: [],
+    defaultLevel: null,
+  });
+  assert.deepEqual(effort.effortOptions("codex", "gpt-6-astra"), {
+    levels: [],
+    defaultLevel: null,
+  });
+  assert.equal(effort.effortOptions("openai", "gpt-6-astra").defaultLevel, null);
+  assert.equal(effort.effortOptions("claude", "opus").defaultLevel, null);
+  // A caller can't change the shared table.
+  effort.effortOptions("claude", "opus").levels.push("bogus");
+  assert.deepEqual(levels("claude", "opus"), lightToMax);
+});
+
+test("Ultra availability comes from the Codex catalog, with the known models as fallback", () => {
+  assert.equal(
+    effort.ultraNote(),
+    "Ultra is available with Codex on GPT-6 Astra, GPT-6 Sol, and GPT-5.6 Sol or Terra.",
+  );
+  assert.equal(effort.ultraNote([]), effort.ULTRA_FALLBACK_NOTE);
+  assert.equal(
+    effort.ultraNote(codexCatalog),
+    "Ultra is available with Codex on GPT-6 Astra and GPT-5.6 Terra.",
+  );
+  assert.equal(
+    effort.ultraNote([
+      ...codexCatalog,
+      catalogModel("gpt-daybreak-blue-latest", "GPT Daybreak Blue", ["high", "ultra"], "high"),
+    ]),
+    "Ultra is available with Codex on GPT-6 Astra, GPT-5.6 Terra, and GPT Daybreak Blue.",
+  );
+  assert.equal(levels("codex", "gpt-6-luna", codexCatalog).includes("ultra"), false);
+  assert.equal(
+    effort.ULTRA_WARNING,
+    "Runs several agents at once and uses your limit much faster.",
+  );
+});
+
+test("model labels pair the model with the effort DayBoard requests, or say who picks it", () => {
+  const part = (provider, model, level, catalog) =>
+    effort.effortPart(provider, effort.effortOptions(provider, model, catalog), level);
+  // A level DayBoard sends, named as the panel and Settings name it.
+  assert.deepEqual(part("claude", "opus", "max"), { text: "Max", level: true });
+  assert.equal(effort.withEffort("Opus 5.5", part("claude", "opus", "max")), "Opus 5.5 Max");
+  assert.equal(
+    effort.withEffort("GPT-6 Astra", part("codex", "gpt-6-astra", "xhigh", codexCatalog)),
+    "GPT-6 Astra Extra High",
+  );
+  assert.equal(effort.effortPhrase(part("claude", "opus", "xhigh")), "Extra High effort");
+  // Claude Code applies its own setting whenever DayBoard sends no level, whatever the alias.
+  for (const alias of ["opus", "haiku", "default"])
+    assert.equal(
+      effort.withEffort("Opus 5.5", part("claude", alias, "")),
+      "Opus 5.5 · Claude Code's effort",
+      alias,
+    );
+  // An API model with levels but none chosen runs at its own default, which DayBoard can't name.
+  assert.equal(
+    effort.withEffort("GPT-6 Astra", part("openai", "gpt-6-astra", "")),
+    "GPT-6 Astra · Default effort",
+  );
+  // Routes without an effort control add nothing rather than a guessed level.
+  for (const [provider, model] of [
+    ["gemini", ""],
+    ["muse", ""],
+    ["openai", "gpt-5.5"],
+    ["codex", "gone"],
+  ])
+    assert.equal(part(provider, model, "", codexCatalog), null, provider);
+  assert.equal(effort.withEffort("Gemini 3 Pro", null), "Gemini 3 Pro");
+  // A reply says the level was requested: no route reports the level it ran at.
+  assert.equal(effort.requestedEffort(part("claude", "opus", "max")), "Max effort requested");
+  assert.equal(effort.requestedEffort(part("claude", "opus", "")), "Claude Code's effort");
+  assert.equal(effort.requestedEffort(part("openai", "gpt-6-astra", "")), "Default effort");
+  assert.equal(effort.requestedEffort(null), null);
+});
+
+test("labels, the picker selection and /effort arguments", () => {
+  assert.deepEqual(
+    ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "turbo"].map(
+      effort.effortLabel,
+    ),
+    ["None", "Minimal", "Light", "Medium", "High", "Extra High", "Max", "Ultra", "Turbo"],
+  );
+  for (const [text, level] of [
+    ["high", "high"],
+    ["High", "high"],
+    ["extra high", "xhigh"],
+    ["Extra-High", "xhigh"],
+    ["xhigh", "xhigh"],
+    ["light", "low"],
+    ["LOW", "low"],
+    [" ultra ", "ultra"],
+    ["none", "none"],
+    ["minimal", "minimal"],
+    ["max", "max"],
+    ["huge", null],
+    ["", null],
+    ["constructor", null],
+  ])
+    assert.equal(effort.parseEffortArgument(text), level, text);
+  const claude = effort.effortOptions("claude", "opus");
+  assert.deepEqual(effort.effortSelection(claude, "high"), { level: "high", explicit: true });
+  assert.deepEqual(effort.effortSelection(claude, ""), { level: null, explicit: false });
+  assert.deepEqual(effort.effortSelection(claude, undefined), { level: null, explicit: false });
+  assert.deepEqual(effort.effortSelection(claude, "ultra"), { level: null, explicit: false });
+  assert.equal(effort.selectionLabel(null), "Default");
+  assert.equal(effort.selectionLabel("xhigh"), "Extra High");
+  const astra = effort.effortOptions("codex", "gpt-6-astra", codexCatalog);
+  assert.deepEqual(effort.effortSelection(astra, undefined), { level: "medium", explicit: false });
+  assert.equal(effort.supportedEffort(astra, "ultra"), "ultra");
+  assert.equal(effort.supportedEffort(claude, "ultra"), "");
+  assert.deepEqual(effort.effortCommand(claude, "extra high", "note"), { level: "xhigh" });
+  assert.deepEqual(effort.effortCommand(claude, "Ultra", "note"), { message: "note" });
+  const supported = { message: "This model supports Light, Medium, High, Extra High, Max." };
+  assert.deepEqual(effort.effortCommand(claude, "none", "note"), supported);
+  assert.deepEqual(effort.effortCommand(claude, "loud", "note"), supported);
+  assert.deepEqual(effort.effortCommand(effort.effortOptions("claude", "haiku"), "high", "note"), {
+    message: "This model doesn't have effort settings.",
+  });
+  assert.deepEqual(
+    effort.effortCommand(effort.effortOptions("claude", "default"), "high", "note"),
+    {
+      message: "Claude Code picks its default model when it runs. Choose a model to set effort.",
+    },
+  );
+});
+
+function aiSettings(overrides = {}) {
+  return {
+    enabled: true,
+    providerChosen: true,
+    provider: "claude",
+    assistantProvider: "",
+    claudeModel: "opus",
+    claudeEffort: "default",
+    claudeFast: false,
+    codexModel: "",
+    codexEffort: "",
+    codexServiceTier: "",
+    geminiModel: "",
+    museModel: "",
+    apiModels: { openai: "", anthropic: "", google: "", xai: "" },
+    assistantEffort: {},
+    useMcpInAssistant: false,
+    assistantPermission: "ask",
+    ...overrides,
+  };
+}
+
+test("the saved Assistant effort is checked against the model that will run", () => {
+  const resolve = (overrides, provider, catalog = [], apiModel) =>
+    main.resolveAssistantEffort(aiSettings(overrides), provider, catalog, apiModel);
+  assert.equal(resolve({ assistantEffort: { claude: "max" } }, "claude"), "max");
+  assert.equal(resolve({ claudeModel: "haiku", assistantEffort: { claude: "max" } }, "claude"), "");
+  assert.equal(
+    resolve({ claudeModel: "default", assistantEffort: { claude: "max" } }, "claude"),
+    "",
+  );
+  // Codex runs the first catalog model when none is chosen; Ultra passes only where it's listed.
+  assert.equal(resolve({ assistantEffort: { codex: "ultra" } }, "codex", codexCatalog), "ultra");
+  assert.equal(
+    resolve(
+      { codexModel: "gpt-6-luna", assistantEffort: { codex: "ultra" } },
+      "codex",
+      codexCatalog,
+    ),
+    "",
+  );
+  assert.equal(resolve({ assistantEffort: { codex: "high" } }, "codex", []), "");
+  assert.equal(resolve({ assistantEffort: { openai: "max" } }, "openai", [], "gpt-6.1-sol"), "max");
+  assert.equal(resolve({ assistantEffort: { openai: "none" } }, "openai", [], "gpt-6-astra"), "");
+  assert.equal(resolve({ assistantEffort: { openai: "high" } }, "openai", [], "gpt-6-sol"), "");
+  assert.equal(
+    resolve({ assistantEffort: { anthropic: "xhigh" } }, "anthropic", [], "claude-opus-4-6"),
+    "",
+  );
+  assert.equal(
+    resolve({ assistantEffort: { anthropic: "xhigh" } }, "anthropic", [], "claude-opus-5-5"),
+    "xhigh",
+  );
+  // The one-click features' effort never leaks into the Assistant.
+  assert.equal(resolve({ claudeEffort: "max" }, "claude"), "");
+  const older = aiSettings({ assistantEffort: { claude: "max" } });
+  delete older.assistantEffort;
+  assert.equal(main.resolveAssistantEffort(older, "claude", []), "");
+  // A saved model the catalog dropped has no levels; the request fails instead of running another.
+  assert.equal(main.effortModelId(aiSettings({ codexModel: "gone" }), "codex", codexCatalog), "");
+  assert.equal(
+    main.effortModelId(aiSettings({ codexModel: "" }), "codex", codexCatalog),
+    "gpt-6-astra",
+  );
+});
+
+test("API feature effort is checked against the model that will run, apart from the Assistant's", () => {
+  const resolve = (overrides, provider, model) =>
+    main.resolveFeatureEffort(aiSettings(overrides), provider, model);
+  assert.equal(resolve({ apiEffort: { openai: "max" } }, "openai", "gpt-6-astra"), "max");
+  assert.equal(resolve({ apiEffort: { openai: "max" } }, "openai", "gpt-6-sol"), "");
+  assert.equal(resolve({ apiEffort: { anthropic: "xhigh" } }, "anthropic", "claude-opus-4-6"), "");
+  assert.equal(resolve({ assistantEffort: { openai: "max" } }, "openai", "gpt-6-astra"), "");
+  const older = aiSettings({});
+  delete older.apiEffort;
+  assert.equal(main.resolveFeatureEffort(older, "openai", "gpt-6-astra"), "");
+});
+
+test("CLI arguments carry the Assistant effort while the feature path stays as saved", () => {
+  const ai = aiSettings({ claudeEffort: "max", codexModel: "gpt-6-astra", codexEffort: "low" });
+  assert.equal(main.withAssistantEffort(ai, "claude", undefined), ai);
+  assert.deepEqual(
+    modelOptions.claudeModelArgs(main.withAssistantEffort(ai, "claude", "high")).slice(0, 4),
+    ["--model", "opus", "--effort", "high"],
+  );
+  assert.equal(
+    modelOptions.claudeModelArgs(main.withAssistantEffort(ai, "claude", "")).includes("--effort"),
+    false,
+  );
+  assert.deepEqual(modelOptions.claudeModelArgs(ai).slice(0, 4), [
+    "--model",
+    "opus",
+    "--effort",
+    "max",
+  ]);
+  assert.ok(
+    modelOptions
+      .codexModelArgs(main.withAssistantEffort(ai, "codex", "ultra"), codexCatalog)
+      .includes('model_reasoning_effort="ultra"'),
+  );
+  assert.ok(
+    modelOptions
+      .codexModelArgs(main.withAssistantEffort(ai, "codex", ""), codexCatalog)
+      .includes('model_reasoning_effort="medium"'),
+  );
+  assert.ok(modelOptions.codexModelArgs(ai, codexCatalog).includes('model_reasoning_effort="low"'));
+  assert.equal(main.withAssistantEffort(ai, "openai", "high"), ai);
+  // One-click features still fail fast on a level the model doesn't list.
+  assert.throws(
+    () =>
+      modelOptions.codexModelArgs(
+        { ...ai, codexModel: "gpt-6-luna", codexEffort: "ultra" },
+        codexCatalog,
+      ),
+    /reasoning effort/,
+  );
+});
+
+test("API effort options merge into the prompt-cache options without replacing them", () => {
+  const messages = [{ role: "user", content: "test" }];
+  const cached = promptCache.apiPromptOptions(
+    "openai",
+    "gpt-6-sol",
+    "policy",
+    messages,
+    "implicit",
+  );
+  const merged = main.withProviderOptions(cached, main.effortProviderOptions("openai", "high"));
+  assert.deepEqual(merged.providerOptions, {
+    openai: { promptCacheOptions: { mode: "implicit", ttl: "30m" }, reasoningEffort: "high" },
+  });
+  assert.equal(merged.system, cached.system);
+  assert.deepEqual(cached.providerOptions, {
+    openai: { promptCacheOptions: { mode: "implicit", ttl: "30m" } },
+  });
+  const plain = promptCache.apiPromptOptions(
+    "anthropic",
+    "claude-opus-5-5",
+    "policy",
+    messages,
+    "implicit",
+  );
+  assert.deepEqual(
+    main.withProviderOptions(plain, main.effortProviderOptions("anthropic", "max")).providerOptions,
+    { anthropic: { effort: "max" } },
+  );
+  assert.equal(main.withProviderOptions(cached, main.effortProviderOptions("openai", "")), cached);
+  for (const provider of ["google", "xai", "claude", "codex"])
+    assert.equal(main.effortProviderOptions(provider, "high"), undefined, provider);
+});
+
+function fixture(overrides, codexModels = []) {
+  globalThis.__effortFixture = { settings: { ai: aiSettings(overrides) }, codexModels, cli: [] };
+}
+
+function eventStream(events) {
+  return new globalThis.Response(
+    events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join(""),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+}
+
+function responsesStream(model) {
+  const item = {
+    type: "message",
+    id: "fixture-message",
+    role: "assistant",
+    status: "completed",
+    content: [{ type: "output_text", text: "Fixture answer", annotations: [] }],
+  };
+  const response = {
+    id: "fixture-response",
+    created_at: 1,
+    model,
+    status: "completed",
+    output: [item],
+    usage: {
+      input_tokens: 100,
+      output_tokens: 4,
+      input_tokens_details: { cached_tokens: 0 },
+      output_tokens_details: { reasoning_tokens: 0 },
+    },
+  };
+  return eventStream([
+    [
+      "response.created",
+      { type: "response.created", response: { ...response, status: "in_progress", output: [] } },
+    ],
+    [
+      "response.output_item.added",
+      { type: "response.output_item.added", output_index: 0, item: { ...item, content: [] } },
+    ],
+    [
+      "response.output_text.delta",
+      {
+        type: "response.output_text.delta",
+        item_id: item.id,
+        output_index: 0,
+        content_index: 0,
+        delta: "Fixture answer",
+      },
+    ],
+    ["response.output_item.done", { type: "response.output_item.done", output_index: 0, item }],
+    ["response.completed", { type: "response.completed", response }],
+  ]);
+}
+
+function messagesStream(model) {
+  return eventStream([
+    [
+      "message_start",
+      {
+        type: "message_start",
+        message: {
+          id: "msg_fixture",
+          type: "message",
+          role: "assistant",
+          model,
+          content: [],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 50, output_tokens: 1 },
+        },
+      },
+    ],
+    [
+      "content_block_start",
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    ],
+    [
+      "content_block_delta",
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "Fixture answer" },
+      },
+    ],
+    ["content_block_stop", { type: "content_block_stop", index: 0 }],
+    [
+      "message_delta",
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: 5 },
+      },
+    ],
+    ["message_stop", { type: "message_stop" }],
+  ]);
+}
+
+async function apiRun(provider, model, assistantEffort, answeredAs) {
+  fixture({
+    provider,
+    apiModels: { openai: "", anthropic: "", google: "", xai: "", [provider]: model },
+    assistantEffort,
+  });
+  const original = globalThis.fetch;
+  const requests = [];
+  const chunks = [];
+  globalThis.fetch = async (url, init) => {
+    // Model listings are GETs; every generation request is a POST.
+    if (init?.method !== "POST") return globalThis.Response.json({ data: [] });
+    const body = JSON.parse(init.body);
+    requests.push({ url: String(url), body });
+    const ran = answeredAs ?? body.model;
+    return provider === "openai" ? responsesStream(ran) : messagesStream(ran);
+  };
+  try {
+    const value = await assistant.runAssistant(
+      {
+        system: "stable policy",
+        messages: [{ role: "user", content: "hello" }],
+        snapshot: "fresh snapshot",
+      },
+      (chunk) => chunks.push(chunk),
+      new globalThis.AbortController().signal,
+    );
+    return { value, requests, chunks };
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
+async function cliRun(overrides, codexModels) {
+  fixture(overrides, codexModels);
+  await assistant.runAssistant(
+    { system: "stable policy", messages: [{ role: "user", content: "hello" }] },
+    () => {},
+    new globalThis.AbortController().signal,
+  );
+  return globalThis.__effortFixture.cli[0];
+}
+
+test("OpenAI requests send the Assistant effort beside the cache options and drop levels the model lacks", async () => {
+  const astra = await apiRun("openai", "gpt-6-astra", { openai: "high" });
+  assert.equal(astra.requests[0].url, "https://api.openai.com/v1/responses");
+  assert.deepEqual(astra.requests[0].body.reasoning, { effort: "high" });
+  assert.deepEqual(astra.requests[0].body.prompt_cache_options, { mode: "implicit", ttl: "30m" });
+  assert.equal(astra.value.text, "Fixture answer");
+  const sol = await apiRun("openai", "gpt-6.1-sol", { openai: "low" });
+  assert.deepEqual(sol.requests[0].body.reasoning, { effort: "low" });
+  const dropped = await apiRun("openai", "gpt-6-astra", { openai: "none" });
+  assert.equal(dropped.requests[0].body.reasoning, undefined);
+  const unlisted = await apiRun("openai", "gpt-6-sol", { openai: "high" });
+  assert.equal(unlisted.requests[0].body.reasoning, undefined);
+  const unknown = await apiRun("openai", "gpt-5.5", { openai: "high" });
+  assert.equal(unknown.requests[0].body.reasoning, undefined);
+  // Effort stays out of the stable policy, so changing it leaves the cached prefix alone.
+  const max = await apiRun("openai", "gpt-6-astra", { openai: "max" });
+  assert.deepEqual(max.requests[0].body.input[0], astra.requests[0].body.input[0]);
+  assert.doesNotMatch(JSON.stringify(astra.requests[0].body.input[0]), /Reasoning effort/);
+});
+
+test("Anthropic requests send the Assistant effort as output_config.effort where the model has it", async () => {
+  const opus = await apiRun("anthropic", "claude-opus-5-5", { anthropic: "xhigh" });
+  assert.deepEqual(opus.requests[0].body.output_config, { effort: "xhigh" });
+  assert.equal(opus.value.text, "Fixture answer");
+  const older = await apiRun("anthropic", "claude-opus-4-6", { anthropic: "xhigh" });
+  assert.equal(older.requests[0].body.output_config, undefined);
+  const haiku = await apiRun("anthropic", "claude-haiku-4-5", { anthropic: "high" });
+  assert.equal(haiku.requests[0].body.output_config, undefined);
+  assert.doesNotMatch(JSON.stringify(opus.requests[0].body.system), /Reasoning effort/);
+});
+
+test("CLI routes pass the Assistant effort and describe it in the model note", async () => {
+  const claude = await cliRun({
+    provider: "claude",
+    claudeEffort: "max",
+    assistantEffort: { claude: "high" },
+  });
+  assert.equal(claude.effort, "high");
+  assert.match(claude.system, /Reasoning effort: high\./);
+  const haiku = await cliRun({
+    provider: "claude",
+    claudeModel: "haiku",
+    claudeEffort: "max",
+    assistantEffort: { claude: "high" },
+  });
+  assert.equal(haiku.effort, "");
+  assert.doesNotMatch(haiku.system, /Reasoning effort/);
+  const claudeDefault = await cliRun({
+    provider: "claude",
+    claudeModel: "default",
+    claudeEffort: "max",
+    assistantEffort: { claude: "high" },
+  });
+  assert.equal(claudeDefault.effort, "");
+  assert.doesNotMatch(claudeDefault.system, /Reasoning effort/);
+  const codex = await cliRun(
+    { provider: "codex", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(codex.codexModel, "gpt-6-astra");
+  assert.equal(codex.effort, "ultra");
+  assert.match(codex.system, /Reasoning effort: ultra\./);
+  // A level the catalog no longer lists falls back to the model default instead of failing.
+  const luna = await cliRun(
+    { provider: "codex", codexModel: "gpt-6-luna", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(luna.effort, "");
+  assert.match(luna.system, /Reasoning effort: high\./);
+  // A saved model the catalog dropped is passed as saved, so the run fails with "no longer listed"
+  // rather than quietly using the first catalog model the composer doesn't show.
+  const gone = await cliRun(
+    { provider: "codex", codexModel: "gone", assistantEffort: { codex: "high" } },
+    codexCatalog,
+  );
+  assert.equal(gone.codexModel, "gone");
+  assert.equal(gone.effort, "");
+  assert.doesNotMatch(gone.system, /gpt-6-astra|GPT-6 Astra/);
+});
+
+test("Claude Code's default takes the name of the model a reply reported, and only that alias", () => {
+  const byDefault = aiSettings({ claudeModel: "default", claudeEffort: "max" });
+  const describe = (ai) => modelOptions.describeModel(ai, [], "claude");
+  // Unavailable metadata: no reply has reported a model, so nothing specific is claimed.
+  assert.equal(describe(byDefault).name, "Claude Code default");
+  assert.equal(describe(byDefault).id, null);
+  assert.deepEqual(modelOptions.resolvedClaudeModels(), {});
+
+  const changes = [];
+  modelOptions.onClaudeModelResolved((models) => changes.push(models));
+  modelOptions.rememberClaudeModel("default", "claude-opus-5-5[1m]");
+  modelOptions.rememberClaudeModel("default", "claude-opus-5-5[1m]");
+  assert.deepEqual(changes, [{ default: "claude-opus-5-5[1m]" }]);
+  assert.deepEqual(modelOptions.resolvedClaudeModels(), { default: "claude-opus-5-5[1m]" });
+  // Configured default: named after the exact model it reported.
+  assert.equal(
+    modelOptions.claudeDisplayName("default", "claude-opus-5-5[1m]"),
+    "Claude Opus 5.5 (1M context)",
+  );
+  // The next request still describes only the alias, run without --model or --effort, because
+  // the earlier report may no longer hold.
+  assert.equal(describe(byDefault).name, "Claude Code default");
+  assert.equal(describe(byDefault).id, null);
+  assert.equal(describe(byDefault).effort, null);
+  assert.deepEqual(modelOptions.claudeModelArgs(byDefault), [
+    "--settings",
+    JSON.stringify({ fastMode: false }),
+  ]);
+
+  // Explicit override: the request keeps the alias's own name and arguments, and a reply that
+  // reports its model is named after it.
+  const opus = aiSettings({ claudeModel: "opus", claudeEffort: "max" });
+  modelOptions.rememberClaudeModel("opus", "claude-opus-5-5");
+  assert.equal(describe(opus).name, "Claude Opus");
+  assert.equal(describe(opus).id, null);
+  assert.equal(modelOptions.claudeDisplayName("opus", "claude-opus-5-5"), "Claude Opus 5.5");
+  assert.equal(modelOptions.claudeDisplayName("opus", "gateway-model-7"), "Claude Opus");
+  assert.equal(modelOptions.claudeDisplayName("opus", null), "Claude Opus");
+  assert.deepEqual(modelOptions.claudeModelArgs(opus).slice(0, 4), [
+    "--model",
+    "opus",
+    "--effort",
+    "max",
+  ]);
+
+  // An ID of another shape is shown exactly as reported rather than renamed.
+  modelOptions.rememberClaudeModel("default", "gateway-model-7");
+  assert.equal(modelOptions.claudeDisplayName("default", "gateway-model-7"), "gateway-model-7");
+  assert.deepEqual(changes.at(-1), { default: "gateway-model-7", opus: "claude-opus-5-5" });
+});
+
+test("an Assistant reply through Claude Code's default names the model it reported", async () => {
+  const request = { system: "stable policy", messages: [{ role: "user", content: "hello" }] };
+  const signal = new globalThis.AbortController().signal;
+  fixture({ provider: "claude", claudeModel: "default", assistantEffort: { claude: "high" } });
+  const chunks = [];
+  await assistant.runAssistant(request, (chunk) => chunks.push(chunk), signal);
+  const first = globalThis.__effortFixture.cli[0];
+  assert.match(first.system, /You are running as Claude Code default through Claude Code/);
+  assert.match(first.system, /The CLI resolves the exact model ID when the request starts/);
+  first.onModel("claude-opus-5-5");
+  assert.deepEqual(
+    chunks
+      .filter((chunk) => chunk.type === "meta")
+      .map((chunk) => [chunk.model.name, chunk.model.id]),
+    [
+      ["Claude Code default", null],
+      ["Claude Opus 5.5", "claude-opus-5-5"],
+    ],
+  );
+
+  // The next request's note claims no model until its own init event reports one.
+  fixture({ provider: "claude", claudeModel: "default", assistantEffort: { claude: "high" } });
+  const nextChunks = [];
+  await assistant.runAssistant(request, (chunk) => nextChunks.push(chunk), signal);
+  const next = globalThis.__effortFixture.cli[0];
+  assert.match(next.system, /You are running as Claude Code default through Claude Code/);
+  assert.doesNotMatch(next.system, /claude-opus-5-5/);
+  assert.equal(next.effort, "");
+  next.onModel("claude-sonnet-5-5");
+  assert.deepEqual(
+    nextChunks.filter((chunk) => chunk.type === "meta").at(-1).model.name,
+    "Claude Sonnet 5.5",
+  );
+});
+
+test("a reply's result names the model it ran as, the same one its last meta chunk named", async () => {
+  const request = { system: "stable policy", messages: [{ role: "user", content: "hello" }] };
+  const run = async (reports) => {
+    fixture({ provider: "claude", claudeModel: "opus", assistantEffort: { claude: "max" } });
+    globalThis.__effortFixture.reports = reports;
+    const chunks = [];
+    const result = await assistant.runAssistant(
+      request,
+      (chunk) => chunks.push(chunk),
+      new globalThis.AbortController().signal,
+    );
+    return { result, metas: chunks.filter((chunk) => chunk.type === "meta").map((c) => c.model) };
+  };
+  const reported = await run("claude-opus-5-5");
+  assert.deepEqual(
+    reported.metas.map((model) => model.name),
+    ["Claude Opus", "Claude Opus 5.5"],
+  );
+  assert.deepEqual(reported.result.model, reported.metas.at(-1));
+  assert.equal(reported.result.model.id, "claude-opus-5-5");
+  assert.equal(reported.result.model.effortLabel, "Max effort requested");
+  // No init event: the result keeps the model that was requested, with no ID claimed.
+  const unreported = await run(undefined);
+  assert.deepEqual(unreported.result.model, unreported.metas[0]);
+  assert.equal(unreported.result.model.id, null);
+  // An API reply's result repeats its one meta chunk when the provider answers as the model asked.
+  const api = await apiRun("anthropic", "claude-opus-5-5", { anthropic: "high" });
+  const apiMetas = api.chunks.filter((chunk) => chunk.type === "meta");
+  assert.equal(apiMetas.length, 1);
+  assert.deepEqual(api.value.model, apiMetas[0].model);
+  // One that answers as a dated snapshot is named after the snapshot, in a last meta chunk.
+  const dated = await apiRun(
+    "anthropic",
+    "claude-opus-5-5",
+    { anthropic: "high" },
+    "claude-opus-5-5-20261001",
+  );
+  const datedMetas = dated.chunks.filter((chunk) => chunk.type === "meta").map((c) => c.model);
+  assert.deepEqual(
+    datedMetas.map((model) => model.id),
+    ["claude-opus-5-5", "claude-opus-5-5-20261001"],
+  );
+  assert.deepEqual(dated.value.model, datedMetas.at(-1));
+  assert.equal(dated.value.model.effortLabel, datedMetas[0].effortLabel);
+  assert.equal(dated.value.usage.modelId, "claude-opus-5-5-20261001");
+});
+
+async function replyEfforts(overrides, codexModels = [], reported) {
+  fixture(overrides, codexModels);
+  const chunks = [];
+  await assistant.runAssistant(
+    { system: "stable policy", messages: [{ role: "user", content: "hello" }] },
+    (chunk) => chunks.push(chunk),
+    new globalThis.AbortController().signal,
+  );
+  if (reported) globalThis.__effortFixture.cli[0].onModel(reported);
+  return chunks.filter((chunk) => chunk.type === "meta").map((chunk) => chunk.model);
+}
+
+test("a reply records the effort its request carried, or who picked it", async () => {
+  // Explicit override on an alias: the level sent, kept when the reply reports its model.
+  const opus = await replyEfforts(
+    { claudeModel: "opus", claudeEffort: "low", assistantEffort: { claude: "max" } },
+    [],
+    "claude-opus-5-5",
+  );
+  assert.deepEqual(
+    opus.map((model) => [model.name, model.effortLabel]),
+    [
+      ["Claude Opus", "Max effort requested"],
+      ["Claude Opus 5.5", "Max effort requested"],
+    ],
+  );
+  // No Assistant level: Claude Code's own setting applies, not the features' saved effort.
+  const unset = await replyEfforts({ claudeModel: "opus", claudeEffort: "max" });
+  assert.equal(unset[0].effortLabel, "Claude Code's effort");
+  // Claude Code's default and Haiku take no level from DayBoard, so the CLI picks it.
+  for (const claudeModel of ["default", "haiku"]) {
+    const [model] = await replyEfforts({ claudeModel, assistantEffort: { claude: "high" } });
+    assert.equal(model.effortLabel, "Claude Code's effort", claudeModel);
+  }
+
+  // Codex: the catalog default is sent when none is chosen, and a level it lacks falls back.
+  const codexDefault = await replyEfforts({ provider: "codex" }, codexCatalog);
+  assert.equal(codexDefault[0].name, "GPT-6 Astra");
+  assert.equal(codexDefault[0].effortLabel, "Medium effort requested");
+  const ultra = await replyEfforts(
+    { provider: "codex", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(ultra[0].effortLabel, "Ultra effort requested");
+  const luna = await replyEfforts(
+    { provider: "codex", codexModel: "gpt-6-luna", assistantEffort: { codex: "ultra" } },
+    codexCatalog,
+  );
+  assert.equal(luna[0].effortLabel, "High effort requested");
+  const gone = await replyEfforts({ provider: "codex", codexModel: "gone" }, codexCatalog);
+  assert.equal(gone[0].effortLabel, null);
+  const [gemini] = await replyEfforts({ provider: "gemini" });
+  assert.equal(gemini.effortLabel, null);
+});
+
+test("an API reply records the effort it sent, or the model's own default", async () => {
+  const labels = ({ chunks }) =>
+    chunks.filter((chunk) => chunk.type === "meta").map((chunk) => chunk.model.effortLabel);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", { openai: "high" })), [
+    "High effort requested",
+  ]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", {})), ["Default effort"]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-6-astra", { openai: "none" })), [
+    "Default effort",
+  ]);
+  assert.deepEqual(labels(await apiRun("openai", "gpt-5.5", { openai: "high" })), [null]);
+  assert.deepEqual(labels(await apiRun("anthropic", "claude-opus-5-5", { anthropic: "xhigh" })), [
+    "Extra High effort requested",
+  ]);
+});

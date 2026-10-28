@@ -239,8 +239,11 @@ export async function setTaskCompleted(
   });
 }
 
-export async function createTask(input: CreateTaskInput): Promise<void> {
-  await googleFetch(`${TASKS}/lists/@default/tasks`, {
+/** Returns the new task's identity, so Quick Capture can undo exactly this task. */
+export async function createTask(
+  input: CreateTaskInput,
+): Promise<{ listId: string; taskId: string }> {
+  const task = await googleFetch<GTask>(`${TASKS}/lists/@default/tasks`, {
     method: "POST",
     body: {
       title: input.title,
@@ -248,6 +251,8 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
       due: input.due ? `${input.due}T00:00:00.000Z` : undefined,
     },
   });
+  if (!task?.id) throw new GoogleApiError(500, "Google Tasks did not return the new task.");
+  return { listId: "@default", taskId: task.id };
 }
 
 /** Updates only the editable fields on one Google Task and returns Google's canonical item. */
@@ -467,7 +472,9 @@ interface GEvent {
   location?: string;
   htmlLink?: string;
   hangoutLink?: string;
-  attendees?: { email?: string; resource?: boolean; self?: boolean }[];
+  attendees?: { email?: string; resource?: boolean; self?: boolean; responseStatus?: string }[];
+  organizer?: { email?: string; self?: boolean };
+  iCalUID?: string;
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   extendedProperties?: { private?: Record<string, string> };
   recurrence?: string[];
@@ -530,11 +537,26 @@ function eventStartMs(event: CalendarEventItem): number {
   return new Date(y, m - 1, d).getTime();
 }
 
+const RESPONSES = ["accepted", "declined", "tentative", "needsAction"] as const;
+
 function eventToItem(
   event: GEvent,
   calendar: GoogleCalendarInfo,
   fullDescription = false,
+  accountEmail: string | null = null,
 ): CalendarEventItem {
+  // Read from the full attendee list, before the self attendee is dropped and the list is capped.
+  const account = accountEmail?.trim().toLowerCase() || null;
+  const own = (email?: string) => Boolean(account && email?.trim().toLowerCase() === account);
+  const attendees = event.attendees ?? [];
+  const selfAttendee = calendar.primary
+    ? attendees.find((attendee) => attendee.self || own(attendee.email))
+    : attendees.find((attendee) => own(attendee.email));
+  const selfInvited =
+    Boolean(selfAttendee) ||
+    own(event.organizer?.email) ||
+    (calendar.primary && Boolean(event.organizer?.self));
+  const response = calendar.primary ? selfAttendee?.responseStatus : undefined;
   if (!event.id || (!event.start?.dateTime && !event.start?.date))
     throw new GoogleApiError(500, "Google Calendar returned an event without an ID or start time.");
   return {
@@ -561,13 +583,19 @@ function eventToItem(
       .filter((attendee) => !attendee.resource && !attendee.self && attendee.email)
       .map((attendee) => attendee.email!)
       .slice(0, 20),
+    primaryCalendar: calendar.primary,
+    selfInvited,
+    selfResponse: RESPONSES.find((value) => value === response) ?? null,
+    ...(event.iCalUID ? { iCalUID: event.iCalUID } : {}),
   };
 }
 
+/** `accountEmail` lets events on other calendars be recognized as the account's invitations. */
 export async function listEventsBetweenWithCoverage(
   start: Date,
   end: Date,
   visibility: Record<string, boolean>,
+  accountEmail: string | null = null,
 ): Promise<BoundedList<CalendarEventItem>> {
   const calendarLookup = await listCalendarsWithCoverage();
   const visibleCalendars = calendarLookup.calendars.filter(
@@ -594,7 +622,7 @@ export async function listEventsBetweenWithCoverage(
           .filter(
             (event) => event.status !== "cancelled" && (event.start?.dateTime || event.start?.date),
           )
-          .map<CalendarEventItem>((event) => eventToItem(event, calendar)),
+          .map<CalendarEventItem>((event) => eventToItem(event, calendar, false, accountEmail)),
         truncated: data.truncated,
       };
     },
@@ -630,8 +658,11 @@ export function listEventsBetween(
   start: Date,
   end: Date,
   visibility: Record<string, boolean>,
+  accountEmail: string | null = null,
 ): Promise<CalendarEventItem[]> {
-  return listEventsBetweenWithCoverage(start, end, visibility).then((result) => result.items);
+  return listEventsBetweenWithCoverage(start, end, visibility, accountEmail).then(
+    (result) => result.items,
+  );
 }
 
 export function listEvents(
@@ -648,12 +679,13 @@ export function listEvents(
 export function listEventsWithCoverage(
   daysAhead: number,
   visibility: Record<string, boolean>,
+  accountEmail: string | null = null,
 ): Promise<BoundedList<CalendarEventItem>> {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + daysAhead);
-  return listEventsBetweenWithCoverage(start, end, visibility);
+  return listEventsBetweenWithCoverage(start, end, visibility, accountEmail);
 }
 
 function addMinutes(time: string, minutes: number): string {
@@ -687,11 +719,16 @@ function calendarEventBody(input: CreateEventInput): Record<string, unknown> {
   };
 }
 
-export async function createEvent(input: CreateEventInput): Promise<void> {
-  await googleFetch(`${CALENDAR}/calendars/primary/events`, {
+/** Returns the new event's identity, so Quick Capture can undo exactly this event. */
+export async function createEvent(
+  input: CreateEventInput,
+): Promise<{ calendarId: string; eventId: string }> {
+  const event = await googleFetch<GEvent>(`${CALENDAR}/calendars/primary/events`, {
     method: "POST",
     body: calendarEventBody(input),
   });
+  if (!event?.id) throw new GoogleApiError(500, "Google Calendar did not return the new event.");
+  return { calendarId: "primary", eventId: event.id };
 }
 
 async function editableCalendar(calendarId: string): Promise<GoogleCalendarInfo> {

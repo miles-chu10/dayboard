@@ -40,6 +40,12 @@ export interface AssistantAction {
   added: boolean;
 }
 
+/** An item the user mentioned with @: its chip, never its content. */
+export interface AssistantMention {
+  kind: "event" | "task" | "reminder" | "email";
+  label: string;
+}
+
 export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
@@ -53,6 +59,8 @@ export interface AssistantMessage {
   /** Model that wrote the reply, e.g. "GPT-5.6 Sol · gpt-5.6-sol · Fast". */
   modelLabel?: string;
   usage?: RequestUsage;
+  /** Items the user mentioned with @; omitted when there were none. */
+  mentions?: AssistantMention[];
 }
 
 export interface AssistantChat {

@@ -114,11 +114,35 @@ export interface AppSettings {
     museModel: string;
     /** Model ID per API-key provider; empty picks the newest listed model. */
     apiModels: Record<ApiProviderId, string>;
+    /** One-click features' reasoning effort per API-key provider; missing is the model default. */
+    apiEffort: Partial<Record<ApiProviderId, string>>;
     /** Provider the Assistant uses; empty follows `provider` (the default for all features). */
     assistantProvider: AIProvider | "";
+    /**
+     * Reasoning effort the Assistant composer sets, per provider. Missing or empty is the model
+     * default; one-click features use `claudeEffort`, `codexEffort` and `apiEffort` instead.
+     */
+    assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
     features: Record<AIFeature, boolean>;
+  };
+  /** Quick Capture panel, menu-bar Agenda and meeting helpers. */
+  system: SystemSettings;
+}
+
+export type NotifyMinutesBefore = 1 | 2 | 5 | 10;
+
+export interface SystemSettings {
+  /** Global hotkey that opens the Quick Capture panel over any app. */
+  quickCapture: { enabled: boolean; hotkey: string };
+  menuBar: { enabled: boolean };
+  meetings: {
+    upNext: boolean;
+    notify: boolean;
+    notifyMinutesBefore: NotifyMinutesBefore;
+    /** Offer to pull notes from a configured Granola MCP server after meetings. */
+    notesImport: boolean;
   };
 }
 
@@ -264,6 +288,14 @@ export interface CalendarEventItem {
   calendarName: string;
   calendarColor: string | null;
   attendees: string[];
+  /** On the account's primary calendar (including the legacy "primary" fallback). */
+  primaryCalendar?: boolean;
+  /** The connected account organizes or is invited to this event. */
+  selfInvited?: boolean;
+  /** The account's own reply; read only from the primary calendar's copy. */
+  selfResponse?: "accepted" | "declined" | "tentative" | "needsAction" | null;
+  /** Shared by every copy of the event across calendars (and every occurrence of a series). */
+  iCalUID?: string;
 }
 
 export interface GoogleCalendarInfo {
@@ -386,7 +418,10 @@ export type AIStreamChunk =
     }
   | { type: "tool"; id: string; name?: string; status: ToolCallStatus };
 
-export type AssistantResult = { text: string; usage?: RequestUsage } | { blocked: string };
+/** `model` repeats the reply's last meta chunk, so the reply records it even if a chunk is lost. */
+export type AssistantResult =
+  | { text: string; usage?: RequestUsage; model?: AssistantModelInfo }
+  | { blocked: string };
 
 export interface AssistantModelInfo {
   provider: AIProvider;
@@ -397,6 +432,8 @@ export interface AssistantModelInfo {
   fast: boolean;
   effort: string | null;
   contextWindow: number | null;
+  /** How the reply's effort is described, e.g. "Max effort requested" or "Claude Code's effort". */
+  effortLabel?: string | null;
 }
 
 /** read-only: never propose changes · ask: propose, user confirms · auto: add proposals directly. */
