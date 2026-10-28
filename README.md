@@ -17,7 +17,7 @@
   <a href="LICENSE">GPL-3.0-only</a>
 </p>
 
-![DayBoard Agenda in dark mode with fictional demo data](docs/screenshots/dark-agenda.png)
+[![DayBoard in 12 seconds: tasks, reminders, calendar events and email from four apps merge into one Today list (fictional demo data)](docs/media/dayboard-readme-loop.gif)](https://getdayboard.com)
 
 DayBoard brings your tasks, reminders, calendar, and inbox into a standalone macOS app. Plan today,
 see the week ahead, and act on your work from one dashboard. An optional AI assistant helps with
