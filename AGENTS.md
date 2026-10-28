@@ -38,9 +38,10 @@ Run from the repo root. The shell may export `NODE_ENV=production`, which makes 
 - New IPC: register in `main/handlers`, validate every payload, add the channel to the renderer via `window.dayboard.ipc`. Streams use `ipcMain.handleStream`; push updates with `ipcMain.broadcast`.
 - No stubs, TODOs, or mock data standing in for required behavior. Demo mode data lives in `main/services/demo-data.ts`.
 
-## Constraints (until Miles approves)
+## Constraints
 
-- No outward or permanent actions: no `git push`, remotes, GitHub repo/PR/release commands, publishing, account sign-ups, purchases, or signing/notarization with real identities. Local commits are fine.
+- Local commits, pushing feature branches and opening draft pull requests are fine.
+- Each of these needs Miles's explicit approval for that specific action, every time: merging a pull request, pushing to `main`, creating or pushing tags, GitHub releases, running release or signing workflows, deploying the website or billing worker, publishing, account sign-ups, purchases, and signing/notarization with real identities.
 - Never copy proprietary Glaze SDK source. Public API documentation may be read for compatibility reference. Preserve the separate Glaze project.
 
 ## Secrets
