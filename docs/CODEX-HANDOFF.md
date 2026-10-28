@@ -87,7 +87,10 @@ OAuth client.
   `.gitignore`) on top of `5bc351e`, the `glaze` branch baseline. Backups: git stash `594ac51b` and
   `~/Downloads/glaze-sources-1.2.5-backup-20261028` (tgz, sha256 starting `a6a65209`). Keep both.
 - **Strategy:** one light final 1.2.6 with a "quiet note", then Glaze freezes. Miles picked the
-  quiet note at 05:52 UTC. The copy below was drafted at 05:53 UTC and **awaits his OK**:
+  quiet note at 05:52 UTC. The copy below was drafted at 05:53 UTC and **awaits his OK**. Around
+  06:05 UTC the Claude Glaze thread built it as draft PR #61 (branch `claude/glaze-1.2.6-final`,
+  `a3e3f37`, base `glaze`): the About section, the 1.2.5 dependency versions, SDK 0.14.4.0 and
+  release notes. Nothing has touched the Mac yet.
   - Settings → General, new "About" section at the bottom, below Data: **DayBoard for Mac** /
     "DayBoard is also available as a standalone Mac app at getdayboard.com." (plain text link, no
     banner or button anywhere).
@@ -145,6 +148,7 @@ OAuth client.
 | --- | ------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | #60 | `claude/project-thread-ix3u1e`              | `b1d96a7` | Draft. Standalone restyled to the Glaze Agenda layout. Needs a Mac visual check, then Miles's merge OK. Not in beta 14 unless he says so. |
 | #58 | `dependabot/npm_and_yarn/...-af2a28f8ab`    | `3efd4b0` | Dependabot vite 7.3.6 to 7.3.7. Build-time only, not shipped. Merge needs Miles's OK.                                                     |
+| #61 | `claude/glaze-1.2.6-final` (base `glaze`)   | `a3e3f37` | Draft. Glaze 1.2.6 quiet note. Waiting on Miles's OK on the copy, then Mac steps and publish, each with his OK.                           |
 | #45 | `claude/system-panels-glaze` (base `glaze`) | `2d106e0` | Draft, parked (see Glaze above).                                                                                                          |
 | new | `claude/project-thread-2e72zg`              | local     | This file as `docs/CODEX-HANDOFF.md`. Pushed only after Miles OKs it.                                                                     |
 
@@ -167,9 +171,8 @@ Each needs Miles's explicit OK at the time, in his own words, unless marked read
    new signed dry run on main (OK), then tag `v1.3.0-beta.14` from Miles's Mac on the main SHA
    whose `package.json` says `1.3.0-beta.14` (OK). Then verify the release and the in-app update
    from beta 13. Electron 44.4.4 has a high-severity advisory, so this is the top priority.
-2. **Glaze 1.2.6 quiet note.** Miles OKs or edits the copy. Then build on its own branch from
-   `glaze` plus the uncommitted 1.2.5 fixes, apply and check on the Mac (OK), and publish after a
-   clean review (Miles clicks; OK). Then Glaze freezes.
+2. **Glaze 1.2.6 quiet note** (draft PR #61). Miles OKs or edits the copy. Then apply and check
+   it on the Mac (OK) and publish after a clean review (Miles clicks; OK). Then Glaze freezes.
 3. **#59 deploy.** Miles runs the deploy (section 7); afterwards check the live page read-only.
 4. **Google refresh check** after 06:35 UTC (read-only), plus the bundle version.
 5. **Stage 2 website** (direct download): Miles's go, then a PR, his merge OK and his deploy OK.
@@ -340,6 +343,6 @@ then remove only that one worktree by its path. Rollback (also a deploy, also ne
 4. **#59 deploy.** If Miles hasn't run it yet, give him the two commands in section 7 (or run them
    with his explicit OK), then confirm the caption is gone from the live page and record the new
    Cloudflare version ID.
-5. **Glaze 1.2.6.** Once Miles OKs the quiet-note copy and answers the caption question, build it
-   on its own branch from `glaze` plus the uncommitted 1.2.5 fixes (quit Glaze first), show him the
-   result and Store notes, and stop before Publish for his go.
+5. **Glaze 1.2.6.** Once Miles OKs the quiet-note copy in draft PR #61 and answers the caption
+   question, lay out the Mac steps (quit Glaze first), apply and check it with his OK, show him the
+   Store notes, and stop before Publish for his go.
