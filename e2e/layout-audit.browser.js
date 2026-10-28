@@ -168,6 +168,14 @@
       issues.add(`overlap: ${describe(a.element)} × ${describe(b.element)}`);
     }
   }
+  // A control scrolled beneath a sticky header (the Calendar keeps the selected day's row in view
+  // under its controls) is out of view, not covered: the header sits below their common ancestor.
+  const underSticky = (hit, element) => {
+    for (let node = hit; node && !node.contains(element); node = node.parentElement) {
+      if (getComputedStyle(node).position === "sticky") return true;
+    }
+    return false;
+  };
   for (const element of controls) {
     const box = clip(element.parentElement, element.getBoundingClientRect());
     if (!box) continue;
@@ -185,7 +193,8 @@
       hit &&
       !element.contains(hit) &&
       !hit.contains(element) &&
-      !(hit.closest("label") && hit.closest("label").contains(element))
+      !(hit.closest("label") && hit.closest("label").contains(element)) &&
+      !underSticky(hit, element)
     ) {
       issues.add(`covered: ${describe(element)} under ${describe(hit)}`);
     }
