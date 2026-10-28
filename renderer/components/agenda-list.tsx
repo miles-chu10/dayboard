@@ -170,7 +170,7 @@ function TodoLine({
         <Text
           truncate
           data-agenda-title
-          className="min-w-0 @max-[22rem]:whitespace-normal @max-[22rem]:line-clamp-2"
+          className="block min-w-0 @max-[22rem]:whitespace-normal @max-[22rem]:line-clamp-2"
         >
           {todo.title}
         </Text>

@@ -166,6 +166,9 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
             onScroll={handleScroll}
             className={cn(
               "size-full",
+              // Radix sizes content as a table, so long unbreakable text would widen it past a
+              // viewport that can't scroll sideways and clip its right edge.
+              scrollbars === "vertical" && "[&>div]:!block",
               fadeEdges &&
                 "[mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-12px),transparent)]",
               viewportClassName,

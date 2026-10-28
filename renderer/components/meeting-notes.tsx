@@ -258,7 +258,8 @@ export function MeetingNotes({
               key={meeting.id}
               size="small"
               variant="transparent"
-              className="justify-start"
+              className="max-w-full justify-start"
+              title={meeting.title || undefined}
               disabled={busy}
               onClick={() => {
                 setBusy(true);
@@ -267,8 +268,10 @@ export function MeetingNotes({
                   .finally(() => setBusy(false));
               }}
             >
-              {meeting.meetingAt ? `${formatTimeOfDay(meeting.meetingAt)} · ` : ""}
-              {meeting.title || "Untitled"}
+              <span className="truncate">
+                {meeting.meetingAt ? `${formatTimeOfDay(meeting.meetingAt)} · ` : ""}
+                {meeting.title || "Untitled"}
+              </span>
             </Button>
           ))}
         </div>

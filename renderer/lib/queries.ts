@@ -620,6 +620,23 @@ export function useAgendaState() {
   };
 }
 
+/** Pins a todo (with its linked items) to focus, or unpins it; at most three focus items. */
+export function toggleFocus(planning: ReturnType<typeof useAgendaState>, todo: Todo) {
+  if (!planning.data || planning.setFocus.isPending) return;
+  const focusKeys = planning.data.focusKeys;
+  const members = todo.linkedKeys ?? [todo.key];
+  const focused = members.some((key) => focusKeys.includes(key));
+  if (!focused && focusKeys.length >= 3) {
+    toast.info("Choose up to three focus items. Unpin one first.");
+    return;
+  }
+  planning.setFocus.mutate({
+    focusKeys: focused
+      ? focusKeys.filter((key) => !members.includes(key))
+      : [...focusKeys, todo.key],
+  });
+}
+
 export function useConnectGoogle() {
   const queryClient = useQueryClient();
   return useMutation({

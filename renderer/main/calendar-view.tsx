@@ -24,7 +24,14 @@ import {
 import { ViewActions } from "../components/view-actions";
 import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
-import { useAgendaState, useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
+import {
+  toggleFocus,
+  useAgendaState,
+  useCalendarRange,
+  useMail,
+  useReminders,
+  useTasks,
+} from "../lib/queries";
 import { sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, sourceColor, sourceColorVar } from "../lib/sources";
 import { buildTodos, mergeLinkedTodos, type Todo } from "../lib/todos";
@@ -268,7 +275,7 @@ function CalendarGrid({
                       focusKeys={planning.data?.focusKeys ?? []}
                       onOpen={(todo) => openItem(todo.key, true)}
                       onOpenEvent={(event) => openItem(eventKey(event), true)}
-                      onPin={() => undefined}
+                      onPin={(todo) => toggleFocus(planning, todo)}
                     />
                   ) : (
                     <Text color="tertiary">Nothing scheduled or due.</Text>
@@ -281,7 +288,7 @@ function CalendarGrid({
         <ScrollArea
           className="h-full"
           headerSize="page"
-          viewportClassName={cn("[&>div]:block!", view === "week" && "[&>div]:h-full")}
+          viewportClassName={cn(view === "week" && "[&>div]:h-full")}
           title="Calendar"
           actions={
             <ViewActions
@@ -467,7 +474,7 @@ function MonthGrid({
                 }
               }}
               className={cn(
-                "flex min-h-[var(--calendar-cell)] min-w-0 cursor-default flex-col gap-0.5 p-1 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+                "@container/day flex min-h-[var(--calendar-cell)] min-w-0 cursor-default flex-col gap-0.5 p-1 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                 index % 7 !== 6 && "border-r border-separator",
                 index < dates.length - 7 && "border-b border-separator",
                 date === selected && "bg-accent-5",
@@ -526,7 +533,8 @@ function MonthGrid({
                       className="size-2 shrink-0 rounded-full"
                       style={{ backgroundColor: colorOf(item.event) }}
                     />
-                    <span className="shrink-0 tabular-nums text-secondary">
+                    {/* Narrow days keep the title; the time stays in the label and Week view. */}
+                    <span className="shrink-0 tabular-nums text-secondary @max-[6.5rem]/day:hidden">
                       {formatTimeOfDay(item.event.start).replace(/:00(?=\s)/, "")}
                     </span>
                     <span className={cn("truncate", !inMonth && "text-tertiary")}>
