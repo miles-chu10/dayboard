@@ -39,7 +39,7 @@ export function DetailPanel({
       tabIndex={-1}
       aria-label={`${title} details`}
       className={cn(
-        "@container/detail flex min-w-0 flex-col gap-3 rounded-lg bg-well p-3",
+        "@container/detail flex min-w-0 flex-col gap-3 rounded-lg bg-well p-3 wrap-anywhere",
         className,
       )}
       onKeyDown={(event) => {
@@ -56,9 +56,7 @@ export function DetailPanel({
     >
       <header className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <Text variant="strong" className="break-words">
-            {title}
-          </Text>
+          <Text variant="strong">{title}</Text>
           {subtitle ? (
             <Text variant="small" color="secondary" truncate>
               {subtitle}

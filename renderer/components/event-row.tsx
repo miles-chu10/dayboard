@@ -108,7 +108,7 @@ export function EventBar({
               variant="small"
               color="tertiary"
               truncate
-              className="min-w-0 @max-[22rem]/event-row:hidden"
+              className="min-w-0 max-w-[45%] @max-[22rem]/event-row:hidden"
             >
               {detail}
             </Text>

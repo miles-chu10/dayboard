@@ -92,9 +92,9 @@ export function ComposerMenu({
                   )}
                 >
                   {entry.icon}
-                  <span className="shrink-0">{entry.label}</span>
+                  <span className="min-w-0 truncate">{entry.label}</span>
                   {entry.detail ? (
-                    <span className="min-w-0 truncate text-small text-tertiary">
+                    <span className="min-w-0 shrink-[3] truncate text-small text-tertiary">
                       {entry.detail}
                     </span>
                   ) : null}

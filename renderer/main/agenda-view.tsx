@@ -20,7 +20,6 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Text,
-  toast,
 } from "@renderer/ui";
 import { ChevronLeft, ChevronRight, CircleAlert, Search, Sparkles } from "lucide-react";
 import type { CalendarEventItem, MailItem, SourceId } from "@main/shared-types";
@@ -50,7 +49,14 @@ import { agendaSpanDays, type AgendaSearch, type AgendaSpan } from "../lib/agend
 import { buildBriefingPrompt } from "../lib/ai-prompts";
 import { addDays, dayHeading, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
 import { openSettings } from "../lib/ipc";
-import { useAgendaState, useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
+import {
+  toggleFocus,
+  useAgendaState,
+  useCalendarRange,
+  useMail,
+  useReminders,
+  useTasks,
+} from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { SOURCE_META } from "../lib/sources";
 import { readStored, writeStored } from "../lib/storage";
@@ -276,26 +282,12 @@ export function AgendaView({
       replace: true,
     });
   }
-  function pin(todo: Todo) {
-    if (!planning.data || planning.setFocus.isPending) return;
-    const members = todo.linkedKeys ?? [todo.key];
-    const focused = members.some((key) => focusKeys.includes(key));
-    if (!focused && focusKeys.length >= 3) {
-      toast.info("Choose up to three focus items. Unpin one first.");
-      return;
-    }
-    planning.setFocus.mutate({
-      focusKeys: focused
-        ? focusKeys.filter((key) => !members.includes(key))
-        : [...focusKeys, todo.key],
-    });
-  }
   const listProps = {
     now,
     focusKeys,
     onOpen: (todo: Todo) => toggleDetail(todo.key),
     onOpenEvent: (_event: CalendarEventItem, key: string) => toggleDetail(key),
-    onPin: pin,
+    onPin: (todo: Todo) => toggleFocus(planning, todo),
     expandedKey: detailView === "inline" ? search.item : undefined,
     renderExpanded: detailView === "inline" ? () => renderDetail("panel") : undefined,
   };

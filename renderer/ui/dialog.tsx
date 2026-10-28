@@ -158,7 +158,7 @@ export function DialogContent({
     <DialogPrimitive.Content
       className={cn(
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-        "flex max-h-[85vh] flex-col rounded-xl border border-separator bg-background shadow-2xl",
+        "flex max-h-[85vh] flex-col rounded-xl border border-separator bg-background shadow-2xl wrap-anywhere",
         "data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
         SIZE_CLASS[size],
         className,
