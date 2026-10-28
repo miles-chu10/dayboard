@@ -358,3 +358,75 @@ test("Focus on works from the Calendar's selected day, not only the Agenda", asy
     await demo.close();
   }
 });
+
+test("the audit ignores rows scrolled under their own sticky header, and nothing else", async ({
+  playwright: _playwright,
+}) => {
+  const demo = await launchDemo();
+  try {
+    const page = demo.page;
+    const header = `<div style="position:sticky;top:0;z-index:1;height:40px;background:#eee"><h2 style="margin:0">Header</h2></div>`;
+    const row = (name: string, style = "") =>
+      `<button style="display:block;height:30px;width:200px;${style}">${name}</button>`;
+    const rows = Array.from({ length: 12 }, (_, i) => row(`Row ${i + 1}`)).join("");
+    const pane = (content: string, scroll = 0, style = "height:200px") =>
+      `<div data-scroll="${scroll}" style="${style};overflow-y:auto">${content}</div>`;
+    async function audit(html: string) {
+      await page.evaluate((html) => {
+        type Element = {
+          scrollTop: number;
+          getAttribute(name: string): string | null;
+          remove(): void;
+        };
+        const { document } = globalThis as unknown as {
+          document: {
+            querySelector(selector: string): Element | null;
+            querySelectorAll(selector: string): Iterable<Element>;
+            body: { insertAdjacentHTML(position: string, html: string): void };
+          };
+        };
+        document.querySelector("#audit-fixture")?.remove();
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `<div id="audit-fixture" style="position:fixed;inset:0;z-index:2147483647;background:#fff">${html}</div>`,
+        );
+        for (const node of document.querySelectorAll("#audit-fixture [data-scroll]"))
+          node.scrollTop = Number(node.getAttribute("data-scroll"));
+      }, html);
+      return auditLayout(page, { root: "#audit-fixture" });
+    }
+    const covered = (name: string) =>
+      expect.stringMatching(new RegExp(`^covered: button "${name}" under`));
+
+    // The Calendar case: the pane scrolled its first rows under its own header.
+    expect(await audit(pane(header + rows, 45))).toEqual([]);
+    // A header over a row before any scrolling.
+    expect(await audit(pane(header + row("Hidden row", "margin-top:-30px") + rows))).toContainEqual(
+      covered("Hidden row"),
+    );
+    // Another pane's header over a scrolled row.
+    expect(
+      await audit(
+        pane(
+          header +
+            pane(rows, 10, "height:200px;margin-top:-20px") +
+            `<div style="height:400px"></div>`,
+          0,
+          "height:300px",
+        ),
+      ),
+    ).toContainEqual(covered("Row 1"));
+    // A header that comes after the row it covers.
+    expect(
+      await audit(
+        pane(
+          row("First row") + header.replace("height:40px", "height:40px;margin-top:-20px") + rows,
+          5,
+        ),
+      ),
+    ).toContainEqual(covered("First row"));
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});

@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, NodeFilter, innerWidth, innerHeight */
+/* global document, getComputedStyle, Node, NodeFilter, innerWidth, innerHeight */
 // Runs inside a DayBoard window (see layout-audit.ts). Finds what a person would see as broken:
 // text painted over other text or a control, controls something else covers, and controls without
 // a name. `stress` first lengthens the listed item strings, the way a pasted URL would.
@@ -168,13 +168,27 @@
       issues.add(`overlap: ${describe(a.element)} × ${describe(b.element)}`);
     }
   }
-  // A control scrolled beneath a sticky header (the Calendar keeps the selected day's row in view
-  // under its controls) is out of view, not covered: the header sits below their common ancestor.
-  const underSticky = (hit, element) => {
-    for (let node = hit; node && !node.contains(element); node = node.parentElement) {
-      if (getComputedStyle(node).position === "sticky") return true;
+  // A control that its scroll container has moved under that container's own top-sticky header (the
+  // Calendar keeps the selected day's row in view below its controls) is scrolled out of view, not
+  // covered. A sticky header over a control before any scrolling, or from another pane, still counts.
+  const scroller = (node) => {
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(parent).overflowY)) return parent;
     }
-    return false;
+    return document.scrollingElement;
+  };
+  const scrolledUnderHeader = (hit, element) => {
+    let header = hit;
+    while (header && !header.contains(element) && getComputedStyle(header).position !== "sticky")
+      header = header.parentElement;
+    if (!header || header.contains(element) || getComputedStyle(header).top === "auto")
+      return false;
+    const box = scroller(header);
+    return (
+      box === scroller(element) &&
+      box.scrollTop > 0 &&
+      Boolean(header.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+    );
   };
   for (const element of controls) {
     const box = clip(element.parentElement, element.getBoundingClientRect());
@@ -194,7 +208,7 @@
       !element.contains(hit) &&
       !hit.contains(element) &&
       !(hit.closest("label") && hit.closest("label").contains(element)) &&
-      !underSticky(hit, element)
+      !scrolledUnderHeader(hit, element)
     ) {
       issues.add(`covered: ${describe(element)} under ${describe(hit)}`);
     }
