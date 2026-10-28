@@ -1,4 +1,5 @@
 import type { RequestUsage } from "../../shared/ai-usage.js";
+import { isAppStoreBuild } from "../../shared/app-store-build.js";
 import { clipboard, ipcMain } from "../platform/index.js";
 
 import type {
@@ -225,6 +226,13 @@ export function registerAIHandlers(): void {
         ok: false as const,
         reason: "failed" as const,
         message: "Sample responses are used in demo mode.",
+      };
+    }
+    if (isAppStoreBuild) {
+      return {
+        ok: false as const,
+        reason: "failed" as const,
+        message: "Subscription accounts aren't available in the App Store edition.",
       };
     }
     return checkCliProvider(input.provider, input.verify === true);

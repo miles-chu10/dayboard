@@ -17,6 +17,7 @@ import {
 } from "@renderer/ui";
 import type { McpServerConfig, McpTestResult } from "@main/shared-types";
 
+import { isAppStoreBuild } from "@shared/app-store-build";
 import { errorMessage, invoke } from "../lib/ipc";
 import { queryKeys, useMcpServers } from "../lib/queries";
 import { featureOn, useSettingsEditor } from "../lib/settings";
@@ -60,7 +61,7 @@ function McpServerDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState(server?.name ?? "");
   const [transport, setTransport] = useState<McpServerConfig["transport"]>(
-    server?.transport ?? "stdio",
+    server?.transport ?? (isAppStoreBuild ? "http" : "stdio"),
   );
   const [command, setCommand] = useState(server?.command ?? "");
   const [args, setArgs] = useState(server?.args.join("\n") ?? "");
@@ -147,17 +148,21 @@ function McpServerDialog({
               autoFocus
             />
           </Field>
-          <Field label="Type">
-            <SegmentedControl
-              size="small"
-              value={transport}
-              onValueChange={(value: string) => setTransport(value as McpServerConfig["transport"])}
-              aria-label="Server type"
-            >
-              <SegmentedControlItem value="stdio">Local Command</SegmentedControlItem>
-              <SegmentedControlItem value="http">Remote URL</SegmentedControlItem>
-            </SegmentedControl>
-          </Field>
+          {isAppStoreBuild ? null : (
+            <Field label="Type">
+              <SegmentedControl
+                size="small"
+                value={transport}
+                onValueChange={(value: string) =>
+                  setTransport(value as McpServerConfig["transport"])
+                }
+                aria-label="Server type"
+              >
+                <SegmentedControlItem value="stdio">Local Command</SegmentedControlItem>
+                <SegmentedControlItem value="http">Remote URL</SegmentedControlItem>
+              </SegmentedControl>
+            </Field>
+          )}
           {transport === "stdio" ? (
             <Field label="Command">
               <Input

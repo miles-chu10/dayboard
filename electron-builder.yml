@@ -39,6 +39,16 @@ mac:
     NSRemindersFullAccessUsageDescription: DayBoard shows your Apple Reminders on the dashboard and lets you complete or add reminders.
     NSRemindersUsageDescription: DayBoard shows your Apple Reminders on the dashboard and lets you complete or add reminders.
     NSMicrophoneUsageDescription: Dictate messages to the Assistant. Audio is sent to OpenAI for transcription only when you use dictation.
+# Mac App Store edition (`npm run package:mas`): sandboxed, App Store updates, no subscription
+# CLIs, PTY or updater code in the bundle. mas-dev inherits these settings; the script passes
+# the provisioning profile.
+mas:
+  hardenedRuntime: false
+  entitlements: build/entitlements.mas.plist
+  entitlementsInherit: build/entitlements.mas.inherit.plist
+  files:
+    - "!node_modules/node-pty{,/**/*}"
+    - "!node_modules/electron-updater{,/**/*}"
 dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}
 # Release feed for electron-updater. Config only: `npm run dist` passes --publish never.

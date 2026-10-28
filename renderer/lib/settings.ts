@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@renderer/ui";
+import { isAppStoreBuild } from "../../shared/app-store-build";
 import type { AssistantProvider } from "../../shared/assistant-history";
 import type {
   AIFeature,
   AIProvider,
   ApiProviderId,
   AppSettings,
+  CliProviderId,
   SourceId,
 } from "@main/shared-types";
 
@@ -76,7 +78,10 @@ export const PROVIDER_LABEL: Record<AssistantProvider, string> = {
 };
 
 /** Subscription accounts vs. pay-per-use API keys, for grouping in pickers. */
-export const SUBSCRIPTION_PROVIDERS = ["claude", "codex", "gemini", "muse"] as const;
+/** Empty in the App Store edition, whose sandbox can't run the subscription CLIs. */
+export const SUBSCRIPTION_PROVIDERS: readonly CliProviderId[] = isAppStoreBuild
+  ? []
+  : ["claude", "codex", "gemini", "muse"];
 export const API_KEY_PROVIDERS = [
   "openai",
   "anthropic",

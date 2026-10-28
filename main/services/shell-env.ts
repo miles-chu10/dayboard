@@ -1,7 +1,10 @@
 import { execFile } from "node:child_process";
 
+import { isAppStoreBuild } from "../../shared/app-store-build.js";
+
 /** Runs a command in the user's login shell and returns only the output between markers. */
 export function runLoginShell(command: string, timeoutMs = 8000): Promise<string> {
+  if (isAppStoreBuild) return Promise.resolve("");
   const marker = `__GLZ_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
   return new Promise((resolve) => {
     execFile(
