@@ -20,6 +20,8 @@ export interface AppUpdatesOptions {
   isPackaged: boolean;
   isDemo: () => boolean;
   currentVersion: string;
+  /** Shown while updates are unavailable; the App Store edition names the App Store. */
+  unavailableMessage?: string;
   loadUpdater: () => Promise<UpdateClient>;
   prepareForInstall: () => Promise<void>;
   resumeAfterInstallFailure: () => void;
@@ -49,7 +51,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
   const available = () => options.isOfficialRelease && options.isPackaged && !options.isDemo();
   let state: AppUpdateState = {
     phase: "unavailable",
-    message: UNAVAILABLE_MESSAGE,
+    message: options.unavailableMessage ?? UNAVAILABLE_MESSAGE,
     currentVersion: options.currentVersion,
     availableVersion: null,
     progressPercent: null,
@@ -74,7 +76,7 @@ export function createAppUpdates(options: AppUpdatesOptions) {
       if (state.phase !== "unavailable")
         publish({
           phase: "unavailable",
-          message: UNAVAILABLE_MESSAGE,
+          message: options.unavailableMessage ?? UNAVAILABLE_MESSAGE,
           availableVersion: null,
           progressPercent: null,
           error: null,
