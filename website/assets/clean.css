@@ -332,3 +332,42 @@ h2 em {
     opacity 0.3s ease,
     visibility 0s linear 0.3s;
 }
+
+/* Shown while the hero video autoplays muted. */
+.c-unmute {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(17 17 16 / 0.72);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.c-unmute:hover {
+  background: rgb(17 17 16 / 0.88);
+}
+.c-unmute:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.c-unmute[hidden] {
+  display: none;
+}
+@media (max-width: 480px) {
+  .c-unmute {
+    top: 8px;
+    right: 8px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+}
