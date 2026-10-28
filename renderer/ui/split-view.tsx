@@ -30,6 +30,11 @@ export function useSplitView(): SplitViewContextValue {
   return context;
 }
 
+/** The enclosing SplitView, or null outside one (dialogs, the Settings window). */
+export function useOptionalSplitView(): SplitViewContextValue | null {
+  return React.useContext(SplitViewContext);
+}
+
 const SplitViewColumnContext = React.createContext<{
   isFirst: boolean;
   isLast: boolean;

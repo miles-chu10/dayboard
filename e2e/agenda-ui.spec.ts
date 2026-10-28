@@ -190,7 +190,7 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
           await expect(page.locator("html")).toHaveClass(/density-compact/);
         else await expect(page.locator("html")).not.toHaveClass(/density-compact/);
         await resize(demo.app, 1280, 820);
-        await expect(page.locator("[data-agenda-range]")).toHaveCSS("font-size", "18px");
+        await expect(page.locator("[data-agenda-range]")).toHaveCSS("font-size", "24px");
         await page.screenshot({
           path: testInfo.outputPath(`agenda-${theme.toLowerCase()}-${density.toLowerCase()}.png`),
           animations: "disabled",
