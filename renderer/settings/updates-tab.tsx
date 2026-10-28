@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isAppStoreBuild } from "@shared/app-store-build";
 import type { AppUpdateState } from "@shared/app-updates";
 import { Button, Callout, Field, FieldSet, Status } from "../ui";
 import { errorMessage, invoke } from "../lib/ipc";
@@ -25,7 +26,11 @@ export function UpdatesTab() {
   return (
     <FieldSet
       title="App updates"
-      description="DayBoard checks for updates and downloads them in the background. An update installs when you restart or quit DayBoard."
+      description={
+        isAppStoreBuild
+          ? "The Mac App Store installs DayBoard updates."
+          : "DayBoard checks for updates and downloads them in the background. An update installs when you restart or quit DayBoard."
+      }
     >
       {query.isError ? (
         <Field>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Mac App Store edition only (App Review 2.4.5(i)). The Developer ID build keeps entitlements.mac.plist. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- Electron's MAS build needs a team-prefixed application group for its IPC. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+      <string>LGJS5APK9X.com.mileschu.dayboard</string>
+    </array>
+    <!-- Google, AI provider and remote MCP requests. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Google sign-in's loopback redirect and the local MCP server. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+    <!-- Assistant dictation. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- EventKit access for Apple Reminders via the bundled Swift helper. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+    <!-- Assistant attachments and the profile picture picker. -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+  </dict>
+</plist>
