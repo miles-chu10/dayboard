@@ -1,8 +1,16 @@
-import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 import type { DayboardBridge } from "../shared/bridge-protocol";
 import { launchDemo } from "./fixtures";
 
 type AppGlobal = typeof globalThis & { dayboard: DayboardBridge };
+
+/** Radix attaches a layer's Escape listener a render or two after it appears, so a press can land first. */
+async function dismissWithEscape(page: Page, layer: Locator) {
+  await expect(async () => {
+    await page.keyboard.press("Escape");
+    await expect(layer).toHaveCount(0, { timeout: 1000 });
+  }).toPass();
+}
 
 async function navigate(page: Page, route: string) {
   const button = page
@@ -192,8 +200,7 @@ test("slash menu runs actions and prompts from the keyboard", async ({
     await chip.click();
     await chooseClaudeModel(demo.page, "Claude Code default", /^Opus\s*Latest/);
     await expect(demo.page.getByRole("button", { name: "Change model: Opus" })).toBeFocused();
-    await demo.page.keyboard.press("Escape");
-    await expect(demo.page.getByRole("dialog", { name: "Model and effort" })).toHaveCount(0);
+    await dismissWithEscape(demo.page, demo.page.getByRole("dialog", { name: "Model and effort" }));
     await input.fill("/effort extra high");
     await input.press("Enter");
     await expect(chip).toHaveAccessibleName("Model and effort: Opus, Extra High effort");
@@ -212,22 +219,22 @@ test("slash menu runs actions and prompts from the keyboard", async ({
     await input.fill("/mode");
     await input.press("Enter");
     await expect(demo.page.getByRole("menuitemcheckbox", { name: /^Read only/ })).toBeVisible();
-    await demo.page.keyboard.press("Escape");
+    await dismissWithEscape(demo.page, demo.page.getByRole("menu"));
 
     await input.fill("/model");
     await input.press("Enter");
     await expect(demo.page.getByRole("dialog", { name: "Model and effort" })).toBeVisible();
-    await demo.page.keyboard.press("Escape");
+    await dismissWithEscape(demo.page, demo.page.getByRole("dialog", { name: "Model and effort" }));
 
     await input.fill("/history");
     await input.press("Enter");
     await expect(demo.page.getByRole("dialog", { name: "Chat history" })).toBeVisible();
-    await demo.page.keyboard.press("Escape");
+    await dismissWithEscape(demo.page, demo.page.getByRole("dialog", { name: "Chat history" }));
 
     await input.fill("/mcp");
     await input.press("Enter");
     await expect(demo.page.getByRole("dialog", { name: "MCP Servers" })).toBeVisible();
-    await demo.page.keyboard.press("Escape");
+    await dismissWithEscape(demo.page, demo.page.getByRole("dialog", { name: "MCP Servers" }));
 
     await input.fill("/attach");
     await expect(list).toHaveCount(0);
