@@ -108,6 +108,7 @@ export { ScrollArea, type ScrollAreaProps, type ScrollAreaControl } from "./scro
 export {
   SplitView,
   useSplitView,
+  useOptionalSplitView,
   useSplitViewColumnContext,
   type SplitViewProps,
 } from "./split-view";

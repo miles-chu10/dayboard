@@ -75,7 +75,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     title: "DayBoard",
     show: false,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 16, y: 19 },
     vibrancy:
       process.platform === "darwin" &&
       !nativeTheme.prefersReducedTransparency &&

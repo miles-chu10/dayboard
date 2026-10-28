@@ -12,6 +12,7 @@ import {
   ToolbarDescription,
 } from "./toolbar";
 import { Button } from "./button";
+import { useOptionalSplitView } from "./split-view";
 
 export interface ScrollAreaControl {
   forceScrollToBottom: () => void;
@@ -28,7 +29,6 @@ export interface ScrollAreaProps extends Omit<
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   leading?: React.ReactNode;
-  headerSize?: "compact" | "page";
   footer?: React.ReactNode;
   viewportClassName?: string;
   fadeEdges?: boolean;
@@ -50,7 +50,6 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
       subtitle,
       actions,
       leading,
-      headerSize = "compact",
       footer,
       className,
       viewportClassName,
@@ -66,6 +65,7 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
     },
     forwardedRef,
   ) => {
+    const split = useOptionalSplitView();
     const viewportRef = React.useRef<HTMLDivElement | null>(null);
     const followingRef = React.useRef(true);
     const suspendCountRef = React.useRef(0);
@@ -122,28 +122,16 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, ScrollAreaProps>(
     const resolvedToolbar =
       toolbar ??
       (title || subtitle || actions || leading ? (
-        <Toolbar
-          inset={headerSize === "page" ? "none" : "windowControls"}
-          data-page-header={headerSize === "page" ? "" : undefined}
-          className={headerSize === "page" ? "page-header" : undefined}
-        >
-          <ToolbarRow className={headerSize === "page" ? "page-header-row" : undefined}>
+        // Beside a visible sidebar the traffic lights sit over the sidebar, so the header starts
+        // at the content edge; with the sidebar hidden it clears them and the sidebar toggle.
+        <Toolbar inset={split ? "none" : "windowControls"} data-page-header="">
+          <ToolbarRow className={split?.sidebarCollapsed ? "pl-[132px]" : undefined}>
             {leading}
             {title || subtitle ? (
               <ToolbarContent>
-                {title ? (
-                  <ToolbarTitle
-                    as={headerSize === "page" ? "h1" : "h2"}
-                    className={headerSize === "page" ? "page-title" : undefined}
-                  >
-                    {title}
-                  </ToolbarTitle>
-                ) : null}
+                {title ? <ToolbarTitle as="h1">{title}</ToolbarTitle> : null}
                 {subtitle ? (
-                  <ToolbarDescription
-                    className={headerSize === "page" ? "page-description" : undefined}
-                    title={typeof subtitle === "string" ? subtitle : undefined}
-                  >
+                  <ToolbarDescription title={typeof subtitle === "string" ? subtitle : undefined}>
                     {subtitle}
                   </ToolbarDescription>
                 ) : null}

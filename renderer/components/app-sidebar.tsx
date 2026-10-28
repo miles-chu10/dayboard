@@ -2,6 +2,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Avatar,
   AvatarBadge,
+  Badge,
   AvatarFallback,
   AvatarImage,
   Button,
@@ -93,6 +94,30 @@ const MAIN_NAV: { id: MainNavId; title: string; route: string }[] = [
   { id: "tasks", title: "Tasks", route: "/tasks" },
   { id: "reminders", title: "Reminders", route: "/reminders" },
 ];
+
+/** A count pill; overdue counts carry an icon so they don't rely on color alone. */
+function SidebarCount({
+  count,
+  label,
+  overdue = false,
+}: {
+  count: number;
+  label: string;
+  overdue?: boolean;
+}) {
+  return (
+    <Badge
+      color={overdue ? "red" : "secondary"}
+      className="app-sidebar-badge min-w-6 shrink-0 justify-center tabular-nums"
+      title={label}
+      role="img"
+      aria-label={label}
+    >
+      {overdue ? <CircleAlert aria-hidden="true" /> : null}
+      {count}
+    </Badge>
+  );
+}
 
 function SidebarSymbol({ children, className, ...props }: React.ComponentProps<"span">) {
   return (
@@ -226,29 +251,26 @@ export function AppSidebar() {
   function navAccessory(id: MainNavId) {
     if (id === "agenda") {
       return agendaLate ? (
-        <span
-          className="app-sidebar-badge text-support-red tabular-nums"
-          title={plural(agendaLate, "overdue item")}
-        >
-          <CircleAlert
-            aria-hidden="true"
-            className="differentiate-status-icon hidden size-3 mr-1"
-          />
-          {agendaLate}
-        </span>
+        <SidebarCount count={agendaLate} label={plural(agendaLate, "overdue item")} overdue />
       ) : agendaDue ? (
-        String(agendaDue)
+        <SidebarCount count={agendaDue} label={`${plural(agendaDue, "item")} due today`} />
       ) : undefined;
     }
     const count = counts[id];
-    return count ? String(count) : undefined;
+    const label =
+      id === "mail"
+        ? plural(count, "unread message")
+        : id === "calendar"
+          ? `${plural(count, "event")} left today`
+          : plural(count, id === "tasks" ? "open task" : "open reminder");
+    return count ? <SidebarCount count={count} label={label} /> : undefined;
   }
 
   return (
     <Sidebar
       className="app-sidebar"
       toolbar={
-        <div className="drag-region flex h-12 shrink-0 items-center justify-end pr-3">
+        <div className="drag-region flex h-13 shrink-0 items-center justify-end pr-3">
           <NewItemButton />
         </div>
       }
