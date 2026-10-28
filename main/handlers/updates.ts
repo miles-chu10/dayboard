@@ -1,4 +1,5 @@
 import { app, ipcMain } from "../platform/index.js";
+import { isAppStoreBuild } from "../../shared/app-store-build.js";
 import { isDemoMode } from "../services/demo-data.js";
 import { createAppUpdates, type UpdateClient } from "../services/app-updates.js";
 
@@ -9,10 +10,13 @@ export interface UpdateHandlerOptions {
 
 export function registerUpdateHandlers(options: UpdateHandlerOptions) {
   const updates = createAppUpdates({
-    isOfficialRelease: process.env.DAYBOARD_RELEASE === "1",
+    isOfficialRelease: !isAppStoreBuild && process.env.DAYBOARD_RELEASE === "1",
     isPackaged: app.isPackaged,
     isDemo: isDemoMode,
     currentVersion: app.getVersion(),
+    ...(isAppStoreBuild
+      ? { unavailableMessage: "The Mac App Store keeps DayBoard up to date." }
+      : {}),
     loadUpdater: async () => {
       const module = await import("electron-updater");
       // electron-updater is CommonJS; this also works in the bundled ESM main process.

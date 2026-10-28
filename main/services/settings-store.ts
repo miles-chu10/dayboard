@@ -21,6 +21,7 @@ import type {
   SourceId,
 } from "../shared-types.js";
 import { normalizeAccelerator, validateAccelerator } from "../../shared/accelerator.js";
+import { APP_STORE_STDIO_MESSAGE, isAppStoreBuild } from "../../shared/app-store-build.js";
 import { API_PROVIDERS } from "./ai/api-keys.js";
 import { CALENDAR_RANGES } from "./calendar-range.js";
 import { assertNotDemo, isDemoMode } from "./demo-data.js";
@@ -42,7 +43,10 @@ const ACCENTS: AccentColor[] = [
 ];
 const DENSITIES: Density[] = ["default", "compact"];
 const DETAIL_VIEWS: DetailView[] = ["dialog", "inline", "sidebar"];
-const PROVIDERS: AIProvider[] = ["claude", "codex", "gemini", "muse", ...API_PROVIDERS];
+// The App Store edition can't run the subscription CLIs, so it offers API keys only.
+const PROVIDERS: AIProvider[] = isAppStoreBuild
+  ? [...API_PROVIDERS]
+  : ["claude", "codex", "gemini", "muse", ...API_PROVIDERS];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
   "tasks",
@@ -100,7 +104,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ai: {
     enabled: false,
     providerChosen: false,
-    provider: "claude",
+    provider: isAppStoreBuild ? "openai" : "claude",
     claudeModel: "default",
     claudeEffort: "default",
     claudeFast: false,
@@ -422,6 +426,9 @@ export function normalizeMcpServer(value: unknown): McpServerConfig {
   const transport = value.transport === "http" ? "http" : "stdio";
   const command = typeof value.command === "string" ? value.command.trim() : "";
   const url = typeof value.url === "string" ? value.url.trim() : "";
+  if (transport === "stdio" && isAppStoreBuild) {
+    throw new Error(APP_STORE_STDIO_MESSAGE);
+  }
   if (transport === "stdio" && !command) {
     throw new Error("Enter the command that starts the server, for example npx.");
   }

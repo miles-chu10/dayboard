@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { isAppStoreBuild } from "../../../shared/app-store-build.js";
 import type { CliProviderId } from "../../shared-types.js";
 import { runLoginShell } from "../shell-env.js";
 
@@ -50,6 +51,7 @@ async function isExecutable(filePath: string): Promise<boolean> {
 const resolvedBinaries = new Map<CliProvider, string>();
 
 export async function resolveCli(provider: CliProvider, refresh = false): Promise<string | null> {
+  if (isAppStoreBuild) return null;
   if (!refresh && resolvedBinaries.has(provider)) return resolvedBinaries.get(provider)!;
   for (const candidate of BINARY_CANDIDATES[provider]) {
     const full = path.isAbsolute(candidate) ? candidate : path.join(os.homedir(), candidate);

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { logger } from "../../platform/index.js";
+import { APP_STORE_STDIO_MESSAGE, isAppStoreBuild } from "../../../shared/app-store-build.js";
 
 import { orderMcpTools } from "./mcp-tools.js";
 
@@ -50,6 +51,7 @@ interface McpConnection {
 }
 
 async function connect(server: McpServerConfig): Promise<McpConnection> {
+  if (isAppStoreBuild && server.transport === "stdio") throw new Error(APP_STORE_STDIO_MESSAGE);
   const client = new Client({ name: "dashboard", version: "1.0.0" });
   const transport =
     server.transport === "stdio"

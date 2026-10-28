@@ -19,7 +19,12 @@ import { McpTab } from "./mcp-tab";
 import { SourcesTab } from "./sources-tab";
 import { LicenseTab } from "./license-tab";
 import { UpdatesTab } from "./updates-tab";
-import { isSettingsTab, type SettingsTab } from "@shared/settings-navigation";
+import { isAppStoreBuild } from "@shared/app-store-build";
+import { isSettingsTab as isKnownTab, type SettingsTab } from "@shared/settings-navigation";
+
+// The App Store edition sells through the App Store, so it has no License tab.
+const isSettingsTab = (value: unknown): value is SettingsTab =>
+  isKnownTab(value) && !(isAppStoreBuild && value === "license");
 
 const TAB_CONTENT_CLASS = "px-4 pb-8 pt-2 flex flex-col gap-8";
 
@@ -91,7 +96,7 @@ export function SettingsView() {
                 <TabsTrigger value="sources">Sources</TabsTrigger>
                 <TabsTrigger value="ai">AI</TabsTrigger>
                 <TabsTrigger value="mcp">MCP Servers</TabsTrigger>
-                <TabsTrigger value="license">License</TabsTrigger>
+                {isAppStoreBuild ? null : <TabsTrigger value="license">License</TabsTrigger>}
                 <TabsTrigger value="updates">Updates</TabsTrigger>
               </Tabs>
             </ToolbarRow>
@@ -110,9 +115,11 @@ export function SettingsView() {
         <TabsContent value="mcp" className={TAB_CONTENT_CLASS}>
           <McpTab />
         </TabsContent>
-        <TabsContent value="license" className={TAB_CONTENT_CLASS}>
-          <LicenseTab />
-        </TabsContent>
+        {isAppStoreBuild ? null : (
+          <TabsContent value="license" className={TAB_CONTENT_CLASS}>
+            <LicenseTab />
+          </TabsContent>
+        )}
         <TabsContent value="updates" className={TAB_CONTENT_CLASS}>
           <UpdatesTab />
         </TabsContent>

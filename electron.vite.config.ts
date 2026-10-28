@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import { createBetaBuildProofPlugin } from "./shared/beta-build.js";
 import { createGoogleOAuthClientPlugin } from "./shared/google-oauth-build.js";
+import { createMasBuildProofPlugin } from "./shared/mas-build.js";
 import { createQaBuildProofPlugin } from "./shared/qa-build.js";
 import { parseDesktopLicenseConfig } from "./shared/license-config.js";
 
@@ -12,6 +13,19 @@ const root = import.meta.dirname;
 const fromRoot = (...segments: string[]) => resolve(root, ...segments);
 let googleConfigured = false;
 const qaBuild = process.env.DAYBOARD_QA === "1";
+const masBuild = process.env.DAYBOARD_MAS === "1";
+if (
+  masBuild &&
+  (qaBuild ||
+    process.env.DAYBOARD_TEST === "1" ||
+    process.env.DAYBOARD_RELEASE === "1" ||
+    process.env.DAYBOARD_LICENSE !== "off")
+) {
+  // The App Store owns updates and purchases (App Review 2.4.5 and 3.1.1).
+  throw new Error(
+    "App Store builds require DAYBOARD_LICENSE=off and no test, QA or release flags.",
+  );
+}
 if (
   qaBuild &&
   (process.env.DAYBOARD_TEST === "1" ||
@@ -71,6 +85,7 @@ export default defineConfig({
       ...licenseDefinitions(),
       __DAYBOARD_TEST_BUILD__: JSON.stringify(process.env.DAYBOARD_TEST === "1"),
       __DAYBOARD_QA_BUILD__: JSON.stringify(qaBuild),
+      __DAYBOARD_MAS_BUILD__: JSON.stringify(masBuild),
     },
     plugins: [
       createGoogleOAuthClientPlugin({
@@ -78,13 +93,16 @@ export default defineConfig({
           ? resolve(process.env.DAYBOARD_GOOGLE_OAUTH_FILE)
           : join(homedir(), ".config", "dayboard", "google-oauth.json"),
         required:
-          process.env.DAYBOARD_RELEASE === "1" || process.env.DAYBOARD_REQUIRE_GOOGLE === "1",
+          process.env.DAYBOARD_RELEASE === "1" ||
+          process.env.DAYBOARD_REQUIRE_GOOGLE === "1" ||
+          masBuild,
         testBuild: process.env.DAYBOARD_TEST === "1" || qaBuild,
         onConfigured: () => {
           googleConfigured = true;
         },
       }),
       ...(qaBuild ? [createQaBuildProofPlugin()] : []),
+      ...(masBuild ? [createMasBuildProofPlugin()] : []),
       // Local beta packages are ad-hoc signed, so the proof also rejects an updater build.
       ...(process.env.DAYBOARD_REQUIRE_GOOGLE === "1"
         ? [createBetaBuildProofPlugin(() => googleConfigured)]
@@ -111,6 +129,7 @@ export default defineConfig({
     resolve: { alias },
     define: {
       __APP_DISPLAY_NAME__: JSON.stringify(qaBuild ? "DayBoard QA" : "DayBoard"),
+      __DAYBOARD_MAS_BUILD__: JSON.stringify(masBuild),
     },
     plugins: [react({ babel: { plugins: ["babel-plugin-react-compiler"] } }), tailwindcss()],
     build: {

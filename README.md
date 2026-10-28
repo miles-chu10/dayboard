@@ -23,11 +23,12 @@ DayBoard brings your tasks, reminders, calendar, and inbox into a standalone mac
 see the week ahead, and act on your work from one dashboard. An optional AI assistant helps with
 briefings, prioritization, capture, and meeting preparation using a provider you choose.
 
-> **Beta preview:** the current source version is **1.3.0-beta.13**, targeting **macOS 14+ on Apple
-> Silicon**. Join the waitlist at [getdayboard.com](https://getdayboard.com/waitlist). Published
-> betas from 1.3.0-beta.12 on are signed with DayBoard's Developer ID, notarized by Apple and update
-> themselves; local preview packages are ad-hoc signed and not notarized. Public downloads and
-> purchases depend on the checks in the [release guide](docs/RELEASE.md).
+> **Beta 12:** [1.3.0-beta.12](https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12)
+> is a free community beta for **macOS 14+ on Apple Silicon**. The app is signed with an Apple
+> Developer ID and notarized by Apple. Starting with beta 12, DayBoard updates itself from GitHub
+> releases. No newer beta has shipped yet, so updating in place stays unproven until beta 13.
+> Google sign-in may be limited to invited accounts. Join the
+> [waitlist](https://getdayboard.com/waitlist) for invited onboarding.
 
 ## What you can do
 
@@ -44,8 +45,10 @@ briefings, prioritization, capture, and meeting preparation using a provider you
 
 The current packaged app requires **an Apple Silicon Mac running macOS 14 or later**.
 
-1. **Join the waitlist** at [getdayboard.com](https://getdayboard.com/waitlist), or
-   [build from source](#development).
+1. **Download beta 12** from its
+   [GitHub release](https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12) and follow
+   the [install guide](https://getdayboard.com/beta), or [build from source](#development). If you
+   have beta 11 or earlier, install beta 12 over it once; your DayBoard data stays in place.
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
    Calendar; connect Apple Reminders when you are ready to grant its macOS permission.
 3. **Choose your AI provider**, if you want AI features. Each AI feature can be turned off.

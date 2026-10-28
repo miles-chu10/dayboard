@@ -1,10 +1,14 @@
 import { spawn } from "node:child_process";
 
+import { isAppStoreBuild } from "../../shared/app-store-build.js";
+
 /**
  * Reads macOS's system shortcuts (com.apple.symbolichotkeys) as JSON, or null when that fails.
  * `globalShortcut.register` succeeds even for combinations macOS consumes first, such as ⌘Space.
  */
 export function readSymbolicHotkeys(timeoutMs = 2_000): Promise<unknown> {
+  // The sandbox can't read another domain's preferences.
+  if (isAppStoreBuild) return Promise.resolve(null);
   return new Promise((resolve) => {
     let settled = false;
     const defaults = spawn("/usr/bin/defaults", ["export", "com.apple.symbolichotkeys", "-"], {

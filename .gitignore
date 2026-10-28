@@ -3,6 +3,8 @@ out/
 dist/
 release/
 release-qa/
+release-mas/
+*.provisionprofile
 .DS_Store
 *.log
 google-oauth.local.json

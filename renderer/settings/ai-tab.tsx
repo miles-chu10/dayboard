@@ -23,6 +23,7 @@ import type {
 } from "@main/shared-types";
 
 import { effortOptions } from "../../shared/ai-effort";
+import { isAppStoreBuild } from "../../shared/app-store-build";
 import {
   applyModelChoice,
   claudeSupportsFast,
@@ -112,7 +113,12 @@ const CLI_LABEL: Record<CliProviderId, string> = {
 const PROVIDER_GROUPS: { title: string; providers: readonly AIProvider[] }[] = [
   { title: "Subscription accounts", providers: SUBSCRIPTION_PROVIDERS },
   { title: "API keys", providers: API_KEY_PROVIDERS },
-];
+].filter((group) => group.providers.length > 0);
+
+/** App Review 5.1.2(i): say which third-party AI receives personal data before it is sent. */
+function aiSharingDisclosure(provider: AIProvider): string {
+  return `When on, the tasks, email, events and notes each AI feature uses are sent to ${PROVIDER_LABEL[provider]} with your API key, and Assistant messages go to the provider you pick in the composer. Nothing is sent while this is off.`;
+}
 
 function ProviderStatusRow({ provider }: { provider: CliProviderId }) {
   const queryClient = useQueryClient();
@@ -392,9 +398,11 @@ export function AITab() {
         <Field
           label="Enable AI"
           description={
-            ai.providerChosen
-              ? "Turn off to hide every AI feature in the dashboard."
-              : "Choose a provider below before enabling AI."
+            !ai.providerChosen
+              ? "Choose a provider below before enabling AI."
+              : isAppStoreBuild
+                ? aiSharingDisclosure(ai.provider)
+                : "Turn off to hide every AI feature in the dashboard."
           }
         >
           <Switch
@@ -473,14 +481,16 @@ export function AITab() {
             ) : null}
           </FieldSet>
 
-          <FieldSet
-            title="Subscription accounts"
-            description="Your Claude, ChatGPT, Google AI, and Meta Muse plans, through their official command-line tools on this Mac. No API keys needed; sign in once in Terminal."
-          >
-            {SUBSCRIPTION_PROVIDERS.map((provider) => (
-              <ProviderStatusRow key={provider} provider={provider} />
-            ))}
-          </FieldSet>
+          {SUBSCRIPTION_PROVIDERS.length > 0 ? (
+            <FieldSet
+              title="Subscription accounts"
+              description="Your Claude, ChatGPT, Google AI, and Meta Muse plans, through their official command-line tools on this Mac. No API keys needed; sign in once in Terminal."
+            >
+              {SUBSCRIPTION_PROVIDERS.map((provider) => (
+                <ProviderStatusRow key={provider} provider={provider} />
+              ))}
+            </FieldSet>
+          ) : null}
 
           <ApiKeysSection />
 
