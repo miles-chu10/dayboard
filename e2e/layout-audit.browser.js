@@ -1,4 +1,4 @@
-/* global document, getComputedStyle, NodeFilter, innerWidth, innerHeight */
+/* global document, getComputedStyle, Node, NodeFilter, innerWidth, innerHeight */
 // Runs inside a DayBoard window (see layout-audit.ts). Finds what a person would see as broken:
 // text painted over other text or a control, controls something else covers, and controls without
 // a name. `stress` first lengthens the listed item strings, the way a pasted URL would.
@@ -168,6 +168,28 @@
       issues.add(`overlap: ${describe(a.element)} × ${describe(b.element)}`);
     }
   }
+  // A control that its scroll container has moved under that container's own top-sticky header (the
+  // Calendar keeps the selected day's row in view below its controls) is scrolled out of view, not
+  // covered. A sticky header over a control before any scrolling, or from another pane, still counts.
+  const scroller = (node) => {
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(parent).overflowY)) return parent;
+    }
+    return document.scrollingElement;
+  };
+  const scrolledUnderHeader = (hit, element) => {
+    let header = hit;
+    while (header && !header.contains(element) && getComputedStyle(header).position !== "sticky")
+      header = header.parentElement;
+    if (!header || header.contains(element) || getComputedStyle(header).top === "auto")
+      return false;
+    const box = scroller(header);
+    return (
+      box === scroller(element) &&
+      box.scrollTop > 0 &&
+      Boolean(header.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+    );
+  };
   for (const element of controls) {
     const box = clip(element.parentElement, element.getBoundingClientRect());
     if (!box) continue;
@@ -185,7 +207,8 @@
       hit &&
       !element.contains(hit) &&
       !hit.contains(element) &&
-      !(hit.closest("label") && hit.closest("label").contains(element))
+      !(hit.closest("label") && hit.closest("label").contains(element)) &&
+      !scrolledUnderHeader(hit, element)
     ) {
       issues.add(`covered: ${describe(element)} under ${describe(hit)}`);
     }
