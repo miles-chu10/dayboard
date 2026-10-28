@@ -184,3 +184,23 @@ test("no available destination preserves the draft until a source becomes usable
   });
   assert.deepEqual(disconnected.form, typed.form);
 });
+
+test("text typed before settings load carries into the manual form", () => {
+  const typed = reduceCapturePanel(initialCaptureState, { type: "typed", text: "Buy milk" });
+  const hydrated = reduceCapturePanel(typed, {
+    type: "shown",
+    aiAvailable: false,
+    defaultKind: "task",
+    available,
+  });
+  assert.equal(hydrated.mode, "form");
+  assert.equal(hydrated.text, "");
+  assert.equal(hydrated.form?.title, "Buy milk");
+  const withAi = reduceCapturePanel(typed, {
+    type: "shown",
+    aiAvailable: true,
+    defaultKind: "task",
+    available,
+  });
+  assert.equal(withAi.text, "Buy milk");
+});

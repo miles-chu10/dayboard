@@ -133,7 +133,7 @@ export function CapturePanel() {
 
   function submitText() {
     const text = state.text.trim();
-    if (text) send({ text }, text);
+    if (ready && text) send({ text }, text);
   }
 
   function submitForm() {
@@ -222,7 +222,9 @@ export function CapturePanel() {
           className="h-10 text-[15px]"
           placeholder="Add a task, reminder or event…"
           value={state.text}
-          disabled={!settings || !accounts || nothingAvailable}
+          // Stays enabled while settings and accounts load, so the first keystrokes after the
+          // panel's first show land; Enter waits until they have loaded.
+          disabled={nothingAvailable}
           onChange={(event) => dispatch({ type: "typed", text: event.target.value })}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.nativeEvent.isComposing) {

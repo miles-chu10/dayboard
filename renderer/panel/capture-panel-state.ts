@@ -138,6 +138,9 @@ export function reduceCapturePanel(
           ? { ...current, kind: action.defaultKind }
           : current;
       if (!action.aiAvailable) {
+        // Text typed while settings were still loading becomes the manual form's title.
+        if (state.text && !form.title)
+          return { ...state, text: "", mode: "form", form: { ...form, title: state.text } };
         return {
           ...state,
           mode: "form",

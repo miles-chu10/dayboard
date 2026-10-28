@@ -617,7 +617,11 @@ test("manual capture waits for account availability and selects a usable destina
       );
     });
     const panel = await openQuickCapture(demo.app);
-    await expect(panel.getByRole("textbox", { name: "Quick Capture" })).toBeDisabled();
+    // Typing works while availability loads; Enter waits for it.
+    const input = panel.getByRole("textbox", { name: "Quick Capture" });
+    await input.pressSequentially("Buy milk");
+    await input.press("Enter");
+    await expect(input).toHaveValue("Buy milk");
     await expect
       .poll(() =>
         demo.app.evaluate(
@@ -629,6 +633,9 @@ test("manual capture waits for account availability and selects a usable destina
       (globalThis as unknown as { releaseAccounts: () => void }).releaseAccounts(),
     );
     await expect(panel.getByRole("button", { name: "Add task", exact: true })).toBeEnabled();
+    await expect(
+      panel.getByRole("group").filter({ hasText: "Title" }).getByRole("textbox"),
+    ).toHaveValue("Buy milk");
     await expect(panel.getByRole("radio", { name: "Task", exact: true })).toBeChecked();
     await expect(panel.getByRole("radio", { name: "Reminder", exact: true })).toBeDisabled();
     expect(demo.errors).toEqual([]);
