@@ -4,15 +4,23 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 
 ## Current state
 
-- Latest published beta: `1.3.0-beta.11` (prerelease `beta-1.3.0-beta.11`, October 9) restores
-  Google sign-in through `npm run build:beta`, which fails if the Desktop OAuth client is missing.
-  It keeps beta.10's MCP input limits and reports refresh failures and partial results alongside
-  cached sidebar summaries. Notes: `docs/release-notes-1.3.0-beta.11.md`.
-- Unreleased on `main` since beta.11, now versioned `1.3.0-beta.12`: ⌘N New Item with a
+- Latest published beta: `1.3.0-beta.12` (prerelease `v1.3.0-beta.12`, October 22), the first
+  Developer ID signed, notarized and self-updating release, published by the **Signed macOS
+  release** workflow from tag `v1.3.0-beta.12` on `9e32075`. Its SHA256SUMS, `latest-mac.yml`
+  hashes and ZIP stapling were verified after publication. Notes:
+  `docs/release-notes-1.3.0-beta.12.md`.
+- Unreleased on `main` since beta.12, now versioned `1.3.0-beta.13`: the README launch loop
+  (PR #50), release-check diagnostics that name the failing artifact and command (PR #48), and,
+  on PR #48's branch, Quick Capture keeping the first keystrokes typed while settings and accounts
+  load, with the slash-menu test retrying Escape. PR #49 (side-panel Suggested row) is a draft.
+  Beta.13 is the first beta that beta.12 installs in the app, so publishing it is the A10 update
+  test. Notes: `docs/release-notes-1.3.0-beta.13.md`.
+- Beta.11 (October 9) restored Google sign-in through `npm run build:beta`, which fails if the
+  Desktop OAuth client is missing. Beta.12 added the work merged since: ⌘N New Item with a
   clickable sidebar + (PR #25), beta packaging that enforces the Google configuration through
   final macOS packaging (PR #33), the macOS shell, sidebar and responsive inspector refinement
-  (PR #34), billing tooling updates (PR #22), the website Road Map (PR #36), and PR #37 (merged
-  October 20), then #43, #42, #40 and #44. The first signed dry run ran on `5489bbb`.
+  (PR #34), billing tooling updates (PR #22), the website Road Map (PR #36), PR #37, then #43,
+  #42, #40 and #44.
 - PR #37 carries the offline Google refresh fix (only a refused grant signs out) and the
   recovered local Codex commits `aeab7b0` (stable update channel) and `43dedf7` (Assistant
   effect warnings; run `node --test tests/assistant-effects.browser.mjs` explicitly, since
