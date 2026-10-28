@@ -86,11 +86,11 @@
         "usage": "Shows your Apple Reminders on the dashboard and lets you complete or add reminders."
       }
     },
-    "sdkVersion": "0.14.3.0",
+    "sdkVersion": "0.14.4.0",
     "createdAt": "2026-09-17T01:52:50.026Z",
     "lastMigration": "sdk-projection-paths",
     "host": {
-      "minVersion": "0.14.3.0"
+      "minVersion": "0.14.4.0"
     },
     "updatedAt": 1791559938703
   },
