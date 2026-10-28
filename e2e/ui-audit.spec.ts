@@ -231,8 +231,14 @@ test("a link that can't open says why instead of doing nothing", async ({
 }) => {
   const demo = await launchDemo();
   try {
-    // Demo mode never opens the browser, so the sidebar's Join button is refused.
-    await demo.page.getByRole("button", { name: "Join Team standup", exact: true }).click();
+    // Demo mode never opens the browser, so Join is refused. The details' Join button shows at
+    // any time of day, unlike the sidebar's and the event row's, which hide once the meeting ends.
+    await navigate(demo.page, "Calendar");
+    await demo.page
+      .locator('[role="gridcell"][aria-selected="true"]')
+      .getByRole("button", { name: /^Team standup, / })
+      .click();
+    await demo.page.getByRole("button", { name: "Join", exact: true }).click();
     await expect(demo.page.getByText("Couldn’t open the link")).toBeVisible();
     await expect(demo.page.getByText("Changes are turned off in demo mode.")).toBeVisible();
     expect(demo.errors).toEqual([]);
