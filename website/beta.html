@@ -6,7 +6,7 @@
     <title>Beta install guide — DayBoard</title>
     <meta
       name="description"
-      content="For invited DayBoard beta testers: what you need and how to install a beta build on an Apple Silicon Mac. Not invited yet? Join the waitlist."
+      content="How to install the DayBoard beta on an Apple Silicon Mac. Beta 12 is notarized by Apple and free on GitHub. Want invited onboarding? Join the waitlist."
     />
     <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
@@ -14,7 +14,7 @@
     <meta property="og:title" content="DayBoard beta install guide" />
     <meta
       property="og:description"
-      content="How invited testers install the DayBoard beta on an Apple Silicon Mac. Not invited yet? Join the waitlist."
+      content="How to install the DayBoard beta on an Apple Silicon Mac. Want invited onboarding? Join the waitlist."
     />
     <meta property="og:image" content="https://getdayboard.com/assets/screens/light-agenda.png" />
     <meta property="og:image:width" content="1600" />
@@ -26,13 +26,6 @@
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
     <link
       rel="preload"
-      href="assets/fonts/fraunces.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
       href="assets/fonts/hanken-grotesk.woff2"
       as="font"
       type="font/woff2"
@@ -40,6 +33,7 @@
     />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
+    <link rel="stylesheet" href="assets/clean.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
@@ -106,12 +100,16 @@
             ><span class="dots" aria-hidden="true"
               ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
               ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
-            ><span><strong>Invited testers</strong> · macOS 14 or later</span></span
+            ><span><strong>Beta 12</strong> · macOS 14 or later</span></span
           >
           <h1 class="rise" style="--i: 1">Install the DayBoard <em>beta.</em></h1>
           <p class="rise" style="--i: 2">
-            This page is for people we've invited to test DayBoard. Not invited yet?
-            <a href="waitlist.html">Join the waitlist</a>.
+            These steps cover the limited beta 12 community download and invited onboarding.
+            <a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+              >Read the beta 12 release notes and downloads</a
+            >. Google sign-in may be limited to invited accounts;
+            <a href="waitlist.html">join the waitlist</a>
+            for invited onboarding.
           </p>
         </div>
       </header>
@@ -121,9 +119,7 @@
           <h2>What beta testers get</h2>
           <ul>
             <li><strong>Every feature, free</strong> for the whole beta.</li>
-            <li>
-              <strong>New builds as they're ready,</strong> with the download link sent by email.
-            </li>
+            <li><strong>New builds as they're ready,</strong> published on GitHub.</li>
             <li>
               <strong>A say in what's next.</strong> Report bugs and ideas on
               <a href="https://github.com/miles-chu10/dayboard/issues">GitHub Issues</a>.
@@ -143,24 +139,21 @@
 
           <h2 id="install">Installing a beta build</h2>
           <p>
-            Beta builds aren't notarized by Apple yet, so macOS asks you to confirm the first time
-            you open DayBoard. It takes a minute, and you only do it once per install.
+            Beta 12 is signed with an Apple Developer ID and notarized by Apple, so macOS opens it
+            after one confirmation. Starting with beta 12, DayBoard updates itself. On beta 11 or
+            earlier, install beta 12 over it once.
           </p>
           <ol class="steps">
             <li>
-              Open the <strong>.dmg</strong> from your invite email and drag DayBoard into your
-              <strong>Applications</strong> folder.
+              Quit DayBoard if it's running. Download the <strong>.dmg</strong> from the
+              <a href="https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12"
+                >official GitHub release</a
+              >, open it and drag DayBoard into your <strong>Applications</strong> folder. If an
+              older beta is there, replace it. Your DayBoard data stays in place.
             </li>
             <li>
-              Open DayBoard. macOS says it can't verify the app and doesn't open it. Close that
-              message. Don't move DayBoard to the Trash.
-            </li>
-            <li>
-              Open <strong>System Settings → Privacy &amp; Security</strong>. Under
-              <strong>Security</strong>, click <strong>Open Anyway</strong> next to DayBoard.
-            </li>
-            <li>
-              Confirm with your password or Touch ID. DayBoard opens, and macOS won't ask again.
+              Open DayBoard from Applications. macOS says it's an app downloaded from the internet
+              and asks if you're sure. Click <strong>Open</strong>, and macOS won't ask again.
             </li>
             <li>
               To connect Google, go to <strong>Settings → Sources</strong> and click
@@ -170,13 +163,14 @@
             </li>
           </ol>
           <p>
-            During the beta, Google only lets invited accounts sign in to DayBoard, so connect the
-            Google account you signed up with. Your Google sign-in also expires after 7 days while
-            DayBoard is in beta, so you'll sign in again every week.
+            While DayBoard is in Google's testing stage, only invited Google accounts can sign in,
+            so connect the account you signed up with. During that stage Google also ends the
+            sign-in after 7 days, so you'll sign in again every week.
           </p>
           <p>
-            Only install DayBoard from the link in your invite email. Notarized builds, which open
-            without these steps, are on the way.
+            Only install DayBoard from the official GitHub release. If macOS ever says it can't
+            check DayBoard for malicious software, don't open that copy; download it again from
+            GitHub.
           </p>
 
           <h2>Your email</h2>
