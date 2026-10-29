@@ -268,10 +268,15 @@ test("Escape hides a freshly shown menu-bar panel", async () => {
     await expect(panel.getByRole("heading", { name: "Today" })).toBeVisible();
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
     await recordKeys(panel);
-    const focusAtPress = await panelFocus(demo.app, panel, "#menubar");
+    const focusWhenShown = await panelFocus(demo.app, panel, "#menubar");
     test
       .info()
-      .annotations.push({ type: "escape-focus", description: JSON.stringify(focusAtPress) });
+      .annotations.push({ type: "escape-focus", description: JSON.stringify(focusWhenShown) });
+    // macOS can make another window key just after the panel shows (see panel-window.ts); a
+    // person presses Escape on a panel that has key focus, so wait to observe it, never force it.
+    await expect
+      .poll(() => panelFocus(demo.app, panel, "#menubar"))
+      .toEqual({ window: true, document: true });
     await panel.keyboard.press("Escape");
     // Separates a key that never reached the page from a hide that never happened.
     await expect
