@@ -18,6 +18,8 @@ async function navigate(page: Page, route: string) {
     .first();
   await button.click();
   await expect(button).toHaveAttribute("aria-current", "page");
+  // The route has laid out once its title has a box; a slow runner can audit a 0px-wide first frame.
+  await expect(page.locator("[data-page-header] h1")).toBeVisible();
 }
 
 async function resize(app: ElectronApplication, width: number, height: number) {
