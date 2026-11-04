@@ -1563,7 +1563,8 @@ p {
   }
 }
 
-@media (max-width: 1080px) and (min-width: 721px) {
+/* Up to 1160px the eight header links need the tighter spacing to stay on one row. */
+@media (max-width: 1160px) and (min-width: 721px) {
   .nav {
     gap: 16px;
   }
@@ -1573,7 +1574,7 @@ p {
   }
 }
 
-/* 721–1023px: five section links, the theme control and the waitlist button share one row.
+/* 721–1023px: the section and page links, the theme control and the waitlist button share one row.
    GitHub stays in the footer and the open-source panel; the theme control shows its icon only
    and keeps its accessible name ("Light theme. Switch to dark theme"). */
 @media (max-width: 1023px) and (min-width: 721px) {
@@ -1598,6 +1599,14 @@ p {
     padding: 0;
   }
   .theme-label {
+    display: none;
+  }
+}
+
+/* 721–900px: Privacy and Road Map also drop out (both stay in the footer and on the home page),
+   so Pricing and Download keep their place in the one-row header. */
+@media (max-width: 900px) and (min-width: 721px) {
+  .nav-links .nav-tertiary {
     display: none;
   }
 }
