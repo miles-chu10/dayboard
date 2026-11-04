@@ -33,12 +33,14 @@ test("standalone demo boots securely and renders every primary route", async ({
     }
 
     for (const route of [
+      "Home",
       "Agenda",
       "Calendar",
       "Inbox",
       "Tasks",
       "Reminders",
       "Assistant",
+      "Notes",
       "Weekly Review",
     ]) {
       const button = demo.page

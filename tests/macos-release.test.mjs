@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   assertDeveloperIdentity,
   betaPlan,
@@ -23,6 +25,8 @@ import {
 const sha = "a".repeat(40);
 const team = "FIXTURE123";
 const input = { repo: repository, ref: "refs/tags/v1.3.0", version: "1.3.0", sha };
+// GitHub names are case-insensitive, and Actions reports the repository as it is currently spelled.
+const renamed = "miles-chu10/DayBoard";
 const signature = `Authority=Developer ID Application: Fixture (${team})\nTeamIdentifier=${team}\nCodeDirectory flags=0x10000(runtime)\n`;
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -164,6 +168,28 @@ for (const [name, override] of [
 ])
   test(`beta planning refuses ${name}`, () =>
     assert.throws(() => betaPlan({ ...betaInput, ...override })));
+
+test("release and beta planning accept the repository whatever its letter case", () => {
+  assert.equal(releasePlan({ ...input, repo: renamed }).tag, "v1.3.0");
+  assert.equal(betaPlan({ ...betaInput, repo: renamed }).tag, "beta-1.3.0-beta.12");
+});
+
+test("release commands run only in DayBoard's repository, whatever its letter case", async (t) => {
+  const script = fileURLToPath(new URL("../scripts/macos-release.mjs", import.meta.url));
+  const runnerTemp = await temp(t);
+  const status = (repo) =>
+    spawnSync(process.execPath, [script, "cleanup"], {
+      env: {
+        ...process.env,
+        GITHUB_ACTIONS: "true",
+        GITHUB_REPOSITORY: repo,
+        RUNNER_TEMP: runnerTemp,
+      },
+    }).status;
+  assert.equal(status(repository), 0);
+  assert.equal(status(renamed), 0);
+  assert.equal(status("miles-chu10/another-app"), 1);
+});
 
 test("staged beta downloads are checksummed and cannot go through release publishing", async (t) => {
   const root = await temp(t);
@@ -432,6 +458,19 @@ test("publisher verifies every uploaded hash before making a stable release publ
   assert.equal(fixture.state.releases[0].make_latest, "legacy");
   assert.equal(fixture.calls.at(-1).name, "updateRelease");
   assert.equal(fixture.state.tagReads, 2);
+});
+
+test("the publisher accepts the repository as GitHub Actions spells it", async (t) => {
+  const { directory } = await downloads(t);
+  const fixture = apiFixture();
+  await publishRelease({
+    github: fixture.github,
+    repository: renamed,
+    sha,
+    tag: "v1.3.0",
+    directory,
+  });
+  assert.equal(fixture.state.releases[0].draft, false);
 });
 
 test("signed beta tags become prereleases and never replace the stable latest release", async (t) => {
