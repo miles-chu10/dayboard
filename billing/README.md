@@ -78,6 +78,8 @@ Copy `wrangler.example.jsonc` to `wrangler.jsonc` (git-ignored) in the intended 
 | `ACTIVATION_LIMIT` | Merchant-chosen decimal device cap, 1–99                                  |
 | `SITE_ORIGIN`      | Exact HTTPS origin of the website allowed to post waitlist signups        |
 
+The buy and receipt pages link to `/pricing` and `/refund` on `SITE_ORIGIN` (on `https://getdayboard.com` when it isn't set) and show `ACTIVATION_LIMIT` as the Mac cap. The price and refund copy ($5 once, 14 days) and the support address `support@getdayboard.com` are fixed text in `src/pages.ts`; change them there if the policy changes.
+
 These are **server secrets**, never public Worker variables, build constants, repository files, or `.env` files:
 
 | Secret                  | Meaning                                                                                                                                                          |

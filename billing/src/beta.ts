@@ -1,16 +1,5 @@
-import type { Env } from "./config.ts";
+import { siteOrigin, type Env } from "./config.ts";
 import { limit, object, readJson, securityHeaders } from "./http.ts";
-
-// Waitlist signups work before Stripe is configured: they need only D1, HASH_SECRET (rate limiting)
-// and SITE_ORIGIN, the website allowed to post here.
-function siteOrigin(env: Env): string | null {
-  try {
-    const url = new URL(env.SITE_ORIGIN ?? "");
-    return url.protocol === "https:" && url.origin === env.SITE_ORIGIN ? url.origin : null;
-  } catch {
-    return null;
-  }
-}
 
 export function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -27,6 +16,8 @@ export function normalizeEmail(value: unknown): string | null {
 // Workers pass an execution context; direct calls (unit tests) omit it.
 export type WaitUntil = { waitUntil(promise: Promise<unknown>): void };
 
+// Waitlist signups work before Stripe is configured: they need only D1, HASH_SECRET (rate limiting)
+// and SITE_ORIGIN, the website allowed to post here.
 export async function waitlistSignup(
   request: Request,
   env: Env,
