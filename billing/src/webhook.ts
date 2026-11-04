@@ -28,7 +28,7 @@ async function paid(
     session.payment_status !== "paid" ||
     !session.client_reference_id ||
     !session.payment_intent ||
-    session.currency !== cfg.currency
+    !session.currency
   )
     throw new Error("invalid_paid_session");
   const paymentId = id(session.payment_intent);
@@ -37,7 +37,8 @@ async function paid(
   if (
     payment.livemode !== (cfg.environment === "live") ||
     payment.status !== "succeeded" ||
-    payment.currency !== cfg.currency ||
+    // Adaptive Pricing may charge in the buyer's currency; the price itself is checked below.
+    payment.currency !== session.currency ||
     payment.amount_received !== session.amount_total ||
     !session.amount_total ||
     session.amount_total <= 0

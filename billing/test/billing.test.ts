@@ -41,6 +41,8 @@ function setup() {
     productOk: true,
     refund: 0,
     throwStripe: false,
+    chargeCurrency: "usd",
+    paymentCurrency: "",
   };
   const session = {
     id: "cs_test_disposable",
@@ -58,6 +60,7 @@ function setup() {
   const idsByCookie = new Map<string, string>();
   let lastOrderId = "";
   let creates = 0;
+  const createParams: Record<string, unknown>[] = [];
   const fake = {
     webhooks: realStripe.webhooks,
     prices: {
@@ -78,6 +81,7 @@ function setup() {
         async create(params: { client_reference_id: string }) {
           if (state.throwStripe) throw new Error("transient Stripe error");
           creates++;
+          createParams.push(params);
           const created =
             creates === 1
               ? session
@@ -97,6 +101,7 @@ function setup() {
           if (!found) throw new Error("session missing");
           return {
             ...found,
+            currency: state.chargeCurrency,
             payment_status: state.paid ? "paid" : "unpaid",
             livemode: !state.mode,
           };
@@ -127,7 +132,7 @@ function setup() {
           id: "pi_test_disposable",
           livemode: false,
           status: state.paymentOk ? "succeeded" : "requires_payment_method",
-          currency: "usd",
+          currency: state.paymentCurrency || state.chargeCurrency,
           amount_received: 3000,
         };
       },
@@ -218,6 +223,7 @@ function setup() {
     order,
     newOrder,
     signed,
+    createParams,
     get creates() {
       return creates;
     },
@@ -275,6 +281,26 @@ test("authoritative paid, product, and mode checks", async () => {
     assert.equal((await f.signed("checkout.session.completed", `evt_${failure}`)).status, 503);
     assert.equal(f.db.sql.prepare("SELECT COUNT(*) n FROM licenses").get()!.n, 0);
   }
+});
+
+test("checkout uses Managed Payments and accepts a buyer paying in a local currency", async () => {
+  const f = setup();
+  await f.order();
+  assert.deepEqual(f.createParams[0].managed_payments, { enabled: true });
+  assert.equal("automatic_tax" in f.createParams[0], false);
+  assert.equal("payment_method_types" in f.createParams[0], false);
+  f.state.chargeCurrency = "eur";
+  assert.equal((await f.signed("checkout.session.completed", "evt_local")).status, 200);
+  assert.equal(f.db.sql.prepare("SELECT COUNT(*) n FROM licenses").get()!.n, 1);
+});
+
+test("a payment in a different currency than its session mints no key", async () => {
+  const f = setup();
+  await f.order();
+  f.state.chargeCurrency = "eur";
+  f.state.paymentCurrency = "usd";
+  assert.equal((await f.signed("checkout.session.completed", "evt_mismatch")).status, 503);
+  assert.equal(f.db.sql.prepare("SELECT COUNT(*) n FROM licenses").get()!.n, 0);
 });
 
 test("duplicate concurrent webhook and lost reply mint one key; unauthorized claims fail", async () => {

@@ -42,6 +42,7 @@ export function createLicenseOperations(deps: {
   }
 
   async function assertLicenseAccess(): Promise<void> {
+    if (deps.mode() === "configured") await (await deps.getService()).startTrial();
     const { status } = await refresh();
     if (isLicenseBlocking(status)) {
       throw new Error("License required for this action. Open Settings → License to continue.");

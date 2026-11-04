@@ -125,6 +125,26 @@ test("well-formed invalid and revoked responses are explicit, with redacted text
   }
 });
 
+test("only the service's own revoked and activation-limit codes pass through", async () => {
+  const { DayBoardLicenseVerifier } = await load();
+  const reply = (body) => new DayBoardLicenseVerifier(API, () => response(200, body));
+  assert.equal((await reply({ valid: false, error: "revoked" }).validate(KEY)).error, "revoked");
+  assert.equal(
+    (
+      await reply({ activated: false, error: "activation_limit" }).activate(
+        KEY,
+        "installation-1",
+        "Mac",
+      )
+    ).error,
+    "activation_limit",
+  );
+  assert.equal(
+    (await reply({ valid: false, error: "invalid_license" }).validate(KEY)).error,
+    "The license was not accepted.",
+  );
+});
+
 test("incomplete, wrong type, missing created, and invalid date responses are transient", async () => {
   const { DayBoardLicenseVerifier } = await load();
   for (const body of [

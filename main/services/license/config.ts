@@ -1,6 +1,7 @@
 import { parseDesktopLicenseConfig } from "../../../shared/license-config.js";
 
-export const TRIAL_DAYS = 14;
+/** AI trial length; the clock starts on the first AI use, not on install. */
+export const TRIAL_DAYS = 7;
 export const REVALIDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const OFFLINE_GRACE_DAYS = 30;
 

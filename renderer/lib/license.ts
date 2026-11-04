@@ -29,18 +29,22 @@ export const LICENSE_STATUS_COPY: Record<
     label: "Community build",
     description: "This build does not require a purchase.",
   },
-  trial: { label: "Trial", description: "Your free trial is active." },
-  expired: {
-    label: "Trial expired",
+  trial: {
+    label: "AI trial",
     description:
-      "Your trial has ended. Your data remains available; activate a license to edit connected sources and use AI.",
+      "Everything in DayBoard is free except AI. AI is free for 7 days from the first time you use it; DayBoard Pro unlocks it for $5, once, including future updates.",
+  },
+  expired: {
+    label: "AI trial ended",
+    description:
+      "Everything else in DayBoard stays free. Get DayBoard Pro for $5, once, to keep using AI.",
   },
   invalid: {
     label: "Invalid key",
-    description: "This license key isn't valid. Check it or buy a new one.",
+    description: "This license key isn't valid. Check it or get DayBoard Pro.",
   },
   licensed: {
-    label: "Licensed",
+    label: "DayBoard Pro",
     description: "Thanks for supporting DayBoard.",
   },
   "network-error": {

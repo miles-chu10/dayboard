@@ -1,26 +1,7 @@
-// Read access, preferences and account recovery remain available after a trial ends.
-const PAID_CHANNELS = new Set([
-  "tasks:create",
-  "tasks:setCompleted",
-  "tasks:update",
-  "tasks:delete",
-  "reminders:create",
-  "reminders:setCompleted",
-  "reminders:update",
-  "reminders:delete",
-  "calendar:create",
-  "calendar:update",
-  "calendar:delete",
-  "agenda:createBlock",
-  "mail:markRead",
-  "mail:archive",
-  "mail:createDraft",
-  "ai:run",
-  "ai:assistant",
-  "assistant:transcribe",
-  "capture:submit",
-  "capture:undo",
-]);
+// Only AI is paid. Tasks, reminders, calendar, mail, linked duplicates and settings stay free
+// forever. Quick Capture parses its text with AI, so submitting one is an AI action; undoing a
+// capture that already ran stays free.
+const PAID_CHANNELS = new Set(["ai:run", "ai:assistant", "assistant:transcribe", "capture:submit"]);
 
 export function requiresLicenseAccess(channel: string): boolean {
   return PAID_CHANNELS.has(channel);

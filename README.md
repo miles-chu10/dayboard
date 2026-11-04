@@ -199,11 +199,12 @@ DAYBOARD_LICENSE=off npm run build
 This setting is embedded at build time; changing a user's runtime environment does not change it.
 Strict official-release packaging rejects community mode.
 
-Configured official builds include a **14-day trial**, license activation in Settings, and a
-**30-day offline validation grace period**. Data viewing, preferences, and account recovery remain
-available when a license blocks editing and AI. Demo and unconfigured preview builds do not open
-the personal license store or make licensing requests. **AI usage is not included in an app
-purchase.**
+Configured official builds are free except for AI. **DayBoard Pro** ($5, once) unlocks the AI
+assistant, AI actions, transcription and Quick Capture; tasks, reminders, calendar, mail, linked
+duplicates and settings stay free. AI has a **7-day trial** that starts the first time you use it.
+License activation is in Settings, with a **30-day offline validation grace period**. Demo and
+unconfigured preview builds do not open the personal license store or make licensing requests.
+**AI model usage is not included in the purchase**: AI runs on your own provider account.
 
 Payments use Stripe-hosted Checkout and the separate service in [`billing/`](billing/). Customers
 retrieve a DayBoard key from the authenticated receipt page and activate it in Settings. Stripe and

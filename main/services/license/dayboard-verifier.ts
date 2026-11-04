@@ -93,6 +93,9 @@ async function readLimited(response: Response, signal: AbortSignal): Promise<unk
   }
 }
 
+/** Reason codes the license service sends that the app explains to the user. */
+const KNOWN_FAILURES = new Set(["revoked", "activation_limit"]);
+
 /** Only complete, explicit domain failures are authoritative; everything else is transient. */
 function parseResult(
   path: "activate" | "validate" | "deactivate",
@@ -110,8 +113,10 @@ function parseResult(
       !body.error.trim()
     )
       malformed();
-    // Remote error text is untrusted and may echo a license key or response body.
-    return { [flag]: false, error: "The license was not accepted." } as unknown as ActivateResult;
+    // Remote error text is untrusted and may echo a license key or response body, so only the
+    // service's own reason codes pass through.
+    const error = KNOWN_FAILURES.has(body.error) ? body.error : "The license was not accepted.";
+    return { [flag]: false, error } as unknown as ActivateResult;
   }
   if (status !== 200) malformed();
   if (path === "deactivate") return { deactivated: true };
