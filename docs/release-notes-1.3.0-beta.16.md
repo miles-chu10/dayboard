@@ -24,7 +24,7 @@ Silicon Mac.
 - **Notifications and a Dock badge.** Get notified when a snooze comes back, a follow-up goes
   unanswered, or (if you choose) any new mail arrives; notifications start off. The Dock icon
   counts what waits on you, or unread mail, or nothing. Both are in Settings → General → Mail.
-- **The menu bar panel** shows the first three emails from Home's "Waiting on you".
+- **The menu bar panel** shows the first three emails from Home's Needs you list.
 - **Notes.** Write Markdown notes with live preview, find them with ⌘K, and save an Assistant
   chat as a note. MCP clients can read and, with Allow changes on, write them.
 - **Memory.** Tell DayBoard your preferences in Settings → AI, and it learns more from how you
