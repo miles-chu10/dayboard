@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Keyboard,
   Mail,
+  MailX,
   MessageCircle,
   PanelLeft,
   Plus,
@@ -25,6 +26,7 @@ import { SHORTCUTS, shortcutKeys } from "../lib/shortcuts";
 import { buildTodos } from "../lib/todos";
 import { useOpenCapture } from "./capture-dialog";
 import { useCompose } from "./compose-dialog";
+import { useOpenSubscriptions } from "./subscriptions-dialog";
 import { useOpenItem } from "./open-item";
 import { useShell } from "./shell";
 
@@ -66,6 +68,7 @@ function CommandMenuContent({ close }: { close: () => void }) {
   const settings = useSettings().data;
   const openCapture = useOpenCapture();
   const { openCompose } = useCompose();
+  const openSubscriptions = useOpenSubscriptions();
   const { openMail, openEvent, openTodo } = useOpenItem();
   const { toggleSidebar } = useSplitView();
   const [query, setQuery] = useState("");
@@ -170,6 +173,13 @@ function CommandMenuContent({ close }: { close: () => void }) {
                 onSelect={() => run(() => openCompose())}
               />
             ) : null}
+            {sourceOn(settings, "mail") ? (
+              <Action
+                label="Manage subscriptions"
+                icon={<MailX />}
+                onSelect={() => run(openSubscriptions)}
+              />
+            ) : null}
             {assistantOn ? (
               <Action
                 label="Ask the Assistant beside this page"
@@ -257,14 +267,14 @@ function Action({
 }: {
   label: string;
   icon: ReactNode;
-  keys: string[];
+  keys?: string[];
   onSelect: () => void;
 }) {
   return (
     <Command.Item value={`action ${label}`} onSelect={onSelect} className={itemClass}>
       {icon}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <KeyCaps keys={keys} />
+      {keys ? <KeyCaps keys={keys} /> : null}
     </Command.Item>
   );
 }

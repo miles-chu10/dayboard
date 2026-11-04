@@ -22,6 +22,9 @@ export const PANEL_CHANNELS: ReadonlySet<string> = new Set([
   // Meeting prep
   "ai:run",
   "mail:related",
+  // Waiting on you
+  "mail:list",
+  "mail:schedule",
   // Meeting notes and their follow-ups
   "meetings:notesStatus",
   "meetings:findNotes",

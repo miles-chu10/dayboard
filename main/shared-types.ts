@@ -157,7 +157,16 @@ export interface SystemSettings {
     /** Offer to pull notes from a configured Granola MCP server after meetings. */
     notesImport: boolean;
   };
+  /** Mail notifications: none, snoozes and unanswered follow-ups, or every new email too. */
+  mailNotifications: MailNotifications;
+  /** What the Dock icon's badge counts. */
+  dockBadge: DockBadge;
 }
+
+export type MailNotifications = "off" | "reminders" | "all";
+export const MAIL_NOTIFICATIONS: readonly MailNotifications[] = ["off", "reminders", "all"];
+export type DockBadge = "off" | "waiting" | "unread";
+export const DOCK_BADGES: readonly DockBadge[] = ["off", "waiting", "unread"];
 
 export interface CodexModelInfo {
   slug: string;
@@ -191,6 +200,22 @@ export interface MailSendTicket {
 
 /** Broadcast on `mail:sendResult` when a held email was sent or failed. */
 export type MailSendResult = { id: string; ok: true } | { id: string; ok: false; error: string };
+
+export type MailScheduleKind = "snooze" | "follow-up";
+
+/** A snoozed email or a "remind me if no reply" follow-up (`mail:schedule`). */
+export interface MailScheduleEntry {
+  kind: MailScheduleKind;
+  messageId: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  fromEmail: string;
+  createdAt: number;
+  dueAt: number;
+  /** Follow-ups only: nobody replied by `dueAt`; it waits on the user until a reply or dismissal. */
+  due?: boolean;
+}
 
 export interface DataChangedEvent {
   source: SourceId;

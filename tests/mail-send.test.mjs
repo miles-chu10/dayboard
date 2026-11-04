@@ -190,7 +190,8 @@ const stubs = {
       "../services/demo-data.js": `export const assertNotDemo = (channel) => {
         if (globalThis.__mailFixture.demo) throw new Error(channel + ": changes are turned off in demo mode.");
       };
-      export const isDemoMode = () => true;`,
+      export const isDemoMode = () => globalThis.__mailFixture.demoData !== false;
+      export const demoSubscriptionMessages = () => [];`,
       "../services/google-api.js": `export const getReplyContext = async (id) => ({
         to: "Sam Patel <sam@y.org>", subject: "Lunch today?", messageId: "<m-" + id + "@mail>",
         references: "<m-" + id + "@mail>", threadId: "t-" + id,
@@ -202,7 +203,8 @@ const stubs = {
       export const modifyMessage = async (id, remove, add = []) => {
         globalThis.__mailModified.push([id, remove, add]);
       };
-      export const threadHasReplyAfter = async () => false;`,
+      export const threadHasReplyAfter = async () => false;
+      export const listSubscriptionMessages = async () => globalThis.__mailSubscriptions ?? [];`,
       "../services/settings-store.js": `export const getSettings = async () => ({
         mail: { undoSendSeconds: globalThis.__mailFixture.undoSeconds },
       });`,
@@ -339,6 +341,108 @@ test("demo mode refuses to snooze, since that changes Gmail", async () => {
       invoke("mail:snooze", { ...lunch, until: Date.now() + 3_600_000 }),
       /demo mode/,
     );
+  } finally {
+    globalThis.__mailFixture.demo = false;
+  }
+});
+
+const newsletter = (fromEmail, overrides = {}) => ({
+  from: fromEmail.split("@")[0],
+  fromEmail,
+  listUnsubscribe: "",
+  listUnsubscribePost: "",
+  unread: false,
+  date: Date.now(),
+  ...overrides,
+});
+
+test("subscriptions unsubscribe by one-click POST, then by email, then in the browser", async () => {
+  globalThis.__mailFixture.demoData = false;
+  const realFetch = globalThis.fetch;
+  const posts = [];
+  globalThis.fetch = async (url, init) => {
+    posts.push([String(url), init.method, init.body]);
+    return new Response(null, { status: 200 });
+  };
+  try {
+    globalThis.__mailSubscriptions = [
+      newsletter("news@one.example", {
+        listUnsubscribe: "<https://one.example/u?id=1>, <mailto:u@one.example>",
+        listUnsubscribePost: "List-Unsubscribe=One-Click",
+      }),
+      newsletter("list@two.example", {
+        listUnsubscribe: "<mailto:leave@two.example?subject=stop>",
+      }),
+      newsletter("deals@three.example", { listUnsubscribe: "<https://three.example/prefs>" }),
+      newsletter("friend@example.com"),
+    ];
+    const { subscriptions } = await invoke("mail:subscriptions", { refresh: true });
+    assert.deepEqual(
+      subscriptions.map((item) => item.email),
+      ["news@one.example", "list@two.example", "deals@three.example"],
+    );
+
+    assert.deepEqual(await invoke("mail:unsubscribe", { email: "news@one.example" }), {
+      method: "one-click",
+    });
+    assert.deepEqual(posts, [["https://one.example/u?id=1", "POST", "List-Unsubscribe=One-Click"]]);
+
+    const before = sentRaw.length;
+    assert.deepEqual(await invoke("mail:unsubscribe", { email: "list@two.example" }), {
+      method: "email",
+    });
+    assert.match(
+      decode(sentRaw.slice(before)[0][0]),
+      /^To: leave@two\.example\r\nSubject: stop\r\n/,
+    );
+
+    assert.deepEqual(await invoke("mail:unsubscribe", { email: "deals@three.example" }), {
+      method: "browser",
+      url: "https://three.example/prefs",
+    });
+    // Unsubscribed senders leave the list; a page to finish in the browser keeps its row.
+    const after = await invoke("mail:subscriptions");
+    assert.deepEqual(
+      after.subscriptions.map((item) => item.email),
+      ["deals@three.example"],
+    );
+    await assert.rejects(invoke("mail:unsubscribe", { email: "nobody@x.com" }), /Refresh/);
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.__mailFixture.demoData = undefined;
+  }
+});
+
+test("a one-click link to this Mac's network falls back to the unsubscribe email", async () => {
+  globalThis.__mailFixture.demoData = false;
+  const realFetch = globalThis.fetch;
+  let fetched = false;
+  globalThis.fetch = async () => {
+    fetched = true;
+    return new Response(null, { status: 200 });
+  };
+  try {
+    globalThis.__mailSubscriptions = [
+      newsletter("sneaky@example.com", {
+        listUnsubscribe: "<https://192.168.1.1/unsub>, <mailto:leave@example.com>",
+        listUnsubscribePost: "List-Unsubscribe=One-Click",
+      }),
+    ];
+    await invoke("mail:subscriptions", { refresh: true });
+    assert.deepEqual(await invoke("mail:unsubscribe", { email: "sneaky@example.com" }), {
+      method: "email",
+    });
+    assert.equal(fetched, false);
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.__mailFixture.demoData = undefined;
+  }
+});
+
+test("demo mode lists sample subscriptions but never unsubscribes", async () => {
+  globalThis.__mailFixture.demo = true;
+  try {
+    await assert.rejects(invoke("mail:unsubscribe", { email: "news@one.example" }), /demo mode/);
   } finally {
     globalThis.__mailFixture.demo = false;
   }

@@ -9,6 +9,7 @@ import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
 import { CommandMenu } from "../components/command-menu";
 import { ComposeProvider } from "../components/compose-dialog";
+import { SubscriptionsProvider } from "../components/subscriptions-dialog";
 import { RightPane, useRightPaneContent } from "../components/right-pane";
 import { ShellProvider } from "../components/shell";
 import { useHistoryShortcuts } from "../components/history-nav";
@@ -76,11 +77,13 @@ export function RootView() {
     <div className="h-full">
       <CaptureProvider>
         <ComposeProvider>
-          <MeetingPrepProvider>
-            <ShellProvider>
-              <Shell />
-            </ShellProvider>
-          </MeetingPrepProvider>
+          <SubscriptionsProvider>
+            <MeetingPrepProvider>
+              <ShellProvider>
+                <Shell />
+              </ShellProvider>
+            </MeetingPrepProvider>
+          </SubscriptionsProvider>
         </ComposeProvider>
       </CaptureProvider>
     </div>

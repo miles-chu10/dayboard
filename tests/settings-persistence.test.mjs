@@ -328,6 +328,8 @@ test("defaults the system section", async () => {
       quickCapture: { enabled: true, hotkey: "Control+Alt+Shift+Space" },
       menuBar: { enabled: true },
       meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
+      mailNotifications: "off",
+      dockBadge: "waiting",
     });
     assert.deepEqual(store.DEFAULT_SETTINGS.system, store.normalizeSettings({}).system);
   });

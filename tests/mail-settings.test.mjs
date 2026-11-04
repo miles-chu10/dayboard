@@ -67,3 +67,16 @@ test("the Agenda can be the launch view, and Home is the default", () => {
     "today",
   );
 });
+
+test("mail notifications start off and the Dock badge counts what waits on you", () => {
+  assert.equal(DEFAULT_SETTINGS.system.mailNotifications, "off");
+  assert.equal(DEFAULT_SETTINGS.system.dockBadge, "waiting");
+  const chosen = normalizeSettings({ system: { mailNotifications: "all", dockBadge: "unread" } });
+  assert.equal(chosen.system.mailNotifications, "all");
+  assert.equal(chosen.system.dockBadge, "unread");
+  const invalid = normalizeSettings({ system: { mailNotifications: "loud", dockBadge: 3 } });
+  assert.equal(invalid.system.mailNotifications, "off");
+  assert.equal(invalid.system.dockBadge, "waiting");
+  // Other system settings survive alongside the new ones.
+  assert.deepEqual(invalid.system.menuBar, DEFAULT_SETTINGS.system.menuBar);
+});

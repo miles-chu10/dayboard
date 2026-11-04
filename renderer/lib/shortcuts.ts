@@ -182,6 +182,7 @@ export const MAIL_KEYS = [
   { title: "Open email", keys: ["↩"] },
   { title: "Mark done (archive)", keys: ["E"] },
   { title: "Reply", keys: ["R"] },
+  { title: "Snooze", keys: ["S"] },
   { title: "New email", keys: ["C"] },
 ] as const;
 

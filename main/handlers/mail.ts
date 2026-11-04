@@ -3,12 +3,13 @@
 import * as path from "node:path";
 
 import { app, ipcMain, logger } from "../platform/index.js";
-import { assertNotDemo, isDemoMode } from "../services/demo-data.js";
+import { assertNotDemo, demoSubscriptionMessages, isDemoMode } from "../services/demo-data.js";
 import { readFileIfExists, writeFileAtomic } from "../services/file-store.js";
 import {
   getReplyContext,
   modifyMessage,
   sendRawMessage,
+  listSubscriptionMessages,
   threadHasReplyAfter,
 } from "../services/google-api.js";
 import {
@@ -18,6 +19,13 @@ import {
   replySubject,
 } from "../services/mail-compose.js";
 import { createOutbox } from "../services/mail-outbox.js";
+import {
+  groupSubscriptions,
+  parseMailto,
+  safeOneClickUrl,
+  type Subscription,
+  type UnsubscribeMethod,
+} from "../services/mail-subscriptions.js";
 import {
   createMailSchedule,
   type MailScheduleEntry,
@@ -168,6 +176,48 @@ function scheduleEntry(
   };
 }
 
+const SUBSCRIPTION_TTL = 6 * 60 * 60 * 1000;
+let subscriptions: { scope: string; at: number; list: Subscription[] } | null = null;
+// Senders unsubscribed this session, hidden until the next scan shows they stopped writing.
+const unsubscribed = new Set<string>();
+
+type UnsubscribeResult = { method: "one-click" | "email" } | { method: "browser"; url: string };
+
+/** Tries RFC 8058 one-click first, then an unsubscribe email, then hands back a page to open. */
+async function unsubscribe(method: UnsubscribeMethod): Promise<UnsubscribeResult> {
+  const oneClick = method.oneClick ? safeOneClickUrl(method.oneClick) : null;
+  if (oneClick) {
+    try {
+      const response = await fetch(oneClick, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "List-Unsubscribe=One-Click",
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.ok) return { method: "one-click" };
+      logger.warn("mail", `one-click unsubscribe answered ${response.status}`);
+    } catch (error) {
+      logger.warn("mail", "one-click unsubscribe failed", error);
+    }
+  }
+  const mailto = method.mailto ? parseMailto(method.mailto) : null;
+  if (mailto) {
+    await trackPendingWrite(() =>
+      sendRawMessage(
+        buildRawMessage({
+          to: [mailto.to],
+          subject: mailto.subject,
+          body: mailto.body,
+        }),
+      ),
+    );
+    return { method: "email" };
+  }
+  const page = method.url ?? method.oneClick;
+  if (page && /^https:\/\//i.test(page)) return { method: "browser", url: page };
+  throw new Error("This sender doesn't offer a way to unsubscribe.");
+}
+
 export function registerMailHandlers(): void {
   ipcMain.handle("mail:send", async (_event, payload: unknown): Promise<MailSendTicket> => {
     assertNotDemo("mail:send");
@@ -231,7 +281,51 @@ export function registerMailHandlers(): void {
     };
   });
 
-  onAccountsChanged(() => void mailSchedule.reload().catch(() => undefined));
+  ipcMain.handle("mail:subscriptions", async (_event, payload: unknown) => {
+    const refresh =
+      typeof payload === "object" && payload !== null && "refresh" in payload
+        ? (payload as { refresh?: unknown }).refresh === true
+        : false;
+    const scope = isDemoMode() ? "demo" : await requireAgendaScope();
+    if (
+      refresh ||
+      subscriptions?.scope !== scope ||
+      Date.now() - subscriptions.at > SUBSCRIPTION_TTL
+    ) {
+      const messages = isDemoMode() ? demoSubscriptionMessages() : await listSubscriptionMessages();
+      subscriptions = {
+        scope,
+        at: Date.now(),
+        list: groupSubscriptions(messages),
+      };
+    }
+    return {
+      scannedAt: subscriptions.at,
+      subscriptions: subscriptions.list.filter(
+        (item) => !unsubscribed.has(`${scope}:${item.email}`),
+      ),
+    };
+  });
+
+  ipcMain.handle("mail:unsubscribe", async (_event, payload: unknown) => {
+    const channel = "mail:unsubscribe";
+    assertNotDemo(channel);
+    const email = required(object(payload, channel), "email", channel, 320).toLowerCase();
+    const scope = await requireAgendaScope();
+    const sender =
+      subscriptions?.scope === scope
+        ? subscriptions.list.find((item) => item.email === email)
+        : undefined;
+    if (!sender) throw new Error("Refresh the list and try again.");
+    const result = await unsubscribe(sender.unsubscribe);
+    if (result.method !== "browser") unsubscribed.add(`${scope}:${email}`);
+    return result;
+  });
+
+  onAccountsChanged(() => {
+    subscriptions = null;
+    void mailSchedule.reload().catch(() => undefined);
+  });
   // Demo data never reaches Gmail, so its follow-ups are kept but never checked.
   if (!isDemoMode())
     void mailSchedule.start().catch((error) => logger.warn("mail", "schedule check failed", error));

@@ -20,7 +20,12 @@ import type {
   SourceColor,
   SourceId,
 } from "../shared-types.js";
-import { FOLLOW_UP_DAYS, UNDO_SEND_SECONDS } from "../shared-types.js";
+import {
+  DOCK_BADGES,
+  FOLLOW_UP_DAYS,
+  MAIL_NOTIFICATIONS,
+  UNDO_SEND_SECONDS,
+} from "../shared-types.js";
 import { normalizeAccelerator, validateAccelerator } from "../../shared/accelerator.js";
 import { APP_STORE_STDIO_MESSAGE, isAppStoreBuild } from "../../shared/app-store-build.js";
 import { API_PROVIDERS } from "./ai/api-keys.js";
@@ -150,6 +155,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
       notifyMinutesBefore: 2,
       notesImport: true,
     },
+    // The first notification asks macOS for permission, so mail alerts start off, like meetings.
+    mailNotifications: "off",
+    dockBadge: "waiting",
   },
 };
 
@@ -328,6 +336,12 @@ export function normalizeSettings(value: unknown): AppSettings {
         ),
         notesImport: bool(meetings.notesImport, defaults.system.meetings.notesImport),
       },
+      mailNotifications: oneOf(
+        system.mailNotifications,
+        MAIL_NOTIFICATIONS,
+        defaults.system.mailNotifications,
+      ),
+      dockBadge: oneOf(system.dockBadge, DOCK_BADGES, defaults.system.dockBadge),
     },
   };
 }

@@ -11,6 +11,7 @@ import type {
 import type { UpdateEventInput, UpdateTaskInput } from "../../shared/item-edits.js";
 import { GoogleAuthError, getGoogleAccessToken } from "./google-auth.js";
 import { agendaEventId } from "./agenda-utils.js";
+import type { SubscriptionMessage } from "./mail-subscriptions.js";
 
 const TASKS = "https://tasks.googleapis.com/tasks/v1";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -484,6 +485,40 @@ export function sendRawMessage(
   return googleFetch<{ id: string; threadId: string }>(`${GMAIL}/messages/send`, {
     method: "POST",
     body: { raw, ...(threadId ? { threadId } : {}) },
+  });
+}
+
+/** The last 90 days of received mail with its list headers, for the subscriptions manager. */
+export async function listSubscriptionMessages(max = 300): Promise<SubscriptionMessage[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await googleFetch<{
+      messages?: { id: string }[];
+      nextPageToken?: string;
+    }>(
+      `${GMAIL}/messages?maxResults=100&q=${enc("newer_than:90d -in:sent -in:chats -in:drafts")}${
+        pageToken ? `&pageToken=${enc(pageToken)}` : ""
+      }`,
+    );
+    ids.push(...(page.messages ?? []).map((message) => message.id));
+    pageToken = page.nextPageToken;
+  } while (pageToken && ids.length < max);
+  const messages = await mapWithConcurrency(ids.slice(0, max), 5, (id) =>
+    googleFetch<GMessage>(
+      `${GMAIL}/messages/${enc(id)}?format=metadata&metadataHeaders=From&metadataHeaders=List-Unsubscribe&metadataHeaders=List-Unsubscribe-Post`,
+    ),
+  );
+  return messages.map((message) => {
+    const from = parseAddress(header(message, "From"));
+    return {
+      from: from.name,
+      fromEmail: from.email,
+      listUnsubscribe: header(message, "List-Unsubscribe"),
+      listUnsubscribePost: header(message, "List-Unsubscribe-Post"),
+      unread: message.labelIds?.includes("UNREAD") ?? false,
+      date: Number(message.internalDate ?? 0),
+    };
   });
 }
 

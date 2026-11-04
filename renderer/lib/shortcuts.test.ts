@@ -155,6 +155,6 @@ test("the sheet lists the Inbox's single keys", () => {
   const mail = shortcutGroups([]).find((group) => group.title === "Mail");
   assert.deepEqual(
     mail?.entries.map((entry) => entry.keys[0].join("")),
-    ["J", "K", "↩", "E", "R", "C"],
+    ["J", "K", "↩", "E", "R", "S", "C"],
   );
 });

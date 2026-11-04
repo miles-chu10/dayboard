@@ -4,6 +4,7 @@ import { statSync } from "node:fs";
 import * as path from "node:path";
 
 import { app } from "../platform/index.js";
+import type { SubscriptionMessage } from "./mail-subscriptions.js";
 
 import type {
   AccountsStatus,
@@ -65,7 +66,11 @@ export function demoCompletion(system: string, prompt: string): string {
         task: "Review launch copy",
       },
       m2: { category: "fyi", reason: "Agenda for your next one-on-one" },
-      m3: { category: "fyi", reason: "Budget due Friday", task: "Submit the Q4 budget" },
+      m3: {
+        category: "fyi",
+        reason: "Budget due Friday",
+        task: "Submit the Q4 budget",
+      },
       m4: { category: "fyi", reason: "Notes for the roadmap sync" },
       m5: { category: "fyi", reason: "Upcoming travel details" },
       m6: { category: "needs-reply", reason: "Confirm lunch plans" },
@@ -88,7 +93,14 @@ export function demoCompletion(system: string, prompt: string): string {
     } catch {
       // The deterministic fallback is still useful for the demo capture surface.
     }
-    return JSON.stringify({ kind: "task", title, notes: "", date: "", time: "", endTime: "" });
+    return JSON.stringify({
+      kind: "task",
+      title,
+      notes: "",
+      date: "",
+      time: "",
+      endTime: "",
+    });
   }
   if (system.includes("draft email replies")) {
     return "Hi Priya,\n\nThanks for the edits. I’ll review the final copy this morning and send any notes before 3 PM.\n\nBest,\nAlex";
@@ -114,7 +126,11 @@ export function demoAssistantReply(question: string): string {
 }
 
 function ok<T>(items: T[]): SourceResult<T> {
-  return { state: "ok", items, coverage: { complete: true, loaded: items.length } };
+  return {
+    state: "ok",
+    items,
+    coverage: { complete: true, loaded: items.length },
+  };
 }
 
 function day(offset: number): Date {
@@ -153,9 +169,27 @@ export const demoAccounts: AccountsStatus = {
 export function demoCalendars(): CalendarListResult {
   return {
     calendars: [
-      { id: "work", name: "Work", color: "#4285F4", primary: true, defaultVisible: true },
-      { id: "personal", name: "Personal", color: "#33B679", primary: false, defaultVisible: true },
-      { id: "family", name: "Family", color: "#F6BF26", primary: false, defaultVisible: true },
+      {
+        id: "work",
+        name: "Work",
+        color: "#4285F4",
+        primary: true,
+        defaultVisible: true,
+      },
+      {
+        id: "personal",
+        name: "Personal",
+        color: "#33B679",
+        primary: false,
+        defaultVisible: true,
+      },
+      {
+        id: "family",
+        name: "Family",
+        color: "#F6BF26",
+        primary: false,
+        defaultVisible: true,
+      },
     ],
     limited: false,
   };
@@ -401,6 +435,30 @@ const MAIL: MailItem[] = [
 
 export function demoMail(max: number): SourceResult<MailItem> {
   return ok(MAIL.slice(0, max));
+}
+
+/** Fictional newsletters for the subscriptions manager; demo mode never unsubscribes. */
+export function demoSubscriptionMessages(): SubscriptionMessage[] {
+  const list = (
+    from: string,
+    fromEmail: string,
+    count: number,
+    opened: number,
+    oneClick: boolean,
+  ): SubscriptionMessage[] =>
+    Array.from({ length: count }, (_, index) => ({
+      from,
+      fromEmail,
+      listUnsubscribe: `<mailto:leave@${fromEmail.split("@")[1]}>${oneClick ? `, <https://${fromEmail.split("@")[1]}/unsubscribe>` : ""}`,
+      listUnsubscribePost: oneClick ? "List-Unsubscribe=One-Click" : "",
+      unread: index >= opened,
+      date: Date.parse(hoursAgo(12 + index * 40)),
+    }));
+  return [
+    ...list("Design Weekly", "newsletter@example.com", 12, 3, true),
+    ...list("Launch Notes", "hello@launchnotes.example", 8, 0, true),
+    ...list("City Events", "events@city.example", 5, 4, false),
+  ];
 }
 
 export function demoRelatedMail(emails: string[]): SourceResult<MailItem> {

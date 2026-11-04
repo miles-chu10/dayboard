@@ -18,6 +18,7 @@ import { registerCaptureHandlers } from "./capture-handlers.js";
 import { notificationStatus } from "./notification-status.js";
 import { startTray, stopTray } from "./tray.js";
 import { startMeetingNotifications } from "./meeting-notifications.js";
+import { registerBadgeHandler, startMailNotifications } from "./mail-notifications.js";
 
 declare const __DAYBOARD_TEST_BUILD__: boolean;
 
@@ -109,6 +110,8 @@ export function startSystemPanels(): void {
   ipcMain.handle("system:notificationStatus", () => notificationStatus());
   registerCaptureHandlers();
   startMeetingNotifications();
+  startMailNotifications(nativeIntegrationsEnabled());
+  registerBadgeHandler(nativeIntegrationsEnabled());
   const suspendedBy = new Set<WebContents>();
   ipcMain.handle("system:suspendHotkey", async (event, value: unknown) => {
     const input = payload(value, "system:suspendHotkey");

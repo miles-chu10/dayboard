@@ -1,7 +1,10 @@
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { DayboardBridge } from "../shared/bridge-protocol";
 import { createTestProfile, launchDemo } from "./fixtures";
+
+type AppGlobal = typeof globalThis & { dayboard: DayboardBridge };
 
 async function openQuickCapture(app: ElectronApplication): Promise<Page> {
   // The main window's first show takes focus, which would immediately hide a panel opened earlier.
@@ -91,7 +94,11 @@ test("the capture panel cannot call unlisted channels", async () => {
     const panel = await openQuickCapture(demo.app);
     const message = await panel.evaluate(() => {
       const { dayboard } = globalThis as unknown as {
-        dayboard: { ipc: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } };
+        dayboard: {
+          ipc: {
+            invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+          };
+        };
       };
       return dayboard.ipc.invoke("settings:update", {}).then(
         () => "allowed",
@@ -222,6 +229,75 @@ test("File → Menu Bar Agenda shows today's panel", async () => {
   }
 });
 
+test("the menu-bar panel lists the mail waiting on you and opens Home from it", async () => {
+  const demo = await launchDemo();
+  try {
+    // Home triages the demo inbox; the panel reads the same saved triage.
+    await expect(
+      demo.page
+        .getByRole("region", { name: "Needs you" })
+        .getByRole("button", { name: /^Sam Patel: Lunch today\?/ }),
+    ).toBeVisible();
+    const panel = await openMenuBarAgenda(demo.app);
+    const waiting = panel.getByRole("region", { name: "Waiting on you" });
+    // The same two emails as Home's Needs you: Sam's question and Priya's decision request.
+    await expect(waiting.getByRole("heading", { name: "Waiting on you · 2" })).toBeVisible();
+    const sam = waiting.getByRole("button", {
+      name: /Sam Patel · Lunch today\?/,
+    });
+    await expect(sam).toBeVisible();
+    await expect(
+      waiting.getByRole("button", {
+        name: /^Priya Shah · Launch announcement/,
+      }),
+    ).toBeVisible();
+    await expect(waiting.getByRole("button")).toHaveCount(2);
+    await sam.click();
+    await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(false);
+    await expect(demo.page.getByRole("region", { name: "Needs you" })).toBeVisible();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("mail notifications and the Dock badge are set from Mail settings", async () => {
+  const demo = await launchDemo();
+  try {
+    await demo.page.evaluate(() =>
+      (globalThis as AppGlobal).dayboard.ipc.invoke("window:openSettings"),
+    );
+    await expect
+      .poll(() => demo.app.windows().find((window) => /settings-window/.test(window.url())))
+      .not.toBeUndefined();
+    const settings = demo.app.windows().find((window) => /settings-window/.test(window.url()))!;
+    await settings.waitForLoadState("domcontentloaded");
+    await settings.getByRole("tab", { name: "General", exact: true }).click();
+    const notify = settings.getByRole("combobox", {
+      name: "Mail notifications",
+    });
+    const badge = settings.getByRole("combobox", { name: "Dock badge" });
+    await expect(notify).toContainText("Off");
+    await expect(badge).toContainText("Waiting on you");
+    await notify.click();
+    await settings.getByRole("option", { name: "Snoozes and follow-ups" }).click();
+    await expect(notify).toContainText("Snoozes and follow-ups");
+    await expect
+      .poll(() =>
+        demo.page.evaluate(async () => {
+          const value = (await (globalThis as AppGlobal).dayboard.ipc.invoke("settings:get")) as {
+            system: { mailNotifications: string };
+          };
+          return value.system.mailNotifications;
+        }),
+      )
+      .toBe("reminders");
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
 type KeyProbe = {
   addEventListener(
     type: "keydown",
@@ -255,7 +331,10 @@ function recordKeys(panel: Page) {
     page.addEventListener(
       "keydown",
       (event) =>
-        page.__escapeProbe?.push({ key: event.key, documentFocused: page.document.hasFocus() }),
+        page.__escapeProbe?.push({
+          key: event.key,
+          documentFocused: page.document.hasFocus(),
+        }),
       true,
     );
   });
@@ -269,9 +348,10 @@ test("Escape hides a freshly shown menu-bar panel", async () => {
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
     await recordKeys(panel);
     const focusWhenShown = await panelFocus(demo.app, panel, "#menubar");
-    test
-      .info()
-      .annotations.push({ type: "escape-focus", description: JSON.stringify(focusWhenShown) });
+    test.info().annotations.push({
+      type: "escape-focus",
+      description: JSON.stringify(focusWhenShown),
+    });
     // macOS can make another window key just after the panel shows (see panel-window.ts); a
     // person presses Escape on a panel that has key focus, so wait to observe it, never force it.
     await expect
@@ -466,7 +546,10 @@ test("account changes clear capture failures and recovered drafts", async () => 
       const panel = BrowserWindow.getAllWindows().find((window) =>
         window.webContents.getURL().endsWith("#capture"),
       );
-      panel?.webContents.send("dayboard:notification", { channel: "accounts:changed", params: {} });
+      panel?.webContents.send("dayboard:notification", {
+        channel: "accounts:changed",
+        params: {},
+      });
       panel?.webContents.send("dayboard:notification", {
         channel: "capture:changed",
         params: { records: [] },
@@ -609,7 +692,10 @@ test("an account change closes a capture error already reopened by a rejection",
       const panel = BrowserWindow.getAllWindows().find((window) =>
         window.webContents.getURL().endsWith("#capture"),
       );
-      panel?.webContents.send("dayboard:notification", { channel: "accounts:changed", params: {} });
+      panel?.webContents.send("dayboard:notification", {
+        channel: "accounts:changed",
+        params: {},
+      });
     });
     await expect.poll(() => panelVisible(demo.app, "#capture")).toBe(false);
     await expect(panel.getByText(/Private old-account error/)).toHaveCount(0);
@@ -627,7 +713,9 @@ for (const surface of ["agenda", "menubar"] as const) {
       const profile = await createTestProfile();
       await writeFile(
         path.join(profile, "demo-settings.json"),
-        JSON.stringify({ system: { meetings: { upNext: false, notesImport } } }),
+        JSON.stringify({
+          system: { meetings: { upNext: false, notesImport } },
+        }),
       );
       const demo = await launchDemo(profile);
       try {
@@ -635,7 +723,9 @@ for (const surface of ["agenda", "menubar"] as const) {
         await atTodayTime(page, 9, 50);
         await expect(page.getByRole("heading").first()).toBeVisible();
         await expect(page.getByRole("region", { name: "Up next meeting" })).toHaveCount(0);
-        const ended = page.getByRole("region", { name: "Meeting that just ended" });
+        const ended = page.getByRole("region", {
+          name: "Meeting that just ended",
+        });
         if (notesImport) {
           await expect(ended).toBeVisible();
           await expect(ended.getByText("Team standup")).toBeVisible();

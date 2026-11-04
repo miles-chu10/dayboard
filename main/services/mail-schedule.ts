@@ -3,20 +3,9 @@
  * Electron-free: Gmail, storage, the clock and timers are injected so tests drive it directly.
  */
 
-export type MailScheduleKind = "snooze" | "follow-up";
+import type { MailScheduleEntry, MailScheduleKind } from "../shared-types.js";
 
-export interface MailScheduleEntry {
-  kind: MailScheduleKind;
-  messageId: string;
-  threadId: string;
-  subject: string;
-  from: string;
-  fromEmail: string;
-  createdAt: number;
-  dueAt: number;
-  /** Follow-ups only: nobody replied by `dueAt`; it waits on the user until a reply or dismissal. */
-  due?: boolean;
-}
+export type { MailScheduleEntry, MailScheduleKind };
 
 interface StoreFile {
   version: 1;

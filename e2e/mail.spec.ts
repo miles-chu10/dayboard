@@ -104,3 +104,80 @@ test("C and ⌘K open a new email that checks its recipients and keeps the text"
     await demo.close();
   }
 });
+
+test("Remind me if no reply lists the email as waiting; S opens Snooze", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    const page = demo.page;
+    await openInbox(page);
+    await page.getByRole("button", { name: "Open email from Sam Patel" }).click();
+    const detail = page.getByRole("dialog", { name: "Lunch today?" });
+    await expect(detail).toBeVisible();
+
+    // S opens the snooze choices; demo mode refuses to move the email.
+    await page.keyboard.press("s");
+    const snoozeMenu = page.getByRole("menu");
+    await expect(snoozeMenu.getByRole("menuitem", { name: /^Tomorrow/ })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("snooze-menu.png") });
+    await snoozeMenu.getByRole("menuitem", { name: /^Tomorrow/ }).click();
+    await expect(page.getByText(/Couldn't snooze: .*demo mode/)).toBeVisible();
+
+    // Follow-ups stay on this Mac, so they work in demo mode.
+    await detail.getByRole("button", { name: "Remind me" }).click();
+    await page.getByRole("menuitem", { name: /^3 days/ }).click();
+    await expect(
+      page.getByText("DayBoard will remind you if nobody replies in 3 days"),
+    ).toBeVisible();
+    await expect(detail.getByRole("button", { name: "Waiting for reply · Cancel" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+
+    const waiting = page.getByRole("region", { name: "Waiting for reply" });
+    await expect(waiting).toContainText("Lunch today?");
+    await waiting.getByRole("button", { name: "Stop waiting on Lunch today?" }).click();
+    await expect(waiting).toHaveCount(0);
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});
+
+test("Subscriptions lists newsletters with open rates and offers to unsubscribe", async ({
+  playwright: _playwright,
+}, testInfo) => {
+  const demo = await launchDemo();
+  try {
+    const page = demo.page;
+    await openInbox(page);
+    await page.getByRole("button", { name: "Subscriptions" }).click();
+    const dialog = page.getByRole("dialog", { name: "Subscriptions" });
+    const senders = dialog.getByRole("list", { name: "Senders" });
+    await expect(senders.getByRole("listitem")).toHaveCount(3);
+    await expect(senders.getByRole("listitem").first()).toContainText("Design Weekly");
+    await expect(senders.getByRole("listitem").first()).toContainText("3 of 12 opened");
+    await page.screenshot({ path: testInfo.outputPath("subscriptions.png") });
+
+    await dialog.getByRole("textbox", { name: "Search subscriptions" }).fill("launch");
+    await expect(senders.getByRole("listitem")).toHaveCount(1);
+    await expect(senders).toContainText("0 of 8 opened");
+
+    // Demo mode never contacts a sender.
+    await dialog.getByRole("button", { name: "Unsubscribe from Launch Notes" }).click();
+    await expect(
+      page.getByText(/Couldn't unsubscribe from Launch Notes: .*demo mode/),
+    ).toBeVisible();
+    await expect(senders.getByRole("listitem")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    await page.keyboard.press("Meta+K");
+    await page.keyboard.type("subscriptions");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Subscriptions" })).toBeVisible();
+    expect(demo.errors).toEqual([]);
+  } finally {
+    await demo.close();
+  }
+});

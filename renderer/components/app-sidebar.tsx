@@ -19,7 +19,7 @@ import {
   Text,
 } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarCheck2,
   CalendarDays,
@@ -37,7 +37,8 @@ import { modelSummary } from "../lib/model-choices";
 import { NAV_ITEMS, type NavItem } from "../lib/navigation";
 import { needsYou } from "../lib/home";
 import { readTriageMap, useTriageChanges } from "../lib/triage";
-import { openExternal, openSettings } from "../lib/ipc";
+import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
+import { invoke, openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
@@ -222,11 +223,22 @@ export function AppSidebar() {
   const mcpCount = mcpServers.data?.length ?? 0;
 
   useTriageChanges();
+  const schedule = useMailSchedule();
   const waiting = needsYou({
     messages: mail.data?.state === "ok" && sourceOn(settings, "mail") ? mail.data.items : [],
     triage: featureOn(settings, "triage") ? readTriageMap() : {},
     now: now.getTime(),
+    followUps: sourceOn(settings, "mail") ? dueFollowUps(schedule.data) : [],
   }).length;
+
+  // The Dock badge shows what Settings picks: what waits on you, unread mail, or nothing.
+  const badgeSetting = settings?.system.dockBadge;
+  const badgeCount =
+    badgeSetting === "waiting" ? waiting : badgeSetting === "unread" ? counts.mail : 0;
+  useEffect(() => {
+    if (badgeSetting === undefined) return;
+    void invoke("app:setBadge", { count: badgeCount }).catch(() => undefined);
+  }, [badgeCount, badgeSetting]);
 
   function navVisible(id: MainNavId): boolean {
     if (id === "home" || id === "agenda") return true;

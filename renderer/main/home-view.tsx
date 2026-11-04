@@ -37,6 +37,7 @@ import {
   type NeedsYouItem,
 } from "../lib/home";
 import { errorMessage, invoke } from "../lib/ipc";
+import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
 import {
   queryKeys,
   toggleFocus,
@@ -211,7 +212,14 @@ export function HomeView() {
   useAutoTriage(triage, messages, autoTriageOn(settings));
   const triageMap = triageOn ? triage.map : {};
 
-  const waiting = needsYou({ messages, triage: triageMap, now: now.getTime() });
+  const schedule = useMailSchedule();
+  const followUps = mailOn ? dueFollowUps(schedule.data) : [];
+  const waiting = needsYou({
+    messages,
+    triage: triageMap,
+    now: now.getTime(),
+    followUps,
+  });
   const suggested = triageOn ? suggestedTasks({ messages, triage: triageMap, handled }) : [];
   const visible = {
     tasks: sourceOn(settings, "tasks"),

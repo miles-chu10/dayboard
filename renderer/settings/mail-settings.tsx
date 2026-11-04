@@ -1,5 +1,11 @@
 import { Field, FieldSet, Switch } from "@renderer/ui";
-import { FOLLOW_UP_DAYS, UNDO_SEND_SECONDS, type UndoSendSeconds } from "@main/shared-types";
+import {
+  FOLLOW_UP_DAYS,
+  UNDO_SEND_SECONDS,
+  type DockBadge,
+  type MailNotifications,
+  type UndoSendSeconds,
+} from "@main/shared-types";
 
 import { useSettingsEditor } from "../lib/settings";
 import { SettingSelect } from "./setting-select";
@@ -65,6 +71,45 @@ export function MailSettings() {
           }
         />
       </Field>
+      <Field
+        label="Notifications"
+        description="macOS notifications for snoozed emails coming back and follow-ups nobody answered, or for every new email too."
+      >
+        <SettingSelect
+          label="Mail notifications"
+          value={settings.system.mailNotifications}
+          options={NOTIFY_OPTIONS}
+          onChange={(value) =>
+            edit((draft) => {
+              draft.system.mailNotifications = value as MailNotifications;
+            })
+          }
+        />
+      </Field>
+      <Field label="Dock badge" description="What the number on DayBoard's Dock icon counts.">
+        <SettingSelect
+          label="Dock badge"
+          value={settings.system.dockBadge}
+          options={BADGE_OPTIONS}
+          onChange={(value) =>
+            edit((draft) => {
+              draft.system.dockBadge = value as DockBadge;
+            })
+          }
+        />
+      </Field>
     </FieldSet>
   );
 }
+
+const NOTIFY_OPTIONS: { value: MailNotifications; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "reminders", label: "Snoozes and follow-ups" },
+  { value: "all", label: "All new mail" },
+];
+
+const BADGE_OPTIONS: { value: DockBadge; label: string }[] = [
+  { value: "waiting", label: "Waiting on you" },
+  { value: "unread", label: "Unread mail" },
+  { value: "off", label: "Off" },
+];

@@ -27,19 +27,19 @@ his preferences, logs every agent tool call, shows AI usage, and keeps Notes age
 
 ## Progress
 
-- [ ] Phase 0: worktree, baseline (typecheck, lint, 624/624 unit tests pass at `6e3c916`)
-- [ ] Phase 1 — Shell
-  - [ ] 1.1 Command registry, global shortcuts, `?` sheet, ⌃1–9 view jumps
-  - [ ] 1.2 Docked Ask Agent panel (⌥⌘J) with context chip and contextual prompts
-  - [ ] 1.3 ⌘K command menu (Tab hands the query to Ask Agent)
-  - [ ] 1.4 Calendar side-peek (⌥⌘K) sharing the right pane
-- [ ] Phase 2 — Home ("Up next") at `/`; the current Agenda moves to `/agenda`
-- [ ] Phase 3 — Mail
-  - [ ] 3.1 Automatic triage, list chips, thread summary card, single-key mail keys
-  - [ ] 3.2 Send, compose, undo send
-  - [ ] 3.3 Snooze and "remind me if no reply"
-  - [ ] 3.4 Subscriptions manager and unsubscribe
-- [ ] Phase 4 — System: mail/follow-up notifications, Dock badge, menu-bar "Waiting on you"
+- [x] Phase 0: worktree, baseline (typecheck, lint, 624/624 unit tests pass at `6e3c916`)
+- [x] Phase 1 — Shell (`e099687`)
+  - [x] 1.1 Command registry, global shortcuts, `?` sheet, ⌃1–9 view jumps
+  - [x] 1.2 Docked Ask Agent panel (⌥⌘J) with context chip and contextual prompts
+  - [x] 1.3 ⌘K command menu (Tab hands the query to Ask Agent)
+  - [x] 1.4 Calendar side-peek (⌥⌘K) sharing the right pane
+- [x] Phase 2 — Home ("Up next") at `/`; the current Agenda moves to `/agenda` (`de38a57`)
+- [x] Phase 3 — Mail
+  - [x] 3.1 Automatic triage, list chips, thread summary card, single-key mail keys (`de38a57`)
+  - [x] 3.2 Send, compose, undo send (`de38a57`)
+  - [x] 3.3 Snooze and "remind me if no reply"
+  - [x] 3.4 Subscriptions manager and unsubscribe
+- [x] Phase 4 — System: mail/follow-up notifications, Dock badge, menu-bar "Waiting on you"
 - [ ] Phase 5 — Agent platform: Memory, Activity log, Usage, Notes
 - [ ] Phase 6 — Sidebar reorder/hide/counts settings, then browser-style tabs
 - [ ] Final: full verification, packaged preview, demo-mode visual pass, handoff

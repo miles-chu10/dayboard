@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, Field, FieldGroup, Kbd, Status, Text, toast } from "@renderer/ui";
 import { Archive, ExternalLink, ListPlus, Reply, Sparkles } from "lucide-react";
@@ -10,6 +10,7 @@ import { errorMessage, invoke, openExternal } from "../lib/ipc";
 import { queryKeys, useAccounts } from "../lib/queries";
 import { TRIAGE_LABEL, type TriageResult } from "../lib/triage";
 import { DetailPanel } from "./detail-panel";
+import { FollowUpMenu, SnoozeMenu } from "./mail-later";
 
 export function MailDetail({
   message,
@@ -84,7 +85,9 @@ export function MailDetail({
     onError: (error) => toast.error(`Couldn't add task: ${errorMessage(error)}`),
   });
 
-  // E marks the email done (archives it) and R replies, as in HeroSpace and Gmail.
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+
+  // E marks the email done (archives it), R replies and S snoozes, as in HeroSpace and Gmail.
   const keyActions = useEffectEvent((event: KeyboardEvent) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.defaultPrevented)
       return;
@@ -100,6 +103,9 @@ export function MailDetail({
       event.preventDefault();
       if (presentation === "dialog") onClose();
       onReply(message);
+    } else if (key === "s" && !event.shiftKey) {
+      event.preventDefault();
+      setSnoozeOpen(true);
     }
   });
   useEffect(() => {
@@ -189,6 +195,13 @@ export function MailDetail({
           <Archive />
           Archive
         </Button>
+        <SnoozeMenu
+          message={message}
+          open={snoozeOpen}
+          onOpenChange={setSnoozeOpen}
+          onSnoozed={onClose}
+        />
+        <FollowUpMenu message={message} />
         <Button size="small" variant="transparent" onClick={() => void openExternal(gmailUrl)}>
           <ExternalLink />
           Open in Gmail

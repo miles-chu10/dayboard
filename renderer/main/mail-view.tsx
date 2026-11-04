@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { isTypingTarget, stepRow } from "../lib/shortcuts";
 import { useCompose } from "../components/compose-dialog";
+import { ScheduledMail } from "../components/mail-later";
+import { useOpenSubscriptions } from "../components/subscriptions-dialog";
 import {
   Button,
   Callout,
@@ -12,7 +14,7 @@ import {
   SegmentedControlItem,
   Status,
 } from "@renderer/ui";
-import { RotateCw, Sparkles, Square } from "lucide-react";
+import { MailX, RotateCw, Sparkles, Square, SquarePen } from "lucide-react";
 import type { MailItem } from "@main/shared-types";
 
 import { MailDetail } from "../components/mail-detail";
@@ -41,6 +43,7 @@ export function MailView() {
   useAutoTriage(triage, messages, autoTriageOn(settings));
 
   const { openCompose } = useCompose();
+  const openSubscriptions = useOpenSubscriptions();
   const openComposeRef = useRef(() => openCompose());
   useEffect(() => {
     openComposeRef.current = () => openCompose();
@@ -132,6 +135,22 @@ export function MailView() {
           actions={
             <>
               <WindowActions />
+              <Button
+                iconOnly
+                aria-label="New email"
+                title="New email (C)"
+                onClick={() => openCompose()}
+              >
+                <SquarePen />
+              </Button>
+              <Button
+                iconOnly
+                aria-label="Subscriptions"
+                title="Newsletters and lists"
+                onClick={openSubscriptions}
+              >
+                <MailX />
+              </Button>
               {triageOn ? (
                 <Button
                   iconOnly
@@ -244,6 +263,7 @@ export function MailView() {
                 );
               }}
             </SourceGate>
+            <ScheduledMail />
           </div>
         </ScrollArea>
       </DetailsLayout>
