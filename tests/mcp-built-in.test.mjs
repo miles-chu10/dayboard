@@ -71,7 +71,10 @@ function mcpPlugin() {
     ["./calendar-range.js", calendarRangeStub],
     [
       "./license/index.js",
-      `export async function assertLicenseAccess() { if (globalThis.__mcpLicenseBlocked) throw new Error("A DayBoard license is required for changes."); }`,
+      // Records any license use: MCP source writes must never check the AI license or start its trial.
+      `export async function assertLicenseAccess() { globalThis.__mcpLicenseCalls = (globalThis.__mcpLicenseCalls ?? 0) + 1; if (globalThis.__mcpLicenseBlocked) throw new Error("A DayBoard license is required for changes."); }
+export async function getLicenseStatus() { globalThis.__mcpLicenseCalls = (globalThis.__mcpLicenseCalls ?? 0) + 1; return { status: { state: "expired" }, checkoutUrl: "" }; }
+export async function refreshLicenseStatus() { return getLicenseStatus(); }`,
     ],
     ["./demo-data.js", `export const isDemoMode = () => false;`],
     [
@@ -470,21 +473,28 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
     try {
       await writer.connect(writerTransport);
       assert.equal((await writer.listTools()).tools.length, 14);
+      // An expired AI license neither blocks source writes nor starts the AI trial.
       globalThis.__mcpLicenseBlocked = true;
+      globalThis.__mcpLicenseCalls = 0;
+      globalThis.__mcpReminderResult = { identity: "expired-ai-reminder", recurring: false };
       const unlicensed = await writer.callTool({
-        name: "create_task",
-        arguments: { title: "nope" },
+        name: "complete_reminder",
+        arguments: { ref: "expired-ai-ref", completed: true },
       });
-      assert.equal(unlicensed.isError, true);
-      assert.match(unlicensed.content[0].text, /license is required/);
+      assert.notEqual(unlicensed.isError, true);
+      assert.match(unlicensed.content[0].text, /Reminder marked done/);
+      assert.equal(globalThis.__mcpLicenseCalls, 0);
       const stillReadable = await writer.callTool({ name: "list_reminders", arguments: {} });
       assert.notEqual(stillReadable.isError, true);
-      delete globalThis.__mcpLicenseBlocked;
+      delete globalThis.__mcpReminderResult;
       // Turning changes off applies to sessions that are already open.
       globalThis.__mcpServerSettings = { enabled: true, allowWrites: false };
+      // The Allow changes switch still blocks writes, with the AI license still expired.
       const blocked = await writer.callTool({ name: "create_task", arguments: { title: "nope" } });
       assert.equal(blocked.isError, true);
       assert.match(blocked.content[0].text, /Allow changes/);
+      assert.equal(globalThis.__mcpLicenseCalls, 0);
+      delete globalThis.__mcpLicenseBlocked;
     } finally {
       await writerTransport.terminateSession().catch(() => undefined);
       await writer.close();
@@ -492,6 +502,8 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
   } finally {
     delete globalThis.__mcpServerSettings;
     delete globalThis.__mcpLicenseBlocked;
+    delete globalThis.__mcpLicenseCalls;
+    delete globalThis.__mcpReminderResult;
     await close(server);
   }
 });
