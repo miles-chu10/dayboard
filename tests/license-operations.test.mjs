@@ -48,6 +48,10 @@ test("demo and unconfigured wrappers never open personal license storage or use 
             networkCalls++;
             return seededPersonalRecord;
           },
+          resetUnreadable: async () => {
+            storeReads++;
+            return seededPersonalRecord;
+          },
         };
       },
     });
@@ -57,6 +61,7 @@ test("demo and unconfigured wrappers never open personal license storage or use 
     await operations.assertLicenseAccess();
     await assert.rejects(operations.activate("PERSONAL-KEY", "Device"), /unavailable/);
     await assert.rejects(operations.deactivate(), /unavailable/);
+    await assert.rejects(operations.resetUnreadable(), /unavailable/);
     assert.equal(serviceOpens, 0);
     assert.equal(storeReads, 0);
     assert.equal(networkCalls, 0);
@@ -92,4 +97,39 @@ test("the first guarded (AI) action starts the trial before checking access", as
   });
   await operations.assertLicenseAccess();
   assert.deepEqual(calls, ["startTrial", "refresh"]);
+});
+
+test("deactivation passes the release outcome through and unreadable data blocks AI", async () => {
+  const checkoutUrl = "https://example.invalid/buy";
+  for (const release of ["released", "pending"]) {
+    const operations = createLicenseOperations({
+      mode: () => "configured",
+      checkoutUrl,
+      getService: async () => ({
+        deactivate: async () => ({ status: { state: "trial", daysLeft: 3 }, release }),
+      }),
+    });
+    assert.deepEqual(await operations.deactivate(), {
+      status: { state: "trial", daysLeft: 3 },
+      checkoutUrl,
+      release,
+    });
+  }
+
+  let resets = 0;
+  const operations = createLicenseOperations({
+    mode: () => "configured",
+    checkoutUrl,
+    getService: async () => ({
+      startTrial: async () => {},
+      refresh: async () => ({ state: "unreadable" }),
+      resetUnreadable: async () => (resets++, { state: "trial", daysLeft: 7 }),
+    }),
+  });
+  await assert.rejects(operations.assertLicenseAccess(), /License required/);
+  assert.deepEqual(await operations.resetUnreadable(), {
+    status: { state: "trial", daysLeft: 7 },
+    checkoutUrl,
+  });
+  assert.equal(resets, 1);
 });

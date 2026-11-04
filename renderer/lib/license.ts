@@ -3,8 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "../ui";
 import { errorMessage } from "./ipc";
-import type { LicenseStatus, LicenseStatusPayload } from "@shared/license";
-export type { LicenseStatus, LicenseStatusPayload } from "@shared/license";
+import {
+  LICENSE_ACTIVATION_LIMIT,
+  LICENSE_RESET_CONFIRMATION,
+  LICENSE_SUPPORT_EMAIL,
+  type LicenseDeactivationPayload,
+  type LicenseStatus,
+  type LicenseStatusPayload,
+} from "../../shared/license";
+export type {
+  LicenseDeactivationPayload,
+  LicenseStatus,
+  LicenseStatusPayload,
+} from "../../shared/license";
+
 export { isLicenseBlocking } from "../../shared/license";
 
 export const LICENSE_STATUS_COPY: Record<
@@ -46,10 +58,30 @@ export const LICENSE_STATUS_COPY: Record<
     label: "Can't verify",
     description: "DayBoard couldn't reach its license service. Check your connection.",
   },
+  unreadable: {
+    label: "Can't read license data",
+    description:
+      "DayBoard can't read the license data saved on this Mac, so AI is paused. Everything else keeps working. If macOS asked for Keychain access, allow it and choose Retry. Otherwise, enter your license key to activate again, or reset license data on this Mac.",
+  },
 };
 
-function license(channel: string, ...args: unknown[]): Promise<LicenseStatusPayload> {
-  return window.dayboard.ipc.invoke<LicenseStatusPayload>(channel, ...args);
+export const LICENSE_RESET_COPY = {
+  action: "Reset license data on this Mac",
+  title: "Reset license data on this Mac?",
+  description:
+    "DayBoard keeps the unreadable license file as a backup in its data folder and starts fresh. Your tasks, mail, calendar and settings aren't affected. If you bought DayBoard Pro, enter your license key again afterward.",
+  confirm: "Reset",
+};
+
+/** Shown after "Deactivate this device" when the license service didn't confirm the release. */
+export const LICENSE_RELEASE_PENDING_COPY = {
+  toast: "Removed the license from this Mac, but its activation slot may still be in use.",
+  callout: `DayBoard couldn't reach the license service, so this Mac may still count toward the key's ${LICENSE_ACTIVATION_LIMIT}-Mac limit. DayBoard tries again automatically whenever it's open and online, or choose Try again now. If another Mac still can't activate the key, email ${LICENSE_SUPPORT_EMAIL}.`,
+  retry: "Try again",
+};
+
+function license<T = LicenseStatusPayload>(channel: string, ...args: unknown[]): Promise<T> {
+  return window.dayboard.ipc.invoke<T>(channel, ...args);
 }
 
 export const licenseQueryKey = ["license"] as const;
@@ -112,10 +144,23 @@ export function useActivateLicense() {
 export function useDeactivateLicense() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => license("license:deactivate"),
+    mutationFn: () => license<LicenseDeactivationPayload>("license:deactivate"),
+    onSuccess: ({ status, checkoutUrl, release }) => {
+      queryClient.setQueryData(licenseQueryKey, { status, checkoutUrl });
+      if (release === "pending") toast.warning(LICENSE_RELEASE_PENDING_COPY.toast);
+      else toast.success("Removed the license from this Mac. Its activation slot is free.");
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+export function useResetLicenseData() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => license("license:reset", LICENSE_RESET_CONFIRMATION),
     onSuccess: (payload) => {
       queryClient.setQueryData(licenseQueryKey, payload);
-      toast.success("License key removed from this device.");
+      toast.success("License data on this Mac was reset. The old file was kept as a backup.");
     },
     onError: (error) => toast.error(errorMessage(error)),
   });

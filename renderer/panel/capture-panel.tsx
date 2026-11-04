@@ -28,9 +28,10 @@ const NONE = { task: false, reminder: false, event: false };
 // Shown above the manual form while AI capture is on but the license locks AI.
 const AI_LOCKED_NOTE: Record<AiLockState, string> = {
   expired: "Your AI trial has ended. Adding items here stays free.",
-  invalid: "Your license key isn’t valid, so AI is off. Adding items here stays free.",
+  invalid: "Your license key needs attention, so AI is off. Adding items here stays free.",
   "network-error":
     "DayBoard can’t verify your license, so AI is off. Adding items here stays free.",
+  unreadable: "DayBoard can’t read its license data on this Mac, so AI is off. Adding items here stays free.",
 };
 
 // Sentence case, as the app's other add buttons ("Add task").

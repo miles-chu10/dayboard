@@ -81,9 +81,11 @@ const AI_LOCKED: Record<AiLockState, string> = {
   expired:
     "Your AI trial has ended, so DayBoard can't read this for you. Fill in the details to add it without AI, or get DayBoard Pro in Settings → License.",
   invalid:
-    "Your license key isn't valid, so DayBoard can't read this for you. Fill in the details to add it without AI, or check your key in Settings → License.",
+    "Your license key needs attention, so DayBoard can't read this for you. Fill in the details to add it without AI, or check your key in Settings → License.",
   "network-error":
     "DayBoard can't verify your license, so it can't read this for you. Fill in the details to add it without AI, or check Settings → License.",
+  unreadable:
+    "DayBoard can't read its license data on this Mac, so it can't read this for you. Fill in the details to add it without AI, or fix it in Settings → License.",
 };
 
 function message(error: unknown): string {

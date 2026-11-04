@@ -49,6 +49,12 @@ function upsellCopy(status: LicenseStatus): {
         description:
           "The DayBoard license service hasn't been reachable for a while. Check your connection, then open Settings → License.",
       };
+    case "unreadable":
+      return {
+        title: "Can't read license data",
+        description:
+          "DayBoard can't read the license data saved on this Mac. Open Settings → License to retry, enter your license key again, or reset license data on this Mac.",
+      };
     default:
       return {
         title: "License required",
@@ -153,7 +159,9 @@ export function LicenseStatusControl() {
       ? `${data.status.daysLeft} day${data.status.daysLeft === 1 ? "" : "s"} left in your AI trial`
       : data?.status.state === "unconfigured"
         ? "Preview build"
-        : "Unlock AI · DayBoard Pro";
+        : data?.status.state === "unreadable"
+          ? "License data needs attention"
+          : "Unlock AI · DayBoard Pro";
   return (
     <Button
       size="small"

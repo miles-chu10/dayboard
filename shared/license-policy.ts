@@ -11,7 +11,7 @@ export function requiresLicenseAccess(channel: string): boolean {
 }
 
 const LICENSE_REQUIRED = "license-required";
-const AI_LOCK_STATES: readonly string[] = ["expired", "invalid", "network-error"];
+const AI_LOCK_STATES: readonly string[] = ["expired", "invalid", "network-error", "unreadable"];
 
 /** What the license guard throws while AI is locked; `state` says why. */
 export class LicenseRequiredError extends Error {

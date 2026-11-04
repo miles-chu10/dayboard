@@ -15,6 +15,7 @@ await symlink(path.join(root, "node_modules"), path.join(tempDir, "node_modules"
 
 const fixture = {
   query: {},
+  mutationData: undefined,
   buttons: [],
   calls: [],
   retries: 0,
@@ -29,6 +30,7 @@ const uiModule = `
   export { Field, FieldSet } from ${JSON.stringify(path.join(root, "renderer/ui/field.tsx"))};
   export { Input } from ${JSON.stringify(path.join(root, "renderer/ui/input.tsx"))};
   export { Status } from ${JSON.stringify(path.join(root, "renderer/ui/status.tsx"))};
+  export { AlertDialog } from ${JSON.stringify(path.join(root, "renderer/ui/alert-dialog.tsx"))};
   export function Button(props) {
     globalThis.__dayboardLicenseUiFixture.buttons.push({ label: props.children, onClick: props.onClick });
     return React.createElement(RealButton, props);
@@ -64,7 +66,9 @@ const fixturePlugin = {
             : `
               export function useQuery() { return globalThis.__dayboardLicenseUiFixture.query; }
               export function useQueryClient() { return { setQueryData() {} }; }
-              export function useMutation() { return { isPending: false, mutate() {} }; }
+              export function useMutation() {
+                return { isPending: false, mutate() {}, data: globalThis.__dayboardLicenseUiFixture.mutationData };
+              }
             `,
       resolveDir: root,
       loader: "js",
@@ -101,7 +105,8 @@ try {
   await rm(tempDir, { recursive: true, force: true });
 }
 
-function render(Component, query) {
+function render(Component, query, mutationData) {
+  fixture.mutationData = mutationData;
   fixture.query = {
     data: undefined,
     isPending: false,
@@ -208,4 +213,49 @@ test("license status control opens the License tab when status needs attention",
   assert.match(html, /Unlock AI/);
   click("Unlock AI · DayBoard Pro");
   assert.deepEqual(fixture.calls, [["settings", "license"]]);
+
+  render(LicenseStatusControl, status("unreadable"));
+  click("License data needs attention");
+  assert.deepEqual(fixture.calls, [["settings", "license"]]);
+});
+
+test("unreadable license data blocks AI and points to Settings", () => {
+  const html = gate(status("unreadable"));
+  assert.doesNotMatch(html, /PRIVATE ACTION CONTENT/);
+  assert.match(html, /Can(&#x27;|')t read license data/);
+  assert.match(html, /reset license data on this Mac/);
+  click("Open License Settings");
+  assert.deepEqual(fixture.calls, [["settings", "license"]]);
+});
+
+test("Settings offers Retry, key entry and a confirmed reset for unreadable license data", () => {
+  const html = render(LicenseTab, status("unreadable"));
+  assert.match(html, /Can(&#x27;|')t read license data/);
+  assert.match(html, /Keychain access/);
+  assert.match(html, /Paste your license key/);
+  assert.match(html, />Reset license data on this Mac</);
+  assert.doesNotMatch(html, /Deactivate this device|Remove saved key/);
+  // The reset itself waits for the confirmation dialog, which starts closed.
+  assert.doesNotMatch(html, /Reset license data on this Mac\?/);
+  click("Retry");
+  assert.equal(fixture.retries, 1);
+
+  for (const state of ["trial", "licensed", "invalid", "network-error"]) {
+    assert.doesNotMatch(render(LicenseTab, status(state)), /Reset license data/, state);
+  }
+});
+
+test("an unconfirmed release shows how to free the slot, only while no key is saved", () => {
+  const pending = { release: "pending" };
+  for (const state of ["trial", "expired"]) {
+    const html = render(LicenseTab, status(state), pending);
+    assert.match(html, /may still count toward the key(&#x27;|')s 3-Mac limit/, state);
+    assert.match(html, /support@getdayboard\.com/, state);
+    assert.match(html, />Try again</, state);
+  }
+  for (const state of ["licensed", "invalid", "network-error", "unreadable"]) {
+    const html = render(LicenseTab, status(state), pending);
+    assert.doesNotMatch(html, /3-Mac limit|>Try again</, state);
+  }
+  assert.doesNotMatch(render(LicenseTab, status("trial"), { release: "released" }), /3-Mac limit/);
 });

@@ -23,6 +23,17 @@ export async function writeFileAtomic(target: string, data: string | Buffer): Pr
   }
 }
 
+/** Copies `source` to `target` but never replaces an existing `target`. False if `source` is missing. */
+export async function copyFileIfPresent(source: string, target: string): Promise<boolean> {
+  try {
+    await fs.copyFile(source, target, fs.constants.COPYFILE_EXCL);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 /** Runs async operations one at a time so concurrent saves never interleave. */
 export function createSerialQueue() {
   let tail: Promise<unknown> = Promise.resolve();

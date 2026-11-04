@@ -1,16 +1,21 @@
 import { ipcMain } from "../platform/index.js";
+import { LICENSE_RESET_CONFIRMATION } from "../../shared/license.js";
 import {
   activateLicense,
   deactivateLicense,
   getLicenseStatus,
   refreshLicenseStatus,
+  resetUnreadableLicense,
   type LicenseStatusPayload,
 } from "../services/license/index.js";
 
 const INSTANCE_NAME = "DayBoard on macOS";
 
 function broadcastChange(payload: LicenseStatusPayload): LicenseStatusPayload {
-  ipcMain.broadcast("license:changed", payload);
+  ipcMain.broadcast("license:changed", {
+    status: payload.status,
+    checkoutUrl: payload.checkoutUrl,
+  });
   return payload;
 }
 
@@ -26,5 +31,17 @@ export function registerLicenseHandlers(): void {
     return broadcastChange(await activateLicense(rawKey.trim(), INSTANCE_NAME));
   });
 
-  ipcMain.handle("license:deactivate", async () => broadcastChange(await deactivateLicense()));
+  // Returns `release` too, so the caller can say whether the slot was confirmed free.
+  ipcMain.handle("license:deactivate", async () => {
+    const result = await deactivateLicense();
+    broadcastChange(result);
+    return result;
+  });
+
+  ipcMain.handle("license:reset", async (_event, confirmation: unknown) => {
+    if (confirmation !== LICENSE_RESET_CONFIRMATION) {
+      throw new Error("Confirm resetting license data on this Mac first.");
+    }
+    return broadcastChange(await resetUnreadableLicense());
+  });
 }

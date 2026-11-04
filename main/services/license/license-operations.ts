@@ -1,5 +1,9 @@
 import { LicenseRequiredError } from "../../../shared/license-policy.js";
-import type { LicenseStatus, LicenseStatusPayload } from "../../../shared/license.js";
+import type {
+  LicenseDeactivationPayload,
+  LicenseStatus,
+  LicenseStatusPayload,
+} from "../../../shared/license.js";
 import { isLicenseBlocking, type LicenseService } from "./license-service.js";
 
 export type LicenseMode = "demo" | "disabled" | "unconfigured" | "configured";
@@ -20,6 +24,11 @@ export function createLicenseOperations(deps: {
     return { status, checkoutUrl: deps.checkoutUrl };
   }
 
+  function requireConfigured(action: string): void {
+    const mode = deps.mode();
+    if (mode !== "configured") throw new Error(`License ${action} is unavailable in ${mode} mode.`);
+  }
+
   async function getStatus(): Promise<LicenseStatusPayload> {
     return immediateStatus() ?? payload(await (await deps.getService()).getStatus());
   }
@@ -29,17 +38,20 @@ export function createLicenseOperations(deps: {
   }
 
   async function activate(licenseKey: string, instanceName: string): Promise<LicenseStatusPayload> {
-    const mode = deps.mode();
-    if (mode !== "configured")
-      throw new Error(`License activation is unavailable in ${mode} mode.`);
+    requireConfigured("activation");
     return payload(await (await deps.getService()).activate(licenseKey, instanceName));
   }
 
-  async function deactivate(): Promise<LicenseStatusPayload> {
-    const mode = deps.mode();
-    if (mode !== "configured")
-      throw new Error(`License deactivation is unavailable in ${mode} mode.`);
-    return payload(await (await deps.getService()).deactivate());
+  async function deactivate(): Promise<LicenseDeactivationPayload> {
+    requireConfigured("deactivation");
+    const { status, release } = await (await deps.getService()).deactivate();
+    return { ...payload(status), release };
+  }
+
+  /** Recovery for an unreadable license file; a readable one is left as is. */
+  async function resetUnreadable(): Promise<LicenseStatusPayload> {
+    requireConfigured("reset");
+    return payload(await (await deps.getService()).resetUnreadable());
   }
 
   async function assertLicenseAccess(): Promise<void> {
@@ -48,5 +60,5 @@ export function createLicenseOperations(deps: {
     if (isLicenseBlocking(status)) throw new LicenseRequiredError(status.state);
   }
 
-  return { getStatus, refresh, activate, deactivate, assertLicenseAccess };
+  return { getStatus, refresh, activate, deactivate, resetUnreadable, assertLicenseAccess };
 }
