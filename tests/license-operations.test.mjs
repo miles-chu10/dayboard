@@ -72,7 +72,12 @@ test("server-side access assertion blocks an expired configured trial", async ()
       refresh: async () => ({ state: "expired" }),
     }),
   });
-  await assert.rejects(operations.assertLicenseAccess(), /License required/);
+  await assert.rejects(operations.assertLicenseAccess(), (error) => {
+    assert.match(error.message, /License required/);
+    assert.equal(error.code, "license-required");
+    assert.equal(error.state, "expired", "Quick Capture words its message by the lock state");
+    return true;
+  });
 });
 
 test("the first guarded (AI) action starts the trial before checking access", async () => {

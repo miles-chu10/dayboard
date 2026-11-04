@@ -6,6 +6,7 @@ const { createCaptureService } = await loadTs("main/services/capture/capture-ser
 const { completeCapture } = await loadTs("main/services/capture/capture-completion.ts");
 const { createLicenseOperations } = await loadTs("main/services/license/license-operations.ts");
 const { LicenseService } = await loadTs("main/services/license/license-service.ts");
+const { LicenseRequiredError } = await loadTs("shared/license-policy.ts");
 
 const ACCOUNT_CHANGED = "Your account changed. Check the details and add it again.";
 
@@ -49,7 +50,8 @@ function harness(options = {}) {
       await options.duringSettings?.(state);
       return options.settings ?? settings();
     },
-    getAccounts: async () => ({ google: { connected: true }, reminders: "full-access" }),
+    getAccounts: async () =>
+      options.accounts ?? { google: { connected: true }, reminders: "full-access" },
     assertAiAccess: async () => {
       calls.license += 1;
       await options.duringLicense?.(state);
@@ -327,6 +329,37 @@ for (const phase of [
   });
 }
 
+for (const [label, guardError] of [
+  ["a license block", () => new LicenseRequiredError("expired")],
+  ["any other license failure", () => new Error("License status is not ready. Try again shortly.")],
+]) {
+  test(`${label} after an account change cannot publish old capture data`, async () => {
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    const { service, calls, state } = harness({
+      duringLicense: async () => {
+        entered.resolve();
+        await released.promise;
+      },
+      assertAiAccess: async () => {
+        throw guardError();
+      },
+    });
+    const pending = service.submit({ text: "Private account A capture" });
+    await entered.promise;
+    state.scope = "account-b";
+    service.clear();
+    const changesAtClear = calls.changes;
+    released.resolve();
+    await assert.rejects(pending, /account changed/i);
+    assert.deepEqual(service.recent(), []);
+    assert.equal(calls.changes, changesAtClear, "no stale records broadcast after clear");
+    assert.deepEqual(calls.failed, [], "no old-account failure or panel reopen");
+    assert.equal(calls.complete, 0);
+    assert.deepEqual(calls.create, []);
+  });
+}
+
 test("clear removes existing records and Undo access", async () => {
   const { service, calls } = harness();
   const record = await service.submit({ text: "Private account A capture" });
@@ -544,9 +577,10 @@ test("an AI-parsed capture is blocked after the trial without a license and keep
   assert.equal(record.state, "failed");
   assert.equal(
     record.error,
-    "License required for this action. Open Settings → License to continue. " +
-      "Fill in the details to add it without AI.",
+    "Your AI trial has ended, so DayBoard can't read this for you. " +
+      "Fill in the details to add it without AI, or get DayBoard Pro in Settings → License.",
   );
+  assert.equal(record.reason, "license", "the panels can offer DayBoard Pro");
   assert.equal(record.text, "Call dentist Thursday 3pm");
   assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
   assert.equal(calls.complete, 0, "no AI call");
@@ -566,4 +600,58 @@ test("a licensed AI-parsed capture is allowed", async () => {
   assert.equal(calls.license, 1);
   assert.equal(calls.complete, 1);
   assert.deepEqual(await license.status(), { state: "licensed", keyHint: "CCCC" });
+});
+
+for (const [lock, copy] of [
+  [
+    "invalid",
+    /^Your license key isn't valid, so DayBoard can't read this for you\. .*check your key/,
+  ],
+  ["network-error", /^DayBoard can't verify your license, so it can't read this for you\./],
+]) {
+  test(`a parse locked by a license that is ${lock} names why and keeps the text`, async () => {
+    const { service, calls } = harness({
+      assertAiAccess: async () => {
+        throw new LicenseRequiredError(lock);
+      },
+    });
+    const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+    assert.equal(record.state, "failed");
+    assert.match(record.error, copy);
+    assert.match(record.error, /Fill in the details to add it without AI/);
+    assert.equal(record.reason, "license");
+    assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+    assert.equal(calls.complete, 0);
+  });
+}
+
+test("a license check that fails for another reason keeps its own message", async () => {
+  const { service, calls } = harness({
+    assertAiAccess: async () => {
+      throw new Error("License status is not ready. Try again shortly.");
+    },
+  });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(
+    record.error,
+    "License status is not ready. Try again shortly. Fill in the details to add it without AI.",
+  );
+  assert.equal(record.reason, null);
+  assert.equal(calls.complete, 0);
+});
+
+test("text with nowhere to add it neither starts the AI trial nor calls AI", async () => {
+  const license = await licenseStack("fresh");
+  const { service, calls } = harness({
+    accounts: { google: { connected: false }, reminders: "denied" },
+    assertAiAccess: license.assertAiAccess,
+  });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(record.error, "Connect Google or allow Reminders access to add items.");
+  assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+  assert.equal(calls.license, 0);
+  assert.equal(calls.complete, 0);
+  assert.equal(license.trialStartedAt(), null);
 });

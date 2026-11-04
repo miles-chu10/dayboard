@@ -12,6 +12,8 @@ import {
   type ItemDraft,
   type ItemKind,
 } from "../../../shared/capture.js";
+import type { AiLockState } from "../../../shared/license.js";
+import { aiLockState } from "../../../shared/license-policy.js";
 
 export type CaptureSubmit = { text: string } | { draft: unknown };
 
@@ -23,6 +25,8 @@ export interface CaptureRecord {
   partial: Partial<ItemDraft> | null;
   state: "processing" | "created" | "undone" | "failed";
   error: string | null;
+  /** "license" when the license locks the AI parse; the manual form stays free. */
+  reason: "license" | null;
   createdAt: string;
   canUndo: boolean;
 }
@@ -72,6 +76,15 @@ const MAX_RECORDS = 5;
 const MAX_TEXT = 1_000;
 const UNDO_MS = 10 * 60_000;
 const WITHOUT_AI = "Fill in the details to add it without AI.";
+const NOTHING_AVAILABLE = "Connect Google or allow Reminders access to add items.";
+const AI_LOCKED: Record<AiLockState, string> = {
+  expired:
+    "Your AI trial has ended, so DayBoard can't read this for you. Fill in the details to add it without AI, or get DayBoard Pro in Settings → License.",
+  invalid:
+    "Your license key isn't valid, so DayBoard can't read this for you. Fill in the details to add it without AI, or check your key in Settings → License.",
+  "network-error":
+    "DayBoard can't verify your license, so it can't read this for you. Fill in the details to add it without AI, or check Settings → License.",
+};
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -110,8 +123,13 @@ export function createCaptureService(deps: CaptureDeps) {
     changed();
   }
 
-  function fail(record: CaptureRecord, error: string, partial: Partial<ItemDraft> | null) {
-    Object.assign(record, { state: "failed", error, partial, canUndo: false });
+  function fail(
+    record: CaptureRecord,
+    error: string,
+    partial: Partial<ItemDraft> | null,
+    reason: CaptureRecord["reason"] = null,
+  ) {
+    Object.assign(record, { state: "failed", error, partial, reason, canUndo: false });
     changed();
     deps.onFailed(snapshot(record));
     return snapshot(record);
@@ -161,6 +179,7 @@ export function createCaptureService(deps: CaptureDeps) {
       partial: null,
       state: "processing",
       error: null,
+      reason: null,
       createdAt: deps.now().toISOString(),
       canUndo: false,
     };
@@ -173,6 +192,9 @@ export function createCaptureService(deps: CaptureDeps) {
       draft = normalized;
       record.text = draft.title;
     } else {
+      // With nowhere to add it, neither start the AI trial nor spend an AI call.
+      if (!available.task && !available.reminder && !available.event)
+        return fail(record, NOTHING_AVAILABLE, { title: text });
       if (!aiCaptureEnabled(settings))
         return fail(record, "Fill in the details, then add it.", { title: text });
       // Only the AI parse is paid, so the license is checked here and never for a manual draft.
@@ -181,7 +203,10 @@ export function createCaptureService(deps: CaptureDeps) {
         await deps.assertAiAccess();
       } catch (error) {
         assertCurrent(started);
-        return fail(record, `${message(error)} ${WITHOUT_AI}`, { title: text });
+        const lock = aiLockState(error);
+        return lock
+          ? fail(record, AI_LOCKED[lock], { title: text }, "license")
+          : fail(record, `${message(error)} ${WITHOUT_AI}`, { title: text });
       }
       assertCurrent(started);
       let output: string;

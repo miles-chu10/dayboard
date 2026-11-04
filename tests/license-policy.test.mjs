@@ -6,18 +6,19 @@ import { build } from "esbuild";
 
 const root = new URL("..", import.meta.url).pathname;
 
-test("only AI channels require a license; everyday editing and Quick Capture stay free", async () => {
-  const result = await build({
-    entryPoints: [path.join(root, "shared/license-policy.ts")],
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    write: false,
-    logLevel: "silent",
-  });
-  const { requiresLicenseAccess } = await import(
-    `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
-  );
+const result = await build({
+  entryPoints: [path.join(root, "shared/license-policy.ts")],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  write: false,
+  logLevel: "silent",
+});
+const { LicenseRequiredError, aiLockState, requiresLicenseAccess } = await import(
+  `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
+);
+
+test("only AI channels require a license; everyday editing and Quick Capture stay free", () => {
   for (const paid of ["ai:run", "ai:assistant", "assistant:transcribe", "memory:learn"]) {
     assert.equal(requiresLicenseAccess(paid), true, paid);
   }
@@ -39,4 +40,21 @@ test("only AI channels require a license; everyday editing and Quick Capture sta
   ]) {
     assert.equal(requiresLicenseAccess(free), false, free);
   }
+});
+
+test("a license-guard rejection names the lock state; other errors name none", () => {
+  for (const state of ["expired", "invalid", "network-error"]) {
+    const error = new LicenseRequiredError(state);
+    assert.equal(
+      error.message,
+      "License required for this action. Open Settings → License to continue.",
+    );
+    assert.equal(aiLockState(error), state);
+  }
+  // Checked by code, so an error from another bundle's copy of the class still counts.
+  assert.equal(aiLockState({ code: "license-required", state: "expired" }), "expired");
+  assert.equal(aiLockState({ code: "license-required", state: "trial" }), null);
+  assert.equal(aiLockState(new Error("License status is not ready. Try again shortly.")), null);
+  assert.equal(aiLockState("License required"), null);
+  assert.equal(aiLockState(null), null);
 });

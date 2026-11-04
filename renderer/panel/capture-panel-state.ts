@@ -1,7 +1,8 @@
 // Quick Capture panel state, kept pure so the tricky parts (late failures while Miles is typing)
 // are unit-tested.
 
-import type { ItemDraft, ItemKind } from "../../shared/capture";
+import { aiCaptureEnabled, type ItemDraft, type ItemKind } from "../../shared/capture";
+import { isLicenseBlocking, type AiLockState, type LicenseStatus } from "../../shared/license";
 
 export interface CaptureRecordView {
   id: string;
@@ -10,6 +11,8 @@ export interface CaptureRecordView {
   partial: Partial<ItemDraft> | null;
   state: "processing" | "created" | "undone" | "failed";
   error: string | null;
+  /** "license" when the license locked the AI parse. */
+  reason: "license" | null;
   createdAt: string;
   canUndo: boolean;
 }
@@ -19,6 +22,21 @@ export interface PanelFailure {
   text: string;
   error: string;
   partial: Partial<ItemDraft> | null;
+  reason: "license" | null;
+}
+
+/**
+ * Whether a panel offers AI capture: it is on in settings and the license doesn't lock AI. `lock`
+ * names the license state when it does; the manual form stays free. A license status that hasn't
+ * loaded locks nothing, since the capture service checks again right before the AI call.
+ */
+export function panelAiCapture(
+  settings: Parameters<typeof aiCaptureEnabled>[0] | undefined,
+  license: LicenseStatus | undefined,
+): { available: boolean; lock: AiLockState | null } {
+  if (!settings || !aiCaptureEnabled(settings)) return { available: false, lock: null };
+  if (license && isLicenseBlocking(license)) return { available: false, lock: license.state };
+  return { available: true, lock: null };
 }
 
 export interface CapturePanelState {
@@ -97,6 +115,7 @@ export function reduceCapturePanel(
         text: action.text,
         error: action.error,
         partial: action.partial ?? null,
+        reason: null,
       });
     case "recordsChanged":
       return action.records
@@ -108,6 +127,7 @@ export function reduceCapturePanel(
               text: record.text,
               error: record.error ?? "Couldn't add this.",
               partial: record.partial,
+              reason: record.reason === "license" ? "license" : null,
             }),
           state,
         );

@@ -1,3 +1,4 @@
+import { LicenseRequiredError } from "../../../shared/license-policy.js";
 import type { LicenseStatus, LicenseStatusPayload } from "../../../shared/license.js";
 import { isLicenseBlocking, type LicenseService } from "./license-service.js";
 
@@ -44,9 +45,7 @@ export function createLicenseOperations(deps: {
   async function assertLicenseAccess(): Promise<void> {
     if (deps.mode() === "configured") await (await deps.getService()).startTrial();
     const { status } = await refresh();
-    if (isLicenseBlocking(status)) {
-      throw new Error("License required for this action. Open Settings → License to continue.");
-    }
+    if (isLicenseBlocking(status)) throw new LicenseRequiredError(status.state);
   }
 
   return { getStatus, refresh, activate, deactivate, assertLicenseAccess };

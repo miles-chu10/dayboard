@@ -238,6 +238,8 @@ Status is exposed as `system:hotkeyStatus` → `{ accelerator, registered, confl
   operation tracking and quit draining cover it; the renderer does not wait for it. Late
   failures are queued in the panel and never replace text Miles is typing.
 - `capture:submit` and `capture:undo` are added to `PAID_CHANNELS`; both refuse demo mode.
+  (Superseded by the 2026-11-04 AI-only Pro model in `docs/EXECPLAN.md`: neither is paid;
+  only Quick Capture's AI parse checks the license, inside `capture-service.ts`.)
 - The in-window ⌘N dialog keeps its current review flow.
 
 ### 3. Menu-bar mini Agenda

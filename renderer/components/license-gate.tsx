@@ -90,17 +90,30 @@ export function LicenseGate({
       placement={placement}
       title={copy.title}
       description={copy.description}
-      actions={
-        <>
-          {checkoutUrl ? (
-            <Button variant="accent" onClick={() => void openExternal(checkoutUrl)}>
-              Get DayBoard Pro · $5
-            </Button>
-          ) : null}
-          <Button onClick={() => void openSettings("license")}>Open License Settings</Button>
-        </>
-      }
+      actions={<LicenseUpsellActions checkoutUrl={checkoutUrl} />}
     />
+  );
+}
+
+/** The buy and License buttons of every AI upsell. */
+export function LicenseUpsellActions({
+  checkoutUrl,
+  size,
+}: {
+  checkoutUrl: string;
+  size?: "small";
+}) {
+  return (
+    <>
+      {checkoutUrl ? (
+        <Button variant="accent" size={size} onClick={() => void openExternal(checkoutUrl)}>
+          Get DayBoard Pro · $5
+        </Button>
+      ) : null}
+      <Button size={size} onClick={() => void openSettings("license")}>
+        Open License Settings
+      </Button>
+    </>
   );
 }
 

@@ -5,12 +5,7 @@ import { toast } from "../ui";
 import { errorMessage } from "./ipc";
 import type { LicenseStatus, LicenseStatusPayload } from "@shared/license";
 export type { LicenseStatus, LicenseStatusPayload } from "@shared/license";
-
-export function isLicenseBlocking(status: LicenseStatus): boolean {
-  return (
-    status.state === "expired" || status.state === "invalid" || status.state === "network-error"
-  );
-}
+export { isLicenseBlocking } from "../../shared/license";
 
 export const LICENSE_STATUS_COPY: Record<
   LicenseStatus["state"],
@@ -73,6 +68,31 @@ export function useLicenseStatus() {
     () =>
       window.dayboard.ipc.onNotification("license:changed", (params) => {
         queryClient.setQueryData(licenseQueryKey, params as LicenseStatusPayload);
+      }),
+    [queryClient],
+  );
+
+  return query;
+}
+
+const licenseSnapshotKey = ["license", "stored"] as const;
+
+/**
+ * The stored license status, for the floating panels: `license:status` never revalidates or starts
+ * the trial, and panels may not call `license:refresh`. A trial can end without a `license:changed`
+ * broadcast, so refetch it whenever the panel is shown.
+ */
+export function useLicenseSnapshot() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: licenseSnapshotKey,
+    queryFn: () => license("license:status"),
+  });
+
+  useEffect(
+    () =>
+      window.dayboard.ipc.onNotification("license:changed", (params) => {
+        queryClient.setQueryData(licenseSnapshotKey, params as LicenseStatusPayload);
       }),
     [queryClient],
   );

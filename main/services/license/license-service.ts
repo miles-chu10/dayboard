@@ -13,6 +13,7 @@ import type {
 import type { DesktopLicenseConfig } from "../../../shared/license-config.js";
 
 export type { LicenseStatus } from "../../../shared/license.js";
+export { isLicenseBlocking } from "../../../shared/license.js";
 
 export interface LicenseRecord {
   version: 2;
@@ -63,13 +64,6 @@ function defaultRecord(now: Date): LicenseRecord {
     lastValidationMessage: null,
     productBinding: null,
   };
-}
-
-/** States in which paid (AI) actions are blocked (prompt to buy / enter a key). */
-export function isLicenseBlocking(status: LicenseStatus): boolean {
-  return (
-    status.state === "expired" || status.state === "invalid" || status.state === "network-error"
-  );
 }
 
 function matchesProduct(meta: LicenseBinding, expected: DesktopLicenseConfig): boolean {

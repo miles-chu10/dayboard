@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Button, Callout, Input, Text } from "@renderer/ui";
 
-import {
-  aiCaptureEnabled,
-  availableKinds,
-  normalizeDraft,
-  type ItemDraft,
-  type ItemKind,
-} from "@shared/capture";
+import { availableKinds, normalizeDraft, type ItemDraft, type ItemKind } from "@shared/capture";
+import type { AiLockState } from "@shared/license";
 import { DraftFields } from "../components/draft-fields";
+import { LicenseUpsellActions } from "../components/license-gate";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { useLicenseSnapshot } from "../lib/license";
 import { useAccounts } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 import {
   initialCaptureState,
+  panelAiCapture,
   reduceCapturePanel,
   type CaptureRecordView,
 } from "./capture-panel-state";
@@ -26,6 +24,14 @@ import {
 } from "./panel-ipc";
 
 const NONE = { task: false, reminder: false, event: false };
+
+// Shown above the manual form while AI capture is on but the license locks AI.
+const AI_LOCKED_NOTE: Record<AiLockState, string> = {
+  expired: "Your AI trial has ended. Adding items here stays free.",
+  invalid: "Your license key isn’t valid, so AI is off. Adding items here stays free.",
+  "network-error":
+    "DayBoard can’t verify your license, so AI is off. Adding items here stays free.",
+};
 
 // Sentence case, as the app's other add buttons ("Add task").
 const ADD_LABEL: Record<ItemKind, string> = {
@@ -41,6 +47,7 @@ export function CapturePanel() {
   const accountRevision = useRef(0);
   const settings = useSettings().data;
   const accounts = useAccounts().data;
+  const { data: license, refetch: refetchLicense } = useLicenseSnapshot();
   const [state, dispatch] = useReducer(reduceCapturePanel, initialCaptureState);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -55,7 +62,9 @@ export function CapturePanel() {
         : NONE,
     [settings, accounts],
   );
-  const aiAvailable = settings ? aiCaptureEnabled(settings) : false;
+  // A locked AI parse would only fail, so a locked license opens straight on the free manual form.
+  const ai = panelAiCapture(settings, license?.status);
+  const aiAvailable = ai.available;
   const defaultKind: ItemKind =
     (["reminder", "task", "event"] as const).find((kind) => available[kind]) ?? "reminder";
   const nothingAvailable =
@@ -100,8 +109,15 @@ export function CapturePanel() {
     if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
   }, [settings, accounts, aiAvailable, defaultKind, available]);
 
+  // The trial ends without a broadcast; a parse the license refused means the status here is stale.
+  const licenseFailure = state.failures.some((failure) => failure.reason === "license");
+  useEffect(() => {
+    if (licenseFailure) void refetchLicense();
+  }, [licenseFailure, refetchLicense]);
+
   usePanelEscape("capture");
   usePanelShown(() => {
+    void refetchLicense();
     if (settings && accounts) dispatch({ type: "shown", aiAvailable, defaultKind, available });
     setFormError(null);
     input.current?.focus();
@@ -179,6 +195,14 @@ export function CapturePanel() {
           {failure.error}
         </Callout>
       ))}
+      {ai.lock && license && !nothingAvailable ? (
+        <Callout
+          color="orange"
+          actions={<LicenseUpsellActions checkoutUrl={license.checkoutUrl} size="small" />}
+        >
+          {AI_LOCKED_NOTE[ai.lock]}
+        </Callout>
+      ) : null}
       {nothingAvailable ? (
         <Callout
           color="orange"

@@ -88,7 +88,7 @@ const service = createCaptureService({
   newId: randomUUID,
 });
 
-/** One Undo command for IPC and notification buttons: admission, license and receipt checks. */
+/** One Undo command for IPC and notification buttons: admission and receipt checks. */
 function undo(id: string): Promise<CaptureRecord> {
   return service.undo(id).then((record) => {
     if (record.draft) ipcMain.broadcast("data:changed", { source: SOURCE[record.draft.kind] });
