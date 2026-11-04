@@ -7,13 +7,15 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const repository = "miles-chu10/dayboard";
+// GitHub names are case-insensitive, and Actions reports the repository as it is currently spelled.
+const isRepository = (name) => typeof name === "string" && name.toLowerCase() === repository;
 const semver =
   /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 export function releasePlan({ repo, ref, version, sha }) {
   const tag = ref?.startsWith("refs/tags/") ? ref.slice(10) : "";
   const parsed = semver.exec(tag);
-  if (repo !== repository || !parsed || tag !== `v${version}` || !/^[a-f0-9]{40}$/.test(sha ?? ""))
+  if (!isRepository(repo) || !parsed || tag !== `v${version}` || !/^[a-f0-9]{40}$/.test(sha ?? ""))
     throw new Error("Release requires a matching version tag and commit in miles-chu10/dayboard.");
   if (
     parsed[4]?.split(".").some((part) => /^\d+$/.test(part) && part.length > 1 && part[0] === "0")
@@ -35,7 +37,7 @@ export function releasePlan({ repo, ref, version, sha }) {
 // updates off, uploaded as a workflow artifact only. No update metadata, so no latest-mac.yml.
 export function betaPlan({ repo, event, ref, version, sha }) {
   if (
-    repo !== repository ||
+    !isRepository(repo) ||
     event !== "workflow_dispatch" ||
     ref !== "refs/heads/main" ||
     !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.(0|[1-9]\d*)$/.test(version ?? "") ||
@@ -262,7 +264,7 @@ export async function publishRelease({ github, repository: repo, tag, sha, direc
   if (
     manifest.sha !== sha ||
     manifest.tag !== tag ||
-    manifest.repository !== repo ||
+    manifest.repository !== repository ||
     JSON.stringify(manifest.assets?.map((a) => a.name)) !==
       JSON.stringify([...plan.files, "SHA256SUMS.txt"])
   )
@@ -273,7 +275,7 @@ export async function publishRelease({ github, repository: repo, tag, sha, direc
     if (!stat.isFile() || stat.size !== asset.bytes || (await digest(file)) !== asset.sha256)
       throw new Error("Release asset integrity check failed.");
   }
-  const [owner, name] = repo.split("/");
+  const [owner, name] = repository.split("/");
   const api = github.rest.repos;
   async function verifyTag() {
     let object = (await github.rest.git.getRef({ owner, repo: name, ref: `tags/${tag}` })).data
@@ -376,7 +378,7 @@ export async function publishRelease({ github, repository: repo, tag, sha, direc
 async function main(command) {
   if (
     process.env.GITHUB_ACTIONS !== "true" ||
-    process.env.GITHUB_REPOSITORY !== repository ||
+    !isRepository(process.env.GITHUB_REPOSITORY) ||
     !process.env.RUNNER_TEMP
   )
     throw new Error("This command is restricted to DayBoard's GitHub Actions release job.");
