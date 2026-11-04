@@ -41,7 +41,7 @@ export default defineConfig(
     languageOptions: { globals: globals.worker },
   },
   {
-    files: ["billing/tests/**/*.{ts,mjs}", "billing/*.{ts,js,mjs}"],
+    files: ["billing/tests/**/*.{ts,mjs}", "billing/scripts/**/*.mjs", "billing/*.{ts,js,mjs}"],
     languageOptions: { globals: globals.node },
   },
   {

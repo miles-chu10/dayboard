@@ -64,14 +64,31 @@ export function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function rateBucket(request: Request, env: Env, route: string): Promise<string> {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  return hash(`${route}:${ip}`, env.HASH_SECRET);
+}
+
+/** Reads this minute's count for the route and caller without adding to it. */
+export async function limitReached(
+  request: Request,
+  env: Env,
+  route: string,
+  threshold: number,
+): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT hits FROM rate_limits WHERE bucket=? AND window_start=?")
+    .bind(await rateBucket(request, env, route), Math.floor(Date.now() / 60000))
+    .first<{ hits: number }>();
+  return (row?.hits ?? 0) >= threshold;
+}
+
 export async function limit(
   request: Request,
   env: Env,
   route: string,
   threshold: number,
 ): Promise<boolean> {
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const bucket = await hash(`${route}:${ip}`, env.HASH_SECRET);
+  const bucket = await rateBucket(request, env, route);
   const windowStart = Math.floor(Date.now() / 60000);
   const row =
     await env.DB.prepare(`INSERT INTO rate_limits (bucket,window_start,hits) VALUES (?,?,1)

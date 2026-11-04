@@ -13,6 +13,8 @@ export interface Env {
   SITE_ORIGIN?: string;
   SIGNUP_EMAIL?: SendEmail;
   SIGNUP_NOTIFY_TO?: string;
+  /** Optional bearer token for the /v1/admin/ routes. Unset or shorter than 32 characters: 503. */
+  ADMIN_TOKEN?: string;
 }
 
 export interface Config {

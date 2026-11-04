@@ -10,7 +10,7 @@ import { randomToken } from "../src/crypto.ts";
 
 const origin = "https://billing.example.test";
 
-test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and refund safely", async () => {
+async function workerScript(): Promise<string> {
   const bundle = await build({
     entryPoints: [new URL("../src/index.ts", import.meta.url).pathname],
     bundle: true,
@@ -19,6 +19,51 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
     target: "es2022",
     write: false,
   });
+  return bundle.outputFiles[0].text;
+}
+
+async function migrate(db: Awaited<ReturnType<Miniflare["getD1Database"]>>): Promise<void> {
+  const dir = new URL("../migrations/", import.meta.url);
+  for (const file of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
+    const migration = await readFile(new URL(file, dir), "utf8");
+    // D1 exec treats newlines as statement boundaries; prepare complete migration statements.
+    await db.batch(
+      migration
+        .split(";")
+        .map((sql) => sql.trim())
+        .filter(Boolean)
+        .map((sql) => db.prepare(sql)),
+    );
+  }
+}
+
+function desktopFor(mf: Miniflare, productId: string) {
+  const fetchFixture: typeof fetch = async (input, init) => {
+    const response = await mf.dispatchFetch(
+      String(input),
+      init as Parameters<typeof mf.dispatchFetch>[1],
+    );
+    return new Response(await response.arrayBuffer(), {
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+    });
+  };
+  let saved: LicenseRecord | null = null;
+  const store = {
+    read: async () => saved,
+    write: async (record: LicenseRecord) => {
+      saved = structuredClone(record);
+    },
+  };
+  return new LicenseService(new DayBoardLicenseVerifier(origin, fetchFixture), store, {
+    product: { issuer: origin, apiUrl: origin, productId, environment: "test" },
+    trialDays: 14,
+    revalidateIntervalMs: 0,
+    offlineGraceDays: 30,
+  });
+}
+
+test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and refund safely", async () => {
   const secret = `whsec_${randomToken()}`;
   const sessions = new Map<string, Record<string, unknown>>();
   let calls = 0;
@@ -26,7 +71,7 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
-      script: bundle.outputFiles[0].text,
+      script: await workerScript(),
       compatibilityDate: "2026-09-22",
       compatibilityFlags: ["nodejs_compat"],
       cf: false,
@@ -136,18 +181,7 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
   );
   try {
     const db = await mf.getD1Database("DB");
-    const dir = new URL("../migrations/", import.meta.url);
-    for (const file of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
-      const migration = await readFile(new URL(file, dir), "utf8");
-      // D1 exec treats newlines as statement boundaries; prepare complete migration statements.
-      await db.batch(
-        migration
-          .split(";")
-          .map((sql) => sql.trim())
-          .filter(Boolean)
-          .map((sql) => db.prepare(sql)),
-      );
-    }
+    await migrate(db);
     const request = (path: string, method = "GET", cookie = "", body?: unknown) =>
       mf.dispatchFetch(origin + path, {
         method,
@@ -228,29 +262,7 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
     assert.equal(claim.status, 200);
     const { licenseKey } = (await claim.json()) as { licenseKey: string };
     assert.match(licenseKey, /^DAYB_[A-Za-z0-9_-]{43}$/);
-    const fetchFixture: typeof fetch = async (input, init) => {
-      const response = await mf.dispatchFetch(
-        String(input),
-        init as Parameters<typeof mf.dispatchFetch>[1],
-      );
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: Object.fromEntries(response.headers),
-      });
-    };
-    let saved: LicenseRecord | null = null;
-    const store = {
-      read: async () => saved,
-      write: async (record: LicenseRecord) => {
-        saved = structuredClone(record);
-      },
-    };
-    const desktop = new LicenseService(new DayBoardLicenseVerifier(origin, fetchFixture), store, {
-      product: { issuer: origin, apiUrl: origin, productId: "prod_RUNTIME", environment: "test" },
-      trialDays: 14,
-      revalidateIntervalMs: 0,
-      offlineGraceDays: 30,
-    });
+    const desktop = desktopFor(mf, "prod_RUNTIME");
     assert.equal((await desktop.activate(licenseKey, "Disposable runtime Mac")).state, "licensed");
     assert.equal((await desktop.activate(licenseKey, "Disposable runtime Mac")).state, "licensed");
     assert.equal(
@@ -272,6 +284,80 @@ test("real Worker, D1 and Stripe SDK complete delivery, desktop activation and r
       409,
     );
     assert.ok(calls > 0);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("real Worker and D1 issue a comp key the desktop app activates, then revoke it", async () => {
+  const adminToken = randomToken();
+  let outbound = 0;
+  const mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      script: await workerScript(),
+      compatibilityDate: "2026-09-22",
+      compatibilityFlags: ["nodejs_compat"],
+      cf: false,
+      d1Databases: ["DB"],
+      d1Persist: false,
+      bindings: {
+        SERVICE_ORIGIN: origin,
+        PRODUCT_ID: "prod_RUNTIME",
+        PRICE_ID: "price_RUNTIME",
+        PRICE_CURRENCY: "usd",
+        ENVIRONMENT: "test",
+        ACTIVATION_LIMIT: "1",
+        STRIPE_SECRET_KEY: "rk_test_disposable_runtime",
+        STRIPE_WEBHOOK_SECRET: `whsec_${randomToken()}`,
+        ENCRYPTION_KEY: randomToken(),
+        HASH_SECRET: randomToken(),
+        ADMIN_TOKEN: adminToken,
+      },
+      // A comp license involves no payment: Stripe or any other outbound request fails the test.
+      outboundService: async () => {
+        outbound++;
+        throw new Error("no outbound request is expected");
+      },
+    }),
+  );
+  try {
+    const db = await mf.getD1Database("DB");
+    await migrate(db);
+    const admin = (path: string, body?: unknown, token = adminToken) =>
+      mf.dispatchFetch(origin + path, {
+        method: body === undefined ? "GET" : "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    assert.equal((await admin("/v1/admin/comp-licenses", {}, randomToken())).status, 401);
+    const issued = await admin("/v1/admin/comp-licenses", { label: "beta tester 1" });
+    assert.equal(issued.status, 201);
+    const { licenseId, licenseKey } = (await issued.json()) as {
+      licenseId: string;
+      licenseKey: string;
+    };
+    const desktop = desktopFor(mf, "prod_RUNTIME");
+    assert.equal((await desktop.activate(licenseKey, "Disposable tester Mac")).state, "licensed");
+    assert.equal((await desktop.refresh()).state, "licensed");
+    // The cap applies as it does to a paid key: here one Mac.
+    const second = desktopFor(mf, "prod_RUNTIME");
+    await assert.rejects(
+      second.activate(licenseKey, "Second tester Mac"),
+      /maximum number of Macs/,
+    );
+    assert.equal(
+      (await db.prepare("SELECT COUNT(*) n FROM activations").first<{ n: number }>())?.n,
+      1,
+    );
+    const revoked = await admin("/v1/admin/comp-licenses/revoke", { licenseId });
+    assert.equal(revoked.status, 200);
+    assert.equal((await desktop.refresh()).state, "invalid");
+    await assert.rejects(second.activate(licenseKey, "Second tester Mac"), /has been revoked/);
+    assert.equal(outbound, 0);
   } finally {
     await mf.dispose();
   }

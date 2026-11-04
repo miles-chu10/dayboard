@@ -9,6 +9,7 @@ import { buyScript, receiptScript } from "../src/pages.ts";
 
 const origin = "https://billing.example.test";
 const secret = "whsec_disposable_only";
+const adminToken = randomToken();
 const realStripe = new Stripe("sk_test_disposable_only", {
   httpClient: Stripe.createFetchHttpClient(),
 });
@@ -32,6 +33,7 @@ function setup() {
     STRIPE_WEBHOOK_SECRET: secret,
     ENCRYPTION_KEY: randomToken(),
     HASH_SECRET: randomToken(),
+    ADMIN_TOKEN: adminToken,
   };
   const state = {
     priceOk: true,
@@ -663,6 +665,65 @@ test("failed and expired receipts link to a fresh checkout while old orders rema
   const afterExpiry = await f.newOrder();
   assert.notEqual(afterExpiry.orderId, retry.orderId);
   assert.equal(f.creates, 3);
+});
+
+test("paid and comp licenses share the cap but keep separate revocation", async () => {
+  const f = await fulfilled();
+  const admin = (path: string, body: unknown) =>
+    f.call(path, "POST", "", body, { Authorization: `Bearer ${adminToken}` });
+  const issued = await admin("/v1/admin/comp-licenses", { label: "beta tester 1" });
+  assert.equal(issued.status, 201);
+  const comp = (await issued.json()) as { licenseId: string; licenseKey: string };
+  const paidId = String(
+    f.db.sql
+      .prepare("SELECT id FROM licenses WHERE id NOT IN (SELECT license_id FROM comp_licenses)")
+      .get()!.id,
+  );
+  // The admin route revokes only comp licenses. Paid ones follow Stripe refunds and disputes.
+  assert.equal((await admin("/v1/admin/comp-licenses/revoke", { licenseId: paidId })).status, 404);
+  const outcomes = async (licenseKey: string) => {
+    const results = [];
+    for (let i = 0; i < 3; i++) {
+      const response = await f.call("/v1/licenses/activate", "POST", "", {
+        licenseKey,
+        installationId: crypto.randomUUID(),
+        instanceName: "Test Mac",
+      });
+      results.push(((await response.json()) as { error?: string }).error ?? "activated");
+    }
+    return results;
+  };
+  assert.deepEqual(await outcomes(f.licenseKey), ["activated", "activated", "activation_limit"]);
+  assert.deepEqual(await outcomes(comp.licenseKey), ["activated", "activated", "activation_limit"]);
+  const validate = async (licenseKey: string) =>
+    (await (await f.call("/v1/licenses/validate", "POST", "", { licenseKey })).json()) as {
+      valid: boolean;
+      error?: string;
+    };
+  // A refund revokes the paid key only.
+  f.state.refund = 3000;
+  assert.equal(
+    (await f.signed("charge.refunded", "evt_mixed_refund", "ch_test_disposable")).status,
+    200,
+  );
+  assert.deepEqual(await validate(f.licenseKey), { valid: false, error: "revoked" });
+  assert.equal((await validate(comp.licenseKey)).valid, true);
+  // Revoking the comp key gives the same answer and leaves the paid tombstone's reason alone.
+  assert.equal(
+    (await admin("/v1/admin/comp-licenses/revoke", { licenseId: comp.licenseId })).status,
+    200,
+  );
+  assert.deepEqual(await validate(comp.licenseKey), { valid: false, error: "revoked" });
+  assert.deepEqual(
+    f.db.sql
+      .prepare("SELECT payment_intent_id, reason FROM payments ORDER BY payment_intent_id")
+      .all()
+      .map((row) => [row.payment_intent_id, row.reason]),
+    [
+      [`comp_${comp.licenseId}`, "comp_revoked"],
+      ["pi_test_disposable", "full_refund"],
+    ],
+  );
 });
 
 test("served browser scripts parse as JavaScript", () => {
