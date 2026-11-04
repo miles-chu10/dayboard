@@ -186,14 +186,21 @@ test("Settings and composer menus have no overlapping or covered controls", asyn
     expect(await auditLayout(page, { root: '[role="dialog"]' }), "effort panel").toEqual([]);
     await page.keyboard.press("Escape");
     const input = page.getByRole("textbox", { name: /^Message / });
-    await input.fill("/");
-    await expect(page.getByRole("listbox", { name: "Commands" })).toBeVisible();
     const menu = "[data-radix-popper-content-wrapper]:has([role=listbox])";
-    expect(await auditLayout(page, { root: menu }), "slash menu").toEqual([]);
-    await input.fill("@");
-    await expect(page.getByRole("listbox")).toBeVisible();
-    expect(await auditLayout(page, { root: menu, stress: true }), "mention menu").toEqual([]);
-    await input.fill("");
+    // The menus are as wide as the composer, so check them at set window sizes, not the display's.
+    for (const width of [800, 1440]) {
+      await resize(demo.app, width, 820);
+      await input.fill("/");
+      await expect(page.getByRole("listbox", { name: "Commands" })).toBeVisible();
+      expect(await auditLayout(page, { root: menu }), `slash menu at ${width}`).toEqual([]);
+      await input.fill("@");
+      await expect(page.getByRole("listbox", { name: "Mentions" })).toBeVisible();
+      expect(
+        await auditLayout(page, { root: menu, stress: true }),
+        `mention menu at ${width}`,
+      ).toEqual([]);
+      await input.fill("");
+    }
 
     expect(demo.errors).toEqual([]);
   } finally {

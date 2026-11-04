@@ -55,7 +55,7 @@ Open items, with what each waits on, are under "Remaining work".
 
 ### main and the beta.16 candidate
 
-- `main` is `4996f9a`, versioned `1.3.0-beta.16`, and **not released**. Merged since beta.15: #60
+- `main` is `4996f9a`, versioned `1.3.0-beta.16`, and **not released** (beta.17 fix below). Merged since beta.15: #60
   (standalone layout matched to the Glaze app), #66 (Codex handoff doc), #67 (DayBoard Pro as a $5
   AI-only unlock with Stripe Managed Payments), #68 (MCP source writes no longer license-gated),
   #70 with #71 (HeroSpace features), #72 (release fixes after the repository rename), and the
@@ -75,10 +75,14 @@ Open items, with what each waits on, are under "Remaining work".
   format, typecheck, lint, unit and e2e tests, built, signed and notarized the package, checked
   Gatekeeper and ran the signed-package smoke tests. It uploaded `signed-macos-beta-1.3.0-beta.16`
   and `beta-test-results` (screenshots with fictional data). Both expire on 2026-11-18.
-- **Beta.16 is not published.** A local annotated tag `v1.3.0-beta.16` (tag object
-  `a90c688dafbdb1d387285a2828e46180011618b7`, pointing at `4996f9a`) exists only on Miles's Mac.
-  Origin has no such tag. Pushing it was blocked by the Claude Code auto-mode classifier and waits
-  on Miles.
+- **Beta.16 failed and is not published.** Miles pushed `v1.3.0-beta.16` (tag object `a90c688…`,
+  pointing at `4996f9a`) on 2026-11-04. Signed macOS release run 41932746810 stopped at "Test
+  before loading release credentials": in `e2e/ui-audit.spec.ts`, the Assistant's @ menu showed
+  item dates squeezed to 25–27px. The menu is as wide as the composer, the audit ran at whatever
+  window size the runner's display allowed, and the dry run's runner had passed it. Nothing was
+  signed or published. The tag stays, and the fix ships as `1.3.0-beta.17` from branch
+  `fix/beta16-release-audit`: the @ menu uses ⌘K's row layout, and the audit checks the composer
+  menus at 800 and 1440 px windows.
 
 ### Installed app on Miles's Mac
 
@@ -430,24 +434,24 @@ Earlier standalone observations follow; their counts and live-account results ar
 Ordered by priority. Each item says who or what it waits on. Tag pushes, merges, deploys, release
 workflows and anything outward-facing need Miles's explicit OK for that action, every time.
 
-1. **Push the `v1.3.0-beta.16` tag.** The local annotated tag (`a90c688…`, pointing at `4996f9a`)
-   exists only on Miles's Mac. Pushing it starts the public Signed macOS release run. Waits on
-   Miles: his explicit approval, and he pushes it from his Mac. An agent push was blocked by the
-   Claude Code auto-mode classifier.
-2. **Verify the beta.16 release.** It will be the first tag release since the rename to
+1. **Merge the beta.17 PR and push `v1.3.0-beta.17`.** Branch `fix/beta16-release-audit` fixes the
+   test that stopped beta.16's release run and bumps the version. After it merges, Miles tags the
+   merge commit on `main` and pushes the tag from his Mac, which starts the public Signed macOS
+   release run. Waits on Miles: the merge, the tag and the push.
+2. **Verify the beta.17 release.** It will be the first tag release since the rename to
    `miles-chu10/DayBoard`, and only unit tests cover the letter-case fix on the release and publish
    path. After it publishes, check the assets, `SHA256SUMS.txt` against GitHub's digests and
    `latest-mac.yml`, and run `codesign`, `stapler` and `spctl` on the Mac (read-only, for example
-   `/release-check 1.3.0-beta.16`). Waits on the release run that follows item 1.
+   `/release-check 1.3.0-beta.17`). Waits on the release run that follows item 1.
    - If the run fails, `macos-release.yml` uploads no test results; only `macos-beta.yml` keeps
      `beta-test-results`. Adding that is a workflow PR with Miles's merge OK. It is not required
-     for beta.16.
+     for beta.17.
 3. **Installed app on Miles's Mac.**
-   - Update `/Applications/DayBoard.app` from beta.15 to beta.16 in the app once beta.16 is
+   - Update `/Applications/DayBoard.app` from beta.15 to beta.17 in the app once beta.17 is
      published and verified, and record it. Miles asked for this on 2026-11-04; waits on items 1
      and 2.
    - Miles confirms his Google accounts visually. A session then observes the first token refresh
-     under beta.15 (or beta.16) and checks the Keychain item read-only. That Keychain item check
+     under beta.15 (or beta.17) and checks the Keychain item read-only. That Keychain item check
      is still open from the follow-up to the beta.12-to-beta.13 in-app update
      (`docs/CODEX-HANDOFF.md`, pending item 10); its `codesign` and `spctl` checks are covered by
      the beta.15 install checks above. Waits on Miles.
@@ -479,8 +483,8 @@ workflows and anything outward-facing need Miles's explicit OK for that action, 
      `beta-test-results` screenshots or a native demo run. Waits on an agent or Miles. The
      HANDOFF.md and TASKS.md refresh is on branch `claude/project-thread-44twxh`; merging it needs
      Miles's OK.
-   - After beta.16 is published and verified, move `website/download.html` (version text, DMG and
-     `SHA256SUMS.txt` URLs, the 138 MB size) and the README to beta.16. Not before the release
+   - After beta.17 is published and verified, move `website/download.html` (version text, DMG and
+     `SHA256SUMS.txt` URLs, the 138 MB size) and the README to beta.17. Not before the release
      exists.
    - Open checkout on the site by setting `buyUrl` once the payment flow is live. Waits on the
      payments project thread and Miles's approval for each deploy and Stripe write.

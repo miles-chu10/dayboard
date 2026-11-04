@@ -3,7 +3,7 @@
 Plan and checklist: `docs/superpowers/plans/2026-11-04-herospace-features.md` (its Progress list is
 the source of truth). `feat/herospace-features` was pushed and merged to main through PR #70
 (`368aebc`, 2026-11-04), with PR #71 (`2201392`) merged into it first. It is not released; it is in
-the `1.3.0-beta.16` candidate.
+the `1.3.0-beta.17` candidate (beta.16's release run failed a layout test; see HANDOFF.md).
 
 - [ ] Final step: full verification, packaged preview, demo-mode visual pass, handoff.
   - Done: CI run 41923026422 and Signed macOS beta dry run 41923039435 passed on `4996f9a`. The
