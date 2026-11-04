@@ -31,6 +31,12 @@ A form says "You're on the waitlist." only when the service answers with a 2xx s
 
 Browsers accept the endpoint only when the service's `SITE_ORIGIN` setting matches this site's exact origin. The form sends the email address and an empty hidden field; see `billing/README.md` for what the service's protections do and don't cover.
 
+## Pricing, refunds and download
+
+`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. When a new beta ships, update the version, DMG link and size in `download.html`.
+
+Buy buttons (`a[data-buy]`) ship hidden, and `[data-buy-pending]` notes say checkout isn't open yet. Set `buyUrl` in `assets/site.js` to the live billing service's checkout page (`https://api.getdayboard.com/buy`) only after the live Worker is deployed and tested; the script then shows the buttons and hides the notes. Only an HTTPS address is accepted. `tests/website-buy.test.mjs` checks both states.
+
 ## Publishing
 
 Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SITE_CONFIG`, makes each `og:image` absolute, publishes this folder with the site Worker in `website-worker/` and verifies the result. On the live getdayboard.com deployment, follow its "Existing deployment: waitlist rollout" section instead: the database change and the API go out before this folder. Before publishing:

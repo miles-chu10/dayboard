@@ -4,7 +4,26 @@
 const SITE_CONFIG = Object.freeze({
   waitlistUrl: "https://api.getdayboard.com/v1/waitlist",
   contactEmail: "hello@getdayboard.com",
+  // The billing service's checkout page, e.g. "https://api.getdayboard.com/buy". Leave it empty
+  // until live checkout is ready: buy buttons stay hidden and pages say checkout isn't open yet.
+  buyUrl: "",
 });
+
+const buyUrl = (() => {
+  try {
+    const url = new URL(SITE_CONFIG.buyUrl);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+})();
+if (buyUrl) {
+  for (const link of document.querySelectorAll("a[data-buy]")) {
+    link.href = buyUrl;
+    link.hidden = false;
+  }
+  for (const note of document.querySelectorAll("[data-buy-pending]")) note.hidden = true;
+}
 
 const contactEmail = /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(SITE_CONFIG.contactEmail)
   ? SITE_CONFIG.contactEmail
