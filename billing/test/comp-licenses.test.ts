@@ -90,7 +90,7 @@ function setup(overrides: Partial<Env> = {}) {
   const license = async (kind: "validate" | "activate" | "deactivate", body: unknown) =>
     (await (
       await worker.fetch(
-        new Request(`${origin}/v1/licenses/${kind}`, {
+        new Request(`${env.SERVICE_ORIGIN}/v1/licenses/${kind}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -126,7 +126,8 @@ test("admin routes stay closed without a strong ADMIN_TOKEN or licensing config"
   assert.equal(g.count("licenses"), 0);
 });
 
-test("wrong or missing tokens get 401, and repeated failures are rate limited", async () => {
+test("wrong or missing tokens get 401, and repeated failures are rate limited", async (t) => {
+  t.mock.method(Date, "now", () => 1_800_000_000_000);
   const f = setup();
   const attempts = [null, "Bearer", "Bearer wrong", `Basic ${f.token}`, `Bearer ${f.token}x`];
   for (const auth of attempts) {
@@ -149,12 +150,53 @@ test("wrong or missing tokens get 401, and repeated failures are rate limited", 
   });
   assert.equal(other.status, 201);
   assert.equal(f.count("licenses"), 1);
-  // Successful requests don't count toward the limit.
+  // Successful requests don't count toward the failure limit.
   for (let i = 0; i < 6; i++)
     assert.equal((await f.admin(adminPath, { ip: "198.51.100.8" })).status, 200);
   // No bucket stores the address itself.
   for (const row of f.db.sql.prepare("SELECT bucket FROM rate_limits").all())
     assert.doesNotMatch(String(row.bucket), /198\.51\.100/);
+});
+
+test("parallel wrong tokens from one address get at most five 401s", async (t) => {
+  // One fixed minute, so the burst can't straddle two rate windows.
+  t.mock.method(Date, "now", () => 1_800_000_000_000);
+  const f = setup();
+  const responses = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      f.admin(adminPath, { body: { label: "beta tester 1" }, auth: "Bearer wrong" }),
+    ),
+  );
+  const statuses = responses.map((response) => response.status);
+  assert.equal(statuses.filter((status) => status === 401).length, 5);
+  assert.equal(statuses.filter((status) => status === 429).length, 15);
+  // The right token is locked out too, and nothing was issued.
+  assert.equal((await f.admin(adminPath)).status, 429);
+  assert.equal(f.count("licenses"), 0);
+});
+
+test("a matching token gives back the failure slot it reserved", async (t) => {
+  t.mock.method(Date, "now", () => 1_800_000_000_000);
+  const f = setup();
+  for (let i = 0; i < 4; i++)
+    assert.equal((await f.admin(adminPath, { auth: "Bearer wrong" })).status, 401);
+  for (let i = 0; i < 3; i++) assert.equal((await f.admin(adminPath)).status, 200);
+  // The fifth failure still gets 401; after it, the address is locked out.
+  assert.equal((await f.admin(adminPath, { auth: "Bearer wrong" })).status, 401);
+  assert.equal((await f.admin(adminPath)).status, 429);
+});
+
+test("each address may send at most 120 admin requests a minute", async (t) => {
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, "now", () => now);
+  const f = setup();
+  for (let i = 0; i < 120; i++) assert.equal((await f.admin(adminPath)).status, 200);
+  const capped = await f.admin(adminPath);
+  assert.deepEqual([capped.status, await capped.json()], [429, { error: "rate_limited" }]);
+  // Another address has its own count, and the next minute starts over.
+  assert.equal((await f.admin(adminPath, { ip: "198.51.100.8" })).status, 200);
+  now += 60_000;
+  assert.equal((await f.admin(adminPath)).status, 200);
 });
 
 test("issuance returns the key once and stores only its hash and ciphertext", async () => {
@@ -190,8 +232,11 @@ test("issuance returns the key once and stores only its hash and ciphertext", as
   assert.equal(list.status, 200);
   const text = await list.text();
   assert.doesNotMatch(text, /DAYB_/);
+  const listed = JSON.parse(text) as { licenses: Record<string, unknown>[]; truncated: boolean };
+  assert.equal(listed.truncated, false);
+  // Newest first.
   assert.deepEqual(
-    (JSON.parse(text) as { licenses: Record<string, unknown>[] }).licenses.map((entry) => [
+    listed.licenses.map((entry) => [
       entry.licenseId,
       entry.label,
       entry.environment,
@@ -199,8 +244,8 @@ test("issuance returns the key once and stores only its hash and ciphertext", as
       entry.activations,
     ]),
     [
-      [issued.licenseId, "beta tester 7", "test", null, 0],
       [second.licenseId, "beta tester 8", "test", null, 0],
+      [issued.licenseId, "beta tester 7", "test", null, 0],
     ],
   );
 });
@@ -211,6 +256,8 @@ test("labels are short free text, never email addresses", async () => {
     [{ label: "tester@example.com" }, "invalid_label"],
     [{ label: "  " }, "invalid_label"],
     [{ label: "x".repeat(65) }, "invalid_label"],
+    // Over the 1 KB body limit: refused before the label is looked at.
+    [{ label: "x".repeat(2000) }, "invalid_body"],
     [{ label: "tab\there" }, "invalid_label"],
     [{ label: 7 }, "invalid_label"],
     [{ label: "beta tester", email: "tester@example.com" }, "invalid_body"],
@@ -267,12 +314,19 @@ test("a comp key validates, activates up to the cap and deactivates like a paid 
     licenses: { activations: number }[];
   };
   assert.equal(listed.licenses[0].activations, 2);
-  // Bound to the issuing product and environment, like a paid key.
+  // Bound to the issuing origin, product and environment, like a paid key.
+  const rejected = { valid: false, error: "invalid_license" };
   f.env.PRODUCT_ID = "prod_OTHER";
-  assert.deepEqual(await f.license("validate", { licenseKey }), {
-    valid: false,
-    error: "invalid_license",
-  });
+  assert.deepEqual(await f.license("validate", { licenseKey }), rejected);
+  f.env.PRODUCT_ID = "prod_TEST";
+  f.env.SERVICE_ORIGIN = "https://other.example.test";
+  assert.deepEqual(await f.license("validate", { licenseKey }), rejected);
+  f.env.SERVICE_ORIGIN = origin;
+  Object.assign(f.env, { ENVIRONMENT: "live", STRIPE_SECRET_KEY: "sk_live_disposable_only" });
+  assert.deepEqual(await f.license("validate", { licenseKey }), rejected);
+  // Back on the issuing configuration, the same key validates again.
+  Object.assign(f.env, { ENVIRONMENT: "test", STRIPE_SECRET_KEY: "sk_test_disposable_only" });
+  assert.equal((await f.license("validate", { licenseKey })).valid, true);
 });
 
 test("a revoked comp key fails exactly like a refunded paid key", async () => {
@@ -472,7 +526,10 @@ test("the CLI issues keys into a private git-ignored file, lists and revokes the
   try {
     const out = join(dir, "keys.local.jsonl");
     const env = { DAYBOARD_ADMIN_TOKEN: f.token, DAYBOARD_BILLING_ORIGIN: url };
-    const issued = await runCli(["issue", "--count", "3", "--out", out, "beta tester"], env);
+    const issued = await runCli(
+      ["issue", "--environment", "test", "--count", "3", "--out", out, "beta tester"],
+      env,
+    );
     assert.equal(issued.code, 0, issued.stderr);
     assert.equal(issued.stderr, "");
     // Keys go only to the file, never to the terminal.
@@ -508,41 +565,165 @@ test("the CLI issues keys into a private git-ignored file, lists and revokes the
     assert.equal((await runCli(["revoke", randomToken(24)], env)).code, 1);
 
     // A second run appends instead of replacing earlier keys.
-    assert.equal((await runCli(["issue", "--out", out, "beta tester 4"], env)).code, 0);
+    const fourth = await runCli(
+      ["issue", "--environment", "test", "--out", out, "beta tester 4"],
+      env,
+    );
+    assert.equal(fourth.code, 0, fourth.stderr);
     assert.equal((await readFile(out, "utf8")).trim().split("\n").length, 4);
 
     // Refused before any request: an unignored or unwritable output file, an address as label,
-    // too many keys, no token, a plain-HTTP remote origin or an unknown command.
+    // too many keys, a missing or unknown environment, --environment outside issue, no token, an
+    // unresolved 1Password reference, a plain-HTTP remote origin or an unknown command.
     const before = f.count("licenses");
-    for (const [args, runEnv] of [
-      [["issue", "--out", join(dir, "keys.jsonl"), "tester"], env],
-      [["issue", "--out", join(dir, "missing", "keys.local.jsonl"), "tester"], env],
-      [["issue", "--out", out, "tester@example.com"], env],
-      [["issue", "--out", out, "--count", "51", "tester"], env],
-      [["issue", "--out", out, "tester"], { DAYBOARD_BILLING_ORIGIN: url }],
+    const rateRows = f.count("rate_limits");
+    const test = ["issue", "--environment", "test"];
+    const opReference = "op://Private/DayBoard billing admin/credential";
+    for (const [args, runEnv, message] of [
+      [[...test, "--out", join(dir, "keys.jsonl"), "tester"], env, /\.local\.jsonl/],
+      [[...test, "--out", join(dir, "missing", "keys.local.jsonl"), "tester"], env, /ENOENT/],
+      [[...test, "--out", out, "tester@example.com"], env, /email address/],
+      [[...test, "--out", out, "--count", "51", "tester"], env, /--count/],
+      [["issue", "--out", out, "tester"], env, /--environment/],
+      [["issue", "--environment", "staging", "--out", out, "tester"], env, /--environment/],
+      [["list", "--environment", "test"], env, /apply only to issue/],
+      [[...test, "--out", out, "tester"], { DAYBOARD_BILLING_ORIGIN: url }, /32 characters/],
       [
-        ["issue", "--out", out, "tester"],
-        { ...env, DAYBOARD_BILLING_ORIGIN: "http://example.com" },
+        [...test, "--out", out, "tester"],
+        { ...env, DAYBOARD_ADMIN_TOKEN: opReference },
+        /1Password reference.*op run/,
       ],
-      [["frobnicate"], env],
-    ] as [string[], Record<string, string>][]) {
+      [
+        [...test, "--out", out, "tester"],
+        { ...env, DAYBOARD_BILLING_ORIGIN: "http://example.com" },
+        /HTTPS/,
+      ],
+      [["frobnicate"], env, /Unknown command/],
+    ] as [string[], Record<string, string>, RegExp][]) {
       const result = await runCli(args, runEnv);
       assert.equal(result.code, 2, result.stderr);
+      assert.match(result.stderr, message);
     }
     assert.equal(f.count("licenses"), before);
+    assert.equal(f.count("rate_limits"), rateRows);
 
     // A wrong token is reported without echoing it, and nothing is written.
     const wrongToken = randomToken();
-    const denied = await runCli(["issue", "--out", out, "tester"], {
+    const denied = await runCli([...test, "--out", out, "tester"], {
       ...env,
       DAYBOARD_ADMIN_TOKEN: wrongToken,
     });
     assert.equal(denied.code, 1);
     assert.match(denied.stderr, /HTTP 401 unauthorized/);
+    // A definite 4xx issued nothing, so there is no "may have been issued" warning.
+    assert.doesNotMatch(denied.stderr, /may have been issued/);
     assert.doesNotMatch(denied.stdout + denied.stderr, new RegExp(wrongToken));
     assert.equal((await readFile(out, "utf8")).trim().split("\n").length, 4);
+
+    // A key from another environment than --environment is revoked, not saved.
+    const mismatch = await runCli(
+      ["issue", "--environment", "live", "--out", out, "beta tester 5", "beta tester 6"],
+      env,
+    );
+    assert.equal(mismatch.code, 1);
+    assert.doesNotMatch(mismatch.stdout + mismatch.stderr, /DAYB_/);
+    assert.match(mismatch.stderr, /issues test keys, not live keys/);
+    assert.match(mismatch.stderr, /Revoked [A-Za-z0-9_-]{32}/);
+    assert.equal((await readFile(out, "utf8")).trim().split("\n").length, 4);
+    // The run stopped at the first key, and that key no longer validates.
+    assert.deepEqual(
+      f.db.sql
+        .prepare(
+          "SELECT label, revoked_at IS NOT NULL AS revoked FROM comp_licenses WHERE label IN ('beta tester 5', 'beta tester 6')",
+        )
+        .all()
+        .map((row) => ({ ...row })),
+      [{ label: "beta tester 5", revoked: 1 }],
+    );
   } finally {
     server.close();
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the CLI warns that a key may exist when a success response can't be read", async () => {
+  // A 201 means the key was committed, so a body the CLI can't use must not look like a refusal.
+  const bodies = ["not json", JSON.stringify({ licenseId: "short", licenseKey: "DAYB_short" })];
+  let served = 0;
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(bodies[served++]);
+    });
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const dir = await mkdtemp(join(tmpdir(), "dayboard-comp-"));
+  try {
+    const out = join(dir, "keys.local.jsonl");
+    const env = {
+      DAYBOARD_ADMIN_TOKEN: randomToken(),
+      DAYBOARD_BILLING_ORIGIN: `http://127.0.0.1:${address.port}`,
+    };
+    for (const _ of bodies) {
+      const result = await runCli(["issue", "--environment", "test", "--out", out, "tester"], env);
+      assert.equal(result.code, 1);
+      assert.match(result.stderr, /Could not issue "tester": HTTP 201\./);
+      assert.match(result.stderr, /A key may have been issued anyway/);
+    }
+    assert.equal(served, bodies.length);
+    assert.equal(await readFile(out, "utf8"), "");
+  } finally {
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the list returns the newest 1,000 comp licenses and says it stopped", async () => {
+  const f = setup();
+  // 1,001 older comp licenses, written directly, with created_at 1 to 1001.
+  const rows = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1001)";
+  const id = "printf('%032d', i)";
+  f.db.sql.exec(`
+    ${rows} INSERT INTO payments (payment_intent_id, revoked, updated_at)
+      SELECT 'comp_' || ${id}, 0, i FROM n;
+    ${rows} INSERT INTO orders
+      (id, capability_hash, capability_expires_at, payment_intent_id, state, created_at)
+      SELECT 'comp_' || ${id}, 'cap' || i, 0, 'comp_' || ${id}, 'ready', i FROM n;
+    ${rows} INSERT INTO licenses (id, order_id, payment_intent_id, issuer, product_id, environment,
+      key_hash, key_ciphertext, key_iv, created_at)
+      SELECT ${id}, 'comp_' || ${id}, 'comp_' || ${id}, '${origin}', 'prod_TEST', 'test',
+        'hash' || i, 'c', 'iv', i FROM n;
+    ${rows} INSERT INTO comp_licenses (license_id, label, created_at)
+      SELECT ${id}, 'old ' || i, i FROM n;
+  `);
+  const newest = await f.issue("beta tester 1");
+  const listed = (await (await f.admin(adminPath)).json()) as {
+    licenses: { licenseId: string; createdAt: number }[];
+    truncated: boolean;
+  };
+  assert.equal(listed.truncated, true);
+  assert.equal(listed.licenses.length, 1000);
+  // The key just issued comes first; the two oldest are the ones left out.
+  assert.equal(listed.licenses[0].licenseId, newest.licenseId);
+  assert.deepEqual(
+    listed.licenses.slice(1, 3).map((entry) => entry.createdAt),
+    [1001, 1000],
+  );
+  assert.equal(listed.licenses.at(-1)!.createdAt, 3);
+
+  const { server, url } = await bridge(f);
+  try {
+    const result = await runCli(["list"], {
+      DAYBOARD_ADMIN_TOKEN: f.token,
+      DAYBOARD_BILLING_ORIGIN: url,
+    });
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /1000 comp license\(s\)/);
+    assert.match(result.stderr, /Only the newest 1000 comp licenses are listed/);
+  } finally {
+    server.close();
   }
 });

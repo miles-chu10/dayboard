@@ -1,10 +1,13 @@
 import type { Config, Env } from "./config.ts";
 import { hash, mintLicense, randomToken, safeEqual } from "./crypto.ts";
-import { error, json, limit, limitReached, object, readJson } from "./http.ts";
+import { count, error, json, limit, object, readJson, uncount } from "./http.ts";
 
 // Owner-only routes for complimentary ("comp") licenses. Callers authenticate with
 // `Authorization: Bearer <ADMIN_TOKEN>`. Nothing here logs the token, a key or a request body.
 const MIN_TOKEN_LENGTH = 32;
+// Enough for a 50-key CLI run plus a list, from one address in one minute.
+const REQUEST_ROUTE = "admin:request";
+const REQUESTS_PER_MINUTE = 120;
 const FAILURE_ROUTE = "admin:auth-failure";
 const FAILURES_PER_MINUTE = 5;
 const LABEL_MAX = 64;
@@ -125,12 +128,15 @@ async function revoke(request: Request, env: Env): Promise<Response> {
 }
 
 async function list(env: Env): Promise<Response> {
+  // Newest first, so a long list drops the oldest keys rather than the ones just issued. The
+  // rowid follows insertion order, which orders keys issued within the same millisecond.
   const rows = await env.DB.prepare(
     `SELECT c.license_id,c.label,c.created_at,c.revoked_at,l.environment,
       (SELECT COUNT(*) FROM activations a WHERE a.license_id=c.license_id) AS activations
-    FROM comp_licenses c JOIN licenses l ON l.id=c.license_id ORDER BY c.created_at,c.license_id LIMIT ?`,
+    FROM comp_licenses c JOIN licenses l ON l.id=c.license_id
+    ORDER BY c.created_at DESC,c.rowid DESC LIMIT ?`,
   )
-    .bind(LIST_MAX)
+    .bind(LIST_MAX + 1)
     .all<{
       license_id: string;
       label: string;
@@ -140,7 +146,7 @@ async function list(env: Env): Promise<Response> {
       activations: number;
     }>();
   return json({
-    licenses: rows.results.map((row) => ({
+    licenses: rows.results.slice(0, LIST_MAX).map((row) => ({
       licenseId: row.license_id,
       label: row.label,
       environment: row.environment,
@@ -148,6 +154,7 @@ async function list(env: Env): Promise<Response> {
       revokedAt: row.revoked_at,
       activations: row.activations,
     })),
+    truncated: rows.results.length > LIST_MAX,
   });
 }
 
@@ -155,14 +162,17 @@ export async function admin(request: Request, env: Env, cfg: Config): Promise<Re
   const token = env.ADMIN_TOKEN;
   // Closed by default: without a strong token configured, no admin request is considered.
   if (!token || token.length < MIN_TOKEN_LENGTH) return error(503, "admin_unconfigured");
-  // Failed attempts are counted per hashed client address. Once a client reaches the limit, every
-  // admin request from it, even a correct one, waits for the next minute.
-  if (await limitReached(request, env, FAILURE_ROUTE, FAILURES_PER_MINUTE))
+  // Both counters are per hashed client address and minute, and both are counted before the token
+  // is compared, each in one atomic statement, so parallel requests can't share a count.
+  if (!(await limit(request, env, REQUEST_ROUTE, REQUESTS_PER_MINUTE)))
     return error(429, "rate_limited");
-  if (!(await authorized(request, token))) {
-    await limit(request, env, FAILURE_ROUTE, FAILURES_PER_MINUTE);
-    return unauthorized();
-  }
+  // Every request reserves a failure slot and gives it back only when its token matches. Once all
+  // slots are taken, every admin request from the address, even a correct one, waits for the
+  // next minute.
+  const attempt = await count(request, env, FAILURE_ROUTE);
+  if (attempt.hits > FAILURES_PER_MINUTE) return error(429, "rate_limited");
+  if (!(await authorized(request, token))) return unauthorized();
+  await uncount(env, attempt);
   const path = new URL(request.url).pathname;
   if (path === "/v1/admin/comp-licenses") {
     if (request.method === "POST") return issue(request, env, cfg);
