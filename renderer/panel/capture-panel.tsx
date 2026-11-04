@@ -107,7 +107,10 @@ export function CapturePanel() {
     input.current?.focus();
   });
 
-  /** Hides first, then submits; a rejection before the pipeline (license, update) comes back here. */
+  /**
+   * Hides first, then submits; a rejection before the pipeline (update, demo mode) comes back here.
+   * A locked AI parse comes back as a failed record instead; its Edit opens the free manual form.
+   */
   function send(payload: { text: string } | { draft: ItemDraft }, text: string) {
     const key = `local-${++sequence.current}`;
     const started = accountRevision.current;

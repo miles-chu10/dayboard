@@ -410,10 +410,11 @@ test("runGuardedCommand applies the license guard to paid commands", async () =>
   });
   let runs = 0;
   await assert.rejects(
-    adapter.runGuardedCommand("capture:submit", async () => ++runs),
+    adapter.runGuardedCommand("ai:assistant", async () => ++runs),
     /License required/,
   );
   assert.equal(runs, 0);
+  assert.equal(await adapter.runGuardedCommand("capture:submit", async () => "free"), "free");
   assert.equal(await adapter.runGuardedCommand("capture:undo", async () => "free"), "free");
   assert.equal(await adapter.runGuardedCommand("settings:get", async () => "free"), "free");
 });
@@ -434,26 +435,19 @@ test("runGuardedCommand refuses during update preparation", async () => {
   }
 });
 
-for (const switches of [1, 2]) {
-  test(`capture submission waiting for license admission is rejected after ${switches} account changes`, async () => {
-    const { adapter, makeSender, invoke } = await createHarness();
-    const sender = makeSender(60);
-    adapter.registerTrustedWindow(sender, entryUrl);
-    const entered = Promise.withResolvers();
-    const released = Promise.withResolvers();
-    adapter.setLicenseAccessGuard(async () => {
-      entered.resolve();
-      await released.promise;
-    });
-    let captures = 0;
-    adapter.ipcMain.handle("capture:submit", () => ++captures);
-    const pending = invoke("capture:submit", sender, { text: "Old account text" });
-    const rejected = assert.rejects(pending, /account changed/i);
-    await entered.promise;
-    for (let i = 0; i < switches; i++) adapter.ipcMain.broadcast("accounts:changed", {});
-    released.resolve();
-    await rejected;
-    assert.equal(captures, 0);
-    assert.equal(await invoke("capture:submit", sender, { text: "New account text" }), 1);
+test("capture:submit skips the channel license guard; its AI parse asks the same guard", async () => {
+  const { adapter, makeSender, invoke } = await createHarness();
+  const sender = makeSender(60);
+  adapter.registerTrustedWindow(sender, entryUrl);
+  let guardCalls = 0;
+  adapter.setLicenseAccessGuard(async () => {
+    guardCalls++;
+    throw new Error("License required");
   });
-}
+  let captures = 0;
+  adapter.ipcMain.handle("capture:submit", () => ++captures);
+  assert.equal(await invoke("capture:submit", sender, { draft: { title: "Pay rent" } }), 1);
+  assert.equal(guardCalls, 0, "a manual capture never consults the license or starts the trial");
+  await assert.rejects(adapter.assertAiAccess(), /License required/);
+  assert.equal(guardCalls, 1);
+});

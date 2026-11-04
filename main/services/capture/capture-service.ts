@@ -1,6 +1,6 @@
 // Quick Capture's pipeline: parse with AI (or take Miles's manual draft), create in the right
 // source under the account that was active at submission, and keep a short-lived Undo receipt.
-// Electron-free: handlers inject the providers, the AI runner and the write guard.
+// Electron-free: handlers inject the providers, license check, AI runner and write guard.
 
 import {
   CAPTURE_SYSTEM,
@@ -43,6 +43,8 @@ export interface CaptureDeps {
   guardedWrite<T>(scope: string, write: () => Promise<T>): Promise<T>;
   getSettings(): Promise<CaptureSettings>;
   getAccounts(): Promise<{ google: { connected: boolean }; reminders: string }>;
+  /** The license check every AI action runs: starts the AI trial on first use, throws once locked. */
+  assertAiAccess(): Promise<void>;
   complete(system: string, prompt: string): Promise<string>;
   create: {
     task(draft: ItemDraft): Promise<TaskRef>;
@@ -69,6 +71,7 @@ type Receipt =
 const MAX_RECORDS = 5;
 const MAX_TEXT = 1_000;
 const UNDO_MS = 10 * 60_000;
+const WITHOUT_AI = "Fill in the details to add it without AI.";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -172,6 +175,15 @@ export function createCaptureService(deps: CaptureDeps) {
     } else {
       if (!aiCaptureEnabled(settings))
         return fail(record, "Fill in the details, then add it.", { title: text });
+      // Only the AI parse is paid, so the license is checked here and never for a manual draft.
+      // When AI is locked, the text goes back to the manual form, which stays free.
+      try {
+        await deps.assertAiAccess();
+      } catch (error) {
+        assertCurrent(started);
+        return fail(record, `${message(error)} ${WITHOUT_AI}`, { title: text });
+      }
+      assertCurrent(started);
       let output: string;
       try {
         output = await deps.complete(
