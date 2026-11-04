@@ -27,6 +27,7 @@ import { useStartAtLogin } from "../lib/use-start-at-login";
 import { displayName } from "../components/app-sidebar";
 import { AccentPicker } from "./accent-picker";
 import { MailSettings } from "./mail-settings";
+import { SidebarSettings } from "./sidebar-settings";
 import { SettingSelect } from "./setting-select";
 import { MeetingsSettings, SystemPanelsSettings } from "./system-panels-settings";
 
@@ -322,6 +323,8 @@ export function GeneralTab() {
               />
             </Field>
           </FieldSet>
+
+          <SidebarSettings />
 
           <MailSettings />
 

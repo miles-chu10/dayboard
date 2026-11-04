@@ -22,6 +22,8 @@ import type {
 } from "../shared-types.js";
 import {
   DOCK_BADGES,
+  SIDEBAR_VIEWS,
+  type SidebarView,
   FOLLOW_UP_DAYS,
   MAIL_NOTIFICATIONS,
   UNDO_SEND_SECONDS,
@@ -98,6 +100,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     accent: "system",
     density: "default",
     detailView: "dialog",
+    sidebar: { order: [...SIDEBAR_VIEWS], hidden: [], counts: true },
   },
   sources: {
     tasks: { enabled: true, color: "blue" },
@@ -183,6 +186,25 @@ function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function sidebarViews(value: unknown): SidebarView[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((id): id is SidebarView => SIDEBAR_VIEWS.includes(id)))]
+    : [];
+}
+
+/** A saved order keeps its known views; views added since then join in their default place. */
+function normalizeSidebar(value: unknown): AppSettings["general"]["sidebar"] {
+  const saved = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const order = sidebarViews(saved.order);
+  for (const [index, id] of SIDEBAR_VIEWS.entries())
+    if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id);
+  return {
+    order,
+    hidden: sidebarViews(saved.hidden).filter((id) => id !== "home"),
+    counts: bool(saved.counts, true),
+  };
+}
+
 /** Short lowercase identifier from the Codex catalog, or empty for "use the default". */
 function modelId(value: unknown): string {
   return typeof value === "string" && /^[A-Za-z0-9._:/@-]{0,120}$/.test(value.trim())
@@ -229,6 +251,7 @@ export function normalizeSettings(value: unknown): AppSettings {
       accent: oneOf(general.accent, ACCENTS, defaults.general.accent),
       density: oneOf(general.density, DENSITIES, defaults.general.density),
       detailView: oneOf(general.detailView, DETAIL_VIEWS, defaults.general.detailView),
+      sidebar: normalizeSidebar(general.sidebar),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {

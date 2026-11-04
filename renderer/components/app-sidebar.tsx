@@ -35,7 +35,7 @@ import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { modelSummary } from "../lib/model-choices";
-import { NAV_ITEMS, type NavItem } from "../lib/navigation";
+import { visibleNav, type NavItem } from "../lib/navigation";
 import { needsYou } from "../lib/home";
 import { readTriageMap, useTriageChanges } from "../lib/triage";
 import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
@@ -100,10 +100,6 @@ function sourceSubtitle(
 }
 
 type MainNavId = "home" | "agenda" | "notes" | SourceId;
-
-const MAIN_NAV = NAV_ITEMS.filter(
-  (item): item is NavItem & { id: MainNavId } => item.group === "main",
-);
 
 /** A count pill; overdue counts carry an icon so they don't rely on color alone. */
 function SidebarCount({
@@ -235,6 +231,10 @@ export function AppSidebar() {
 
   // The Dock badge shows what Settings picks: what waits on you, unread mail, or nothing.
   const notes = useNotes();
+  const showCounts = settings?.general.sidebar.counts ?? true;
+  const mainNav = visibleNav(settings).filter(
+    (item): item is NavItem & { id: MainNavId } => item.group === "main",
+  );
   const badgeSetting = settings?.system.dockBadge;
   const badgeCount =
     badgeSetting === "waiting" ? waiting : badgeSetting === "unread" ? counts.mail : 0;
@@ -242,11 +242,6 @@ export function AppSidebar() {
     if (badgeSetting === undefined) return;
     void invoke("app:setBadge", { count: badgeCount }).catch(() => undefined);
   }, [badgeCount, badgeSetting]);
-
-  function navVisible(id: MainNavId): boolean {
-    if (id === "home" || id === "agenda" || id === "notes") return true;
-    return sourceOn(settings, id);
-  }
 
   function navIcon(id: MainNavId) {
     if (id === "home")
@@ -446,13 +441,13 @@ export function AppSidebar() {
       }
     >
       <SidebarList role="navigation" aria-label="Main navigation">
-        {MAIN_NAV.filter((item) => navVisible(item.id)).map((item) => (
+        {mainNav.map((item) => (
           <SidebarListItem
             key={item.id}
             icon={navIcon(item.id)}
             title={item.title}
             subtitle={navSubtitle(item.id)}
-            accessory={navAccessory(item.id)}
+            accessory={showCounts ? navAccessory(item.id) : undefined}
             selected={navSelected(item.id, item.route)}
             onClick={() => void navigate({ to: item.route })}
           />

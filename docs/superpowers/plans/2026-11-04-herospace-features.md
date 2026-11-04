@@ -40,8 +40,9 @@ his preferences, logs every agent tool call, shows AI usage, and keeps Notes age
   - [x] 3.3 Snooze and "remind me if no reply"
   - [x] 3.4 Subscriptions manager and unsubscribe
 - [x] Phase 4 — System: mail/follow-up notifications, Dock badge, menu-bar "Waiting on you"
-- [ ] Phase 5 — Agent platform: Memory, Activity log, Usage, Notes
-- [ ] Phase 6 — Sidebar reorder/hide/counts settings, then browser-style tabs
+      (`b3fdf30`)
+- [x] Phase 5 — Agent platform: Memory, Activity log, Usage, Notes (`3645b6f`)
+- [x] Phase 6 — Sidebar reorder/hide/counts settings, then browser-style tabs
 - [ ] Final: full verification, packaged preview, demo-mode visual pass, handoff
 
 ## Decision Log
@@ -63,6 +64,19 @@ his preferences, logs every agent tool call, shows AI usage, and keeps Notes age
   scope (no provider API exposes them to DayBoard).
 - Decision: every new write path calls `assertNotDemo`; every new timer, poller and notification is
   off in demo and test builds; new AI prompts get a `demoCompletion` branch.
+- Decision (Phase 5): memory, activity, usage and notes are local JSON stores; demo mode writes its
+  own `demo-*` files seeded from `demo-data.ts` (the assistant-history precedent), so Notes and
+  Memory are usable and testable in demo without touching real files.
+- Decision (Phase 5): the in-app Assistant's MCP stays read-only, so it can't save memories.
+  Memory comes from the user, from outside agents through `remember` (only with "Allow changes"),
+  and from the user's own edits to reply drafts. This keeps email content from planting a memory.
+  Memories go into prompts framed as preferences, never instructions.
+- Decision (Phase 5): usage is recorded where every AI request finishes (`runCompletion`,
+  `runAssistant`) through a dependency-free event, so Quick Capture and learning are counted too.
+- Decision (Phase 6): only the main sidebar views reorder or hide; the AI group follows its
+  feature switches. Hidden views stay in ⌘K. Tabs keep a route and search each, the strip appears
+  from two tabs, ⌘W closes a tab while there are two or more, and tab state is per-window
+  localStorage (not per-tab scroll or selection).
 
 ## Validation and Acceptance
 

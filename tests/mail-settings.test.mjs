@@ -80,3 +80,35 @@ test("mail notifications start off and the Dock badge counts what waits on you",
   // Other system settings survive alongside the new ones.
   assert.deepEqual(invalid.system.menuBar, DEFAULT_SETTINGS.system.menuBar);
 });
+
+test("the sidebar keeps a saved order, adds new views in place and never hides Home", () => {
+  const all = ["home", "agenda", "calendar", "mail", "tasks", "reminders", "notes"];
+  assert.deepEqual(DEFAULT_SETTINGS.general.sidebar, { order: all, hidden: [], counts: true });
+  // Saved before Notes existed, with duplicates and an unknown view: Notes joins at the end.
+  const saved = normalizeSettings({
+    general: {
+      sidebar: {
+        order: ["mail", "home", "mail", "inbox", "agenda", "calendar", "tasks", "reminders"],
+        hidden: ["home", "reminders", "nope"],
+        counts: false,
+      },
+    },
+  }).general.sidebar;
+  assert.deepEqual(saved, {
+    order: ["mail", "home", "agenda", "calendar", "tasks", "reminders", "notes"],
+    hidden: ["reminders"],
+    counts: false,
+  });
+  // A view missing from the saved order joins at its default position.
+  assert.deepEqual(
+    normalizeSettings({
+      general: { sidebar: { order: ["home", "mail", "tasks", "reminders", "notes"] } },
+    }).general.sidebar.order,
+    ["home", "agenda", "calendar", "mail", "tasks", "reminders", "notes"],
+  );
+  assert.deepEqual(normalizeSettings({ general: { sidebar: "bad" } }).general.sidebar, {
+    order: all,
+    hidden: [],
+    counts: true,
+  });
+});

@@ -4,6 +4,13 @@ Read `docs/EXECPLAN.md` for the objective and `docs/RELEASE.md` for build/releas
 
 ## Current state
 
+- Branch `feat/herospace-features` (local, not pushed) adds the 16 HeroSpace-inspired features
+  Miles chose: ⌘K, a docked Ask Assistant panel with context chips, a calendar peek, a Home
+  ("Up next") page, mail triage chips and summaries, send with undo, snooze and "remind me if no
+  reply", a subscriptions manager, mail notifications and a Dock badge, a menu-bar "Waiting on
+  you" feed, single-key mail shortcuts and a `?` sheet, agent memory, an MCP activity log, a
+  usage dashboard, Notes, sidebar order/hide/counts settings and browser-style tabs. Plan,
+  decisions and commits: `docs/superpowers/plans/2026-11-04-herospace-features.md`.
 - Latest published beta: `1.3.0-beta.12` (prerelease `v1.3.0-beta.12`, October 22), the first
   Developer ID signed, notarized and self-updating release, published by the **Signed macOS
   release** workflow from tag `v1.3.0-beta.12` on `9e32075`. Its SHA256SUMS, `latest-mac.yml`

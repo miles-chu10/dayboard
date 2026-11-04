@@ -1,4 +1,4 @@
-import type { AIFeature, AppSettings, SourceId } from "@main/shared-types";
+import type { AIFeature, AppSettings, SidebarView, SourceId } from "@main/shared-types";
 
 export type NavRoute =
   | "/"
@@ -102,7 +102,21 @@ export function navItemVisible(settings: AppSettings | undefined, item: NavItem)
   return true;
 }
 
-/** The sidebar's views in order; ⌃1–9 and the command menu follow the same list. */
+/** Every view that can open, main views in the sidebar's saved order, then the AI views. */
+export function navTargets(settings: AppSettings | undefined): NavItem[] {
+  const order = settings?.general?.sidebar?.order ?? [];
+  const rank = (item: NavItem) => {
+    const index = order.indexOf(item.id as SidebarView);
+    return item.group === "ai" ? 1_000 : index < 0 ? 500 : index;
+  };
+  return NAV_ITEMS.filter((item) => navItemVisible(settings, item))
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+    .map(({ item }) => item);
+}
+
+/** The sidebar's views in order, without the ones hidden in Settings; ⌃1–9 follow this list. */
 export function visibleNav(settings: AppSettings | undefined): NavItem[] {
-  return NAV_ITEMS.filter((item) => navItemVisible(settings, item));
+  const hidden = settings?.general?.sidebar?.hidden ?? [];
+  return navTargets(settings).filter((item) => !hidden.includes(item.id as SidebarView));
 }

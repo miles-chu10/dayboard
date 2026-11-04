@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AppSettings } from "@main/shared-types";
 
-import { NAV_ITEMS, visibleNav } from "./navigation";
+import { NAV_ITEMS, navTargets, visibleNav } from "./navigation";
 
 type Source = "tasks" | "reminders" | "mail" | "calendar";
 
@@ -59,5 +59,26 @@ test("before settings load every source shows, AI views don't", () => {
   assert.deepEqual(
     visibleNav(undefined).map((item) => item.id),
     ["home", "agenda", "calendar", "mail", "tasks", "reminders", "notes"],
+  );
+});
+
+test("the sidebar follows the saved order and leaves out hidden views; ⌘K keeps them", () => {
+  const custom = {
+    ...settings({}),
+    general: {
+      sidebar: {
+        order: ["mail", "home", "notes", "agenda", "calendar", "tasks", "reminders"],
+        hidden: ["agenda", "reminders"],
+        counts: true,
+      },
+    },
+  } as unknown as AppSettings;
+  assert.deepEqual(
+    visibleNav(custom).map((item) => item.id),
+    ["mail", "home", "notes", "calendar", "tasks", "assistant", "review"],
+  );
+  assert.deepEqual(
+    navTargets(custom).map((item) => item.id),
+    ["mail", "home", "notes", "agenda", "calendar", "tasks", "reminders", "assistant", "review"],
   );
 });

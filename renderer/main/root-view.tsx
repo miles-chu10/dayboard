@@ -17,6 +17,7 @@ import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 import { invoke } from "../lib/ipc";
+import { TabStrip, TabsProvider } from "../components/tab-strip";
 
 const LAUNCH_ROUTE: Record<
   LaunchView,
@@ -80,7 +81,9 @@ export function RootView() {
           <SubscriptionsProvider>
             <MeetingPrepProvider>
               <ShellProvider>
-                <Shell />
+                <TabsProvider>
+                  <Shell />
+                </TabsProvider>
               </ShellProvider>
             </MeetingPrepProvider>
           </SubscriptionsProvider>
@@ -105,8 +108,11 @@ function Shell() {
     >
       <SidebarControl />
       <CommandMenu />
-      <div data-window-content className="h-full min-h-0 bg-background">
-        <Outlet />
+      <div data-window-content className="flex h-full min-h-0 flex-col bg-background">
+        <TabStrip />
+        <div className="min-h-0 flex-1">
+          <Outlet />
+        </div>
       </div>
     </SplitView>
   );

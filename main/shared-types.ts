@@ -81,6 +81,8 @@ export interface AppSettings {
     density: Density;
     /** Where item details open: pop-up window, inline under the row, or a right-hand panel. */
     detailView: DetailView;
+    /** The sidebar's views: their order, which are hidden (Home never is), and count pills. */
+    sidebar: { order: SidebarView[]; hidden: SidebarView[]; counts: boolean };
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
   mail: {
@@ -164,6 +166,18 @@ export interface SystemSettings {
   /** What the Dock icon's badge counts. */
   dockBadge: DockBadge;
 }
+
+/** The sidebar's main views, in their default order (the AI group stays as it is). */
+export const SIDEBAR_VIEWS = [
+  "home",
+  "agenda",
+  "calendar",
+  "mail",
+  "tasks",
+  "reminders",
+  "notes",
+] as const;
+export type SidebarView = (typeof SIDEBAR_VIEWS)[number];
 
 export type MailNotifications = "off" | "reminders" | "all";
 export const MAIL_NOTIFICATIONS: readonly MailNotifications[] = ["off", "reminders", "all"];

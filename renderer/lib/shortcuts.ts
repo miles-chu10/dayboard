@@ -166,6 +166,21 @@ export function shortcutGroups(viewTitles: string[]): ShortcutGroup[] {
         .map((title, index) => ({ title, keys: [["⌃", String(index + 1)]] })),
     },
     {
+      title: "Tabs",
+      entries: [
+        { title: "New tab", keys: [["⌘", "T"]] },
+        { title: "Close tab", keys: [["⌘", "W"]] },
+        {
+          title: "Next or previous tab",
+          keys: [
+            ["⌃", "Tab"],
+            ["⌃", "⇧", "Tab"],
+          ],
+        },
+        { title: "Go to tab 1–8, or the last", keys: [["⌘", "1–9"]] },
+      ],
+    },
+    {
       title: "Mail",
       entries: MAIL_KEYS.map(({ title, keys }) => ({
         title,

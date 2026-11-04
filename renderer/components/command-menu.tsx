@@ -21,7 +21,7 @@ import { mentionCandidates, MENTION_EVENT_DAYS, type MentionItem } from "../lib/
 import { useNotes } from "../lib/agent-data";
 import { todayISO } from "../lib/dates";
 import { openSettings } from "../lib/ipc";
-import { visibleNav } from "../lib/navigation";
+import { navTargets, visibleNav } from "../lib/navigation";
 import { useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { SHORTCUTS, shortcutKeys } from "../lib/shortcuts";
@@ -78,6 +78,7 @@ function CommandMenuContent({ close }: { close: () => void }) {
   const reminders = useReminders();
   const mail = useMail();
   const notes = useNotes();
+  const shown = visibleNav(settings);
   const events = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const assistantOn = featureOn(settings, "assistant");
   const trimmed = query.trim();
@@ -155,18 +156,21 @@ function CommandMenuContent({ close }: { close: () => void }) {
             {assistantOn ? "No matches. Press Tab to ask the Assistant." : "No matches."}
           </Command.Empty>
           <Command.Group heading="Go to" className={groupClass}>
-            {visibleNav(settings).map((item, index) => (
-              <Command.Item
-                key={item.id}
-                value={`go ${item.title}`}
-                keywords={item.keywords}
-                onSelect={() => run(() => void navigate({ to: item.route }))}
-                className={itemClass}
-              >
-                <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                {index < 9 ? <KeyCaps keys={["⌃", String(index + 1)]} /> : null}
-              </Command.Item>
-            ))}
+            {navTargets(settings).map((item) => {
+              const slot = shown.findIndex((visible) => visible.id === item.id);
+              return (
+                <Command.Item
+                  key={item.id}
+                  value={`go ${item.title}`}
+                  keywords={item.keywords}
+                  onSelect={() => run(() => void navigate({ to: item.route }))}
+                  className={itemClass}
+                >
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  {slot >= 0 && slot < 9 ? <KeyCaps keys={["⌃", String(slot + 1)]} /> : null}
+                </Command.Item>
+              );
+            })}
           </Command.Group>
           <Command.Group heading="Actions" className={groupClass}>
             <Action
