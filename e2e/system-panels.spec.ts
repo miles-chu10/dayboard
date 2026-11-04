@@ -222,13 +222,66 @@ test("File → Menu Bar Agenda shows today's panel", async () => {
   }
 });
 
+type KeyProbe = {
+  addEventListener(
+    type: "keydown",
+    listener: (event: { key: string }) => void,
+    capture: boolean,
+  ): void;
+  document: { hasFocus(): boolean };
+  __escapeProbe?: { key: string; documentFocused: boolean }[];
+};
+
+/** Where key focus is: the panel's native window and its document. */
+async function panelFocus(app: ElectronApplication, panel: Page, hash: string) {
+  const window = await app.evaluate(
+    ({ BrowserWindow }, hash) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().endsWith(hash))
+        ?.isFocused() ?? false,
+    hash,
+  );
+  const document = await panel.evaluate(() =>
+    (globalThis as unknown as KeyProbe).document.hasFocus(),
+  );
+  return { window, document };
+}
+
+/** Records keydowns that reach the page, ahead of the app's own handlers. */
+function recordKeys(panel: Page) {
+  return panel.evaluate(() => {
+    const page = globalThis as unknown as KeyProbe;
+    page.__escapeProbe = [];
+    page.addEventListener(
+      "keydown",
+      (event) =>
+        page.__escapeProbe?.push({ key: event.key, documentFocused: page.document.hasFocus() }),
+      true,
+    );
+  });
+}
+
 test("Escape hides a freshly shown menu-bar panel", async () => {
   const demo = await launchDemo();
   try {
     const panel = await openMenuBarAgenda(demo.app);
     await expect(panel.getByRole("heading", { name: "Today" })).toBeVisible();
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(true);
+    await recordKeys(panel);
+    const focusWhenShown = await panelFocus(demo.app, panel, "#menubar");
+    test
+      .info()
+      .annotations.push({ type: "escape-focus", description: JSON.stringify(focusWhenShown) });
+    // macOS can make another window key just after the panel shows (see panel-window.ts); a
+    // person presses Escape on a panel that has key focus, so wait to observe it, never force it.
+    await expect
+      .poll(() => panelFocus(demo.app, panel, "#menubar"))
+      .toEqual({ window: true, document: true });
     await panel.keyboard.press("Escape");
+    // Separates a key that never reached the page from a hide that never happened.
+    await expect
+      .poll(() => panel.evaluate(() => (globalThis as unknown as KeyProbe).__escapeProbe ?? []))
+      .toEqual([expect.objectContaining({ key: "Escape" })]);
     await expect.poll(() => panelVisible(demo.app, "#menubar")).toBe(false);
   } finally {
     await demo.close();
