@@ -22,6 +22,7 @@ import type { CalendarRange, Density, DetailView, LaunchView } from "@main/share
 import { useSettingsEditor } from "../lib/settings";
 import { isRendererDemoMode } from "../lib/demo";
 import { CALENDAR_OPTIONS } from "../lib/calendar-range-options";
+import { errorMessage, openExternal } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts } from "../lib/queries";
 import { useStartAtLogin } from "../lib/use-start-at-login";
@@ -346,6 +347,25 @@ export function GeneralTab() {
       ) : (
         <Status variant="loading">Loading settings…</Status>
       )}
+
+      <FieldSet title="About">
+        <Field
+          label="DayBoard for Mac"
+          description="DayBoard is also available as a standalone Mac app at getdayboard.com."
+        >
+          <Button
+            size="small"
+            variant="transparent"
+            onClick={() =>
+              void openExternal("https://getdayboard.com/").catch((error: unknown) =>
+                toast.error(errorMessage(error)),
+              )
+            }
+          >
+            getdayboard.com
+          </Button>
+        </Field>
+      </FieldSet>
     </>
   );
 }
