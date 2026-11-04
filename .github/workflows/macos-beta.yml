@@ -80,7 +80,7 @@ jobs:
       - name: Smoke-test the signed package with fictional data
         env:
           DAYBOARD_E2E_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/DayBoard.app/Contents/MacOS/DayBoard
-        run: npx --no-install playwright test e2e/smoke.spec.ts e2e/behavior.spec.ts
+        run: npx --no-install playwright test e2e/smoke.spec.ts e2e/behavior.spec.ts --output test-results/signed-package
       - name: Prepare checksummed downloads
         run: node scripts/macos-release.mjs stage
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -90,4 +90,12 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           overwrite: true
+          retention-days: 14
+      # Screenshots (fictional demo data) and failure context from the E2E run and the signed package.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: beta-test-results
+          path: test-results/
+          if-no-files-found: ignore
           retention-days: 14
