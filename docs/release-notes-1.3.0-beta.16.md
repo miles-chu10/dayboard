@@ -27,9 +27,9 @@ Silicon Mac.
 - **The menu bar panel** shows the first three emails from Home's Needs you list.
 - **Notes.** Write Markdown notes with live preview, find them with ⌘K, and save an Assistant
   chat as a note. MCP clients can read and, with Allow changes on, write them.
-- **Memory.** Tell DayBoard your preferences in Settings → AI, and it learns more from how you
-  edit its reply drafts. The Assistant and reply drafts follow them; turn memory off or forget
-  any one at any time.
+- **Memory.** Tell DayBoard your preferences in Settings → AI. When you edit one of its reply
+  drafts before sending, it may suggest a preference; it saves it only if you pick Remember. The
+  Assistant and reply drafts follow them; turn memory off or forget any one at any time.
 - **Agent activity and usage.** Settings → MCP Servers lists every DayBoard tool the Assistant or
   an outside agent used in the last 30 days (names and outcomes only). Settings → AI shows the
   AI requests and tokens DayBoard recorded per day and model.
@@ -41,8 +41,9 @@ Silicon Mac.
 
 ## Privacy
 
-- Memories are saved on your Mac. The Assistant can't save one itself, so text inside an email
-  can't plant a preference. Outside agents can, only while Allow changes is on.
+- Memories are saved on your Mac. The Assistant can't save one itself, and a preference suggested
+  from your edits is saved only when you confirm it, so text inside an email can't plant one.
+  Outside agents can add one, only while Allow changes is on.
 - The activity log keeps tool names and outcomes, never what a tool read or wrote.
 - Usage counts come from DayBoard's own records. Your provider's plan limits aren't visible to
   DayBoard, so none are shown.

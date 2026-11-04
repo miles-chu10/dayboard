@@ -439,6 +439,34 @@ test("a one-click link to this Mac's network falls back to the unsubscribe email
   }
 });
 
+test("a one-click link that redirects falls back instead of following it", async () => {
+  globalThis.__mailFixture.demoData = false;
+  const realFetch = globalThis.fetch;
+  const redirects = [];
+  globalThis.fetch = async (_url, init) => {
+    redirects.push(init.redirect);
+    // Followed, this redirect would POST to the Mac's own network; the fetch must not follow.
+    if (init.redirect !== "manual") return new Response(null, { status: 200 });
+    return new Response(null, { status: 302, headers: { Location: "http://127.0.0.1:3000/" } });
+  };
+  try {
+    globalThis.__mailSubscriptions = [
+      newsletter("bounce@example.com", {
+        listUnsubscribe: "<https://public.example/unsub>, <mailto:leave@example.com>",
+        listUnsubscribePost: "List-Unsubscribe=One-Click",
+      }),
+    ];
+    await invoke("mail:subscriptions", { refresh: true });
+    assert.deepEqual(await invoke("mail:unsubscribe", { email: "bounce@example.com" }), {
+      method: "email",
+    });
+    assert.deepEqual(redirects, ["manual"]);
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.__mailFixture.demoData = undefined;
+  }
+});
+
 test("demo mode lists sample subscriptions but never unsubscribes", async () => {
   globalThis.__mailFixture.demo = true;
   try {

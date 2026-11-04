@@ -61,12 +61,25 @@ export function useMemoryActions() {
   return { add, remove };
 }
 
-/** After a reply goes out, asks main whether the edits to the AI draft teach a lasting preference. */
+/**
+ * After a reply goes out, asks main whether the edits to the AI draft teach a lasting preference,
+ * and offers it. Nothing is saved until the user picks Remember.
+ */
 export function learnFromDraft(draft: string, sent: string): void {
   if (!draft.trim() || !sent.trim() || draft.trim() === sent.trim()) return;
   void invoke<{ learned: string | null }>("memory:learn", { draft, sent }).then(
     ({ learned }) => {
-      if (learned) toast.success(`DayBoard will remember: ${learned}`);
+      if (!learned) return;
+      toast(`Remember this? ${learned}`, {
+        duration: 15_000,
+        action: {
+          label: "Remember",
+          onClick: () =>
+            void invoke("memory:add", { text: learned, source: "learned" }).catch((error) =>
+              toast.error(`Couldn't remember that: ${errorMessage(error)}`),
+            ),
+        },
+      });
     },
     () => undefined,
   );

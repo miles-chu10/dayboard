@@ -192,6 +192,9 @@ async function unsubscribe(method: UnsubscribeMethod): Promise<UnsubscribeResult
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "List-Unsubscribe=One-Click",
+        // A redirect could point at this Mac's network, which safeOneClickUrl only checked
+        // for the first URL; treat it as a failure and fall back.
+        redirect: "manual",
         signal: AbortSignal.timeout(15_000),
       });
       if (response.ok) return { method: "one-click" };
