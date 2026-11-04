@@ -227,11 +227,6 @@ h2 em {
   margin: 8px auto 0;
 }
 
-.c-video .fine {
-  margin-top: 18px;
-  text-align: center;
-}
-
 /* Beta 11 at a glance, in place of the pricing section */
 .c-compat {
   max-width: 720px;
