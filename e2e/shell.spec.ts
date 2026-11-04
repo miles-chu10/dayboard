@@ -103,6 +103,13 @@ test("⌥⌘J docks the Assistant beside any view and attaches the open email", 
     await expect(panel).toBeVisible();
     await expect(chip).toBeVisible();
     await expect(catchUp).toBeVisible();
+    // At the panel's default width the composer's whole bottom row stays inside the panel.
+    const bounds = (await panel.boundingBox())!;
+    for (const name of ["Send", "Dictate", /^Permissions: /, /^Model and effort: /]) {
+      const box = (await panel.getByRole("button", { name }).boundingBox())!;
+      expect(box.x, String(name)).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width, String(name)).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
     await demo.page.screenshot({
       path: testInfo.outputPath("agent-panel.png"),
     });

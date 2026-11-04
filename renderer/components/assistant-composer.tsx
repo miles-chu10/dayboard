@@ -480,7 +480,7 @@ export function AssistantComposer({
         }
         onDismiss={() => setDismissed(input)}
       />
-      <AIChat.Composer.Surface ref={surfaceRef}>
+      <AIChat.Composer.Surface ref={surfaceRef} className="@container">
         {attachments.length || mentions.length ? (
           <div className="flex flex-wrap gap-1.5 px-2 pt-2">
             {mentions.map((mention) => (
@@ -547,7 +547,7 @@ export function AssistantComposer({
           />
         </AIChat.Composer.Row>
         <AIChat.Composer.Row>
-          <AIChat.Composer.Actions>
+          <AIChat.Composer.Actions className="min-w-0 flex-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button iconOnly size="small" variant="transparent" aria-label="Add" title="Add">
@@ -571,11 +571,14 @@ export function AssistantComposer({
                   size="small"
                   variant="transparent"
                   aria-label={`Permissions: ${permissionLabel}`}
+                  title={`Permissions: ${permissionLabel}`}
+                  className="shrink-0"
                 >
                   <ShieldCheck
                     className={permission === "auto" ? "text-support-orange" : undefined}
                   />
-                  {permissionLabel}
+                  {/* The docked panel is too narrow for the label; the icon and tooltip remain. */}
+                  <span className="@max-[24rem]:hidden">{permissionLabel}</span>
                   <ChevronDown className="size-3 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
@@ -605,13 +608,14 @@ export function AssistantComposer({
                   variant="transparent"
                   aria-label={chipLabel}
                   title={modelSummary(current)}
+                  className="min-w-0"
                 >
                   {effortOpen ? (
                     <span>Select effort</span>
                   ) : (
                     <>
                       <ProviderMark provider={provider} className="size-3.5" />
-                      <span className="max-w-44 truncate">{current.label}</span>
+                      <span className="min-w-0 max-w-44 truncate">{current.label}</span>
                       {current.effort ? (
                         <span className="text-tertiary">{current.effort.text}</span>
                       ) : null}
@@ -688,7 +692,7 @@ export function AssistantComposer({
               </PopoverContent>
             </Popover>
           </AIChat.Composer.Actions>
-          <AIChat.Composer.Actions>
+          <AIChat.Composer.Actions className="shrink-0">
             <ContextRing usage={usage} fallbackWindow={current.contextWindow} />
             <Button
               iconOnly

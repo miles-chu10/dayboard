@@ -47,7 +47,8 @@ test("Home greets, ranks what needs you, suggests tasks from mail and lists meet
       .click();
     await expect(suggested.getByText("Submit the Q4 budget", { exact: true })).toHaveCount(0);
 
-    await expect(meetings.getByRole("button", { name: /Team standup/ })).toBeVisible();
+    // Past meetings render without a button, so match the row by text at any time of day.
+    await expect(meetings).toContainText("Team standup");
     await expect(tasks.getByText("Finalize launch announcement", { exact: true })).toBeVisible();
     await page.waitForTimeout(250);
     await page.screenshot({ path: testInfo.outputPath("home-today.png") });

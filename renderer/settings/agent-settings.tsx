@@ -140,7 +140,7 @@ export function UsageSettings() {
             <div
               key={bar.date}
               title={`${bar.date}: ${bar.runs} ${bar.runs === 1 ? "request" : "requests"}, ${compactNumber(bar.tokens)} tokens`}
-              className="flex-1 rounded-sm bg-accent/80"
+              className="flex-1 rounded-sm bg-accent"
               style={{
                 height: `${bar.runs ? Math.max(6, (bar.runs / peak) * 100) : 2}%`,
               }}
