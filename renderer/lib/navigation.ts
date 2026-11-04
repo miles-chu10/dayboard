@@ -2,6 +2,7 @@ import type { AIFeature, AppSettings, SourceId } from "@main/shared-types";
 
 export type NavRoute =
   | "/"
+  | "/agenda"
   | "/calendar"
   | "/mail"
   | "/tasks"
@@ -9,7 +10,7 @@ export type NavRoute =
   | "/assistant"
   | "/review";
 
-export type NavId = "agenda" | SourceId | "assistant" | "review";
+export type NavId = "home" | "agenda" | SourceId | "assistant" | "review";
 
 export interface NavItem {
   id: NavId;
@@ -24,11 +25,18 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   {
-    id: "agenda",
-    title: "Agenda",
+    id: "home",
+    title: "Home",
     route: "/",
     group: "main",
-    keywords: ["today", "home"],
+    keywords: ["up next", "today", "needs you", "start"],
+  },
+  {
+    id: "agenda",
+    title: "Agenda",
+    route: "/agenda",
+    group: "main",
+    keywords: ["day", "schedule", "planner"],
   },
   {
     id: "calendar",

@@ -8,6 +8,7 @@ import {
   isTypingTarget,
   matchesShortcut,
   shortcutGroups,
+  stepRow,
   viewSlot,
   type KeyEventLike,
 } from "./shortcuts";
@@ -137,4 +138,23 @@ test("no two General entries share a key combination", () => {
   const general = shortcutGroups([]).find((group) => group.title === "General")!;
   const combos = general.entries.flatMap((entry) => entry.keys.map((keys) => keys.join("")));
   assert.equal(new Set(combos).size, combos.length);
+});
+
+test("J and K step through rows and stop at the ends", () => {
+  assert.equal(stepRow(-1, 3, "j"), 0);
+  assert.equal(stepRow(-1, 3, "k"), 0);
+  assert.equal(stepRow(0, 3, "J"), 1);
+  assert.equal(stepRow(2, 3, "j"), 2);
+  assert.equal(stepRow(1, 3, "k"), 0);
+  assert.equal(stepRow(0, 3, "k"), 0);
+  assert.equal(stepRow(0, 0, "j"), null);
+  assert.equal(stepRow(0, 3, "x"), null);
+});
+
+test("the sheet lists the Inbox's single keys", () => {
+  const mail = shortcutGroups([]).find((group) => group.title === "Mail");
+  assert.deepEqual(
+    mail?.entries.map((entry) => entry.keys[0].join("")),
+    ["J", "K", "↩", "E", "R", "C"],
+  );
 });

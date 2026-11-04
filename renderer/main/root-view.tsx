@@ -8,6 +8,7 @@ import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
 import { CommandMenu } from "../components/command-menu";
+import { ComposeProvider } from "../components/compose-dialog";
 import { RightPane, useRightPaneContent } from "../components/right-pane";
 import { ShellProvider } from "../components/shell";
 import { useHistoryShortcuts } from "../components/history-nav";
@@ -18,9 +19,10 @@ import { invoke } from "../lib/ipc";
 
 const LAUNCH_ROUTE: Record<
   LaunchView,
-  "/" | "/tasks" | "/reminders" | "/mail" | "/calendar" | "/assistant" | "/review"
+  "/" | "/agenda" | "/tasks" | "/reminders" | "/mail" | "/calendar" | "/assistant" | "/review"
 > = {
   today: "/",
+  agenda: "/agenda",
   tasks: "/tasks",
   reminders: "/reminders",
   mail: "/mail",
@@ -73,11 +75,13 @@ export function RootView() {
   return (
     <div className="h-full">
       <CaptureProvider>
-        <MeetingPrepProvider>
-          <ShellProvider>
-            <Shell />
-          </ShellProvider>
-        </MeetingPrepProvider>
+        <ComposeProvider>
+          <MeetingPrepProvider>
+            <ShellProvider>
+              <Shell />
+            </ShellProvider>
+          </MeetingPrepProvider>
+        </ComposeProvider>
       </CaptureProvider>
     </div>
   );

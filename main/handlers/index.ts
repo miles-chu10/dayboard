@@ -9,6 +9,7 @@ import { registerAIHandlers } from "./ai.js";
 import { registerAssistantHistoryHandlers } from "./assistant-history.js";
 import { registerItemEditingHandlers } from "./item-editing.js";
 import { registerProductivityHandlers } from "./productivity.js";
+import { registerMailHandlers } from "./mail.js";
 import { registerProfileHandlers } from "./profile.js";
 import { registerStartupHandlers } from "./startup.js";
 import { registerLicenseHandlers } from "./license.js";
@@ -52,6 +53,7 @@ export function registerHandlers(): void {
   });
 
   registerProductivityHandlers();
+  registerMailHandlers();
   registerItemEditingHandlers();
   registerAIHandlers();
   registerAssistantHistoryHandlers();

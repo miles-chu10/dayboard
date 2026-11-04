@@ -20,13 +20,23 @@ import {
 } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
 import { useState } from "react";
-import { CalendarCheck2, CalendarDays, CircleAlert, Server, Settings, Video } from "lucide-react";
+import {
+  CalendarCheck2,
+  CalendarDays,
+  CircleAlert,
+  House,
+  Server,
+  Settings,
+  Video,
+} from "lucide-react";
 import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { modelSummary } from "../lib/model-choices";
 import { NAV_ITEMS, type NavItem } from "../lib/navigation";
+import { needsYou } from "../lib/home";
+import { readTriageMap, useTriageChanges } from "../lib/triage";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
@@ -86,7 +96,7 @@ function sourceSubtitle(
   return empty;
 }
 
-type MainNavId = "agenda" | SourceId;
+type MainNavId = "home" | "agenda" | SourceId;
 
 const MAIN_NAV = NAV_ITEMS.filter(
   (item): item is NavItem & { id: MainNavId } => item.group === "main",
@@ -211,12 +221,25 @@ export function AppSidebar() {
   const agendaLate = overdue();
   const mcpCount = mcpServers.data?.length ?? 0;
 
+  useTriageChanges();
+  const waiting = needsYou({
+    messages: mail.data?.state === "ok" && sourceOn(settings, "mail") ? mail.data.items : [],
+    triage: featureOn(settings, "triage") ? readTriageMap() : {},
+    now: now.getTime(),
+  }).length;
+
   function navVisible(id: MainNavId): boolean {
-    if (id === "agenda") return true;
+    if (id === "home" || id === "agenda") return true;
     return sourceOn(settings, id);
   }
 
   function navIcon(id: MainNavId) {
+    if (id === "home")
+      return (
+        <SidebarSymbol>
+          <House className="size-[18px]" strokeWidth={1.75} />
+        </SidebarSymbol>
+      );
     if (id === "agenda")
       return (
         <SidebarSymbol>
@@ -237,17 +260,21 @@ export function AppSidebar() {
     );
   }
 
-  function navSelected(id: MainNavId, route: string): boolean {
-    if (id === "agenda") return pathname === "/";
+  function navSelected(_id: MainNavId, route: string): boolean {
     return pathname === route;
   }
 
   function navSubtitle(id: MainNavId): string | undefined {
+    if (id === "home") return waiting ? `${waiting} waiting on you` : "Nothing waiting on you";
     if (id === "agenda") return summary(agendaDue, agendaLate);
     return subtitles[id];
   }
 
   function navAccessory(id: MainNavId) {
+    if (id === "home")
+      return waiting ? (
+        <SidebarCount count={waiting} label={`${waiting} waiting on you`} />
+      ) : undefined;
     if (id === "agenda") {
       return agendaLate ? (
         <SidebarCount count={agendaLate} label={plural(agendaLate, "overdue item")} overdue />

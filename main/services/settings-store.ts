@@ -20,6 +20,7 @@ import type {
   SourceColor,
   SourceId,
 } from "../shared-types.js";
+import { FOLLOW_UP_DAYS, UNDO_SEND_SECONDS } from "../shared-types.js";
 import { normalizeAccelerator, validateAccelerator } from "../../shared/accelerator.js";
 import { APP_STORE_STDIO_MESSAGE, isAppStoreBuild } from "../../shared/app-store-build.js";
 import { API_PROVIDERS } from "./ai/api-keys.js";
@@ -49,6 +50,7 @@ const PROVIDERS: AIProvider[] = isAppStoreBuild
   : ["claude", "codex", "gemini", "muse", ...API_PROVIDERS];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
+  "agenda",
   "tasks",
   "reminders",
   "mail",
@@ -98,7 +100,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     mail: { enabled: true, color: "red" },
     calendar: { enabled: true, color: "green" },
   },
-  mail: { maxMessages: 25 },
+  mail: {
+    maxMessages: 25,
+    autoTriage: true,
+    undoSendSeconds: 5,
+    followUpDays: 3,
+  },
   calendar: { range: "next-7-days", visibility: {} },
   mcpServer: { enabled: false, allowWrites: false },
   ai: {
@@ -137,7 +144,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   system: {
     quickCapture: { enabled: true, hotkey: "Control+Alt+Shift+Space" },
     menuBar: { enabled: true },
-    meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
+    meetings: {
+      upNext: true,
+      notify: false,
+      notifyMinutesBefore: 2,
+      notesImport: true,
+    },
   },
 };
 
@@ -223,6 +235,13 @@ export function normalizeSettings(value: unknown): AppSettings {
     ) as AppSettings["sources"],
     mail: {
       maxMessages: oneOf(mail.maxMessages, [10, 25, 50], defaults.mail.maxMessages),
+      autoTriage: bool(mail.autoTriage, defaults.mail.autoTriage),
+      undoSendSeconds: oneOf(
+        mail.undoSendSeconds,
+        UNDO_SEND_SECONDS,
+        defaults.mail.undoSendSeconds,
+      ),
+      followUpDays: oneOf(mail.followUpDays, FOLLOW_UP_DAYS, defaults.mail.followUpDays),
     },
     calendar: {
       range: oneOf(

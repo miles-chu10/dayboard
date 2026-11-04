@@ -10,6 +10,28 @@ import { queryKeys, useAccounts } from "../lib/queries";
 import { TRIAGE_LABEL, type TriageResult } from "../lib/triage";
 import { SourceDot } from "./source-dot";
 
+const CHIP_DOT: Record<TriageResult["category"], string> = {
+  "needs-reply": "bg-support-orange",
+  fyi: "bg-support-blue",
+  ignore: "bg-tertiary",
+};
+
+/** Triage's one-line take on the email, HeroSpace-style, beside its subject. */
+export function TriageChip({ triage }: { triage: TriageResult }) {
+  return (
+    <span
+      title={triage.reason}
+      className="inline-flex max-w-[45%] shrink-0 items-center gap-1.5 rounded-full bg-control px-2 py-0.5 text-small text-secondary"
+    >
+      <span
+        aria-hidden="true"
+        className={cn("size-1.5 shrink-0 rounded-full", CHIP_DOT[triage.category])}
+      />
+      <span className="truncate">{triage.reason}</span>
+    </span>
+  );
+}
+
 export function MailRow({
   message,
   triage,
@@ -68,6 +90,7 @@ export function MailRow({
         tabIndex={onOpen ? 0 : undefined}
         aria-expanded={onOpen ? selected : undefined}
         aria-label={onOpen ? `Open email from ${message.from}` : undefined}
+        data-mail-open={onOpen ? "" : undefined}
         onClick={onOpen ? () => onOpen(message) : undefined}
         onKeyDown={
           onOpen
@@ -107,12 +130,15 @@ export function MailRow({
               {formatMailDate(message.date)}
             </Text>
           </div>
-          <Text variant="small" color="secondary" truncate>
-            {message.subject}
-          </Text>
+          <div className="flex min-w-0 items-center gap-2">
+            <Text variant="small" color="secondary" truncate className="min-w-0">
+              {message.subject}
+            </Text>
+            {triage?.reason ? <TriageChip triage={triage} /> : null}
+          </div>
           {!compact ? (
             <Text variant="small" color="tertiary" truncate>
-              {triage?.reason ? `${triage.reason} — ${message.snippet}` : message.snippet}
+              {message.snippet}
             </Text>
           ) : null}
         </div>

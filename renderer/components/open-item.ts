@@ -28,7 +28,7 @@ export function useOpenItem() {
   const openTodo = useCallback(
     (todo: Todo) =>
       void navigate({
-        to: "/",
+        to: "/agenda",
         search: {
           item: todo.key,
           date: todo.dueDate && todo.dueDate >= todayISO() ? todo.dueDate : undefined,

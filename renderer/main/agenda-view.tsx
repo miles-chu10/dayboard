@@ -290,7 +290,7 @@ export function AgendaView({
 
   function updateSearch(patch: Partial<AgendaSearch>) {
     void navigate({
-      to: calendarRoute ? "/calendar" : "/",
+      to: calendarRoute ? "/calendar" : "/agenda",
       search: {
         span,
         date: search.date,

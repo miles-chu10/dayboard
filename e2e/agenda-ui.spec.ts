@@ -36,10 +36,15 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
   let relaunched: Awaited<ReturnType<typeof launchDemo>> | undefined;
   try {
     const page = demo.page;
+    // DayBoard opens on Home; the Agenda has its own view.
+    await navigate(page, "Agenda");
     const heading = page.locator("[data-agenda-range]");
     const search = page.getByRole("textbox", { name: "Search agenda" });
     const today = page.getByRole("button", { name: "Today", exact: true });
-    const previous = page.getByRole("button", { name: "Previous date", exact: true });
+    const previous = page.getByRole("button", {
+      name: "Previous date",
+      exact: true,
+    });
     const next = page.getByRole("button", { name: "Next date", exact: true });
     await expect(heading).toBeVisible();
     await expect(page.getByRole("radio", { name: "Day", exact: true })).toBeChecked();
@@ -67,7 +72,10 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
     await expect(search).toHaveValue("Finalize");
     await search.fill("");
 
-    const mail = page.getByRole("checkbox", { name: "Show Gmail", exact: true });
+    const mail = page.getByRole("checkbox", {
+      name: "Show Gmail",
+      exact: true,
+    });
     await mail.focus();
     await mail.press("Space");
     await expect(mail).not.toBeChecked();
@@ -75,7 +83,10 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
     await navigate(page, "Agenda");
     await expect(mail).not.toBeChecked();
 
-    const separator = page.getByRole("separator", { name: "Resize sidebar", exact: true });
+    const separator = page.getByRole("separator", {
+      name: "Resize sidebar",
+      exact: true,
+    });
     const box = (await separator.boundingBox())!;
     const y = box.y + box.height / 2;
     // The grab area reaches past both sides of the 1px line, above the columns beside it.
@@ -99,8 +110,12 @@ test("Agenda date navigation preserves search, keyboard order and saved source f
     expect(storedWidth).toBe(String(startWidth + 40));
     await demo.close(false);
     relaunched = await launchDemo(demo.profile);
+    await navigate(relaunched.page, "Agenda");
     await expect(
-      relaunched.page.getByRole("checkbox", { name: "Show Gmail", exact: true }),
+      relaunched.page.getByRole("checkbox", {
+        name: "Show Gmail",
+        exact: true,
+      }),
     ).not.toBeChecked();
     expect(
       await relaunched.page.evaluate(() =>
@@ -143,7 +158,9 @@ test("Calendar Schedule retains its mode and range while resetting the selected 
     await page.getByRole("button", { name: "Today", exact: true }).click();
     await expect(heading).toHaveText(range!);
     await expect(page.getByRole("combobox", { name: "Calendar range" })).toHaveText("Next 7 days");
-    await page.screenshot({ path: testInfo.outputPath("calendar-schedule-range.png") });
+    await page.screenshot({
+      path: testInfo.outputPath("calendar-schedule-range.png"),
+    });
     expect(demo.errors).toEqual([]);
   } finally {
     await demo.close();
@@ -158,6 +175,7 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
     const page = demo.page;
     // Default media emulation masks Electron's native appearance changes.
     await page.emulateMedia({ colorScheme: null });
+    await navigate(page, "Agenda");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect
       .poll(() => demo.app.windows().find((window) => /settings-window/.test(window.url())))
@@ -197,7 +215,10 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
         });
         await resize(demo.app, 800, 600);
         await page
-          .getByRole("group", { name: "Finalize launch announcement", exact: true })
+          .getByRole("group", {
+            name: "Finalize launch announcement",
+            exact: true,
+          })
           .click();
         const details = page.getByRole("complementary", { name: "Details" });
         await expect(details).toBeVisible();
@@ -210,7 +231,10 @@ test("Agenda stays usable in light/dark and default/compact at the minimum windo
         await expect
           .poll(() =>
             viewport.evaluate((element) => {
-              const size = element as unknown as { scrollWidth: number; clientWidth: number };
+              const size = element as unknown as {
+                scrollWidth: number;
+                clientWidth: number;
+              };
               return size.scrollWidth <= size.clientWidth + 1;
             }),
           )

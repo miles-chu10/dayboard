@@ -49,7 +49,7 @@ export type AccentColor =
   | "graphite";
 export type Density = "default" | "compact";
 export type DetailView = "dialog" | "inline" | "sidebar";
-export type LaunchView = "today" | SourceId | "assistant" | "review";
+export type LaunchView = "today" | "agenda" | SourceId | "assistant" | "review";
 export type CalendarRange =
   | "today"
   | "today-tomorrow"
@@ -83,7 +83,15 @@ export interface AppSettings {
     detailView: DetailView;
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
-  mail: { maxMessages: number };
+  mail: {
+    maxMessages: number;
+    /** Triage new mail as it arrives when AI and the triage feature are on. */
+    autoTriage: boolean;
+    /** Seconds a sent email waits before it goes, so Undo can stop it; 0 sends at once. */
+    undoSendSeconds: UndoSendSeconds;
+    /** Default for "Remind me if no reply". */
+    followUpDays: number;
+  };
   calendar: {
     range: CalendarRange;
     /** Per-calendar override; calendars without an entry use Google's own visibility. */
@@ -134,6 +142,9 @@ export interface AppSettings {
 }
 
 export type NotifyMinutesBefore = 1 | 2 | 5 | 10;
+export type UndoSendSeconds = 0 | 5 | 10 | 20 | 30;
+export const UNDO_SEND_SECONDS: readonly UndoSendSeconds[] = [0, 5, 10, 20, 30];
+export const FOLLOW_UP_DAYS: readonly number[] = [1, 2, 3, 5, 7, 14];
 
 export interface SystemSettings {
   /** Global hotkey that opens the Quick Capture panel over any app. */
@@ -165,6 +176,22 @@ export interface SettingsChangedEvent {
 }
 
 /** Broadcast on `data:changed` when an MCP client changes a source's items. */
+/** A reply to one message, or a new email; recipients are comma-separated addresses. */
+export type MailSendRequest =
+  | { kind: "reply"; id: string; body: string; cc?: string }
+  | { kind: "new"; to: string; subject: string; body: string; cc?: string };
+
+export interface MailSendTicket {
+  id: string;
+  /** When the email leaves the outbox, in ms since the epoch. */
+  sendAt: number;
+  /** True while Undo (`mail:cancelSend`) can still stop it. */
+  held: boolean;
+}
+
+/** Broadcast on `mail:sendResult` when a held email was sent or failed. */
+export type MailSendResult = { id: string; ok: true } | { id: string; ok: false; error: string };
+
 export interface DataChangedEvent {
   source: SourceId;
 }

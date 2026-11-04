@@ -113,9 +113,19 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
-const MAIN_ROUTES = ["/", "/tasks", "/reminders", "/calendar", "/mail", "/assistant", "/review"];
+const MAIN_ROUTES = [
+  "/",
+  "/agenda",
+  "/tasks",
+  "/reminders",
+  "/calendar",
+  "/mail",
+  "/assistant",
+  "/review",
+];
 export type MainRoute =
   | "/"
+  | "/agenda"
   | "/tasks"
   | "/reminders"
   | "/calendar"
@@ -226,7 +236,11 @@ export function setupApplicationMenu(options: {
       submenu: [
         // No accelerator: macOS ignores registerAccelerator: false, and a menu key equivalent
         // would fire while Settings records a new global shortcut.
-        { label: "Quick Capture…", id: "quick-capture", click: () => options.openQuickCapture() },
+        {
+          label: "Quick Capture…",
+          id: "quick-capture",
+          click: () => options.openQuickCapture(),
+        },
         // Keyboard and VoiceOver route to the menu-bar panel, which is otherwise click-only.
         {
           label: "Menu Bar Agenda",

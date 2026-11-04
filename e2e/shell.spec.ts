@@ -172,8 +172,8 @@ test("⌥⌘K shows a day calendar beside the page; ? lists shortcuts; ⌃ numbe
     await expect(sheet).toHaveCount(0);
 
     await demo.page.keyboard.press("Control+Digit1");
-    await expect(sidebarItem(demo.page, "Agenda")).toHaveAttribute("aria-current", "page");
-    await demo.page.keyboard.press("Control+Digit3");
+    await expect(sidebarItem(demo.page, "Home")).toHaveAttribute("aria-current", "page");
+    await demo.page.keyboard.press("Control+Digit4");
     await expect(sidebarItem(demo.page, "Inbox")).toHaveAttribute("aria-current", "page");
 
     // Typing ? into a field types it.

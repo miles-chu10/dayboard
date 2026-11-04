@@ -12,6 +12,7 @@ import { isPanelWindow, showPanel } from "./system-panels/panel-window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
 import { drainAgendaStore } from "./services/agenda-store.js";
 import { drainProductivityWrites } from "./handlers/productivity.js";
+import { drainMailOutbox } from "./handlers/mail.js";
 import { createSaveQuitGuard } from "./services/quit-guard.js";
 import { drainPendingWrites } from "./services/pending-writes.js";
 import { drainSettingsStores } from "./services/settings-store.js";
@@ -26,6 +27,8 @@ const MCP_PROJECT_ID = "com.mileschu.dayboard";
 
 let updates: ReturnType<typeof registerUpdateHandlers> | undefined;
 async function drainAppWrites(): Promise<void> {
+  // Held emails go out now (their sends are pending writes the next step waits for).
+  await drainMailOutbox();
   await drainProductivityWrites();
   await drainPendingWrites();
   await drainSettingsStores();

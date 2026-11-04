@@ -5,6 +5,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { HomeView } from "./home-view";
+import { AgendaView } from "./agenda-view";
 import { TasksView } from "./tasks-view";
 import { RemindersView } from "./reminders-view";
 import { MailView } from "./mail-view";
@@ -36,6 +37,13 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeView,
+  staticData: { title: "Home" },
+});
+
+const agendaRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/agenda",
+  component: AgendaView,
   validateSearch: validateAgendaSearch,
   staticData: { title: "Agenda" },
 });
@@ -93,6 +101,7 @@ const reviewRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  agendaRoute,
   tasksRoute,
   remindersRoute,
   mailRoute,

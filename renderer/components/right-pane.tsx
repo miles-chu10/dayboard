@@ -199,7 +199,7 @@ function CalendarPeek() {
             focusKeys={planning.data?.focusKeys ?? []}
             onOpen={(todo) =>
               void navigate({
-                to: "/",
+                to: "/agenda",
                 search: { date: selected, item: todo.key },
               })
             }

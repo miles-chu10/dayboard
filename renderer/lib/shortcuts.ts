@@ -165,5 +165,31 @@ export function shortcutGroups(viewTitles: string[]): ShortcutGroup[] {
         .slice(0, 9)
         .map((title, index) => ({ title, keys: [["⌃", String(index + 1)]] })),
     },
+    {
+      title: "Mail",
+      entries: MAIL_KEYS.map(({ title, keys }) => ({
+        title,
+        keys: [[...keys]],
+      })),
+    },
   ];
+}
+
+/** Single keys in the Inbox (outside text fields), as in Gmail and HeroSpace. */
+export const MAIL_KEYS = [
+  { title: "Next email", keys: ["J"] },
+  { title: "Previous email", keys: ["K"] },
+  { title: "Open email", keys: ["↩"] },
+  { title: "Mark done (archive)", keys: ["E"] },
+  { title: "Reply", keys: ["R"] },
+  { title: "New email", keys: ["C"] },
+] as const;
+
+/** J/K step through a list of `count` rows from `index` (-1 when nothing is focused). */
+export function stepRow(index: number, count: number, key: string): number | null {
+  if (!count) return null;
+  const lower = key.toLowerCase();
+  if (lower === "j") return index < 0 ? 0 : Math.min(index + 1, count - 1);
+  if (lower === "k") return index < 0 ? 0 : Math.max(index - 1, 0);
+  return null;
 }

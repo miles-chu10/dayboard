@@ -1,6 +1,8 @@
 import { DetailsLayout } from "../components/details-layout";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@tanstack/react-router";
+import { isTypingTarget, stepRow } from "../lib/shortcuts";
+import { useCompose } from "../components/compose-dialog";
 import {
   Button,
   Callout,
@@ -22,8 +24,8 @@ import { SourceGate } from "../components/source-gate";
 import { HistoryNav } from "../components/history-nav";
 import { WindowActions } from "../components/view-actions";
 import { useMail } from "../lib/queries";
-import { featureOn, useSettings } from "../lib/settings";
-import { useTriage, type TriageCategory } from "../lib/triage";
+import { autoTriageOn, featureOn, useSettings } from "../lib/settings";
+import { useAutoTriage, useTriage, type TriageCategory } from "../lib/triage";
 import { contextItemKey } from "../lib/agent-context";
 import { usePublishViewContext } from "../components/shell";
 
@@ -36,6 +38,41 @@ export function MailView() {
   const detailView = settings?.general.detailView ?? "dialog";
   const messages = mail.data?.state === "ok" ? mail.data.items : undefined;
   const triage = useTriage(messages);
+  useAutoTriage(triage, messages, autoTriageOn(settings));
+
+  const { openCompose } = useCompose();
+  const openComposeRef = useRef(() => openCompose());
+  useEffect(() => {
+    openComposeRef.current = () => openCompose();
+  });
+
+  // J/K move between emails outside text fields, as in Gmail; ↩ opens the focused one; C writes.
+  useEffect(() => {
+    function keydown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.defaultPrevented || event.isComposing || isTypingTarget(event.target)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      const rows = [
+        ...document.querySelectorAll<HTMLElement>("[data-window-content] [data-mail-open]"),
+      ];
+      const next = stepRow(
+        rows.findIndex((row) => row === document.activeElement),
+        rows.length,
+        event.key,
+      );
+      if (event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        openComposeRef.current();
+        return;
+      }
+      if (next === null) return;
+      event.preventDefault();
+      rows[next].focus();
+      rows[next].scrollIntoView({ block: "nearest" });
+    }
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
   const [filter, setFilter] = useState<MailFilter>("all");
   const [replyTo, setReplyTo] = useState<MailItem | null>(null);
   const { item: requestedId } = useSearch({ from: "/mail" });

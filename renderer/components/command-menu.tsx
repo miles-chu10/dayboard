@@ -24,6 +24,7 @@ import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { SHORTCUTS, shortcutKeys } from "../lib/shortcuts";
 import { buildTodos } from "../lib/todos";
 import { useOpenCapture } from "./capture-dialog";
+import { useCompose } from "./compose-dialog";
 import { useOpenItem } from "./open-item";
 import { useShell } from "./shell";
 
@@ -64,6 +65,7 @@ function CommandMenuContent({ close }: { close: () => void }) {
   const navigate = useNavigate();
   const settings = useSettings().data;
   const openCapture = useOpenCapture();
+  const { openCompose } = useCompose();
   const { openMail, openEvent, openTodo } = useOpenItem();
   const { toggleSidebar } = useSplitView();
   const [query, setQuery] = useState("");
@@ -160,6 +162,14 @@ function CommandMenuContent({ close }: { close: () => void }) {
               keys={["⌘", "N"]}
               onSelect={() => run(openCapture)}
             />
+            {sourceOn(settings, "mail") ? (
+              <Action
+                label="New email"
+                icon={<Mail />}
+                keys={["C"]}
+                onSelect={() => run(() => openCompose())}
+              />
+            ) : null}
             {assistantOn ? (
               <Action
                 label="Ask the Assistant beside this page"
