@@ -8,6 +8,10 @@ import type { SubscriptionMessage } from "./mail-subscriptions.js";
 
 import type {
   AccountsStatus,
+  AgentActivityEntry,
+  AgentMemory,
+  Note,
+  UsageDay,
   CalendarEventItem,
   CalendarListResult,
   MailItem,
@@ -57,6 +61,8 @@ export function demoCompletion(system: string, prompt: string): string {
       })),
     });
   }
+  if (system.includes("compare an AI-written email reply"))
+    return "Skip the greeting and get straight to the point.";
   if (system.includes("sort a user's email inbox")) {
     const keys = [...prompt.matchAll(/^- (m\d+) \|/gm)].map((match) => match[1]);
     const categories: Record<string, { category: string; reason: string; task?: string }> = {
@@ -511,4 +517,118 @@ export function demoReview(): ReviewData {
     ]),
     events: demoEventsBetween(since, new Date()),
   };
+}
+
+/** Seeds for the demo's own memory, activity, usage and notes files (never the real ones). */
+export function demoMemories(now: number): AgentMemory[] {
+  return [
+    {
+      id: "dm1",
+      text: "I prefer short replies, three sentences at most.",
+      source: "you",
+      createdAt: now - 6 * 86_400_000,
+    },
+    {
+      id: "dm2",
+      text: "Keep Friday afternoons free of meetings.",
+      source: "you",
+      createdAt: now - 4 * 86_400_000,
+    },
+    {
+      id: "dm3",
+      text: "Sign off with just your first name.",
+      source: "learned",
+      createdAt: now - 86_400_000,
+    },
+  ];
+}
+
+export function demoActivity(now: number): AgentActivityEntry[] {
+  const minutes = (value: number) => now - value * 60_000;
+  return [
+    {
+      id: "da1",
+      at: minutes(185),
+      tool: "list_inbox",
+      client: "Assistant",
+      write: false,
+      ok: true,
+      durationMs: 412,
+    },
+    {
+      id: "da2",
+      at: minutes(184),
+      tool: "read_email",
+      client: "Assistant",
+      write: false,
+      ok: true,
+      durationMs: 288,
+    },
+    {
+      id: "da3",
+      at: minutes(62),
+      tool: "list_events",
+      client: "claude-code",
+      write: false,
+      ok: true,
+      durationMs: 351,
+    },
+    {
+      id: "da4",
+      at: minutes(61),
+      tool: "create_task",
+      client: "claude-code",
+      write: true,
+      ok: true,
+      durationMs: 640,
+    },
+    {
+      id: "da5",
+      at: minutes(20),
+      tool: "complete_reminder",
+      client: "codex-mcp-client",
+      write: true,
+      ok: false,
+      error: "Reminder not found. IDs come from list_reminders.",
+      durationMs: 97,
+    },
+  ];
+}
+
+export function demoUsage(now: number): UsageDay[] {
+  return Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(now - (13 - index) * 86_400_000);
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const runs = [3, 5, 2, 0, 7, 4, 6, 8, 1, 0, 5, 9, 4, 6][index];
+    return {
+      date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+      models: runs
+        ? {
+            "claude-sonnet-5-5": { runs, inputTokens: runs * 4_200, outputTokens: runs * 610 },
+            ...(index % 3 === 0
+              ? { "gpt-5.6-sol": { runs: 1, inputTokens: 2_900, outputTokens: 380 } }
+              : {}),
+          }
+        : {},
+    };
+  });
+}
+
+export function demoNotes(now: number): Note[] {
+  return [
+    {
+      id: "dn1",
+      title: "Launch checklist",
+      body: "# Launch checklist\n\n- Final copy from Priya\n- Confirm the press date\n- Schedule the announcement email",
+      createdAt: now - 3 * 86_400_000,
+      updatedAt: now - 2 * 3_600_000,
+    },
+    {
+      id: "dn2",
+      title: "1:1 topics for Jordan",
+      body: "1:1 topics for Jordan\n\n- Q4 budget timeline\n- Hiring plan for design",
+      createdAt: now - 5 * 86_400_000,
+      updatedAt: now - 26 * 3_600_000,
+    },
+  ];
 }

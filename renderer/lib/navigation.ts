@@ -7,10 +7,11 @@ export type NavRoute =
   | "/mail"
   | "/tasks"
   | "/reminders"
+  | "/notes"
   | "/assistant"
   | "/review";
 
-export type NavId = "home" | "agenda" | SourceId | "assistant" | "review";
+export type NavId = "home" | "agenda" | SourceId | "notes" | "assistant" | "review";
 
 export interface NavItem {
   id: NavId;
@@ -69,6 +70,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "main",
     keywords: ["apple reminders", "todo"],
     source: "reminders",
+  },
+  {
+    id: "notes",
+    title: "Notes",
+    route: "/notes",
+    group: "main",
+    keywords: ["notes", "markdown", "write", "docs"],
   },
   {
     id: "assistant",

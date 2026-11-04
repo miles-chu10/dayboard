@@ -134,6 +134,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     assistantEffort: {},
     useMcpInAssistant: true,
     assistantPermission: "ask",
+    memory: true,
     features: {
       briefing: true,
       autoBriefing: false,
@@ -311,6 +312,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         ["read-only", "ask", "auto"] as const,
         defaults.ai.assistantPermission,
       ),
+      memory: bool(ai.memory, defaults.ai.memory),
       features: Object.fromEntries(
         AI_FEATURES.map((feature) => [
           feature,

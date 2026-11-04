@@ -35,9 +35,18 @@ import { reconcileAgendaKeys } from "./agenda-store.js";
 import { isDemoMode } from "./demo-data.js";
 import { isValidMcpBearer } from "./mcp-access-key.js";
 import { getSettings } from "./settings-store.js";
+import { MAX_MEMORY_TEXT } from "./agent-memory.js";
+import {
+  addMemoryEntry,
+  getNote,
+  listMemories,
+  listNotes,
+  putNote,
+  recordToolCall,
+} from "./agent-stores.js";
 import { trackPendingWrite } from "./pending-writes.js";
 import { runAppOperation } from "./runtime-activity.js";
-import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
+import type { DataChangedEvent, McpServerConfig, Note, SourceId } from "../shared-types.js";
 import { replacementAgendaKey } from "../../shared/agenda-identities.js";
 
 // Local MCP endpoint so MCP clients (Claude Code, Codex, …) can use the dashboard's
@@ -61,7 +70,11 @@ const ASSISTANT_MCP_TOOLS = [
 ] as const;
 const assistantMcpToken = randomBytes(32).toString("base64url");
 let activeProjectId: string | null = null;
-let assistantMcpStatus: AssistantMcpStatus = { state: "unavailable", ok: false, toolCount: 0 };
+let assistantMcpStatus: AssistantMcpStatus = {
+  state: "unavailable",
+  ok: false,
+  toolCount: 0,
+};
 let assistantMcpCheck: Promise<AssistantMcpStatus> | null = null;
 
 export interface AssistantMcpStatus {
@@ -86,12 +99,18 @@ const time = z
   .regex(/^\d{2}:\d{2}$/)
   .describe("24-hour time as HH:mm");
 
-type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
+type ToolResult = {
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
+};
 
 function text(value: unknown): ToolResult {
   return {
     content: [
-      { type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) },
+      {
+        type: "text",
+        text: typeof value === "string" ? value : JSON.stringify(value, null, 2),
+      },
     ],
   };
 }
@@ -315,27 +334,37 @@ function hasBoundedMcpInput(input: unknown): boolean {
     for (const key in value) {
       if (!Object.hasOwn(value, key)) continue;
       if (++elements > MAX_MCP_INPUT_ELEMENTS) return false;
-      pending.push({ value: (value as Record<string, unknown>)[key], depth: depth + 1 });
+      pending.push({
+        value: (value as Record<string, unknown>)[key],
+        depth: depth + 1,
+      });
     }
   }
   return true;
 }
 
 function buildAssistantMcpServer(): McpServer {
-  const server = new McpServer(
-    { name: "dayboard-assistant", version: "1.0.0" },
-    { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+  const server = logToolCalls(
+    new McpServer(
+      { name: "dayboard-assistant", version: "1.0.0" },
+      { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+    ),
+    "Assistant",
   );
   registerReadOnlyTools(server);
   return server;
 }
 
 function buildMcpServer(allowWrites: boolean): McpServer {
-  const server = new McpServer(
-    { name: "dayboard", version: "1.0.0" },
-    { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+  const server = logToolCalls(
+    new McpServer(
+      { name: "dayboard", version: "1.0.0" },
+      { maxToolInputElements: MAX_MCP_INPUT_ELEMENTS },
+    ),
+    null,
   );
   registerReadOnlyTools(server);
+  registerAgentReadTools(server);
   if (!allowWrites) return server;
 
   server.registerTool(
@@ -343,7 +372,11 @@ function buildMcpServer(allowWrites: boolean): McpServer {
     {
       title: "Create task",
       description: "Add a task to the default Google Tasks list.",
-      inputSchema: { title: z.string().min(1), notes: z.string().optional(), due: date.optional() },
+      inputSchema: {
+        title: z.string().min(1),
+        notes: z.string().optional(),
+        due: date.optional(),
+      },
     },
     runWrite(
       "tasks",
@@ -419,7 +452,10 @@ function buildMcpServer(allowWrites: boolean): McpServer {
       title: "Complete reminder",
       description:
         "Mark an Apple Reminder done (or reopen it with completed=false). The ref comes from list_reminders.",
-      inputSchema: { ref: z.string().min(1), completed: z.boolean().default(true) },
+      inputSchema: {
+        ref: z.string().min(1),
+        completed: z.boolean().default(true),
+      },
     },
     runWrite("reminders", async ({ ref, completed }: { ref: string; completed: boolean }) => {
       const scope = await agendaScopeForReminder();
@@ -525,6 +561,170 @@ function buildMcpServer(allowWrites: boolean): McpServer {
     ),
   );
 
+  registerAgentWriteTools(server);
+  return server;
+}
+
+/** Memory and notes live in DayBoard itself, so they need no source, only the app running. */
+function local<A>(body: (args: A) => Promise<ToolResult>) {
+  return async (args: A): Promise<ToolResult> => {
+    try {
+      return await runAppOperation(() => body(args));
+    } catch (error) {
+      return failure(error instanceof Error ? error.message : String(error));
+    }
+  };
+}
+
+function localWrite<A>(body: (args: A) => Promise<ToolResult>) {
+  return local(async (args: A) =>
+    (await getSettings()).mcpServer.allowWrites ? body(args) : failure(WRITES_OFF_MESSAGE),
+  );
+}
+
+function noteSummary(note: Note) {
+  return {
+    id: note.id,
+    title: note.title,
+    updated: new Date(note.updatedAt).toISOString(),
+  };
+}
+
+function registerAgentReadTools(server: McpServer): void {
+  server.registerTool(
+    "list_memories",
+    {
+      title: "List memories",
+      description: "List the preferences the user saved in DayBoard for agents to follow.",
+      inputSchema: {},
+    },
+    local(async () =>
+      text({
+        memories: (await listMemories()).map(({ text, source }) => ({
+          text,
+          source,
+        })),
+      }),
+    ),
+  );
+  server.registerTool(
+    "list_notes",
+    {
+      title: "List notes",
+      description: `List DayBoard notes (up to ${MAX_LIST}), newest edit first, with id and title.`,
+      inputSchema: {},
+    },
+    local(async () => text(capped((await listNotes()).map(noteSummary), "notes"))),
+  );
+  server.registerTool(
+    "read_note",
+    {
+      title: "Read note",
+      description: "Read a DayBoard note's full markdown. IDs come from list_notes.",
+      inputSchema: { note_id: z.string().min(1) },
+    },
+    local(async ({ note_id }: { note_id: string }) => {
+      const note = await getNote(note_id);
+      return note
+        ? text({
+            ...noteSummary(note),
+            body: note.body.slice(0, MAX_BODY_CHARS),
+          })
+        : failure("Note not found. IDs come from list_notes.");
+    }),
+  );
+}
+
+function registerAgentWriteTools(server: McpServer): void {
+  server.registerTool(
+    "remember",
+    {
+      title: "Remember",
+      description:
+        "Save a short, lasting preference about the user (for example how they like replies written). DayBoard shows it in Settings, where the user can delete it.",
+      inputSchema: { text: z.string().min(1).max(MAX_MEMORY_TEXT) },
+    },
+    localWrite(async ({ text: memory }: { text: string }) => {
+      await addMemoryEntry(memory, "agent");
+      return text("Saved to DayBoard memory.");
+    }),
+  );
+  server.registerTool(
+    "create_note",
+    {
+      title: "Create note",
+      description:
+        "Add a DayBoard note. The body is markdown; the title defaults to its first line.",
+      inputSchema: { title: z.string().optional(), body: z.string().min(1) },
+    },
+    localWrite(async ({ title, body }: { title?: string; body: string }) => {
+      const note = await putNote({ title: title ?? "", body });
+      return text({ created: noteSummary(note) });
+    }),
+  );
+  server.registerTool(
+    "update_note",
+    {
+      title: "Update note",
+      description:
+        "Replace a DayBoard note's body, and its title if given. IDs come from list_notes.",
+      inputSchema: {
+        note_id: z.string().min(1),
+        title: z.string().optional(),
+        body: z.string(),
+      },
+    },
+    localWrite(
+      async ({ note_id, title, body }: { note_id: string; title?: string; body: string }) => {
+        const current = await getNote(note_id);
+        if (!current) return failure("Note not found. IDs come from list_notes.");
+        const note = await putNote({
+          id: note_id,
+          title: title ?? current.title,
+          body,
+        });
+        return text({ updated: noteSummary(note) });
+      },
+    ),
+  );
+}
+
+/** Records each tool call on this server in the agent activity log (names and outcomes only). */
+function logToolCalls(server: McpServer, client: string | null): McpServer {
+  const register = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    handler: unknown,
+  ) => unknown;
+  server.registerTool = ((
+    name: string,
+    config: unknown,
+    handler: (...args: unknown[]) => Promise<ToolResult>,
+  ) =>
+    register(name, config, async (...args: unknown[]) => {
+      const startedAt = Date.now();
+      const caller = client ?? server.server.getClientVersion()?.name ?? "MCP client";
+      try {
+        const result = await handler(...args);
+        recordToolCall({
+          tool: name,
+          client: caller,
+          ok: !result.isError,
+          error: result.isError ? result.content[0]?.text : undefined,
+          durationMs: Date.now() - startedAt,
+        });
+        return result;
+      } catch (error) {
+        recordToolCall({
+          tool: name,
+          client: caller,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
+    })) as typeof server.registerTool;
   return server;
 }
 
@@ -572,7 +772,10 @@ export async function checkAssistantMcpConnection(): Promise<AssistantMcpStatus>
 
   assistantMcpStatus = { state: "checking", ok: false, toolCount: 0 };
   assistantMcpCheck = (async () => {
-    const client = new Client({ name: "dashboard-self-check", version: "1.0.0" });
+    const client = new Client({
+      name: "dashboard-self-check",
+      version: "1.0.0",
+    });
     const transport = new StreamableHTTPClientTransport(new URL(config.url), {
       requestInit: { headers: config.headers },
     });
@@ -582,7 +785,11 @@ export async function checkAssistantMcpConnection(): Promise<AssistantMcpStatus>
       const expected = [...ASSISTANT_MCP_TOOLS].sort();
       const ok =
         tools.length === expected.length && tools.every((tool, index) => tool === expected[index]);
-      assistantMcpStatus = { state: ok ? "ready" : "error", ok, toolCount: tools.length };
+      assistantMcpStatus = {
+        state: ok ? "ready" : "error",
+        ok,
+        toolCount: tools.length,
+      };
     } catch {
       assistantMcpStatus = { state: "error", ok: false, toolCount: 0 };
     } finally {
@@ -629,7 +836,9 @@ function hasAssistantMcpAuthorization(request: {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
-type RequestHeaders = { headers: Record<string, string | string[] | undefined> };
+type RequestHeaders = {
+  headers: Record<string, string | string[] | undefined>;
+};
 
 type McpRoute = {
   buildServer: () => Promise<McpServer>;
@@ -645,7 +854,10 @@ function authorizationHeader(request: RequestHeaders): string | undefined {
 
 async function authorizeExternalClient(request: RequestHeaders) {
   if (isDemoMode()) {
-    return { status: 403, message: "MCP access is unavailable in DayBoard demo mode." };
+    return {
+      status: 403,
+      message: "MCP access is unavailable in DayBoard demo mode.",
+    };
   }
   if (!(await getSettings()).mcpServer.enabled) {
     return {
@@ -674,7 +886,10 @@ export function createMcpHttpServer() {
         buildServer: async () => buildAssistantMcpServer(),
         authorize: async (request) => {
           if (isDemoMode())
-            return { status: 403, message: "MCP access is unavailable in DayBoard demo mode." };
+            return {
+              status: 403,
+              message: "MCP access is unavailable in DayBoard demo mode.",
+            };
           return hasAssistantMcpAuthorization(request)
             ? null
             : { status: 401, message: "Unauthorized" };
@@ -777,7 +992,10 @@ export function startMcpHttpServer(projectId: string): void {
   const httpServer = createMcpHttpServer();
 
   httpServer.once("error", (error) => {
-    logger.warn("mcp", "MCP HTTP server failed to start", { port, error: String(error) });
+    logger.warn("mcp", "MCP HTTP server failed to start", {
+      port,
+      error: String(error),
+    });
   });
   httpServer.listen(port, "127.0.0.1", () => {
     activeProjectId = projectId;

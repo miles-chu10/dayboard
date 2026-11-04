@@ -21,6 +21,7 @@ import { isAppStoreBuild } from "@shared/app-store-build";
 import { errorMessage, invoke } from "../lib/ipc";
 import { queryKeys, useMcpServers } from "../lib/queries";
 import { featureOn, useSettingsEditor } from "../lib/settings";
+import { ActivitySettings } from "./agent-settings";
 
 function describeServer(server: McpServerConfig): string {
   const target =
@@ -116,7 +117,9 @@ function McpServerDialog({
   async function remove() {
     if (!server) return;
     try {
-      const servers = await invoke<McpServerConfig[]>("mcp:delete", { id: server.id });
+      const servers = await invoke<McpServerConfig[]>("mcp:delete", {
+        id: server.id,
+      });
       queryClient.setQueryData(queryKeys.mcpServers, servers);
       toast.success(`Removed ${server.name}`);
       onClose();
@@ -484,6 +487,8 @@ export function McpTab() {
           <Button onClick={() => setEditing("new")}>Add Server…</Button>
         </Field>
       </FieldSet>
+
+      <ActivitySettings />
 
       {editing ? (
         <McpServerDialog

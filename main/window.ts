@@ -122,6 +122,7 @@ const MAIN_ROUTES = [
   "/mail",
   "/assistant",
   "/review",
+  "/notes",
 ];
 export type MainRoute =
   | "/"
@@ -131,7 +132,8 @@ export type MainRoute =
   | "/calendar"
   | "/mail"
   | "/assistant"
-  | "/review";
+  | "/review"
+  | "/notes";
 export interface MainNavigation {
   to: MainRoute;
   prompt?: string;

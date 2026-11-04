@@ -13,6 +13,8 @@ interface RunOptions {
   system: string;
   prompt: string;
   maxOutputTokens: number;
+  /** Adds the user's saved memories to the prompt (reply drafts). */
+  memory?: boolean;
 }
 
 interface CliState {
@@ -52,7 +54,11 @@ export function useAITask() {
     try {
       await window.dayboard.ipc.stream<AIStreamChunk, { text: string; usage?: RequestUsage }>(
         "ai:run",
-        { system: options.system, prompt: options.prompt },
+        {
+          system: options.system,
+          prompt: options.prompt,
+          ...(options.memory ? { memory: true } : {}),
+        },
         (chunk) => {
           if (streamRef.current === id && chunk.type === "usage") setUsage(chunk.usage);
           if (streamRef.current === id && chunk.type === "delta")

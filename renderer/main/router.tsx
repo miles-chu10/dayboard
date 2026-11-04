@@ -12,6 +12,7 @@ import { MailView } from "./mail-view";
 import { CalendarView } from "./calendar-view";
 import { AssistantView } from "./assistant-view";
 import { ReviewView } from "./review-view";
+import { NotesView } from "./notes-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@renderer/ui";
@@ -99,6 +100,17 @@ const reviewRoute = createRoute({
   staticData: { title: "Weekly Review" },
 });
 
+const notesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/notes",
+  component: NotesView,
+  // `note` opens one note (from ⌘K or "Save chat as note").
+  validateSearch: (search: Record<string, unknown>): { note?: string } => ({
+    note: typeof search.note === "string" && search.note ? search.note : undefined,
+  }),
+  staticData: { title: "Notes" },
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   agendaRoute,
@@ -106,6 +118,7 @@ const routeTree = rootRoute.addChildren([
   remindersRoute,
   mailRoute,
   calendarRoute,
+  notesRoute,
   assistantRoute,
   reviewRoute,
 ]);

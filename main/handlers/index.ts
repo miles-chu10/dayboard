@@ -14,6 +14,7 @@ import { registerProfileHandlers } from "./profile.js";
 import { registerStartupHandlers } from "./startup.js";
 import { registerLicenseHandlers } from "./license.js";
 import { registerMeetingNotesHandlers } from "./meeting-notes.js";
+import { registerAgentHandlers } from "./agent.js";
 import { assertLicenseAccess } from "../services/license/index.js";
 import { setLicenseAccessGuard } from "../platform/ipc.js";
 import { isSettingsTab } from "../../shared/settings-navigation.js";
@@ -61,6 +62,7 @@ export function registerHandlers(): void {
   registerStartupHandlers();
   registerLicenseHandlers();
   registerMeetingNotesHandlers();
+  registerAgentHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 }

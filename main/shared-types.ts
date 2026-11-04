@@ -135,6 +135,8 @@ export interface AppSettings {
     assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
+    /** Saved preferences go into Assistant and reply-draft prompts, and edits to drafts teach new ones. */
+    memory: boolean;
     features: Record<AIFeature, boolean>;
   };
   /** Quick Capture panel, menu-bar Agenda and meeting helpers. */
@@ -215,6 +217,49 @@ export interface MailScheduleEntry {
   dueAt: number;
   /** Follow-ups only: nobody replied by `dueAt`; it waits on the user until a reply or dismissal. */
   due?: boolean;
+}
+
+/** One DayBoard MCP tool call (`agent:activity`). Arguments and results are never kept. */
+export interface AgentActivityEntry {
+  id: string;
+  at: number;
+  tool: string;
+  /** "Assistant" for DayBoard's own Assistant, otherwise the MCP client's name. */
+  client: string;
+  write: boolean;
+  ok: boolean;
+  error?: string;
+  durationMs: number;
+}
+
+export type MemorySource = "you" | "agent" | "learned";
+
+/** A preference the user saved or DayBoard learned (`memory:list`). */
+export interface AgentMemory {
+  id: string;
+  text: string;
+  source: MemorySource;
+  createdAt: number;
+}
+
+export interface UsageCount {
+  runs: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** AI requests DayBoard made on one local day, by model (`usage:days`). */
+export interface UsageDay {
+  date: string;
+  models: Record<string, UsageCount>;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface DataChangedEvent {

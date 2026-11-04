@@ -44,20 +44,20 @@ test("turned-off sources and AI features leave the list", () => {
   );
   assert.deepEqual(
     visible.map((item) => item.id),
-    ["home", "agenda", "calendar", "mail", "tasks", "assistant"],
+    ["home", "agenda", "calendar", "mail", "tasks", "notes", "assistant"],
   );
 });
 
-test("with AI off only Home, the Agenda and sources remain", () => {
+test("with AI off only Home, the Agenda, sources and Notes remain", () => {
   assert.deepEqual(
     visibleNav(settings({ ai: false })).map((item) => item.id),
-    ["home", "agenda", "calendar", "mail", "tasks", "reminders"],
+    ["home", "agenda", "calendar", "mail", "tasks", "reminders", "notes"],
   );
 });
 
 test("before settings load every source shows, AI views don't", () => {
   assert.deepEqual(
     visibleNav(undefined).map((item) => item.id),
-    ["home", "agenda", "calendar", "mail", "tasks", "reminders"],
+    ["home", "agenda", "calendar", "mail", "tasks", "reminders", "notes"],
   );
 });

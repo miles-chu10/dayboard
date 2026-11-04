@@ -13,6 +13,8 @@ import type {
   SettingsChangedEvent,
 } from "../shared-types.js";
 import { assertNotDemo, demoCompletion, isDemoMode } from "../services/demo-data.js";
+import { memoryPrompt } from "../services/agent-memory.js";
+import { listMemories } from "../services/agent-stores.js";
 import { runAssistant } from "../services/ai/assistant.js";
 import { clipSnapshot } from "../services/ai/prompt-cache.js";
 import { onClaudeModelResolved, resolvedClaudeModels } from "../services/ai/model-options.js";
@@ -115,6 +117,12 @@ function parseMessages(value: unknown, channel: string): AssistantMessageInput[]
       content: typeof message.content === "string" ? message.content.slice(0, 40_000) : "",
     };
   });
+}
+
+/** Adds the saved memories to a system prompt while memory is on in Settings → AI. */
+async function withMemory(system: string): Promise<string> {
+  if (!(await getSettings()).ai.memory) return system;
+  return system + memoryPrompt(await listMemories());
 }
 
 export function registerAIHandlers(): void {
@@ -374,7 +382,12 @@ export function registerAIHandlers(): void {
         if (!context.signal.aborted) sendChunk({ type: "delta", text });
         return { text };
       }
-      return runCompletion({ system, prompt, signal: context.signal, onChunk: sendChunk });
+      return runCompletion({
+        system: input.memory === true ? await withMemory(system) : system,
+        prompt,
+        signal: context.signal,
+        onChunk: sendChunk,
+      });
     },
   );
 
@@ -386,7 +399,7 @@ export function registerAIHandlers(): void {
       return runAssistant(
         {
           messages: parseMessages(input.messages, channel),
-          system: requireString(input, "system", channel),
+          system: await withMemory(requireString(input, "system", channel)),
           snapshot:
             typeof input.snapshot === "string" ? clipSnapshot(input.snapshot, 400_000) : undefined,
           attachments: Array.isArray(input.attachments)

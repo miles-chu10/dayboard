@@ -52,6 +52,7 @@ import {
 } from "./provider-accounts";
 import { EffortField } from "./effort-field";
 import { SettingSelect } from "./setting-select";
+import { MemorySettings, UsageSettings } from "./agent-settings";
 
 const FEATURES: { feature: AIFeature; label: string; description: string }[] = [
   {
@@ -518,6 +519,9 @@ export function AITab() {
               );
             })}
           </FieldSet>
+
+          <MemorySettings />
+          <UsageSettings />
         </>
       ) : null}
     </>

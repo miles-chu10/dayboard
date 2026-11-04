@@ -24,6 +24,7 @@ const stubs = {
   "dictation.js": `export const transcribe=async()=>{throw Error('Transcription must not run')};`,
   "mcp-http-server.js": `export const checkAssistantMcpConnection=()=>{}; export const getActiveAssistantMcpServerConfig=()=>null; export const getAssistantMcpStatus=()=>({}); export const getExternalMcpUrl=()=>'';`,
   "mcp-access-key.js": `export const getMcpAccessKey=()=>''; export const regenerateMcpAccessKey=()=>'';`,
+  "agent-stores.js": `export const listMemories=async()=>globalThis.__cacheFixture.memories??[];`,
 };
 const backend = `export const app={getPath:()=>'/nonexistent-fixture'}; export const logger={error:()=>{},warn:()=>{}}; export const clipboard={}; export const ipcMain={handle:()=>{},broadcast:()=>{},handleStream:(name,handler)=>{globalThis.__cacheFixture.handlers[name]=handler}};`;
 let sequence = 0;

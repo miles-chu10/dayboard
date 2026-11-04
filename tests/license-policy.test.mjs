@@ -18,7 +18,13 @@ test("only AI channels require a license; everyday editing stays free", async ()
   const { requiresLicenseAccess } = await import(
     `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
   );
-  for (const paid of ["ai:run", "ai:assistant", "assistant:transcribe", "capture:submit"]) {
+  for (const paid of [
+    "ai:run",
+    "ai:assistant",
+    "assistant:transcribe",
+    "capture:submit",
+    "memory:learn",
+  ]) {
     assert.equal(requiresLicenseAccess(paid), true, paid);
   }
   for (const free of [
@@ -30,6 +36,10 @@ test("only AI channels require a license; everyday editing stays free", async ()
     "agenda:setDuplicateLink",
     "mail:archive",
     "capture:undo",
+    "memory:add",
+    "memory:delete",
+    "notes:save",
+    "usage:days",
   ]) {
     assert.equal(requiresLicenseAccess(free), false, free);
   }

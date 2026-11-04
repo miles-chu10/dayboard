@@ -12,11 +12,13 @@ import {
   MessageCircle,
   PanelLeft,
   Plus,
+  NotebookPen,
   Search,
   Settings,
 } from "lucide-react";
 
 import { mentionCandidates, MENTION_EVENT_DAYS, type MentionItem } from "../lib/assistant-mentions";
+import { useNotes } from "../lib/agent-data";
 import { todayISO } from "../lib/dates";
 import { openSettings } from "../lib/ipc";
 import { visibleNav } from "../lib/navigation";
@@ -75,6 +77,7 @@ function CommandMenuContent({ close }: { close: () => void }) {
   const tasks = useTasks();
   const reminders = useReminders();
   const mail = useMail();
+  const notes = useNotes();
   const events = useCalendarRange(todayISO(), MENTION_EVENT_DAYS);
   const assistantOn = featureOn(settings, "assistant");
   const trimmed = query.trim();
@@ -85,6 +88,13 @@ function CommandMenuContent({ close }: { close: () => void }) {
           todos: buildTodos(tasks.data, reminders.data),
           mail: mail.data,
         }).slice(0, MAX_ITEMS)
+      : [];
+  const needle = trimmed.toLowerCase();
+  const foundNotes =
+    trimmed.length >= 2
+      ? (notes.data ?? [])
+          .filter((note) => note.title.toLowerCase().includes(needle))
+          .slice(0, MAX_ITEMS)
       : [];
 
   function run(action: () => void) {
@@ -180,6 +190,11 @@ function CommandMenuContent({ close }: { close: () => void }) {
                 onSelect={() => run(openSubscriptions)}
               />
             ) : null}
+            <Action
+              label="New note"
+              icon={<NotebookPen />}
+              onSelect={() => run(() => void navigate({ to: "/notes", search: { note: "new" } }))}
+            />
             {assistantOn ? (
               <Action
                 label="Ask the Assistant beside this page"
@@ -215,6 +230,29 @@ function CommandMenuContent({ close }: { close: () => void }) {
               onSelect={() => run(() => void openSettings())}
             />
           </Command.Group>
+          {foundNotes.length ? (
+            <Command.Group heading="Notes" className={groupClass}>
+              {foundNotes.map((note) => (
+                <Command.Item
+                  key={note.id}
+                  value={`note ${note.title} ${note.id}`}
+                  onSelect={() =>
+                    run(
+                      () =>
+                        void navigate({
+                          to: "/notes",
+                          search: { note: note.id },
+                        }),
+                    )
+                  }
+                  className={itemClass}
+                >
+                  <NotebookPen className="size-4 shrink-0 text-secondary" />
+                  <span className="min-w-0 flex-1 truncate">{note.title}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
           {items.length ? (
             <Command.Group heading="Items" className={groupClass}>
               {items.map((item) => (

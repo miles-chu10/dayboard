@@ -25,6 +25,7 @@ import {
   CalendarDays,
   CircleAlert,
   House,
+  NotebookPen,
   Server,
   Settings,
   Video,
@@ -38,6 +39,7 @@ import { NAV_ITEMS, type NavItem } from "../lib/navigation";
 import { needsYou } from "../lib/home";
 import { readTriageMap, useTriageChanges } from "../lib/triage";
 import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
+import { useNotes } from "../lib/agent-data";
 import { invoke, openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
@@ -97,7 +99,7 @@ function sourceSubtitle(
   return empty;
 }
 
-type MainNavId = "home" | "agenda" | SourceId;
+type MainNavId = "home" | "agenda" | "notes" | SourceId;
 
 const MAIN_NAV = NAV_ITEMS.filter(
   (item): item is NavItem & { id: MainNavId } => item.group === "main",
@@ -232,6 +234,7 @@ export function AppSidebar() {
   }).length;
 
   // The Dock badge shows what Settings picks: what waits on you, unread mail, or nothing.
+  const notes = useNotes();
   const badgeSetting = settings?.system.dockBadge;
   const badgeCount =
     badgeSetting === "waiting" ? waiting : badgeSetting === "unread" ? counts.mail : 0;
@@ -241,7 +244,7 @@ export function AppSidebar() {
   }, [badgeCount, badgeSetting]);
 
   function navVisible(id: MainNavId): boolean {
-    if (id === "home" || id === "agenda") return true;
+    if (id === "home" || id === "agenda" || id === "notes") return true;
     return sourceOn(settings, id);
   }
 
@@ -256,6 +259,12 @@ export function AppSidebar() {
       return (
         <SidebarSymbol>
           <CalendarDays className="size-[18px]" strokeWidth={1.75} />
+        </SidebarSymbol>
+      );
+    if (id === "notes")
+      return (
+        <SidebarSymbol>
+          <NotebookPen className="size-[18px]" strokeWidth={1.75} />
         </SidebarSymbol>
       );
     const Icon = SOURCE_META[id].icon;
@@ -279,6 +288,10 @@ export function AppSidebar() {
   function navSubtitle(id: MainNavId): string | undefined {
     if (id === "home") return waiting ? `${waiting} waiting on you` : "Nothing waiting on you";
     if (id === "agenda") return summary(agendaDue, agendaLate);
+    if (id === "notes") {
+      const count = notes.data?.length ?? 0;
+      return count ? plural(count, "note") : "Nothing written yet";
+    }
     return subtitles[id];
   }
 
@@ -294,6 +307,7 @@ export function AppSidebar() {
         <SidebarCount count={agendaDue} label={`${plural(agendaDue, "item")} due today`} />
       ) : undefined;
     }
+    if (id === "notes") return undefined;
     const count = counts[id];
     const label =
       id === "mail"

@@ -16,13 +16,14 @@ import {
   ToolbarTitle,
   toast,
 } from "@renderer/ui";
-import { History, Maximize2, Server, SquarePen, X } from "lucide-react";
+import { History, Maximize2, NotebookPen, Server, SquarePen, X } from "lucide-react";
 import type {
   AIProvider,
   AIStreamChunk,
   AssistantAttachment,
   AssistantModelInfo,
   AssistantResult,
+  Note,
 } from "@main/shared-types";
 import type { AssistantHistory } from "../../shared/assistant-history";
 
@@ -54,6 +55,7 @@ import {
 import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
 import { dayHeading, formatClock, todayISO } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { chatAsNote } from "../lib/chat-note";
 import { useAssistantHistory } from "../lib/assistant-history";
 import type { AssistantViewAction } from "../lib/assistant-commands";
 import {
@@ -335,6 +337,7 @@ function AssistantSession({
   const enabled = featureOn(settings, "assistant");
   const provider = assistantProvider(settings);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const mcpServers = useAssistantMcpServers();
   const accounts = useAccounts();
   const tasks = useTasks();
@@ -741,6 +744,26 @@ function AssistantSession({
     }
   }
 
+  async function saveAsNote() {
+    setSavingNote(true);
+    try {
+      const note = await invoke<Note>(
+        "notes:save",
+        chatAsNote(history.chat.title, messages, new Date()),
+      );
+      toast.success("Saved to Notes", {
+        action: {
+          label: "Open",
+          onClick: () => void navigate({ to: "/notes", search: { note: note.id } }),
+        },
+      });
+    } catch (error) {
+      toast.error(`Couldn't save the note: ${errorMessage(error)}`);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   function runAction(name: AssistantViewAction) {
     if (name === "new") void newChat();
     else if (name === "history") {
@@ -774,6 +797,15 @@ function AssistantSession({
         disabled={history.switching || adding}
       >
         <History />
+      </Button>
+      <Button
+        iconOnly
+        aria-label="Save chat as note"
+        title="Save chat as note"
+        onClick={() => void saveAsNote()}
+        disabled={!messages.length || Boolean(runningId) || savingNote}
+      >
+        <NotebookPen />
       </Button>
       <Button
         iconOnly

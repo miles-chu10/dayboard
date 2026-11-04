@@ -4,6 +4,7 @@ import { Button, Callout, Dialog, Input, Status, Text, Textarea, toast } from "@
 import type { MailItem } from "@main/shared-types";
 
 import { useAITask } from "../lib/ai";
+import { learnFromDraft } from "../lib/agent-data";
 import { REPLY_SYSTEM, buildReplyPrompt } from "../lib/ai-prompts";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
@@ -19,7 +20,9 @@ export function ReplyDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const accounts = useAccounts();
-  const aiReplies = featureOn(useSettings().data, "replyDrafts");
+  const settings = useSettings().data;
+  const aiReplies = featureOn(settings, "replyDrafts");
+  const memoryOn = settings?.ai.memory === true;
   const ai = useAITask();
   const { sendMail, openCompose } = useCompose();
   const [instructions, setInstructions] = useState("");
@@ -56,6 +59,7 @@ export function ReplyDialog({
         instructions,
       }),
       maxOutputTokens: 600,
+      memory: true,
     });
   }
 
@@ -74,6 +78,7 @@ export function ReplyDialog({
     if (!message) return;
     const sent = message;
     const body = draft;
+    const written = ai.isDone ? ai.output.trim() : "";
     try {
       await sendMail({ kind: "reply", id: sent.id, body }, () =>
         openCompose({
@@ -83,6 +88,7 @@ export function ReplyDialog({
           body,
         }),
       );
+      if (memoryOn && written) learnFromDraft(written, body);
       onOpenChange(false);
     } catch (error) {
       toast.error(`Couldn't send: ${errorMessage(error)}`);
