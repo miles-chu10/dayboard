@@ -89,7 +89,9 @@ These are **server secrets**, never public Worker variables, build constants, re
 
 The service fails closed with `503 service_unconfigured` if the required binding, price, mode, cap, database, or secrets are missing. A public desktop build must use this **same** origin, product ID, and test/live environment. There are no merchant IDs in the repository.
 
-The intended operator must also decide the price, support address/process, refund policy, tax treatment, and legal merchant operating model. This service uses standard Stripe Checkout. It does not assert merchant-of-record status and does not turn on `automatic_tax` by default. Checkout leaves payment methods to Stripe's Dashboard settings; it does not set `payment_method_types`.
+Checkout uses **Stripe Managed Payments** (`managed_payments: { enabled: true }`): Stripe, via Link, is merchant of record and calculates, collects and remits sales tax, VAT and GST. Managed Payments must be activated in the Stripe Dashboard before Checkout Sessions can be created, and the Product needs an eligible tax code (`txcd_10202000`, downloadable software for personal use). Set the Price's tax behavior to inclusive so the buyer pays the listed price. Managed Payments turns on Adaptive Pricing, so a buyer can pay in a local currency; fulfillment checks that the line item's Price matches the configured price and currency, and that the PaymentIntent was paid in full in the session's currency. Managed Payments does not support `automatic_tax` or `payment_method_types`, and Checkout sets neither. Before launch, confirm in test mode that `charge.refunded` and `charge.dispute.created` still reach this endpoint for Managed Payments charges; Stripe's Managed Payments docs list only the `checkout.session.*` events.
+
+Launch policy (Miles, 2026-11-04): DayBoard Pro is $5 once and unlocks AI only; `ACTIVATION_LIMIT` is `3`; refunds within 14 days, no questions asked, from the Stripe Dashboard. A full refund or any dispute revokes the license. A won dispute does not restore access automatically.
 
 ## Setup and deployment procedure (not performed here)
 

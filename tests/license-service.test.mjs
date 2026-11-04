@@ -87,8 +87,28 @@ async function setup(options = OPTIONS, initial = null, overrides = {}) {
   return { service: new LicenseService(v, s, options), s, v };
 }
 
+test("the trial does not start until the first AI use", async () => {
+  const { service, s, v } = await setup();
+  const later = new Date(+NOW + 365 * DAY);
+  assert.deepEqual(await service.getStatus(later), { state: "trial", daysLeft: 14 });
+  assert.deepEqual(await service.refresh(later), { state: "trial", daysLeft: 14 });
+  assert.equal(s.current(), null);
+  assert.deepEqual(s.calls.write, 0);
+  await service.startTrial(later);
+  const anchor = s.current().firstLaunchAt;
+  assert.equal(anchor, later.toISOString());
+  await service.startTrial(new Date(+later + 3 * DAY));
+  assert.equal(s.current().firstLaunchAt, anchor);
+  assert.deepEqual(await service.getStatus(new Date(+later + 3 * DAY)), {
+    state: "trial",
+    daysLeft: 11,
+  });
+  assert.deepEqual(v.calls.validate, []);
+});
+
 test("14-day trial expires at boundary and deactivation keeps installation identity", async () => {
   const { service, s } = await setup();
+  await service.startTrial(NOW);
   assert.deepEqual(await service.getStatus(NOW), { state: "trial", daysLeft: 14 });
   assert.deepEqual(await service.getStatus(new Date(+NOW + 13 * DAY)), {
     state: "trial",
@@ -104,6 +124,7 @@ test("14-day trial expires at boundary and deactivation keeps installation ident
 
 test("a future or invalid trial anchor cannot extend or revive an expired trial", async () => {
   const { service, s, v } = await setup();
+  await service.startTrial(NOW);
   assert.deepEqual(await service.getStatus(NOW), { state: "trial", daysLeft: OPTIONS.trialDays });
   assert.deepEqual(await service.getStatus(new Date(+NOW + DAY - 1)), {
     state: "trial",
@@ -391,4 +412,32 @@ test("disabled and unconfigured service paths have zero store and network touche
     assert.deepEqual(s.calls, { read: 0, write: 0 });
     assert.deepEqual(v.calls, { validate: [], activate: [], deactivate: [] });
   }
+});
+
+test("service reason codes give a revoked or device-limit message", async () => {
+  const limited = await setup(OPTIONS, null, {
+    activate: () => ({ activated: false, error: "activation_limit" }),
+  });
+  await assert.rejects(limited.service.activate(A, "Mac", NOW), /maximum number of Macs/);
+
+  const revoked = await setup(OPTIONS, null, {
+    validate: () => ({ valid: false, error: "revoked" }),
+  });
+  await assert.rejects(revoked.service.activate(A, "Mac", NOW), /has been revoked/);
+  assert.equal(revoked.v.calls.activate.length, 0);
+
+  let refunded = false;
+  const { service } = await setup(OPTIONS, null, {
+    validate: (_key, instanceId) =>
+      refunded
+        ? { valid: false, error: "revoked" }
+        : { valid: true, instanceId, license: LICENSE, meta: META },
+  });
+  await service.activate(A, "Mac", NOW);
+  refunded = true;
+  assert.deepEqual(await service.refresh(new Date(+NOW + DAY)), {
+    state: "invalid",
+    keyHint: A.slice(-4),
+    message: "This license has been revoked and can't unlock DayBoard Pro.",
+  });
 });

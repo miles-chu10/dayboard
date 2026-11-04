@@ -145,7 +145,7 @@ test("only a registered window's current main frame reaches a read handler", asy
   assert.equal(await read(event(trusted)), 1);
 });
 
-test("paid source writes and AI streams fail closed until a license guard is set", async () => {
+test("AI streams fail closed until a license guard is set, while source writes stay free", async () => {
   const { adapter, makeSender, invoke } = await createHarness();
   const sender = makeSender(3);
   adapter.registerTrustedWindow(sender, entryUrl);
@@ -155,15 +155,12 @@ test("paid source writes and AI streams fail closed until a license guard is set
   adapter.ipcMain.handle("tasks:create", () => ++writes);
   adapter.ipcMain.handleStream("ai:run", async () => ++aiRuns);
 
-  await assert.rejects(
-    invoke("tasks:create", sender, { title: "fixture" }),
-    /License status is not ready/,
-  );
+  assert.equal(await invoke("tasks:create", sender, { title: "fixture" }), 1);
   await assert.rejects(
     invoke("dayboard:stream:start", sender, { id: "ai-default", channel: "ai:run", args: {} }),
     /License status is not ready/,
   );
-  assert.equal(writes, 0);
+  assert.equal(writes, 1);
   assert.equal(aiRuns, 0);
   // Only the end marker the preload waits for; no chunk reaches the window.
   assert.deepEqual(sender.sent, [["dayboard:stream:chunk", { id: "ai-default", end: true }]]);
@@ -216,7 +213,7 @@ test("a stream's end marker follows its last chunk, whether it resolves or fails
   ]);
 });
 
-test("license denial stops paid handlers while settings and source reads remain usable", async () => {
+test("license denial stops AI while source writes, reads and settings remain usable", async () => {
   const { adapter, makeSender, invoke } = await createHarness();
   const sender = makeSender(4);
   adapter.registerTrustedWindow(sender, entryUrl);
@@ -233,17 +230,17 @@ test("license denial stops paid handlers while settings and source reads remain 
   adapter.ipcMain.handle("settings:get", () => ({ theme: "dark" }));
   adapter.ipcMain.handleStream("ai:run", async () => ++aiRuns);
 
-  await assert.rejects(invoke("tasks:create", sender, { title: "fixture" }), /License required/);
+  assert.equal(await invoke("tasks:create", sender, { title: "fixture" }), 1);
   await assert.rejects(
     invoke("dayboard:stream:start", sender, { id: "ai-denied", channel: "ai:run", args: {} }),
     /License required/,
   );
-  assert.equal(writes, 0);
+  assert.equal(writes, 1);
   assert.equal(aiRuns, 0);
-  assert.equal(guardCalls, 2);
+  assert.equal(guardCalls, 1);
   assert.deepEqual(await invoke("tasks:list", sender), ["existing task"]);
   assert.deepEqual(await invoke("settings:get", sender), { theme: "dark" });
-  assert.equal(guardCalls, 2);
+  assert.equal(guardCalls, 1);
 });
 
 test("stream cancellation through IPC affects only the sender's matching stream", async () => {
@@ -413,10 +410,11 @@ test("runGuardedCommand applies the license guard to paid commands", async () =>
   });
   let runs = 0;
   await assert.rejects(
-    adapter.runGuardedCommand("capture:undo", async () => ++runs),
+    adapter.runGuardedCommand("capture:submit", async () => ++runs),
     /License required/,
   );
   assert.equal(runs, 0);
+  assert.equal(await adapter.runGuardedCommand("capture:undo", async () => "free"), "free");
   assert.equal(await adapter.runGuardedCommand("settings:get", async () => "free"), "free");
 });
 

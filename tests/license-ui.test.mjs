@@ -205,7 +205,7 @@ test("demo and unconfigured Settings never expose activation or checkout", () =>
 
 test("license status control opens the License tab when status needs attention", () => {
   const html = render(LicenseStatusControl, status("expired"));
-  assert.match(html, /Read-only access/);
-  click("Read-only access · Activate");
+  assert.match(html, /Unlock AI/);
+  click("Unlock AI · DayBoard Pro");
   assert.deepEqual(fixture.calls, [["settings", "license"]]);
 });

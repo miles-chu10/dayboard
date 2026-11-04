@@ -131,6 +131,8 @@ export async function checkout(
             cancel_url: `${cfg.origin}/buy`,
             integration_identifier: "dayboard_ynevvaow",
             metadata: { order_id: orderId },
+            // Stripe is merchant of record: it calculates and remits sales tax/VAT/GST.
+            managed_payments: { enabled: true },
           },
           { idempotencyKey: `dayboard-checkout-${orderId}` },
         );

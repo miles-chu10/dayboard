@@ -1,4 +1,4 @@
-// Pure license state machine: trial countdown, revalidate-at-most-daily, 30-day offline grace,
+// Pure license state machine: AI trial countdown (starts on first paid-feature use), revalidate-at-most-daily, 30-day offline grace,
 // invalid-key detection. No Electron imports, so tests/license-service.test.mjs can
 // esbuild-bundle and unit-test it with an in-memory store and a mocked verifier.
 
@@ -20,7 +20,7 @@ export interface LicenseRecord {
   licenseKey: string | null;
   instanceId: string | null;
   instanceName: string | null;
-  /** ISO timestamp of this device's first-ever launch; anchors the trial countdown. */
+  /** ISO timestamp of this device's first paid-feature (AI) use; anchors the trial countdown. */
   firstLaunchAt: string;
   /** ISO timestamp of the last authoritative validation. */
   lastValidationAt: string | null;
@@ -44,6 +44,7 @@ export interface LicenseServiceOptions {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const REVOKED_MESSAGE = "This license has been revoked and can't unlock DayBoard Pro.";
 
 function keyHint(licenseKey: string): string {
   return licenseKey.slice(-4);
@@ -64,7 +65,7 @@ function defaultRecord(now: Date): LicenseRecord {
   };
 }
 
-/** States in which AI actions and writes should be blocked (prompt to buy / enter a key). */
+/** States in which paid (AI) actions are blocked (prompt to buy / enter a key). */
 export function isLicenseBlocking(status: LicenseStatus): boolean {
   return (
     status.state === "expired" || status.state === "invalid" || status.state === "network-error"
@@ -126,9 +127,11 @@ export class LicenseService {
     return seeded;
   }
 
-  private computeStatus(record: LicenseRecord, now: Date): LicenseStatus {
+  /** Before the first AI use nothing is stored, so the full trial is still ahead. */
+  private computeStatus(record: LicenseRecord | null, now: Date): LicenseStatus {
     if (this.options.gatingDisabled) return { state: "disabled" };
     if (!this.options.product) return { state: "unconfigured" };
+    if (!record) return { state: "trial", daysLeft: this.options.trialDays };
 
     if (!record.licenseKey) {
       const elapsedMs = now.getTime() - Date.parse(record.firstLaunchAt);
@@ -140,6 +143,16 @@ export class LicenseService {
 
     const hint = keyHint(record.licenseKey);
 
+    // A rejection from the service clears the binding, so report its reason before the
+    // binding check below would replace it with a generic "needs to be verified".
+    if (record.lastValidationValid === false && LICENSE_KEY_PATTERN.test(record.licenseKey)) {
+      return {
+        state: "invalid",
+        keyHint: hint,
+        message: record.lastValidationMessage ?? "This license key is no longer valid.",
+      };
+    }
+
     if (
       !LICENSE_KEY_PATTERN.test(record.licenseKey) ||
       !record.productBinding ||
@@ -149,14 +162,6 @@ export class LicenseService {
         state: "invalid",
         keyHint: hint,
         message: "This saved key needs to be verified for DayBoard.",
-      };
-    }
-
-    if (record.lastValidationValid === false) {
-      return {
-        state: "invalid",
-        keyHint: hint,
-        message: record.lastValidationMessage ?? "This license key is no longer valid.",
       };
     }
 
@@ -192,11 +197,17 @@ export class LicenseService {
     return { state: "licensed", keyHint: hint };
   }
 
-  /** Reads the cached record and computes status. Never makes a network call. */
+  /** Reads the cached record and computes status. Never makes a network call or starts the trial. */
   async getStatus(now = new Date()): Promise<LicenseStatus> {
     if (this.options.gatingDisabled) return { state: "disabled" };
     if (!this.options.product) return { state: "unconfigured" };
-    return this.serialize(async () => this.computeStatus(await this.readOrSeed(now), now));
+    return this.serialize(async () => this.computeStatus(await this.store.read(), now));
+  }
+
+  /** Starts the trial clock on the first paid-feature use; later calls leave it unchanged. */
+  async startTrial(now = new Date()): Promise<void> {
+    if (this.options.gatingDisabled || !this.options.product) return;
+    await this.serialize(() => this.readOrSeed(now));
   }
 
   /**
@@ -212,8 +223,8 @@ export class LicenseService {
   }
 
   private async refreshLocked(now: Date): Promise<LicenseStatus> {
-    const record = await this.readOrSeed(now);
-    if (!record.licenseKey) return this.computeStatus(record, now);
+    const record = await this.store.read();
+    if (!record?.licenseKey) return this.computeStatus(record, now);
     if (
       !LICENSE_KEY_PATTERN.test(record.licenseKey) ||
       !record.productBinding ||
@@ -255,7 +266,9 @@ export class LicenseService {
         ? null
         : result.valid
           ? "This license key is for another product or is no longer active."
-          : "This license key is no longer valid.",
+          : result.error === "revoked"
+            ? REVOKED_MESSAGE
+            : "This license key is no longer valid.",
       productBinding: valid ? result.meta! : null,
     };
     await this.store.write(next);
@@ -286,6 +299,7 @@ export class LicenseService {
     // A key-level validation has no instance and consumes no activation slot.
     const preflight = await this.verifier.validate(trimmed);
     if (!preflight.valid) {
+      if (preflight.error === "revoked") throw new Error(REVOKED_MESSAGE);
       throw new Error("That license key couldn't be validated.");
     }
     if (!preflight.meta || !preflight.license) {
@@ -311,6 +325,12 @@ export class LicenseService {
 
     const result = await this.verifier.activate(trimmed, record.installationId, instanceName);
     if (!result.activated) {
+      if (result.error === "revoked") throw new Error(REVOKED_MESSAGE);
+      if (result.error === "activation_limit") {
+        throw new Error(
+          "This license is already active on the maximum number of Macs. Deactivate it on another Mac in Settings → License, then try again.",
+        );
+      }
       throw new Error("That license key couldn't be activated.");
     }
     if (typeof result.instanceId !== "string" || !result.instanceId.trim()) {

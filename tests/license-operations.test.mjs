@@ -67,7 +67,24 @@ test("server-side access assertion blocks an expired configured trial", async ()
   const operations = createLicenseOperations({
     mode: () => "configured",
     checkoutUrl: "",
-    getService: async () => ({ refresh: async () => ({ state: "expired" }) }),
+    getService: async () => ({
+      startTrial: async () => {},
+      refresh: async () => ({ state: "expired" }),
+    }),
   });
   await assert.rejects(operations.assertLicenseAccess(), /License required/);
+});
+
+test("the first guarded (AI) action starts the trial before checking access", async () => {
+  const calls = [];
+  const operations = createLicenseOperations({
+    mode: () => "configured",
+    checkoutUrl: "",
+    getService: async () => ({
+      startTrial: async () => calls.push("startTrial"),
+      refresh: async () => (calls.push("refresh"), { state: "trial", daysLeft: 7 }),
+    }),
+  });
+  await operations.assertLicenseAccess();
+  assert.deepEqual(calls, ["startTrial", "refresh"]);
 });

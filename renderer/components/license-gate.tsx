@@ -4,7 +4,7 @@ import { Button, EmptyState } from "../ui";
 import { isLicenseBlocking, useLicenseStatus, type LicenseStatus } from "../lib/license";
 import { openExternal, openSettings } from "../lib/ipc";
 
-/** True once license data has loaded and the current state blocks AI/write actions. */
+/** True once license data has loaded and the current state blocks AI actions. */
 export function useLicenseGate(): {
   blocked: boolean;
   status: LicenseStatus | undefined;
@@ -33,14 +33,15 @@ function upsellCopy(status: LicenseStatus): {
   switch (status.state) {
     case "expired":
       return {
-        title: "Trial expired",
+        title: "AI trial ended",
         description:
-          "Your data remains available. Activate DayBoard to edit connected sources and use AI.",
+          "Everything else in DayBoard stays free. Get DayBoard Pro for $5, once, to keep using AI.",
       };
     case "invalid":
       return {
         title: "License key not valid",
-        description: "This license key isn't valid anymore. Enter a different one or buy DayBoard.",
+        description:
+          "This license key isn't valid anymore. Enter a different one or get DayBoard Pro.",
       };
     case "network-error":
       return {
@@ -57,9 +58,8 @@ function upsellCopy(status: LicenseStatus): {
 }
 
 /**
- * Wraps an AI or write-action surface: renders `children` when the license allows it, otherwise
- * a "buy or enter a key" prompt. Data-only views should stay outside this gate — per the ExecPlan,
- * an expired/invalid license keeps data visible and only blocks AI + writes.
+ * Wraps an AI surface: renders `children` when the license allows it, otherwise a "get Pro or
+ * enter a key" prompt. Only AI is paid; every other view and action stays outside this gate.
  */
 export function LicenseGate({
   children,
@@ -94,7 +94,7 @@ export function LicenseGate({
         <>
           {checkoutUrl ? (
             <Button variant="accent" onClick={() => void openExternal(checkoutUrl)}>
-              Buy DayBoard
+              Get DayBoard Pro · $5
             </Button>
           ) : null}
           <Button onClick={() => void openSettings("license")}>Open License Settings</Button>
@@ -137,10 +137,10 @@ export function LicenseStatusControl() {
   const label = isError
     ? "License unavailable"
     : data?.status.state === "trial"
-      ? `${data.status.daysLeft} days left in your trial`
+      ? `${data.status.daysLeft} day${data.status.daysLeft === 1 ? "" : "s"} left in your AI trial`
       : data?.status.state === "unconfigured"
         ? "Preview build"
-        : "Read-only access · Activate";
+        : "Unlock AI · DayBoard Pro";
   return (
     <Button
       size="small"
