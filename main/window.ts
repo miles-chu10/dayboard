@@ -30,6 +30,20 @@ const PRELOAD_PATH = path.join(__dirname, "..", "preload", "index.cjs");
 
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+/** Tabs open in the main window, reported by its renderer; ⌘W closes a tab while there are two. */
+let mainTabCount = 1;
+
+export function setMainTabCount(count: number): void {
+  mainTabCount = count;
+}
+
+function closeFocusedWindow(): void {
+  const focused = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  if (!focused || focused.isDestroyed()) return;
+  if (focused === mainWindow && mainTabCount > 1)
+    ipcMain.broadcast("tabs:command", { action: "close" });
+  else focused.close();
+}
 
 export function secureWebPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
   return {
@@ -113,15 +127,27 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
-const MAIN_ROUTES = ["/", "/tasks", "/reminders", "/calendar", "/mail", "/assistant", "/review"];
+const MAIN_ROUTES = [
+  "/",
+  "/agenda",
+  "/tasks",
+  "/reminders",
+  "/calendar",
+  "/mail",
+  "/assistant",
+  "/review",
+  "/notes",
+];
 export type MainRoute =
   | "/"
+  | "/agenda"
   | "/tasks"
   | "/reminders"
   | "/calendar"
   | "/mail"
   | "/assistant"
-  | "/review";
+  | "/review"
+  | "/notes";
 export interface MainNavigation {
   to: MainRoute;
   prompt?: string;
@@ -226,7 +252,11 @@ export function setupApplicationMenu(options: {
       submenu: [
         // No accelerator: macOS ignores registerAccelerator: false, and a menu key equivalent
         // would fire while Settings records a new global shortcut.
-        { label: "Quick Capture…", id: "quick-capture", click: () => options.openQuickCapture() },
+        {
+          label: "Quick Capture…",
+          id: "quick-capture",
+          click: () => options.openQuickCapture(),
+        },
         // Keyboard and VoiceOver route to the menu-bar panel, which is otherwise click-only.
         {
           label: "Menu Bar Agenda",
@@ -234,7 +264,21 @@ export function setupApplicationMenu(options: {
           click: () => options.openMenuBarAgenda(),
         },
         { type: "separator" },
-        { role: "close" },
+        {
+          label: "New Tab",
+          id: "new-tab",
+          accelerator: "Command+T",
+          click: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            void focusMainWindow().then(() => ipcMain.broadcast("tabs:command", { action: "new" }));
+          },
+        },
+        {
+          label: "Close",
+          id: "close",
+          accelerator: "Command+W",
+          click: closeFocusedWindow,
+        },
       ],
     },
     { role: "editMenu" },

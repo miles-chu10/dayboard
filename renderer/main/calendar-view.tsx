@@ -24,6 +24,9 @@ import {
 import { ViewActions } from "../components/view-actions";
 import { HistoryNav } from "../components/history-nav";
 import type { AgendaSearch, CalendarLayout } from "../lib/agenda-search";
+import { groupByDay, startOfWeek, type DayItems } from "../lib/day-items";
+import { contextItemKey } from "../lib/agent-context";
+import { usePublishViewContext } from "../components/shell";
 import { addDays, formatTimeOfDay, parseISODate, toISODate } from "../lib/dates";
 import {
   toggleFocus,
@@ -35,7 +38,7 @@ import {
 } from "../lib/queries";
 import { sourceOn, useSettings } from "../lib/settings";
 import { COLOR_CLASS, sourceColor, sourceColorVar } from "../lib/sources";
-import { buildTodos, mergeLinkedTodos, type Todo } from "../lib/todos";
+import { buildTodos, mergeLinkedTodos } from "../lib/todos";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import { AgendaView } from "./agenda-view";
 
@@ -76,52 +79,6 @@ export function CalendarView() {
       <AgendaView calendarRoute modeSwitch={<ModeSwitch value="schedule" onChange={switchTo} />} />
     );
   return <CalendarGrid view={view} search={search} onSwitch={switchTo} />;
-}
-
-// ── Grid data ──────────────────────────────────────────────────────────────────────────
-
-interface DayItems {
-  allDay: CalendarEventItem[];
-  timed: CalendarEventItem[];
-  todos: Todo[];
-}
-
-function startOfWeek(iso: string): string {
-  return addDays(iso, -parseISODate(iso).getDay());
-}
-
-/** Local dates an event covers (all-day end dates are exclusive). */
-function eventDays(event: CalendarEventItem): string[] {
-  if (event.allDay) {
-    const days: string[] = [];
-    const end = event.end.slice(0, 10);
-    for (let day = event.start.slice(0, 10); day < end && days.length < 62; day = addDays(day, 1))
-      days.push(day);
-    return days.length ? days : [event.start.slice(0, 10)];
-  }
-  const start = toISODate(new Date(event.start));
-  // An event ending exactly at midnight doesn't occupy the next day.
-  const end = toISODate(new Date(new Date(event.end).getTime() - 1));
-  const days: string[] = [];
-  for (let day = start; day <= end && days.length < 62; day = addDays(day, 1)) days.push(day);
-  return days;
-}
-
-function groupByDay(events: CalendarEventItem[], todos: Todo[], dates: string[]) {
-  const map = new Map<string, DayItems>(
-    dates.map((date) => [date, { allDay: [], timed: [], todos: [] }]),
-  );
-  for (const event of events)
-    for (const day of eventDays(event)) {
-      const bucket = map.get(day);
-      if (bucket) (event.allDay ? bucket.allDay : bucket.timed).push(event);
-    }
-  for (const todo of todos) if (todo.dueDate) map.get(todo.dueDate)?.todos.push(todo);
-  for (const bucket of map.values()) {
-    bucket.timed.sort((a, b) => a.start.localeCompare(b.start));
-    bucket.todos.sort((a, b) => (a.dueTime ?? "99").localeCompare(b.dueTime ?? "99"));
-  }
-  return map;
 }
 
 function CalendarGrid({
@@ -183,7 +140,12 @@ function CalendarGrid({
   function update(patch: Partial<AgendaSearch>) {
     void navigate({
       to: "/calendar",
-      search: { view: search.view, date: search.date, item: search.item, ...patch },
+      search: {
+        view: search.view,
+        date: search.date,
+        item: search.item,
+        ...patch,
+      },
       replace: true,
     });
   }
@@ -201,6 +163,11 @@ function CalendarGrid({
 
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
+  usePublishViewContext({
+    view: "calendar",
+    title: "Calendar",
+    itemKey: contextItemKey({ todo: selectedTodo, event: selectedEvent }),
+  });
   function closePanel() {
     returnFocusKey.current = openedFromSelectedDay.current ? search.item : undefined;
     openedFromSelectedDay.current = false;
@@ -453,7 +420,10 @@ function MonthGrid({
         {dates.map((date, index) => {
           const items = byDay.get(date)!;
           const all = [
-            ...items.allDay.map((event) => ({ kind: "allDay" as const, event })),
+            ...items.allDay.map((event) => ({
+              kind: "allDay" as const,
+              event,
+            })),
             ...items.timed.map((event) => ({ kind: "timed" as const, event })),
             ...items.todos.map((todo) => ({ kind: "todo" as const, todo })),
           ];
@@ -704,7 +674,9 @@ function WeekGrid({
                     data-calendar-hour-label={hour}
                     className="absolute -top-2 right-1.5 tabular-nums"
                   >
-                    {new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}
+                    {new Date(2000, 0, 1, hour).toLocaleTimeString([], {
+                      hour: "numeric",
+                    })}
                   </Text>
                 ) : null}
               </div>

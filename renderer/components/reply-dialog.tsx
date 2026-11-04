@@ -4,10 +4,12 @@ import { Button, Callout, Dialog, Input, Status, Text, Textarea, toast } from "@
 import type { MailItem } from "@main/shared-types";
 
 import { useAITask } from "../lib/ai";
+import { learnFromDraft } from "../lib/agent-data";
 import { REPLY_SYSTEM, buildReplyPrompt } from "../lib/ai-prompts";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAccounts } from "../lib/queries";
 import { featureOn, useSettings } from "../lib/settings";
+import { useCompose } from "./compose-dialog";
 
 /** Render with `key={message?.id}` so each message starts with fresh state. */
 export function ReplyDialog({
@@ -18,8 +20,11 @@ export function ReplyDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const accounts = useAccounts();
-  const aiReplies = featureOn(useSettings().data, "replyDrafts");
+  const settings = useSettings().data;
+  const aiReplies = featureOn(settings, "replyDrafts");
+  const memoryOn = settings?.ai.memory === true;
   const ai = useAITask();
+  const { sendMail, openCompose } = useCompose();
   const [instructions, setInstructions] = useState("");
   const [draft, setDraft] = useState("");
 
@@ -54,6 +59,7 @@ export function ReplyDialog({
         instructions,
       }),
       maxOutputTokens: 600,
+      memory: true,
     });
   }
 
@@ -68,6 +74,27 @@ export function ReplyDialog({
     }
   }
 
+  async function send() {
+    if (!message) return;
+    const sent = message;
+    const body = draft;
+    const written = ai.isDone ? ai.output.trim() : "";
+    try {
+      await sendMail({ kind: "reply", id: sent.id, body }, () =>
+        openCompose({
+          replyToId: sent.id,
+          heading: `Reply to ${sent.from}`,
+          subject: sent.subject,
+          body,
+        }),
+      );
+      if (memoryOn && written) learnFromDraft(written, body);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(`Couldn't send: ${errorMessage(error)}`);
+    }
+  }
+
   return (
     <Dialog
       open
@@ -78,9 +105,13 @@ export function ReplyDialog({
       size="large"
       title={`Reply to ${message.from}`}
       description={message.subject}
-      confirmLabel="Save Draft"
+      confirmLabel="Send"
       confirmDisabled={!draft.trim() || ai.isRunning}
-      onConfirm={save}
+      onConfirm={send}
+      secondaryAction={{
+        label: "Save Draft",
+        onClick: () => (draft.trim() && !ai.isRunning ? save().catch(() => undefined) : undefined),
+      }}
     >
       <div className="flex flex-col gap-3">
         <div className="rounded-lg bg-well px-3 py-2 max-h-36 overflow-y-auto">
@@ -122,6 +153,7 @@ export function ReplyDialog({
           value={ai.isRunning ? ai.output : draft}
           readOnly={ai.isRunning}
           onChange={(event) => setDraft(event.target.value)}
+          aria-label="Your reply"
           placeholder="Write your reply…"
         />
       </div>

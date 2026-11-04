@@ -6,6 +6,7 @@ export { Badge, badgeVariants, type BadgeProps } from "./badge";
 export { Status, type StatusProps, type StatusVariant } from "./status";
 export { Button, buttonVariants, type ButtonProps } from "./button";
 export { Callout, type CalloutProps, type CalloutColor } from "./callout";
+export { Kbd, KeyCaps } from "./kbd";
 
 export { Checkbox } from "./checkbox";
 export { Switch } from "./switch";

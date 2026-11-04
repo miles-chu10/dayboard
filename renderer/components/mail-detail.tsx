@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Dialog, Field, FieldGroup, Status, Text, toast } from "@renderer/ui";
-import { Archive, ExternalLink, ListPlus, Reply } from "lucide-react";
+import { Badge, Button, Dialog, Field, FieldGroup, Kbd, Status, Text, toast } from "@renderer/ui";
+import { Archive, ExternalLink, ListPlus, Reply, Sparkles } from "lucide-react";
+import { isTypingTarget } from "../lib/shortcuts";
 import type { MailItem, SourceResult } from "@main/shared-types";
 
 import { formatMailDate } from "../lib/dates";
@@ -9,6 +10,7 @@ import { errorMessage, invoke, openExternal } from "../lib/ipc";
 import { queryKeys, useAccounts } from "../lib/queries";
 import { TRIAGE_LABEL, type TriageResult } from "../lib/triage";
 import { DetailPanel } from "./detail-panel";
+import { FollowUpMenu, SnoozeMenu } from "./mail-later";
 
 export function MailDetail({
   message,
@@ -58,7 +60,10 @@ export function MailDetail({
     onSuccess: () => {
       queryClient.setQueryData<SourceResult<MailItem>>(queryKeys.mail, (prev) =>
         prev?.state === "ok"
-          ? { ...prev, items: prev.items.filter((item) => item.id !== message.id) }
+          ? {
+              ...prev,
+              items: prev.items.filter((item) => item.id !== message.id),
+            }
           : prev,
       );
       toast.success("Archived");
@@ -80,8 +85,57 @@ export function MailDetail({
     onError: (error) => toast.error(`Couldn't add task: ${errorMessage(error)}`),
   });
 
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+
+  // E marks the email done (archives it), R replies and S snoozes, as in HeroSpace and Gmail.
+  const keyActions = useEffectEvent((event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.defaultPrevented)
+      return;
+    // Only while this email is the topmost thing: no other dialog over it.
+    const ownDialogs = presentation === "dialog" ? 1 : 0;
+    const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]').length;
+    if (isTypingTarget(event.target) || dialogs > ownDialogs) return;
+    const key = event.key.toLowerCase();
+    if (key === "e" && !event.shiftKey && !archive.isPending) {
+      event.preventDefault();
+      archive.mutate();
+    } else if (key === "r" && !event.shiftKey) {
+      event.preventDefault();
+      if (presentation === "dialog") onClose();
+      onReply(message);
+    } else if (key === "s" && !event.shiftKey) {
+      event.preventDefault();
+      setSnoozeOpen(true);
+    }
+  });
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => keyActions(event);
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
+
   const content = (
     <div className="flex flex-col gap-4">
+      {triage ? (
+        <section
+          aria-label="Summary"
+          className="flex items-start gap-3 rounded-xl border border-separator bg-well px-3 py-2.5"
+        >
+          <Sparkles aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-secondary" />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Text variant="strong">{badge?.label}</Text>
+            {triage.reason ? (
+              <Text color="secondary" className="break-words">
+                {triage.reason}
+              </Text>
+            ) : null}
+          </div>
+          <Button size="small" disabled={archive.isPending} onClick={() => archive.mutate()}>
+            Mark done
+            <Kbd>E</Kbd>
+          </Button>
+        </section>
+      ) : null}
       <FieldGroup>
         <Field label="From" orientation="vertical">
           <div className="flex items-center gap-2 min-w-0">
@@ -96,11 +150,6 @@ export function MailDetail({
         <Field label="Received" orientation="vertical">
           <Text>{formatMailDate(message.date)}</Text>
         </Field>
-        {triage?.reason ? (
-          <Field label="Why it matters" orientation="vertical">
-            <Text className="break-words">{triage.reason}</Text>
-          </Field>
-        ) : null}
         <Field label="Message" orientation="vertical">
           {body.isPending ? (
             <Status variant="loading">Loading message…</Status>
@@ -146,6 +195,13 @@ export function MailDetail({
           <Archive />
           Archive
         </Button>
+        <SnoozeMenu
+          message={message}
+          open={snoozeOpen}
+          onOpenChange={setSnoozeOpen}
+          onSnoozed={onClose}
+        />
+        <FollowUpMenu message={message} />
         <Button size="small" variant="transparent" onClick={() => void openExternal(gmailUrl)}>
           <ExternalLink />
           Open in Gmail

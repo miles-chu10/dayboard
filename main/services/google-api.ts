@@ -11,6 +11,7 @@ import type {
 import type { UpdateEventInput, UpdateTaskInput } from "../../shared/item-edits.js";
 import { GoogleAuthError, getGoogleAccessToken } from "./google-auth.js";
 import { agendaEventId } from "./agenda-utils.js";
+import type { SubscriptionMessage } from "./mail-subscriptions.js";
 
 const TASKS = "https://tasks.googleapis.com/tasks/v1";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -277,7 +278,9 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskItem> {
 
 /** Deletes exactly the selected Google Task; linked DayBoard relationships remain as unavailable history. */
 export async function deleteTask(listId: string, taskId: string): Promise<void> {
-  await googleFetch(`${TASKS}/lists/${enc(listId)}/tasks/${enc(taskId)}`, { method: "DELETE" });
+  await googleFetch(`${TASKS}/lists/${enc(listId)}/tasks/${enc(taskId)}`, {
+    method: "DELETE",
+  });
 }
 
 // ── Gmail ───────────────────────────────────────────────────────────────
@@ -438,11 +441,103 @@ export async function createReplyDraft(id: string, body: string): Promise<{ draf
   return { draftId: draft.id };
 }
 
-export async function modifyMessage(id: string, removeLabelIds: string[]): Promise<void> {
+export async function modifyMessage(
+  id: string,
+  removeLabelIds: string[],
+  addLabelIds: string[] = [],
+): Promise<void> {
   await googleFetch(`${GMAIL}/messages/${enc(id)}/modify`, {
     method: "POST",
-    body: { removeLabelIds },
+    body: { removeLabelIds, ...(addLabelIds.length ? { addLabelIds } : {}) },
   });
+}
+
+export interface ReplyContext {
+  /** Reply-To, else From, as the header carried it. */
+  to: string;
+  subject: string;
+  messageId: string;
+  references: string;
+  threadId: string;
+}
+
+/** The headers a reply to `id` needs to thread in Gmail and the recipient's client. */
+export async function getReplyContext(id: string): Promise<ReplyContext> {
+  const original = await googleFetch<GMessage>(
+    `${GMAIL}/messages/${enc(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References`,
+  );
+  const messageId = header(original, "Message-ID").replace(/[\r\n]+/g, "");
+  return {
+    to: (header(original, "Reply-To") || header(original, "From")).replace(/[\r\n]+/g, " "),
+    subject: header(original, "Subject"),
+    messageId,
+    references: [header(original, "References").replace(/[\r\n]+/g, " "), messageId]
+      .filter(Boolean)
+      .join(" "),
+    threadId: original.threadId,
+  };
+}
+
+export function sendRawMessage(
+  raw: string,
+  threadId?: string,
+): Promise<{ id: string; threadId: string }> {
+  return googleFetch<{ id: string; threadId: string }>(`${GMAIL}/messages/send`, {
+    method: "POST",
+    body: { raw, ...(threadId ? { threadId } : {}) },
+  });
+}
+
+/** The last 90 days of received mail with its list headers, for the subscriptions manager. */
+export async function listSubscriptionMessages(max = 300): Promise<SubscriptionMessage[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await googleFetch<{
+      messages?: { id: string }[];
+      nextPageToken?: string;
+    }>(
+      `${GMAIL}/messages?maxResults=100&q=${enc("newer_than:90d -in:sent -in:chats -in:drafts")}${
+        pageToken ? `&pageToken=${enc(pageToken)}` : ""
+      }`,
+    );
+    ids.push(...(page.messages ?? []).map((message) => message.id));
+    pageToken = page.nextPageToken;
+  } while (pageToken && ids.length < max);
+  const messages = await mapWithConcurrency(ids.slice(0, max), 5, (id) =>
+    googleFetch<GMessage>(
+      `${GMAIL}/messages/${enc(id)}?format=metadata&metadataHeaders=From&metadataHeaders=List-Unsubscribe&metadataHeaders=List-Unsubscribe-Post`,
+    ),
+  );
+  return messages.map((message) => {
+    const from = parseAddress(header(message, "From"));
+    return {
+      from: from.name,
+      fromEmail: from.email,
+      listUnsubscribe: header(message, "List-Unsubscribe"),
+      listUnsubscribePost: header(message, "List-Unsubscribe-Post"),
+      unread: message.labelIds?.includes("UNREAD") ?? false,
+      date: Number(message.internalDate ?? 0),
+    };
+  });
+}
+
+/** True when someone other than `userEmail` wrote in the thread after `after` (ms). */
+export async function threadHasReplyAfter(
+  threadId: string,
+  after: number,
+  userEmail: string | null,
+): Promise<boolean> {
+  const thread = await googleFetch<{ messages?: GMessage[] }>(
+    `${GMAIL}/threads/${enc(threadId)}?format=metadata&metadataHeaders=From`,
+  );
+  const me = userEmail?.toLowerCase() ?? null;
+  return (thread.messages ?? []).some(
+    (message) =>
+      Number(message.internalDate ?? 0) > after &&
+      !message.labelIds?.includes("SENT") &&
+      parseAddress(header(message, "From")).email.toLowerCase() !== me,
+  );
 }
 
 // ── Google Calendar ─────────────────────────────────────────────────────
@@ -472,10 +567,17 @@ interface GEvent {
   location?: string;
   htmlLink?: string;
   hangoutLink?: string;
-  attendees?: { email?: string; resource?: boolean; self?: boolean; responseStatus?: string }[];
+  attendees?: {
+    email?: string;
+    resource?: boolean;
+    self?: boolean;
+    responseStatus?: string;
+  }[];
   organizer?: { email?: string; self?: boolean };
   iCalUID?: string;
-  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
+  conferenceData?: {
+    entryPoints?: { entryPointType?: string; uri?: string }[];
+  };
   extendedProperties?: { private?: Record<string, string> };
   recurrence?: string[];
   recurringEventId?: string;
@@ -510,7 +612,13 @@ async function listCalendarsWithCoverage(): Promise<CalendarLookup> {
     if (error instanceof GoogleApiError && error.status === 403) {
       return {
         calendars: [
-          { id: "primary", name: "Calendar", color: null, primary: true, defaultVisible: true },
+          {
+            id: "primary",
+            name: "Calendar",
+            color: null,
+            primary: true,
+            defaultVisible: true,
+          },
         ],
         limited: true,
         truncated: false,
@@ -708,7 +816,10 @@ function calendarEventBody(input: CreateEventInput): Record<string, unknown> {
     summary: input.title,
     description: input.notes || undefined,
     start: timed
-      ? { dateTime: `${input.date}T${input.startTime}:00`, timeZone: input.timeZone }
+      ? {
+          dateTime: `${input.date}T${input.startTime}:00`,
+          timeZone: input.timeZone,
+        }
       : { date: input.date },
     end: timed
       ? {
@@ -814,7 +925,9 @@ export async function createAgendaEvent(
       body: {
         ...calendarEventBody(input),
         id: agendaEventId(requestId),
-        extendedProperties: { private: { workDashboardAgendaRequestId: requestId } },
+        extendedProperties: {
+          private: { workDashboardAgendaRequestId: requestId },
+        },
       },
     });
   } catch (error) {

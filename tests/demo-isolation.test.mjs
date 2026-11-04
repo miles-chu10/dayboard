@@ -527,6 +527,7 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
           "../services/ai/completion.js",
           `export const runCompletion = async () => { globalThis.__aiCounters.provider += 1; throw new Error("live generation forbidden"); };`,
         ],
+        ["../services/agent-stores.js", `export const listMemories = async () => [];`],
         [
           "../services/ai/assistant.js",
           `export const runAssistant = async () => { throw new Error("assistant should not run"); };`,
@@ -647,6 +648,10 @@ test("demo MCP endpoints reject before any source service can run", async () => 
           `export const assertLicenseAccess = async () => { throw new Error("demo must not inspect licensing"); };`,
         ],
         ["./demo-data.js", `export const isDemoMode = () => true;`],
+        [
+          "./agent-stores.js",
+          `export const recordToolCall = () => {}; export const addMemoryEntry = async () => { throw new Error("live store called"); }; export const listMemories = addMemoryEntry; export const listNotes = addMemoryEntry; export const getNote = addMemoryEntry; export const putNote = addMemoryEntry;`,
+        ],
         ["./mcp-access-key.js", `export const isValidMcpBearer = async () => true;`],
         [
           "./settings-store.js",

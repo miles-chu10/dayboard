@@ -59,6 +59,13 @@ export function sourceOn(settings: AppSettings | undefined, source: SourceId): b
   return settings?.sources[source].enabled ?? true;
 }
 
+/** New mail is triaged without a click once a provider is chosen and the option is on. */
+export function autoTriageOn(settings: AppSettings | undefined): boolean {
+  return Boolean(
+    featureOn(settings, "triage") && settings?.ai.providerChosen && settings.mail.autoTriage,
+  );
+}
+
 // "glaze" is retired and can no longer be selected (see settings-store.ts's PROVIDERS list);
 // its entries below only label older Assistant messages sent before the removal.
 export const PROVIDER_LABEL: Record<AssistantProvider, string> = {

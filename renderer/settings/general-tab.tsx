@@ -26,11 +26,14 @@ import { useAccounts } from "../lib/queries";
 import { useStartAtLogin } from "../lib/use-start-at-login";
 import { displayName } from "../components/app-sidebar";
 import { AccentPicker } from "./accent-picker";
+import { MailSettings } from "./mail-settings";
+import { SidebarSettings } from "./sidebar-settings";
 import { SettingSelect } from "./setting-select";
 import { MeetingsSettings, SystemPanelsSettings } from "./system-panels-settings";
 
 const LAUNCH_OPTIONS: { value: LaunchView; label: string }[] = [
-  { value: "today", label: "Agenda · Today" },
+  { value: "today", label: "Home" },
+  { value: "agenda", label: "Agenda · Today" },
   { value: "tasks", label: "Google Tasks" },
   { value: "reminders", label: "Apple Reminders" },
   { value: "mail", label: "Gmail" },
@@ -320,6 +323,10 @@ export function GeneralTab() {
               />
             </Field>
           </FieldSet>
+
+          <SidebarSettings />
+
+          <MailSettings />
 
           <FieldSet title="Data">
             <Field label="Inbox size" description="How many recent Gmail inbox messages to load.">

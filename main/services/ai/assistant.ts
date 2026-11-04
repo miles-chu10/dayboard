@@ -40,6 +40,7 @@ import { resolveAssistantMcpServers } from "./assistant-mcp.js";
 import { resolveConfiguredProvider } from "./provider-resolution.js";
 import { openMcpSession, type McpSession } from "./mcp-client.js";
 import { asError } from "./stream-error.js";
+import { emitRequestUsage } from "./usage-events.js";
 
 const ASSISTANT_TIMEOUT_MS = 5 * 60_000;
 
@@ -195,6 +196,7 @@ export async function runAssistant(
       onDelta: (text) => send({ type: "delta", text }),
       onTool: (event) => send({ type: "tool", ...event }),
     });
+    emitRequestUsage(requestUsage);
     return { text, usage: requestUsage, model: replyModel };
   }
 
@@ -293,6 +295,7 @@ export async function runAssistant(
           throw asError(part.error);
       }
     }
+    emitRequestUsage(requestUsage);
     return { text, usage: requestUsage, model: replyModel };
   } catch (error) {
     logger.error("ai", "Assistant request failed", error);

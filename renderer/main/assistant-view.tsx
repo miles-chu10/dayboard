@@ -9,15 +9,21 @@ import {
   Markdown,
   ScrollArea,
   Text,
+  Toolbar,
+  ToolbarActions,
+  ToolbarContent,
+  ToolbarRow,
+  ToolbarTitle,
   toast,
 } from "@renderer/ui";
-import { History, Server, SquarePen } from "lucide-react";
+import { History, Maximize2, NotebookPen, Server, SquarePen, X } from "lucide-react";
 import type {
   AIProvider,
   AIStreamChunk,
   AssistantAttachment,
   AssistantModelInfo,
   AssistantResult,
+  Note,
 } from "@main/shared-types";
 import type { AssistantHistory } from "../../shared/assistant-history";
 
@@ -32,6 +38,8 @@ import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { MentionChip } from "../components/mention-chip";
 import { HistoryNav } from "../components/history-nav";
 import { WindowActions } from "../components/view-actions";
+import { useShell } from "../components/shell";
+import { contextSuggestions, viewContextLine } from "../lib/agent-context";
 import { BLOCKED_MESSAGE } from "../lib/ai";
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { lastReplyLabel, modelSummary } from "../lib/model-choices";
@@ -47,6 +55,7 @@ import {
 import { KIND_LABEL, KIND_SOURCE, createItem } from "../lib/create-items";
 import { dayHeading, formatClock, todayISO } from "../lib/dates";
 import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { chatAsNote } from "../lib/chat-note";
 import { useAssistantHistory } from "../lib/assistant-history";
 import type { AssistantViewAction } from "../lib/assistant-commands";
 import {
@@ -211,7 +220,51 @@ function AssistantMessageView({
   );
 }
 
+type SessionVariant = "page" | "panel";
+
 export function AssistantView() {
+  return <AssistantLoader variant="page" />;
+}
+
+/** The Assistant docked beside any view (⌥⌘J), sharing the page's chats and settings. */
+export function AssistantPanel() {
+  return <AssistantLoader variant="panel" />;
+}
+
+function PanelToolbar({ title, children }: { title: string; children?: React.ReactNode }) {
+  const { setRightPane } = useShell();
+  const navigate = useNavigate();
+  return (
+    <Toolbar inset="none">
+      <ToolbarRow className="pl-4">
+        <ToolbarContent>
+          <ToolbarTitle as="h2">{title}</ToolbarTitle>
+        </ToolbarContent>
+        <ToolbarActions>
+          {children}
+          <Button
+            iconOnly
+            aria-label="Open the full Assistant"
+            title="Open the full Assistant"
+            onClick={() => void navigate({ to: "/assistant" })}
+          >
+            <Maximize2 />
+          </Button>
+          <Button
+            iconOnly
+            aria-label="Close the Assistant panel"
+            title="Close (⌥⌘J)"
+            onClick={() => setRightPane(null)}
+          >
+            <X />
+          </Button>
+        </ToolbarActions>
+      </ToolbarRow>
+    </Toolbar>
+  );
+}
+
+function AssistantLoader({ variant }: { variant: SessionVariant }) {
   const [state, setState] = useState<{
     history?: AssistantHistory;
     error?: string;
@@ -244,7 +297,12 @@ export function AssistantView() {
   }, []);
   if (!state.history)
     return (
-      <ScrollArea leading={<HistoryNav />} title="Assistant" className="h-full">
+      <ScrollArea
+        {...(variant === "panel"
+          ? { toolbar: <PanelToolbar title="Assistant" /> }
+          : { leading: <HistoryNav />, title: "Assistant" })}
+        className="h-full"
+      >
         <EmptyState
           placement="viewport"
           title={state.error ? "Chat history unavailable" : "Loading chats…"}
@@ -259,17 +317,27 @@ export function AssistantView() {
     <AssistantSession
       key={`${state.history.scope}:${state.generation}`}
       initialHistory={state.history}
+      variant={variant}
     />
   );
 }
 
-function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory }) {
+function AssistantSession({
+  initialHistory,
+  variant,
+}: {
+  initialHistory: AssistantHistory;
+  variant: SessionVariant;
+}) {
+  const panel = variant === "panel";
+  const shell = useShell();
   const demo = isRendererDemoMode();
   const queryClient = useQueryClient();
   const settings = useSettings().data;
   const enabled = featureOn(settings, "assistant");
   const provider = assistantProvider(settings);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const mcpServers = useAssistantMcpServers();
   const accounts = useAccounts();
   const tasks = useTasks();
@@ -285,7 +353,9 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const meetingNotes = useQuery({
     queryKey: ["meetings", "snapshot-notes", scope ?? "pending", snapshotEvents],
     queryFn: () =>
-      invoke<Record<string, { text: string }>>("meetings:getNotes", { events: snapshotEvents }),
+      invoke<Record<string, { text: string }>>("meetings:getNotes", {
+        events: snapshotEvents,
+      }),
     enabled: notesOn && scope !== undefined && snapshotEvents.length > 0,
     staleTime: 5 * 60_000,
   });
@@ -313,8 +383,56 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
   const addingRef = useRef(false);
   const cancelRef = useRef<string | null>(null);
   const navigate = useNavigate();
-  const { prompt: handoffPrompt } = useSearch({ from: "/assistant" });
+  const search = useSearch({ strict: false }) as { prompt?: string };
+  const handoffPrompt = panel ? undefined : search.prompt;
   const handledPromptRef = useRef<string | null>(null);
+
+  // The docked panel attaches what the view has open as a chip the user can remove.
+  const viewContext = panel ? shell.viewContext : null;
+  const contextItem = viewContext?.itemKey
+    ? candidates.find((candidate) => candidate.key === viewContext.itemKey)
+    : undefined;
+  const contextKey = contextItem?.key;
+  const autoContextRef = useRef<string | null>(null);
+  const dismissedContextRef = useRef<string | null>(null);
+  const attachContext = useEffectEvent((key: string | undefined) => {
+    const previous = autoContextRef.current;
+    autoContextRef.current = key ?? null;
+    setMentions((current) => {
+      const kept = previous ? current.filter((mention) => mention.key !== previous) : current;
+      if (!key || dismissedContextRef.current === key || kept.some((m) => m.key === key))
+        return kept;
+      const item = candidates.find((candidate) => candidate.key === key);
+      return item ? [item, ...kept] : kept;
+    });
+  });
+  useEffect(() => {
+    if (panel) attachContext(contextKey);
+  }, [panel, contextKey]);
+  function changeMentions(next: MentionItem[] | ((current: MentionItem[]) => MentionItem[])) {
+    setMentions((current) => {
+      const value = typeof next === "function" ? next(current) : next;
+      const auto = autoContextRef.current;
+      if (auto && current.some((m) => m.key === auto) && !value.some((m) => m.key === auto))
+        dismissedContextRef.current = auto;
+      return value;
+    });
+  }
+  const suggestions = panel
+    ? contextSuggestions(viewContext?.view, contextItem)
+    : ASSISTANT_SUGGESTIONS;
+
+  // ⌘K's "Ask" and other views hand a question to the docked panel; send each once.
+  const sendPanelRequest = useEffectEvent((prompt: string) => {
+    if (runningId) setInput(prompt);
+    else void send(prompt);
+  });
+  const agentRequest = panel ? shell.agentRequest : null;
+  useEffect(() => {
+    if (!agentRequest || !settings) return;
+    shell.takeAgentRequest(agentRequest.id);
+    if (enabled) sendPanelRequest(agentRequest.prompt);
+  }, [agentRequest, enabled, settings, shell]);
 
   const mcpCount = settings?.ai.useMcpInAssistant ? (mcpStatus.data?.serverCount ?? 0) : 0;
 
@@ -415,7 +533,10 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         : undefined,
     };
     const system = buildAssistantSystem(promptInput);
-    const currentSnapshot = buildAssistantSnapshot(promptInput);
+    const currentSnapshot = withMentions(
+      buildAssistantSnapshot(promptInput),
+      panel ? viewContextLine(viewContext?.title) : "",
+    );
 
     const cancellationId = crypto.randomUUID();
     cancelRef.current = cancellationId;
@@ -451,7 +572,10 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
             return;
           }
           if (chunk.type === "usage") {
-            patchMessage(assistantId, (message) => ({ ...message, usage: chunk.usage }));
+            patchMessage(assistantId, (message) => ({
+              ...message,
+              usage: chunk.usage,
+            }));
             setUsage({
               inputTokens: chunk.inputTokens,
               contextWindow: chunk.contextWindow,
@@ -620,6 +744,26 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
     }
   }
 
+  async function saveAsNote() {
+    setSavingNote(true);
+    try {
+      const note = await invoke<Note>(
+        "notes:save",
+        chatAsNote(history.chat.title, messages, new Date()),
+      );
+      toast.success("Saved to Notes", {
+        action: {
+          label: "Open",
+          onClick: () => void navigate({ to: "/notes", search: { note: note.id } }),
+        },
+      });
+    } catch (error) {
+      toast.error(`Couldn't save the note: ${errorMessage(error)}`);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   function runAction(name: AssistantViewAction) {
     if (name === "new") void newChat();
     else if (name === "history") {
@@ -643,49 +787,73 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         .join(" · ")
     : undefined;
 
+  const historyButtons = (
+    <>
+      <Button
+        iconOnly
+        aria-label="Chat history"
+        title="Chat history"
+        onClick={() => setHistoryOpen(true)}
+        disabled={history.switching || adding}
+      >
+        <History />
+      </Button>
+      <Button
+        iconOnly
+        aria-label="Save chat as note"
+        title="Save chat as note"
+        onClick={() => void saveAsNote()}
+        disabled={!messages.length || Boolean(runningId) || savingNote}
+      >
+        <NotebookPen />
+      </Button>
+      <Button
+        iconOnly
+        aria-label="New chat"
+        title="New chat"
+        onClick={() => void newChat()}
+        disabled={!messages.length || history.switching || adding}
+      >
+        <SquarePen />
+      </Button>
+    </>
+  );
+  const gutter = panel ? "px-3" : "max-w-5xl mx-auto px-6";
+
   return (
     <ScrollArea
       className="h-full"
       autoScrollToBottom
       showScrollToBottomButton
-      leading={<HistoryNav />}
       viewportClassName="[&>div]:block!"
-      title="Assistant"
-      subtitle={subtitle}
+      {...(panel
+        ? {
+            toolbar: (
+              <PanelToolbar title={messages.length ? history.chat.title : "Ask Assistant"}>
+                {historyButtons}
+              </PanelToolbar>
+            ),
+          }
+        : { leading: <HistoryNav />, title: "Assistant", subtitle })}
       actions={
-        <>
-          <WindowActions />
-          <Button
-            aria-label="MCP servers"
-            title="MCP servers the Assistant can use"
-            onClick={() => setMcpOpen(true)}
-          >
-            <Server />
-            {providerUsesMcp(provider) ? (mcpServers.data?.length ?? mcpCount) : 0}
-          </Button>
-          <Button
-            iconOnly
-            aria-label="Chat history"
-            title="Chat history"
-            onClick={() => setHistoryOpen(true)}
-            disabled={history.switching || adding}
-          >
-            <History />
-          </Button>
-          <Button
-            iconOnly
-            aria-label="New chat"
-            title="New chat"
-            onClick={() => void newChat()}
-            disabled={!messages.length || history.switching || adding}
-          >
-            <SquarePen />
-          </Button>
-        </>
+        panel ? undefined : (
+          <>
+            <WindowActions />
+            <Button
+              aria-label="MCP servers"
+              title="MCP servers the Assistant can use"
+              onClick={() => setMcpOpen(true)}
+            >
+              <Server />
+              {providerUsesMcp(provider) ? (mcpServers.data?.length ?? mcpCount) : 0}
+            </Button>
+            {historyButtons}
+          </>
+        )
       }
       footer={
         enabled ? (
-          <div className="w-full max-w-5xl mx-auto px-6 pb-4 space-y-2">
+          <div className={`w-full ${gutter} pb-4 space-y-2`}>
             {history.saveError ? (
               <Callout
                 color="orange"
@@ -709,6 +877,17 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                     : "\u00a0"}
               </Text>
             </div>
+            {panel && contextItem && messages.length && !input && !runningId ? (
+              <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
+                {contextSuggestions(viewContext?.view, contextItem)
+                  .slice(0, 2)
+                  .map((suggestion) => (
+                    <Button key={suggestion} size="small" onClick={() => void send(suggestion)}>
+                      {suggestion}
+                    </Button>
+                  ))}
+              </div>
+            ) : null}
             <LicenseGate>
               <AssistantComposer
                 input={input}
@@ -716,7 +895,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
                 attachments={attachments}
                 setAttachments={setAttachments}
                 mentions={mentions}
-                setMentions={setMentions}
+                setMentions={changeMentions}
                 mentionCandidates={candidates}
                 onSend={() => void send(input)}
                 onStop={stop}
@@ -752,7 +931,7 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
         busy={history.switching || adding}
         onSelect={openChat}
       />
-      <AIChat.Conversation.Content className="max-w-5xl mx-auto px-6">
+      <AIChat.Conversation.Content className={gutter}>
         {legacyMessages.length && !history.history.legacyImported ? (
           <Callout
             actions={
@@ -779,9 +958,13 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
           <EmptyState
             placement="viewport"
             media={<ProviderTile provider={provider} />}
-            title="Ask About Your Day"
-            description="The assistant sees your tasks, reminders, inbox, and calendar, and can suggest items for you to add."
-            actions={ASSISTANT_SUGGESTIONS.map((suggestion) => (
+            title={panel ? "Ask About Your Work" : "Ask About Your Day"}
+            description={
+              panel
+                ? "The assistant sees your tasks, reminders, inbox, and calendar, plus what's open beside it."
+                : "The assistant sees your tasks, reminders, inbox, and calendar, and can suggest items for you to add."
+            }
+            actions={suggestions.map((suggestion) => (
               <Button key={suggestion} size="small" onClick={() => void send(suggestion)}>
                 {suggestion}
               </Button>

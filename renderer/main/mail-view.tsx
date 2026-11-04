@@ -1,5 +1,10 @@
 import { DetailsLayout } from "../components/details-layout";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
+import { isTypingTarget, stepRow } from "../lib/shortcuts";
+import { useCompose } from "../components/compose-dialog";
+import { ScheduledMail } from "../components/mail-later";
+import { useOpenSubscriptions } from "../components/subscriptions-dialog";
 import {
   Button,
   Callout,
@@ -9,7 +14,7 @@ import {
   SegmentedControlItem,
   Status,
 } from "@renderer/ui";
-import { RotateCw, Sparkles, Square } from "lucide-react";
+import { MailX, RotateCw, Sparkles, Square, SquarePen } from "lucide-react";
 import type { MailItem } from "@main/shared-types";
 
 import { MailDetail } from "../components/mail-detail";
@@ -21,8 +26,10 @@ import { SourceGate } from "../components/source-gate";
 import { HistoryNav } from "../components/history-nav";
 import { WindowActions } from "../components/view-actions";
 import { useMail } from "../lib/queries";
-import { featureOn, useSettings } from "../lib/settings";
-import { useTriage, type TriageCategory } from "../lib/triage";
+import { autoTriageOn, featureOn, useSettings } from "../lib/settings";
+import { useAutoTriage, useTriage, type TriageCategory } from "../lib/triage";
+import { contextItemKey } from "../lib/agent-context";
+import { usePublishViewContext } from "../components/shell";
 
 type MailFilter = "all" | TriageCategory;
 
@@ -33,15 +40,63 @@ export function MailView() {
   const detailView = settings?.general.detailView ?? "dialog";
   const messages = mail.data?.state === "ok" ? mail.data.items : undefined;
   const triage = useTriage(messages);
+  useAutoTriage(triage, messages, autoTriageOn(settings));
+
+  const { openCompose } = useCompose();
+  const openSubscriptions = useOpenSubscriptions();
+  const openComposeRef = useRef(() => openCompose());
+  useEffect(() => {
+    openComposeRef.current = () => openCompose();
+  });
+
+  // J/K move between emails outside text fields, as in Gmail; ↩ opens the focused one; C writes.
+  useEffect(() => {
+    function keydown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.defaultPrevented || event.isComposing || isTypingTarget(event.target)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      const rows = [
+        ...document.querySelectorAll<HTMLElement>("[data-window-content] [data-mail-open]"),
+      ];
+      const next = stepRow(
+        rows.findIndex((row) => row === document.activeElement),
+        rows.length,
+        event.key,
+      );
+      if (event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        openComposeRef.current();
+        return;
+      }
+      if (next === null) return;
+      event.preventDefault();
+      rows[next].focus();
+      rows[next].scrollIntoView({ block: "nearest" });
+    }
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
   const [filter, setFilter] = useState<MailFilter>("all");
   const [replyTo, setReplyTo] = useState<MailItem | null>(null);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const { item: requestedId } = useSearch({ from: "/mail" });
+  const [selectedId, setSelectedId] = useState<string | undefined>(requestedId);
+  // A message requested later (⌘K while Inbox is open) replaces the selection once.
+  const [lastRequested, setLastRequested] = useState(requestedId);
+  if (requestedId !== lastRequested) {
+    setLastRequested(requestedId);
+    if (requestedId) setSelectedId(requestedId);
+  }
 
   const unread = messages?.filter((message) => message.unread).length ?? 0;
   const countFor = (category: TriageCategory) =>
     messages?.filter((message) => triage.map[message.id]?.category === category).length ?? 0;
   const activeFilter: MailFilter = triageOn ? filter : "all";
   const selected = messages?.find((message) => message.id === selectedId);
+  usePublishViewContext({
+    view: "mail",
+    title: "Inbox",
+    itemKey: contextItemKey({ mail: selected }),
+  });
 
   function toggleOpen(message: MailItem) {
     setSelectedId((current) => (current === message.id ? undefined : message.id));
@@ -80,6 +135,22 @@ export function MailView() {
           actions={
             <>
               <WindowActions />
+              <Button
+                iconOnly
+                aria-label="New email"
+                title="New email (C)"
+                onClick={() => openCompose()}
+              >
+                <SquarePen />
+              </Button>
+              <Button
+                iconOnly
+                aria-label="Subscriptions"
+                title="Newsletters and lists"
+                onClick={openSubscriptions}
+              >
+                <MailX />
+              </Button>
               {triageOn ? (
                 <Button
                   iconOnly
@@ -192,6 +263,7 @@ export function MailView() {
                 );
               }}
             </SourceGate>
+            <ScheduledMail />
           </div>
         </ScrollArea>
       </DetailsLayout>

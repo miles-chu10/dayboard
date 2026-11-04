@@ -7,17 +7,24 @@ import type { LaunchView } from "@main/shared-types";
 import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
+import { CommandMenu } from "../components/command-menu";
+import { ComposeProvider } from "../components/compose-dialog";
+import { SubscriptionsProvider } from "../components/subscriptions-dialog";
+import { RightPane, useRightPaneContent } from "../components/right-pane";
+import { ShellProvider } from "../components/shell";
 import { useHistoryShortcuts } from "../components/history-nav";
 import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 import { invoke } from "../lib/ipc";
+import { TabStrip, TabsProvider } from "../components/tab-strip";
 
 const LAUNCH_ROUTE: Record<
   LaunchView,
-  "/" | "/tasks" | "/reminders" | "/mail" | "/calendar" | "/assistant" | "/review"
+  "/" | "/agenda" | "/tasks" | "/reminders" | "/mail" | "/calendar" | "/assistant" | "/review"
 > = {
   today: "/",
+  agenda: "/agenda",
   tasks: "/tasks",
   reminders: "/reminders",
   mail: "/mail",
@@ -70,22 +77,44 @@ export function RootView() {
   return (
     <div className="h-full">
       <CaptureProvider>
-        <MeetingPrepProvider>
-          <SplitView
-            className="h-full"
-            storageKey="productivity-shell"
-            sidebar={<AppSidebar />}
-            sidebarSize={{ default: 220, min: 180, max: 400 }}
-            primarySize={{ min: 440 }}
-          >
-            <SidebarControl />
-            <div data-window-content className="h-full min-h-0 bg-background">
-              <Outlet />
-            </div>
-          </SplitView>
-        </MeetingPrepProvider>
+        <ComposeProvider>
+          <SubscriptionsProvider>
+            <MeetingPrepProvider>
+              <ShellProvider>
+                <TabsProvider>
+                  <Shell />
+                </TabsProvider>
+              </ShellProvider>
+            </MeetingPrepProvider>
+          </SubscriptionsProvider>
+        </ComposeProvider>
       </CaptureProvider>
     </div>
+  );
+}
+
+function Shell() {
+  const pane = useRightPaneContent();
+  return (
+    <SplitView
+      className="h-full"
+      storageKey="productivity-shell"
+      sidebar={<AppSidebar />}
+      sidebarSize={{ default: 220, min: 180, max: 400 }}
+      primarySize={{ min: 440 }}
+      inspector={pane ? <RightPane content={pane} /> : undefined}
+      inspectorSize={{ default: 360, min: 300, max: 560 }}
+      inspectorCollapsed={false}
+    >
+      <SidebarControl />
+      <CommandMenu />
+      <div data-window-content className="flex h-full min-h-0 flex-col bg-background">
+        <TabStrip />
+        <div className="min-h-0 flex-1">
+          <Outlet />
+        </div>
+      </div>
+    </SplitView>
   );
 }
 

@@ -20,6 +20,14 @@ import type {
   SourceColor,
   SourceId,
 } from "../shared-types.js";
+import {
+  DOCK_BADGES,
+  SIDEBAR_VIEWS,
+  type SidebarView,
+  FOLLOW_UP_DAYS,
+  MAIL_NOTIFICATIONS,
+  UNDO_SEND_SECONDS,
+} from "../shared-types.js";
 import { normalizeAccelerator, validateAccelerator } from "../../shared/accelerator.js";
 import { APP_STORE_STDIO_MESSAGE, isAppStoreBuild } from "../../shared/app-store-build.js";
 import { API_PROVIDERS } from "./ai/api-keys.js";
@@ -49,6 +57,7 @@ const PROVIDERS: AIProvider[] = isAppStoreBuild
   : ["claude", "codex", "gemini", "muse", ...API_PROVIDERS];
 const LAUNCH_VIEWS: LaunchView[] = [
   "today",
+  "agenda",
   "tasks",
   "reminders",
   "mail",
@@ -91,6 +100,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     accent: "system",
     density: "default",
     detailView: "dialog",
+    sidebar: { order: [...SIDEBAR_VIEWS], hidden: [], counts: true },
   },
   sources: {
     tasks: { enabled: true, color: "blue" },
@@ -98,7 +108,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     mail: { enabled: true, color: "red" },
     calendar: { enabled: true, color: "green" },
   },
-  mail: { maxMessages: 25 },
+  mail: {
+    maxMessages: 25,
+    autoTriage: true,
+    undoSendSeconds: 5,
+    followUpDays: 3,
+  },
   calendar: { range: "next-7-days", visibility: {} },
   mcpServer: { enabled: false, allowWrites: false },
   ai: {
@@ -122,6 +137,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     assistantEffort: {},
     useMcpInAssistant: true,
     assistantPermission: "ask",
+    memory: true,
     features: {
       briefing: true,
       autoBriefing: false,
@@ -137,7 +153,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   system: {
     quickCapture: { enabled: true, hotkey: "Control+Alt+Shift+Space" },
     menuBar: { enabled: true },
-    meetings: { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true },
+    meetings: {
+      upNext: true,
+      notify: false,
+      notifyMinutesBefore: 2,
+      notesImport: true,
+    },
+    // The first notification asks macOS for permission, so mail alerts start off, like meetings.
+    mailNotifications: "off",
+    dockBadge: "waiting",
   },
 };
 
@@ -160,6 +184,25 @@ function oneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
 
 function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function sidebarViews(value: unknown): SidebarView[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((id): id is SidebarView => SIDEBAR_VIEWS.includes(id)))]
+    : [];
+}
+
+/** A saved order keeps its known views; views added since then join in their default place. */
+function normalizeSidebar(value: unknown): AppSettings["general"]["sidebar"] {
+  const saved = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const order = sidebarViews(saved.order);
+  for (const [index, id] of SIDEBAR_VIEWS.entries())
+    if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id);
+  return {
+    order,
+    hidden: sidebarViews(saved.hidden).filter((id) => id !== "home"),
+    counts: bool(saved.counts, true),
+  };
 }
 
 /** Short lowercase identifier from the Codex catalog, or empty for "use the default". */
@@ -208,6 +251,7 @@ export function normalizeSettings(value: unknown): AppSettings {
       accent: oneOf(general.accent, ACCENTS, defaults.general.accent),
       density: oneOf(general.density, DENSITIES, defaults.general.density),
       detailView: oneOf(general.detailView, DETAIL_VIEWS, defaults.general.detailView),
+      sidebar: normalizeSidebar(general.sidebar),
     },
     sources: Object.fromEntries(
       SOURCE_IDS.map((id) => {
@@ -223,6 +267,13 @@ export function normalizeSettings(value: unknown): AppSettings {
     ) as AppSettings["sources"],
     mail: {
       maxMessages: oneOf(mail.maxMessages, [10, 25, 50], defaults.mail.maxMessages),
+      autoTriage: bool(mail.autoTriage, defaults.mail.autoTriage),
+      undoSendSeconds: oneOf(
+        mail.undoSendSeconds,
+        UNDO_SEND_SECONDS,
+        defaults.mail.undoSendSeconds,
+      ),
+      followUpDays: oneOf(mail.followUpDays, FOLLOW_UP_DAYS, defaults.mail.followUpDays),
     },
     calendar: {
       range: oneOf(
@@ -284,6 +335,7 @@ export function normalizeSettings(value: unknown): AppSettings {
         ["read-only", "ask", "auto"] as const,
         defaults.ai.assistantPermission,
       ),
+      memory: bool(ai.memory, defaults.ai.memory),
       features: Object.fromEntries(
         AI_FEATURES.map((feature) => [
           feature,
@@ -309,6 +361,12 @@ export function normalizeSettings(value: unknown): AppSettings {
         ),
         notesImport: bool(meetings.notesImport, defaults.system.meetings.notesImport),
       },
+      mailNotifications: oneOf(
+        system.mailNotifications,
+        MAIL_NOTIFICATIONS,
+        defaults.system.mailNotifications,
+      ),
+      dockBadge: oneOf(system.dockBadge, DOCK_BADGES, defaults.system.dockBadge),
     },
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { MailItem } from "@main/shared-types";
 
 import { extractJSON, useAITask } from "./ai";
@@ -33,6 +33,25 @@ function isTriageMap(value: unknown): value is TriageMap {
         typeof entry === "object" && entry !== null && isCategory((entry as TriageResult).category),
     )
   );
+}
+
+const triageListeners = new Set<() => void>();
+
+function notifyTriageChanged() {
+  for (const listener of triageListeners) listener();
+}
+
+/** Re-renders the caller whenever any view saves new triage results (the sidebar's count). */
+export function useTriageChanges(): number {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const listener = () => setVersion((value) => value + 1);
+    triageListeners.add(listener);
+    return () => {
+      triageListeners.delete(listener);
+    };
+  }, []);
+  return version;
 }
 
 export function readTriageMap(): TriageMap {
@@ -78,6 +97,7 @@ export function useTriage(messages: MailItem[] | undefined) {
         const merged = Object.entries({ ...previous, ...results }).slice(-MAX_STORED);
         const next = Object.fromEntries(merged);
         writeStored(STORAGE_KEY, next);
+        queueMicrotask(notifyTriageChanged);
         return next;
       });
     });
@@ -90,7 +110,10 @@ export function useTriage(messages: MailItem[] | undefined) {
     if (!messages?.length) return;
     const untriaged = messages.filter((message) => !map[message.id]);
     const targets = untriaged.length ? untriaged : messages;
-    const candidates = targets.map((message, index) => ({ key: `m${index + 1}`, message }));
+    const candidates = targets.map((message, index) => ({
+      key: `m${index + 1}`,
+      message,
+    }));
     keyMap.current = new Map(candidates.map(({ key, message }) => [key, message.id]));
     setParseFailed(false);
     void ai.run({
@@ -109,4 +132,25 @@ export function useTriage(messages: MailItem[] | undefined) {
     parseFailed,
     hasResults: Boolean(messages?.some((message) => map[message.id])),
   };
+}
+
+// Messages automatic triage already tried this session, so a failing provider isn't retried on
+// every view change; "Review inbox" still retries by hand.
+const autoAttempted = new Set<string>();
+
+/** Triages mail nobody has triaged yet, once per message per app session, while `enabled`. */
+export function useAutoTriage(
+  triage: ReturnType<typeof useTriage>,
+  messages: MailItem[] | undefined,
+  enabled: boolean,
+) {
+  const run = useEffectEvent(() => triage.run());
+  const { isRunning, map } = triage;
+  useEffect(() => {
+    if (!enabled || isRunning || !messages?.length) return;
+    const fresh = messages.filter((message) => !map[message.id] && !autoAttempted.has(message.id));
+    if (!fresh.length) return;
+    for (const message of fresh) autoAttempted.add(message.id);
+    run();
+  }, [enabled, isRunning, map, messages]);
 }

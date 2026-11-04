@@ -97,6 +97,7 @@ export const onSettingsChanged = () => {};`,
   "./capture-handlers.js": `export const registerCaptureHandlers = () => {};`,
   "./notification-status.js": `export const notificationStatus = () => ({});`,
   "./meeting-notifications.js": `export const startMeetingNotifications = () => {};`,
+  "./mail-notifications.js": `export const startMailNotifications = () => {}; export const registerBadgeHandler = () => {};`,
 };
 
 async function bundle(contents) {

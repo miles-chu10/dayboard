@@ -4,9 +4,14 @@ import { statSync } from "node:fs";
 import * as path from "node:path";
 
 import { app } from "../platform/index.js";
+import type { SubscriptionMessage } from "./mail-subscriptions.js";
 
 import type {
   AccountsStatus,
+  AgentActivityEntry,
+  AgentMemory,
+  Note,
+  UsageDay,
   CalendarEventItem,
   CalendarListResult,
   MailItem,
@@ -56,6 +61,8 @@ export function demoCompletion(system: string, prompt: string): string {
       })),
     });
   }
+  if (system.includes("compare an AI-written email reply"))
+    return "Skip the greeting and get straight to the point.";
   if (system.includes("sort a user's email inbox")) {
     const keys = [...prompt.matchAll(/^- (m\d+) \|/gm)].map((match) => match[1]);
     const categories: Record<string, { category: string; reason: string; task?: string }> = {
@@ -65,7 +72,11 @@ export function demoCompletion(system: string, prompt: string): string {
         task: "Review launch copy",
       },
       m2: { category: "fyi", reason: "Agenda for your next one-on-one" },
-      m3: { category: "fyi", reason: "Budget due Friday", task: "Submit the Q4 budget" },
+      m3: {
+        category: "fyi",
+        reason: "Budget due Friday",
+        task: "Submit the Q4 budget",
+      },
       m4: { category: "fyi", reason: "Notes for the roadmap sync" },
       m5: { category: "fyi", reason: "Upcoming travel details" },
       m6: { category: "needs-reply", reason: "Confirm lunch plans" },
@@ -88,7 +99,14 @@ export function demoCompletion(system: string, prompt: string): string {
     } catch {
       // The deterministic fallback is still useful for the demo capture surface.
     }
-    return JSON.stringify({ kind: "task", title, notes: "", date: "", time: "", endTime: "" });
+    return JSON.stringify({
+      kind: "task",
+      title,
+      notes: "",
+      date: "",
+      time: "",
+      endTime: "",
+    });
   }
   if (system.includes("draft email replies")) {
     return "Hi Priya,\n\nThanks for the edits. I’ll review the final copy this morning and send any notes before 3 PM.\n\nBest,\nAlex";
@@ -114,7 +132,11 @@ export function demoAssistantReply(question: string): string {
 }
 
 function ok<T>(items: T[]): SourceResult<T> {
-  return { state: "ok", items, coverage: { complete: true, loaded: items.length } };
+  return {
+    state: "ok",
+    items,
+    coverage: { complete: true, loaded: items.length },
+  };
 }
 
 function day(offset: number): Date {
@@ -153,9 +175,27 @@ export const demoAccounts: AccountsStatus = {
 export function demoCalendars(): CalendarListResult {
   return {
     calendars: [
-      { id: "work", name: "Work", color: "#4285F4", primary: true, defaultVisible: true },
-      { id: "personal", name: "Personal", color: "#33B679", primary: false, defaultVisible: true },
-      { id: "family", name: "Family", color: "#F6BF26", primary: false, defaultVisible: true },
+      {
+        id: "work",
+        name: "Work",
+        color: "#4285F4",
+        primary: true,
+        defaultVisible: true,
+      },
+      {
+        id: "personal",
+        name: "Personal",
+        color: "#33B679",
+        primary: false,
+        defaultVisible: true,
+      },
+      {
+        id: "family",
+        name: "Family",
+        color: "#F6BF26",
+        primary: false,
+        defaultVisible: true,
+      },
     ],
     limited: false,
   };
@@ -403,6 +443,30 @@ export function demoMail(max: number): SourceResult<MailItem> {
   return ok(MAIL.slice(0, max));
 }
 
+/** Fictional newsletters for the subscriptions manager; demo mode never unsubscribes. */
+export function demoSubscriptionMessages(): SubscriptionMessage[] {
+  const list = (
+    from: string,
+    fromEmail: string,
+    count: number,
+    opened: number,
+    oneClick: boolean,
+  ): SubscriptionMessage[] =>
+    Array.from({ length: count }, (_, index) => ({
+      from,
+      fromEmail,
+      listUnsubscribe: `<mailto:leave@${fromEmail.split("@")[1]}>${oneClick ? `, <https://${fromEmail.split("@")[1]}/unsubscribe>` : ""}`,
+      listUnsubscribePost: oneClick ? "List-Unsubscribe=One-Click" : "",
+      unread: index >= opened,
+      date: Date.parse(hoursAgo(12 + index * 40)),
+    }));
+  return [
+    ...list("Design Weekly", "newsletter@example.com", 12, 3, true),
+    ...list("Launch Notes", "hello@launchnotes.example", 8, 0, true),
+    ...list("City Events", "events@city.example", 5, 4, false),
+  ];
+}
+
 export function demoRelatedMail(emails: string[]): SourceResult<MailItem> {
   const wanted = new Set(emails.map((email) => email.toLowerCase()));
   return ok(MAIL.filter((mail) => wanted.has(mail.fromEmail)).slice(0, 3));
@@ -453,4 +517,118 @@ export function demoReview(): ReviewData {
     ]),
     events: demoEventsBetween(since, new Date()),
   };
+}
+
+/** Seeds for the demo's own memory, activity, usage and notes files (never the real ones). */
+export function demoMemories(now: number): AgentMemory[] {
+  return [
+    {
+      id: "dm1",
+      text: "I prefer short replies, three sentences at most.",
+      source: "you",
+      createdAt: now - 6 * 86_400_000,
+    },
+    {
+      id: "dm2",
+      text: "Keep Friday afternoons free of meetings.",
+      source: "you",
+      createdAt: now - 4 * 86_400_000,
+    },
+    {
+      id: "dm3",
+      text: "Sign off with just your first name.",
+      source: "learned",
+      createdAt: now - 86_400_000,
+    },
+  ];
+}
+
+export function demoActivity(now: number): AgentActivityEntry[] {
+  const minutes = (value: number) => now - value * 60_000;
+  return [
+    {
+      id: "da1",
+      at: minutes(185),
+      tool: "list_inbox",
+      client: "Assistant",
+      write: false,
+      ok: true,
+      durationMs: 412,
+    },
+    {
+      id: "da2",
+      at: minutes(184),
+      tool: "read_email",
+      client: "Assistant",
+      write: false,
+      ok: true,
+      durationMs: 288,
+    },
+    {
+      id: "da3",
+      at: minutes(62),
+      tool: "list_events",
+      client: "claude-code",
+      write: false,
+      ok: true,
+      durationMs: 351,
+    },
+    {
+      id: "da4",
+      at: minutes(61),
+      tool: "create_task",
+      client: "claude-code",
+      write: true,
+      ok: true,
+      durationMs: 640,
+    },
+    {
+      id: "da5",
+      at: minutes(20),
+      tool: "complete_reminder",
+      client: "codex-mcp-client",
+      write: true,
+      ok: false,
+      error: "Reminder not found. IDs come from list_reminders.",
+      durationMs: 97,
+    },
+  ];
+}
+
+export function demoUsage(now: number): UsageDay[] {
+  return Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(now - (13 - index) * 86_400_000);
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const runs = [3, 5, 2, 0, 7, 4, 6, 8, 1, 0, 5, 9, 4, 6][index];
+    return {
+      date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+      models: runs
+        ? {
+            "claude-sonnet-5-5": { runs, inputTokens: runs * 4_200, outputTokens: runs * 610 },
+            ...(index % 3 === 0
+              ? { "gpt-5.6-sol": { runs: 1, inputTokens: 2_900, outputTokens: 380 } }
+              : {}),
+          }
+        : {},
+    };
+  });
+}
+
+export function demoNotes(now: number): Note[] {
+  return [
+    {
+      id: "dn1",
+      title: "Launch checklist",
+      body: "# Launch checklist\n\n- Final copy from Priya\n- Confirm the press date\n- Schedule the announcement email",
+      createdAt: now - 3 * 86_400_000,
+      updatedAt: now - 2 * 3_600_000,
+    },
+    {
+      id: "dn2",
+      title: "1:1 topics for Jordan",
+      body: "1:1 topics for Jordan\n\n- Q4 budget timeline\n- Hiring plan for design",
+      createdAt: now - 5 * 86_400_000,
+      updatedAt: now - 26 * 3_600_000,
+    },
+  ];
 }

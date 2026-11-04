@@ -67,6 +67,7 @@ function settings(overrides: Partial<AppSettings["ai"]> = {}): AppSettings["ai"]
     assistantEffort: {},
     useMcpInAssistant: true,
     assistantPermission: "ask",
+    memory: true,
     features: {} as AppSettings["ai"]["features"],
     ...overrides,
   };

@@ -55,7 +55,7 @@ test("fictional email opens with its full body in each detail presentation", asy
     await expect(dialog).toContainText(fullBody);
     await expect(dialog).toContainText("Thanks, Priya Shah");
     await demo.page.screenshot({ path: testInfo.outputPath("mail-dialog.png") });
-    await dialog.getByRole("button", { name: "Done" }).click();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
     await setDetailView(settings, demo.page, "Inline", "inline");

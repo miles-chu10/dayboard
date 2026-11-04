@@ -22,6 +22,7 @@ import { describeModel } from "./model-options.js";
 import { apiPromptOptions } from "./prompt-cache.js";
 import { resolveConfiguredProvider } from "./provider-resolution.js";
 import { asError } from "./stream-error.js";
+import { emitRequestUsage } from "./usage-events.js";
 
 const RUN_TIMEOUT_MS = 3 * 60_000;
 
@@ -107,6 +108,7 @@ export async function runCompletion({
           });
         }
       }
+      emitRequestUsage(requestUsage);
       return { text, usage: requestUsage };
     }
     let usage: RequestUsage | undefined;
@@ -149,6 +151,7 @@ export async function runCompletion({
         });
       },
     });
+    emitRequestUsage(usage);
     return { text, usage };
   } catch (error) {
     if (!isCancelled(error))

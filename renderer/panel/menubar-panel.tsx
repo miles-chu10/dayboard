@@ -7,10 +7,13 @@ import { SourceDot } from "../components/source-dot";
 import { buildAgenda } from "../lib/agenda";
 import { identifyCalendarEvents } from "../lib/calendar-identity";
 import { longToday, todayISO } from "../lib/dates";
+import { ageLabel, isStale, needsYou } from "../lib/home";
 import { errorMessage, invoke } from "../lib/ipc";
-import { useAgendaState, useCalendarRange, useReminders, useTasks } from "../lib/queries";
+import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
+import { useAgendaState, useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { buildTodos, mergeLinkedTodos } from "../lib/todos";
+import { readTriageMap } from "../lib/triage";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 import type { CaptureRecordView } from "./capture-panel-state";
 import { afterRejection } from "./menubar-capture";
@@ -55,6 +58,48 @@ function useRecentCaptures(): CaptureRecordView[] {
     };
   }, []);
   return records;
+}
+
+/** HeroSpace's menu-bar feed: the emails and follow-ups waiting on you, newest worries first. */
+function WaitingOnYou({ now }: { now: Date }) {
+  const settings = useSettings().data;
+  const mail = useMail();
+  const schedule = useMailSchedule();
+  const waiting = needsYou({
+    messages: mail.data?.state === "ok" ? mail.data.items : [],
+    triage: featureOn(settings, "triage") ? readTriageMap() : {},
+    now: now.getTime(),
+    followUps: dueFollowUps(schedule.data),
+  });
+  if (!waiting.length) return null;
+  return (
+    <section aria-label="Waiting on you" className="flex flex-col">
+      <Text as="h2" variant="small" color="secondary" className="px-1.5 pb-0.5">
+        Waiting on you · {waiting.length}
+      </Text>
+      {waiting.slice(0, 3).map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+          onClick={() => void openMain("/")}
+        >
+          <SourceDot source="mail" />
+          <Text as="span" variant="regular" truncate className="min-w-0 flex-1" title={item.detail}>
+            {item.title} · {item.detail}
+          </Text>
+          <Text
+            as="span"
+            variant="small"
+            color={isStale(item.since, now.getTime()) ? "orange" : "secondary"}
+            className="shrink-0 tabular-nums"
+          >
+            {ageLabel(item.since, now.getTime())}
+          </Text>
+        </button>
+      ))}
+    </section>
+  );
 }
 
 export function MenuBarPanel() {
@@ -149,6 +194,8 @@ export function MenuBarPanel() {
 
       <MeetingCard surface="menubar" />
 
+      {sourceOn(settings, "mail") ? <WaitingOnYou now={now} /> : null}
+
       <section aria-label="Today's items" className="flex flex-col">
         {items.length ? (
           items.map((item) => (
@@ -156,7 +203,7 @@ export function MenuBarPanel() {
               key={item.key}
               type="button"
               className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-list-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-              onClick={() => void openMain(item.kind === "event" ? "/calendar" : "/")}
+              onClick={() => void openMain(item.kind === "event" ? "/calendar" : "/agenda")}
             >
               <SourceDot source={item.source} />
               <Text

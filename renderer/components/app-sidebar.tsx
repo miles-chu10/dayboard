@@ -19,14 +19,28 @@ import {
   Text,
 } from "@renderer/ui";
 import { cn } from "@renderer/ui/utils";
-import { useState } from "react";
-import { CalendarCheck2, CalendarDays, CircleAlert, Server, Settings, Video } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  CalendarCheck2,
+  CalendarDays,
+  CircleAlert,
+  House,
+  NotebookPen,
+  Server,
+  Settings,
+  Video,
+} from "lucide-react";
 import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { modelSummary } from "../lib/model-choices";
-import { openExternal, openSettings } from "../lib/ipc";
+import { visibleNav, type NavItem } from "../lib/navigation";
+import { needsYou } from "../lib/home";
+import { readTriageMap, useTriageChanges } from "../lib/triage";
+import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
+import { useNotes } from "../lib/agent-data";
+import { invoke, openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
 import { PROVIDER_LABEL, featureOn, providerUsesMcp, sourceOn, useSettings } from "../lib/settings";
@@ -85,15 +99,7 @@ function sourceSubtitle(
   return empty;
 }
 
-type MainNavId = "agenda" | SourceId;
-
-const MAIN_NAV: { id: MainNavId; title: string; route: string }[] = [
-  { id: "agenda", title: "Agenda", route: "/" },
-  { id: "calendar", title: "Calendar", route: "/calendar" },
-  { id: "mail", title: "Inbox", route: "/mail" },
-  { id: "tasks", title: "Tasks", route: "/tasks" },
-  { id: "reminders", title: "Reminders", route: "/reminders" },
-];
+type MainNavId = "home" | "agenda" | "notes" | SourceId;
 
 /** A count pill; overdue counts carry an icon so they don't rely on color alone. */
 function SidebarCount({
@@ -214,16 +220,46 @@ export function AppSidebar() {
   const agendaLate = overdue();
   const mcpCount = mcpServers.data?.length ?? 0;
 
-  function navVisible(id: MainNavId): boolean {
-    if (id === "agenda") return true;
-    return sourceOn(settings, id);
-  }
+  useTriageChanges();
+  const schedule = useMailSchedule();
+  const waiting = needsYou({
+    messages: mail.data?.state === "ok" && sourceOn(settings, "mail") ? mail.data.items : [],
+    triage: featureOn(settings, "triage") ? readTriageMap() : {},
+    now: now.getTime(),
+    followUps: sourceOn(settings, "mail") ? dueFollowUps(schedule.data) : [],
+  }).length;
+
+  // The Dock badge shows what Settings picks: what waits on you, unread mail, or nothing.
+  const notes = useNotes();
+  const showCounts = settings?.general.sidebar.counts ?? true;
+  const mainNav = visibleNav(settings).filter(
+    (item): item is NavItem & { id: MainNavId } => item.group === "main",
+  );
+  const badgeSetting = settings?.system.dockBadge;
+  const badgeCount =
+    badgeSetting === "waiting" ? waiting : badgeSetting === "unread" ? counts.mail : 0;
+  useEffect(() => {
+    if (badgeSetting === undefined) return;
+    void invoke("app:setBadge", { count: badgeCount }).catch(() => undefined);
+  }, [badgeCount, badgeSetting]);
 
   function navIcon(id: MainNavId) {
+    if (id === "home")
+      return (
+        <SidebarSymbol>
+          <House className="size-[18px]" strokeWidth={1.75} />
+        </SidebarSymbol>
+      );
     if (id === "agenda")
       return (
         <SidebarSymbol>
           <CalendarDays className="size-[18px]" strokeWidth={1.75} />
+        </SidebarSymbol>
+      );
+    if (id === "notes")
+      return (
+        <SidebarSymbol>
+          <NotebookPen className="size-[18px]" strokeWidth={1.75} />
         </SidebarSymbol>
       );
     const Icon = SOURCE_META[id].icon;
@@ -231,24 +267,34 @@ export function AppSidebar() {
     return (
       <SidebarSymbol
         className={COLOR_CLASS[color].text}
-        style={{ background: `color-mix(in srgb, ${sourceColorVar(color)} 12%, transparent)` }}
+        style={{
+          background: `color-mix(in srgb, ${sourceColorVar(color)} 12%, transparent)`,
+        }}
       >
         <Icon className="size-[18px]" />
       </SidebarSymbol>
     );
   }
 
-  function navSelected(id: MainNavId, route: string): boolean {
-    if (id === "agenda") return pathname === "/";
+  function navSelected(_id: MainNavId, route: string): boolean {
     return pathname === route;
   }
 
   function navSubtitle(id: MainNavId): string | undefined {
+    if (id === "home") return waiting ? `${waiting} waiting on you` : "Nothing waiting on you";
     if (id === "agenda") return summary(agendaDue, agendaLate);
+    if (id === "notes") {
+      const count = notes.data?.length ?? 0;
+      return count ? plural(count, "note") : "Nothing written yet";
+    }
     return subtitles[id];
   }
 
   function navAccessory(id: MainNavId) {
+    if (id === "home")
+      return waiting ? (
+        <SidebarCount count={waiting} label={`${waiting} waiting on you`} />
+      ) : undefined;
     if (id === "agenda") {
       return agendaLate ? (
         <SidebarCount count={agendaLate} label={plural(agendaLate, "overdue item")} overdue />
@@ -256,6 +302,7 @@ export function AppSidebar() {
         <SidebarCount count={agendaDue} label={`${plural(agendaDue, "item")} due today`} />
       ) : undefined;
     }
+    if (id === "notes") return undefined;
     const count = counts[id];
     const label =
       id === "mail"
@@ -394,13 +441,13 @@ export function AppSidebar() {
       }
     >
       <SidebarList role="navigation" aria-label="Main navigation">
-        {MAIN_NAV.filter((item) => navVisible(item.id)).map((item) => (
+        {mainNav.map((item) => (
           <SidebarListItem
             key={item.id}
             icon={navIcon(item.id)}
             title={item.title}
             subtitle={navSubtitle(item.id)}
-            accessory={navAccessory(item.id)}
+            accessory={showCounts ? navAccessory(item.id) : undefined}
             selected={navSelected(item.id, item.route)}
             onClick={() => void navigate({ to: item.route })}
           />

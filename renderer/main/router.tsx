@@ -5,12 +5,14 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { HomeView } from "./home-view";
+import { AgendaView } from "./agenda-view";
 import { TasksView } from "./tasks-view";
 import { RemindersView } from "./reminders-view";
 import { MailView } from "./mail-view";
 import { CalendarView } from "./calendar-view";
 import { AssistantView } from "./assistant-view";
 import { ReviewView } from "./review-view";
+import { NotesView } from "./notes-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@renderer/ui";
@@ -36,6 +38,13 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeView,
+  staticData: { title: "Home" },
+});
+
+const agendaRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/agenda",
+  component: AgendaView,
   validateSearch: validateAgendaSearch,
   staticData: { title: "Agenda" },
 });
@@ -58,6 +67,10 @@ const mailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/mail",
   component: MailView,
+  // `item` opens one message (from ⌘K or Home); the view keeps its own selection after that.
+  validateSearch: (search: Record<string, unknown>): { item?: string } => ({
+    item: typeof search.item === "string" && search.item ? search.item : undefined,
+  }),
   staticData: { title: "Gmail" },
 });
 
@@ -87,12 +100,25 @@ const reviewRoute = createRoute({
   staticData: { title: "Weekly Review" },
 });
 
+const notesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/notes",
+  component: NotesView,
+  // `note` opens one note (from ⌘K or "Save chat as note").
+  validateSearch: (search: Record<string, unknown>): { note?: string } => ({
+    note: typeof search.note === "string" && search.note ? search.note : undefined,
+  }),
+  staticData: { title: "Notes" },
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  agendaRoute,
   tasksRoute,
   remindersRoute,
   mailRoute,
   calendarRoute,
+  notesRoute,
   assistantRoute,
   reviewRoute,
 ]);

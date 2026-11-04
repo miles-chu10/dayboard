@@ -49,7 +49,7 @@ export type AccentColor =
   | "graphite";
 export type Density = "default" | "compact";
 export type DetailView = "dialog" | "inline" | "sidebar";
-export type LaunchView = "today" | SourceId | "assistant" | "review";
+export type LaunchView = "today" | "agenda" | SourceId | "assistant" | "review";
 export type CalendarRange =
   | "today"
   | "today-tomorrow"
@@ -81,9 +81,19 @@ export interface AppSettings {
     density: Density;
     /** Where item details open: pop-up window, inline under the row, or a right-hand panel. */
     detailView: DetailView;
+    /** The sidebar's views: their order, which are hidden (Home never is), and count pills. */
+    sidebar: { order: SidebarView[]; hidden: SidebarView[]; counts: boolean };
   };
   sources: Record<SourceId, { enabled: boolean; color: SourceColor }>;
-  mail: { maxMessages: number };
+  mail: {
+    maxMessages: number;
+    /** Triage new mail as it arrives when AI and the triage feature are on. */
+    autoTriage: boolean;
+    /** Seconds a sent email waits before it goes, so Undo can stop it; 0 sends at once. */
+    undoSendSeconds: UndoSendSeconds;
+    /** Default for "Remind me if no reply". */
+    followUpDays: number;
+  };
   calendar: {
     range: CalendarRange;
     /** Per-calendar override; calendars without an entry use Google's own visibility. */
@@ -127,6 +137,8 @@ export interface AppSettings {
     assistantEffort: Partial<Record<AIProvider, string>>;
     useMcpInAssistant: boolean;
     assistantPermission: AssistantPermission;
+    /** Saved preferences go into Assistant and reply-draft prompts, and edits to drafts teach new ones. */
+    memory: boolean;
     features: Record<AIFeature, boolean>;
   };
   /** Quick Capture panel, menu-bar Agenda and meeting helpers. */
@@ -134,6 +146,9 @@ export interface AppSettings {
 }
 
 export type NotifyMinutesBefore = 1 | 2 | 5 | 10;
+export type UndoSendSeconds = 0 | 5 | 10 | 20 | 30;
+export const UNDO_SEND_SECONDS: readonly UndoSendSeconds[] = [0, 5, 10, 20, 30];
+export const FOLLOW_UP_DAYS: readonly number[] = [1, 2, 3, 5, 7, 14];
 
 export interface SystemSettings {
   /** Global hotkey that opens the Quick Capture panel over any app. */
@@ -146,7 +161,28 @@ export interface SystemSettings {
     /** Offer to pull notes from a configured Granola MCP server after meetings. */
     notesImport: boolean;
   };
+  /** Mail notifications: none, snoozes and unanswered follow-ups, or every new email too. */
+  mailNotifications: MailNotifications;
+  /** What the Dock icon's badge counts. */
+  dockBadge: DockBadge;
 }
+
+/** The sidebar's main views, in their default order (the AI group stays as it is). */
+export const SIDEBAR_VIEWS = [
+  "home",
+  "agenda",
+  "calendar",
+  "mail",
+  "tasks",
+  "reminders",
+  "notes",
+] as const;
+export type SidebarView = (typeof SIDEBAR_VIEWS)[number];
+
+export type MailNotifications = "off" | "reminders" | "all";
+export const MAIL_NOTIFICATIONS: readonly MailNotifications[] = ["off", "reminders", "all"];
+export type DockBadge = "off" | "waiting" | "unread";
+export const DOCK_BADGES: readonly DockBadge[] = ["off", "waiting", "unread"];
 
 export interface CodexModelInfo {
   slug: string;
@@ -165,6 +201,81 @@ export interface SettingsChangedEvent {
 }
 
 /** Broadcast on `data:changed` when an MCP client changes a source's items. */
+/** A reply to one message, or a new email; recipients are comma-separated addresses. */
+export type MailSendRequest =
+  | { kind: "reply"; id: string; body: string; cc?: string }
+  | { kind: "new"; to: string; subject: string; body: string; cc?: string };
+
+export interface MailSendTicket {
+  id: string;
+  /** When the email leaves the outbox, in ms since the epoch. */
+  sendAt: number;
+  /** True while Undo (`mail:cancelSend`) can still stop it. */
+  held: boolean;
+}
+
+/** Broadcast on `mail:sendResult` when a held email was sent or failed. */
+export type MailSendResult = { id: string; ok: true } | { id: string; ok: false; error: string };
+
+export type MailScheduleKind = "snooze" | "follow-up";
+
+/** A snoozed email or a "remind me if no reply" follow-up (`mail:schedule`). */
+export interface MailScheduleEntry {
+  kind: MailScheduleKind;
+  messageId: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  fromEmail: string;
+  createdAt: number;
+  dueAt: number;
+  /** Follow-ups only: nobody replied by `dueAt`; it waits on the user until a reply or dismissal. */
+  due?: boolean;
+}
+
+/** One DayBoard MCP tool call (`agent:activity`). Arguments and results are never kept. */
+export interface AgentActivityEntry {
+  id: string;
+  at: number;
+  tool: string;
+  /** "Assistant" for DayBoard's own Assistant, otherwise the MCP client's name. */
+  client: string;
+  write: boolean;
+  ok: boolean;
+  error?: string;
+  durationMs: number;
+}
+
+export type MemorySource = "you" | "agent" | "learned";
+
+/** A preference the user saved or DayBoard learned (`memory:list`). */
+export interface AgentMemory {
+  id: string;
+  text: string;
+  source: MemorySource;
+  createdAt: number;
+}
+
+export interface UsageCount {
+  runs: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** AI requests DayBoard made on one local day, by model (`usage:days`). */
+export interface UsageDay {
+  date: string;
+  models: Record<string, UsageCount>;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DataChangedEvent {
   source: SourceId;
 }

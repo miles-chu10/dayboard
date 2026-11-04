@@ -78,6 +78,23 @@ export async function refreshLicenseStatus() { return getLicenseStatus(); }`,
     ],
     ["./demo-data.js", `export const isDemoMode = () => false;`],
     [
+      "./agent-stores.js",
+      // In-memory stand-ins that record what the tools wrote and every call the log received.
+      `const state = () => (globalThis.__mcpAgent ??= { activity: [], memories: [], notes: [] });
+export function recordToolCall(call) { state().activity.push(call); }
+export async function listMemories() { return state().memories; }
+export async function addMemoryEntry(text, source) { state().memories.push({ id: String(state().memories.length + 1), text, source, createdAt: 0 }); return state().memories; }
+export async function listNotes() { return state().notes; }
+export async function getNote(id) { return state().notes.find((note) => note.id === id) ?? null; }
+export async function putNote(input) {
+  const notes = state().notes;
+  const existing = notes.find((note) => note.id === input.id);
+  const note = { id: input.id ?? "n" + (notes.length + 1), title: input.title || input.body.split("\\n")[0], body: input.body, createdAt: 0, updatedAt: 1 };
+  if (existing) Object.assign(existing, note); else notes.push(note);
+  return note;
+}`,
+    ],
+    [
       "./agenda-store.js",
       `export const reconcileAgendaKeys = async () => {
       if (globalThis.__mcpReconcileError) throw new Error("agenda state is temporarily unavailable");
@@ -321,7 +338,7 @@ test("Assistant MCP exposes exactly six read-only tools and rejects unauthentica
           requestInit: { headers: EXTERNAL_AUTH },
         }),
       );
-      assert.equal((await externalClient.listTools()).tools.length, 14);
+      assert.equal((await externalClient.listTools()).tools.length, 20);
     } finally {
       await externalClient.close();
     }
@@ -456,9 +473,12 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
         "get_weekly_review",
         "list_events",
         "list_inbox",
+        "list_memories",
+        "list_notes",
         "list_reminders",
         "list_tasks",
         "read_email",
+        "read_note",
       ]);
     } finally {
       await readOnlyTransport.terminateSession();
@@ -472,7 +492,7 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
     });
     try {
       await writer.connect(writerTransport);
-      assert.equal((await writer.listTools()).tools.length, 14);
+      assert.equal((await writer.listTools()).tools.length, 20);
       // An expired AI license neither blocks source writes nor starts the AI trial.
       globalThis.__mcpLicenseBlocked = true;
       globalThis.__mcpLicenseCalls = 0;
@@ -573,6 +593,77 @@ test("an existing MCP client cannot start source changes while update installati
     assert.notEqual(read.isError, true);
   } finally {
     module.resumeAppOperations();
+    await transport.terminateSession().catch(() => undefined);
+    await client.close();
+    await close(server);
+  }
+});
+
+test("MCP tools read and write DayBoard memory and notes, and every call lands in the activity log", async () => {
+  const module = await loadMcpHarness();
+  const server = module.createMcpHttpServer();
+  const port = await listen(server);
+  const url = new URL(`http://127.0.0.1:${port}/mcp`);
+  globalThis.__mcpAgent = { activity: [], memories: [], notes: [] };
+  globalThis.__mcpServerSettings = { enabled: true, allowWrites: true };
+  const client = new Client({ name: "notes-agent", version: "2.0.0" });
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: { headers: EXTERNAL_AUTH },
+  });
+  try {
+    await client.connect(transport);
+    const remembered = await client.callTool({
+      name: "remember",
+      arguments: { text: "Prefers morning meetings" },
+    });
+    assert.notEqual(remembered.isError, true);
+    assert.deepEqual(
+      globalThis.__mcpAgent.memories.map(({ text, source }) => ({ text, source })),
+      [{ text: "Prefers morning meetings", source: "agent" }],
+    );
+    const memories = await client.callTool({ name: "list_memories", arguments: {} });
+    assert.deepEqual(JSON.parse(memories.content[0].text), {
+      memories: [{ text: "Prefers morning meetings", source: "agent" }],
+    });
+
+    const created = await client.callTool({
+      name: "create_note",
+      arguments: { body: "Trip plan\n- Book hotel" },
+    });
+    const id = JSON.parse(created.content[0].text).created.id;
+    await client.callTool({
+      name: "update_note",
+      arguments: { note_id: id, body: "Trip plan\n- Book hotel\n- Rent a car" },
+    });
+    const read = await client.callTool({ name: "read_note", arguments: { note_id: id } });
+    assert.match(JSON.parse(read.content[0].text).body, /Rent a car/);
+    const missing = await client.callTool({ name: "read_note", arguments: { note_id: "nope" } });
+    assert.equal(missing.isError, true);
+
+    // Turning changes off blocks DayBoard's own writes too, for sessions already open.
+    globalThis.__mcpServerSettings = { enabled: true, allowWrites: false };
+    const blocked = await client.callTool({ name: "remember", arguments: { text: "Nope" } });
+    assert.equal(blocked.isError, true);
+    assert.match(blocked.content[0].text, /Allow changes/);
+    assert.equal(globalThis.__mcpAgent.memories.length, 1);
+
+    assert.deepEqual(
+      globalThis.__mcpAgent.activity.map(({ tool, client: caller, ok }) => [tool, caller, ok]),
+      [
+        ["remember", "notes-agent", true],
+        ["list_memories", "notes-agent", true],
+        ["create_note", "notes-agent", true],
+        ["update_note", "notes-agent", true],
+        ["read_note", "notes-agent", true],
+        ["read_note", "notes-agent", false],
+        ["remember", "notes-agent", false],
+      ],
+    );
+    assert.match(globalThis.__mcpAgent.activity.at(-1).error, /Allow changes/);
+    assert.ok(globalThis.__mcpAgent.activity.every((call) => call.durationMs >= 0));
+  } finally {
+    delete globalThis.__mcpServerSettings;
+    delete globalThis.__mcpAgent;
     await transport.terminateSession().catch(() => undefined);
     await client.close();
     await close(server);
