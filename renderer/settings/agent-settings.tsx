@@ -31,11 +31,11 @@ export function MemorySettings() {
   return (
     <FieldSet
       title="Memory"
-      description="Preferences the Assistant and reply drafts follow. Add your own; DayBoard also learns from how you edit its reply drafts."
+      description="Preferences the Assistant and reply drafts follow. Add your own; DayBoard also suggests some from how you edit its reply drafts, and saves one only when you pick Remember."
     >
       <Field
         label="Use memory"
-        description="Off: nothing below goes into prompts and DayBoard stops learning from your edits."
+        description="Off: nothing below goes into prompts and DayBoard stops suggesting preferences from your edits."
         orientation="horizontal"
       >
         <Switch

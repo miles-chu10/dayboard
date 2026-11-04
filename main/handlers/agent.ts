@@ -41,7 +41,10 @@ function text(input: Record<string, unknown>, key: string, channel: string, max:
   return value.slice(0, max);
 }
 
-/** Asks the AI what lasting preference, if any, the user's edits to a reply draft show. */
+/**
+ * Asks the AI what lasting preference, if any, the user's edits to a reply draft show. Nothing is
+ * saved here: the draft can carry text from an email, so the user confirms before it's stored.
+ */
 async function learnFromEdit(draft: string, sent: string): Promise<string | null> {
   const settings = await getSettings();
   if (!settings.ai.enabled || !settings.ai.memory || !worthLearning(draft, sent)) return null;
@@ -56,9 +59,7 @@ async function learnFromEdit(draft: string, sent: string): Promise<string | null
     });
     output = result.text;
   }
-  const learned = learnedPreference(output);
-  if (learned) await addMemoryEntry(learned, "learned");
-  return learned;
+  return learnedPreference(output);
 }
 
 export function registerAgentHandlers(): void {
@@ -66,9 +67,11 @@ export function registerAgentHandlers(): void {
   ipcMain.handle("agent:activity", () => listActivity());
 
   ipcMain.handle("memory:list", () => listMemories());
-  ipcMain.handle("memory:add", (_event, value: unknown) =>
-    addMemoryEntry(payload(value, "memory:add").text, "you"),
-  );
+  ipcMain.handle("memory:add", (_event, value: unknown) => {
+    const input = payload(value, "memory:add");
+    // "learned" marks a suggestion from memory:learn the user confirmed; anything else is theirs.
+    return addMemoryEntry(input.text, input.source === "learned" ? "learned" : "you");
+  });
   ipcMain.handle("memory:delete", (_event, value: unknown) =>
     deleteMemoryEntry(id(value, "memory:delete")),
   );

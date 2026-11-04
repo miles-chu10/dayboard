@@ -147,6 +147,15 @@ test("Settings shows memory, usage and agent activity, and memory can be added, 
       }),
     );
     expect(learned.learned).toBe("Skip the greeting and get straight to the point.");
+    // A learned preference is only a suggestion until the user confirms it.
+    await expect(
+      memories.getByText("Skip the greeting and get straight to the point."),
+    ).toHaveCount(0);
+    await demo.page.evaluate(
+      (text) =>
+        (globalThis as AppGlobal).dayboard.ipc.invoke("memory:add", { text, source: "learned" }),
+      learned.learned,
+    );
     await expect(
       memories.getByText("Skip the greeting and get straight to the point."),
     ).toBeVisible();
