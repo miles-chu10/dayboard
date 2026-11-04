@@ -57,7 +57,12 @@ export function DetailsLayout({
   const active = Boolean(details);
   const isSide = fitted !== null;
   const stacked = active && !isSide && !collapsed && inlineMode === "stack";
-  const controls = document.querySelector("[data-inspector-controls]");
+  // The toggle goes in this view's own header, a child that is committed before this effect runs.
+  const [controls, setControls] = useState<Element | null>(null);
+  useLayoutEffect(() => {
+    const slot = primary.current?.querySelector("[data-inspector-controls]") ?? null;
+    if (slot !== controls) setControls(slot);
+  }, [controls]);
 
   useEffect(() => {
     const node = root.current;

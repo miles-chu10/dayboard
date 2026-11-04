@@ -7,6 +7,7 @@ import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
 import { TodoGroups } from "../components/todo-row";
 import { ViewActions } from "../components/view-actions";
+import { HistoryNav } from "../components/history-nav";
 import { todayISO } from "../lib/dates";
 import { useMail, useTasks } from "../lib/queries";
 import { useSettings } from "../lib/settings";
@@ -60,7 +61,7 @@ export function TasksView() {
       >
         <ScrollArea
           className="h-full"
-          headerSize="page"
+          leading={<HistoryNav />}
           viewportClassName="[&>div]:block!"
           title={<SourceHeading source="tasks" />}
           subtitle={tasks.data?.state === "ok" ? `${open} open` : undefined}

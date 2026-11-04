@@ -1,7 +1,7 @@
 import { useEffect, useReducer } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@renderer/ui";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 function useHistoryState() {
   const router = useRouter();
@@ -44,16 +44,8 @@ export function HistoryNav() {
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="flex">
-            <Button
-              iconOnly
-              variant="transparent"
-              size="small"
-              radius="rounded"
-              aria-label="Back"
-              onClick={nav.back}
-              disabled={!nav.canBack}
-            >
-              <ChevronLeft />
+            <Button iconOnly aria-label="Back" onClick={nav.back} disabled={!nav.canBack}>
+              <ArrowLeft />
             </Button>
           </span>
         </TooltipTrigger>
@@ -64,16 +56,8 @@ export function HistoryNav() {
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="flex">
-            <Button
-              iconOnly
-              variant="transparent"
-              size="small"
-              radius="rounded"
-              aria-label="Forward"
-              onClick={nav.forward}
-              disabled={!nav.canForward}
-            >
-              <ChevronRight />
+            <Button iconOnly aria-label="Forward" onClick={nav.forward} disabled={!nav.canForward}>
+              <ArrowRight />
             </Button>
           </span>
         </TooltipTrigger>

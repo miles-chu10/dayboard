@@ -30,6 +30,8 @@ import { ListCard } from "../components/section-card";
 import { SourceDot } from "../components/source-dot";
 import { ChatHistoryDialog } from "../components/chat-history-dialog";
 import { MentionChip } from "../components/mention-chip";
+import { HistoryNav } from "../components/history-nav";
+import { WindowActions } from "../components/view-actions";
 import { BLOCKED_MESSAGE } from "../lib/ai";
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { lastReplyLabel, modelSummary } from "../lib/model-choices";
@@ -242,7 +244,7 @@ export function AssistantView() {
   }, []);
   if (!state.history)
     return (
-      <ScrollArea headerSize="page" title="Assistant" className="h-full">
+      <ScrollArea leading={<HistoryNav />} title="Assistant" className="h-full">
         <EmptyState
           placement="viewport"
           title={state.error ? "Chat history unavailable" : "Loading chats…"}
@@ -646,12 +648,13 @@ function AssistantSession({ initialHistory }: { initialHistory: AssistantHistory
       className="h-full"
       autoScrollToBottom
       showScrollToBottomButton
-      headerSize="page"
+      leading={<HistoryNav />}
       viewportClassName="[&>div]:block!"
       title="Assistant"
       subtitle={subtitle}
       actions={
         <>
+          <WindowActions />
           <Button
             aria-label="MCP servers"
             title="MCP servers the Assistant can use"

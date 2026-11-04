@@ -1,14 +1,13 @@
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import * as React from "react";
-import { SplitView, Toolbar, ToolbarRow, useSplitView } from "@renderer/ui";
+import { SplitView, useSplitView } from "@renderer/ui";
 import { useTheme } from "@renderer/hooks";
 import type { LaunchView } from "@main/shared-types";
 
 import { AppSidebar } from "../components/app-sidebar";
 import { CaptureProvider } from "../components/capture-dialog";
 import { MeetingPrepProvider } from "../components/meeting-prep-dialog";
-import { HistoryNav, useHistoryShortcuts } from "../components/history-nav";
-import { UpdateReadyButton } from "../components/update-ready-button";
+import { useHistoryShortcuts } from "../components/history-nav";
 import { useAppearanceSync } from "../lib/appearance";
 import { useAgendaState, useBackendSync } from "../lib/queries";
 import { useSettings } from "../lib/settings";
@@ -76,14 +75,12 @@ export function RootView() {
             className="h-full"
             storageKey="productivity-shell"
             sidebar={<AppSidebar />}
-            sidebarSize={{ default: 240, min: 180, max: 400 }}
+            sidebarSize={{ default: 220, min: 180, max: 400 }}
             primarySize={{ min: 440 }}
           >
-            <div className="flex h-full min-h-0 flex-col">
-              <WindowNavigation />
-              <div data-window-content className="min-h-0 flex-1 bg-background">
-                <Outlet />
-              </div>
+            <SidebarControl />
+            <div data-window-content className="h-full min-h-0 bg-background">
+              <Outlet />
             </div>
           </SplitView>
         </MeetingPrepProvider>
@@ -92,8 +89,9 @@ export function RootView() {
   );
 }
 
-function WindowNavigation() {
-  const { sidebarCollapsed, toggleSidebar } = useSplitView();
+/** Each view's header holds history and actions; the sidebar toggle stays beside the traffic lights. */
+function SidebarControl() {
+  const { toggleSidebar } = useSplitView();
   React.useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if (
@@ -115,23 +113,10 @@ function WindowNavigation() {
     return () => window.removeEventListener("keydown", keydown);
   }, [toggleSidebar]);
   return (
-    <Toolbar
-      inset={sidebarCollapsed ? "windowControlsAndButton" : "none"}
-      data-window-navigation
-      className="window-navigation border-b border-separator/60"
-    >
-      <ToolbarRow className={`h-12 px-6 ${sidebarCollapsed ? "pl-[132px]" : ""}`}>
-        <SplitView.SidebarToggle
-          pinned={false}
-          radius="rounded"
-          className="fixed left-[92px] top-[10px] z-20"
-        />
-        <HistoryNav />
-        <div className="ml-auto flex items-center">
-          <UpdateReadyButton />
-          <div data-inspector-controls className="flex items-center" />
-        </div>
-      </ToolbarRow>
-    </Toolbar>
+    <SplitView.SidebarToggle
+      pinned={false}
+      radius="rounded"
+      className="fixed left-[92px] top-[12px] z-20"
+    />
   );
 }

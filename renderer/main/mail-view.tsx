@@ -18,6 +18,8 @@ import { ReplyDialog } from "../components/reply-dialog";
 import { ListCard } from "../components/section-card";
 import { SourceHeading } from "../components/source-dot";
 import { SourceGate } from "../components/source-gate";
+import { HistoryNav } from "../components/history-nav";
+import { WindowActions } from "../components/view-actions";
 import { useMail } from "../lib/queries";
 import { featureOn, useSettings } from "../lib/settings";
 import { useTriage, type TriageCategory } from "../lib/triage";
@@ -71,12 +73,13 @@ export function MailView() {
       >
         <ScrollArea
           className="h-full"
-          headerSize="page"
+          leading={<HistoryNav />}
           viewportClassName="[&>div]:block!"
           title={<SourceHeading source="mail">Gmail</SourceHeading>}
           subtitle={messages ? `${messages.length} recent · ${unread} unread` : "Gmail"}
           actions={
             <>
+              <WindowActions />
               {triageOn ? (
                 <Button
                   iconOnly

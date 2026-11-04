@@ -78,8 +78,8 @@ export const SegmentedControlItem = React.forwardRef<
   <ToggleGroupPrimitive.Item
     ref={ref}
     className={cn(
-      "inline-flex h-full items-center justify-center rounded-full px-2.5 font-medium text-secondary outline-none transition-colors",
-      "hover:text-primary data-[state=on]:bg-background data-[state=on]:text-primary data-[state=on]:shadow",
+      "inline-flex h-full items-center justify-center rounded-full px-2.5 font-medium text-primary outline-none transition-colors",
+      "data-[state=on]:bg-accent data-[state=on]:text-accent-contrast",
       "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
       "disabled:pointer-events-none disabled:opacity-40",
       iconOnly && "aspect-square px-0 [&>svg]:size-4",

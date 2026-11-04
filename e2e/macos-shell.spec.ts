@@ -25,9 +25,9 @@ test("responsive details preserve the mounted editor and keyboard pane preferenc
     const sidebar = demo.page.getByRole("separator", { name: "Resize sidebar" });
     await sidebar.focus();
     await demo.page.keyboard.press("ArrowRight");
-    await expect(sidebar).toHaveAttribute("aria-valuenow", "248");
+    await expect(sidebar).toHaveAttribute("aria-valuenow", "228");
     await demo.page.keyboard.press("Shift+ArrowLeft");
-    await expect(sidebar).toHaveAttribute("aria-valuenow", "216");
+    await expect(sidebar).toHaveAttribute("aria-valuenow", "196");
     await demo.page.keyboard.press("Home");
     await expect(sidebar).toHaveAttribute("aria-valuenow", "180");
     await expect
@@ -226,19 +226,17 @@ test("native accessibility updates reach the opaque shell without changing syste
     }
     await demo.page.emulateMedia({ reducedMotion: "reduce" });
     await expect(demo.page.locator("html")).toHaveClass(/reduce-motion/);
-    await expect(demo.page.locator(".differentiate-status-icon")).toBeVisible();
-    const fills = await demo.page
-      .locator(".app-sidebar-badge, [data-slot=sidebar-item-accessory]")
-      .evaluateAll((nodes) =>
-        nodes.map(
-          (node) =>
-            (
-              globalThis as unknown as {
-                getComputedStyle(node: unknown): { backgroundColor: string };
-              }
-            ).getComputedStyle(node).backgroundColor,
-        ),
-      );
+    await expect(demo.page.locator(".app-sidebar-badge svg").first()).toBeVisible();
+    const fills = await demo.page.locator(".app-sidebar-badge").evaluateAll((nodes) =>
+      nodes.map(
+        (node) =>
+          (
+            globalThis as unknown as {
+              getComputedStyle(node: unknown): { backgroundColor: string };
+            }
+          ).getComputedStyle(node).backgroundColor,
+      ),
+    );
     expect(fills.length).toBeGreaterThan(0);
     expect(fills.every((fill) => !fill.startsWith("rgba") && fill !== "transparent")).toBe(true);
     await demo.app.evaluate(({ nativeTheme }) => {

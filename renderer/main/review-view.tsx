@@ -7,6 +7,8 @@ import { InlineHint, ListCard, RowsSkeleton, SectionCard } from "../components/s
 import { SourceDot } from "../components/source-dot";
 import { sourceStatusShort } from "../components/source-gate";
 import { TodoRow } from "../components/todo-row";
+import { HistoryNav } from "../components/history-nav";
+import { WindowActions } from "../components/view-actions";
 import { useAITask } from "../lib/ai";
 import { REVIEW_SYSTEM, buildWeeklyReviewPrompt } from "../lib/ai-prompts";
 import { formatTimeOfDay, shortDate, todayISO } from "../lib/dates";
@@ -118,7 +120,7 @@ export function ReviewView() {
   return (
     <ScrollArea
       className="h-full"
-      headerSize="page"
+      leading={<HistoryNav />}
       viewportClassName="[&>div]:block!"
       title="Weekly Review"
       subtitle={
@@ -126,6 +128,7 @@ export function ReviewView() {
       }
       actions={
         <>
+          <WindowActions />
           <Button
             iconOnly
             aria-label="Refresh"

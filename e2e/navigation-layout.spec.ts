@@ -94,7 +94,7 @@ for (const theme of ["light", "dark"] as const) {
                 controls,
               };
             });
-            expect(layout.titleSize).toBe("24px");
+            expect(layout.titleSize).toBe("15px");
             expect(layout.titleClipped, `${route} title clips at ${size.width}`).toBe(false);
             expect(layout.titleRight).toBeLessThanOrEqual(layout.viewport);
             expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport + 1);
