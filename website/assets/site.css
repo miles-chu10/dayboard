@@ -385,6 +385,11 @@ p {
   box-shadow: none;
 }
 
+/* Buy buttons ship hidden until checkout is configured; keep `hidden` stronger than .button. */
+.button[hidden] {
+  display: none;
+}
+
 .button-quiet {
   background: transparent;
   color: var(--ink);
