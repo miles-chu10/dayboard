@@ -36,7 +36,6 @@ import { isDemoMode } from "./demo-data.js";
 import { isValidMcpBearer } from "./mcp-access-key.js";
 import { getSettings } from "./settings-store.js";
 import { trackPendingWrite } from "./pending-writes.js";
-import { assertLicenseAccess } from "./license/index.js";
 import { runAppOperation } from "./runtime-activity.js";
 import type { DataChangedEvent, McpServerConfig, SourceId } from "../shared-types.js";
 import { replacementAgendaKey } from "../../shared/agenda-identities.js";
@@ -177,12 +176,15 @@ function run<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
 const WRITES_OFF_MESSAGE =
   'Changes are turned off in Dayboard. Turn on "Allow changes" in Settings → MCP Servers.';
 
-/** Write tools re-check the switch per call, so turning changes off applies to open sessions. */
+/**
+ * Write tools re-check the switch per call, so turning changes off applies to open sessions.
+ * Source writes are free under the AI-only Pro policy, so they need no license and never start
+ * the AI trial.
+ */
 function runWrite<A>(source: SourceId, body: (args: A) => Promise<ToolResult>) {
   return run(source, (args: A) =>
     trackPendingWrite(async () => {
       if (!(await getSettings()).mcpServer.allowWrites) return failure(WRITES_OFF_MESSAGE);
-      await assertLicenseAccess();
       return body(args);
     }),
   );
