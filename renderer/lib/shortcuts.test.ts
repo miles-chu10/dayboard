@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isNewItemShortcut, type KeyEventLike } from "./shortcuts";
+import {
+  SHORTCUTS,
+  formatShortcut,
+  isNewItemShortcut,
+  isTypingTarget,
+  matchesShortcut,
+  shortcutGroups,
+  viewSlot,
+  type KeyEventLike,
+} from "./shortcuts";
 
 function press(key: string, modifiers: Partial<Omit<KeyEventLike, "key">> = {}): KeyEventLike {
-  return { key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...modifiers };
+  return {
+    key,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...modifiers,
+  };
 }
 
 test("⌘N is the new item shortcut", () => {
@@ -34,4 +50,91 @@ test("⌘ with another key does not match", () => {
 test("handled keys and input composition do not open a new item", () => {
   assert.equal(isNewItemShortcut(press("n", { metaKey: true, defaultPrevented: true })), false);
   assert.equal(isNewItemShortcut(press("n", { metaKey: true, isComposing: true })), false);
+});
+
+function chord(code: string, key: string, modifiers: Partial<Omit<KeyEventLike, "key">> = {}) {
+  return press(key, { code, ...modifiers });
+}
+
+test("⌥⌘J matches on the physical key, whatever character Option types", () => {
+  assert.equal(
+    matchesShortcut(chord("KeyJ", "∆", { metaKey: true, altKey: true }), SHORTCUTS.askAgent),
+    true,
+  );
+  assert.equal(matchesShortcut(chord("KeyJ", "j", { metaKey: true }), SHORTCUTS.askAgent), false);
+  assert.equal(
+    matchesShortcut(
+      chord("KeyJ", "∆", { metaKey: true, altKey: true, shiftKey: true }),
+      SHORTCUTS.askAgent,
+    ),
+    false,
+  );
+});
+
+test("⌘K and ⌥⌘K are different commands", () => {
+  const plain = chord("KeyK", "k", { metaKey: true });
+  const option = chord("KeyK", "˚", { metaKey: true, altKey: true });
+  assert.equal(matchesShortcut(plain, SHORTCUTS.commandMenu), true);
+  assert.equal(matchesShortcut(plain, SHORTCUTS.calendarPeek), false);
+  assert.equal(matchesShortcut(option, SHORTCUTS.calendarPeek), true);
+  assert.equal(matchesShortcut(option, SHORTCUTS.commandMenu), false);
+});
+
+test("? needs Shift to type but no other modifier", () => {
+  assert.equal(matchesShortcut(press("?", { shiftKey: true }), SHORTCUTS.shortcutsSheet), true);
+  assert.equal(
+    matchesShortcut(press("?", { shiftKey: true, metaKey: true }), SHORTCUTS.shortcutsSheet),
+    false,
+  );
+});
+
+test("handled and composing key presses match nothing", () => {
+  const handled = chord("KeyK", "k", { metaKey: true, defaultPrevented: true });
+  const composing = chord("KeyK", "k", { metaKey: true, isComposing: true });
+  assert.equal(matchesShortcut(handled, SHORTCUTS.commandMenu), false);
+  assert.equal(matchesShortcut(composing, SHORTCUTS.commandMenu), false);
+});
+
+test("shortcuts read in macOS modifier order", () => {
+  assert.equal(formatShortcut(SHORTCUTS.askAgent), "⌥⌘J");
+  assert.equal(formatShortcut(SHORTCUTS.commandMenu), "⌘K");
+  assert.equal(formatShortcut(SHORTCUTS.shortcutsSheetAlt), "⌘/");
+  assert.equal(formatShortcut({ code: "Digit3", ctrl: true }), "⌃3");
+});
+
+test("⌃1–⌃9 pick sidebar slots; other chords don't", () => {
+  assert.equal(viewSlot(chord("Digit1", "1", { ctrlKey: true })), 0);
+  assert.equal(viewSlot(chord("Digit9", "9", { ctrlKey: true })), 8);
+  assert.equal(viewSlot(chord("Digit0", "0", { ctrlKey: true })), null);
+  assert.equal(viewSlot(chord("Digit1", "1", { ctrlKey: true, metaKey: true })), null);
+  assert.equal(viewSlot(chord("Digit1", "1")), null);
+});
+
+test("fields that take text block single-key shortcuts; buttons don't", () => {
+  const element = (tagName: string, attributes: Record<string, string> = {}, editable = false) => ({
+    tagName,
+    isContentEditable: editable,
+    getAttribute: (name: string) => attributes[name] ?? null,
+  });
+  assert.equal(isTypingTarget(element("INPUT")), true);
+  assert.equal(isTypingTarget(element("INPUT", { type: "search" })), true);
+  assert.equal(isTypingTarget(element("INPUT", { type: "checkbox" })), false);
+  assert.equal(isTypingTarget(element("TEXTAREA")), true);
+  assert.equal(isTypingTarget(element("DIV", {}, true)), true);
+  assert.equal(isTypingTarget(element("DIV", { role: "textbox" })), true);
+  assert.equal(isTypingTarget(element("BUTTON")), false);
+  assert.equal(isTypingTarget(null), false);
+});
+
+test("the shortcut sheet lists each view's ⌃ number, at most nine", () => {
+  const titles = Array.from({ length: 11 }, (_, index) => `View ${index + 1}`);
+  const goTo = shortcutGroups(titles).find((group) => group.title === "Go to");
+  assert.equal(goTo?.entries.length, 9);
+  assert.deepEqual(goTo?.entries[2], { title: "View 3", keys: [["⌃", "3"]] });
+});
+
+test("no two General entries share a key combination", () => {
+  const general = shortcutGroups([]).find((group) => group.title === "General")!;
+  const combos = general.entries.flatMap((entry) => entry.keys.map((keys) => keys.join("")));
+  assert.equal(new Set(combos).size, combos.length);
 });

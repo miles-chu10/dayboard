@@ -12,6 +12,7 @@ import { todayISO } from "../lib/dates";
 import { useMail, useTasks } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 import { buildTodos, type Todo } from "../lib/todos";
+import { usePublishViewContext } from "../components/shell";
 
 export function TasksView() {
   const tasks = useTasks();
@@ -25,6 +26,11 @@ export function TasksView() {
       : [];
   const open = todos.filter((todo) => !todo.completed).length;
   const selected = todos.find((todo) => todo.key === selectedKey);
+  usePublishViewContext({
+    view: "tasks",
+    title: "Tasks",
+    itemKey: selected?.key,
+  });
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const today = todayISO();
 

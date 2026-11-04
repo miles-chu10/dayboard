@@ -16,6 +16,7 @@ import { useCalendar, useReminders, useReview, useTasks } from "../lib/queries";
 import { featureOn, useSettings } from "../lib/settings";
 import { readStored, writeStored } from "../lib/storage";
 import { buildTodos, compareByDue } from "../lib/todos";
+import { usePublishViewContext } from "../components/shell";
 
 const STORAGE_KEY = "dashboard:review:v1";
 
@@ -60,6 +61,7 @@ function StatTile({
 }
 
 export function ReviewView() {
+  usePublishViewContext({ view: "review", title: "Weekly Review" });
   const settings = useSettings().data;
   const aiOn = featureOn(settings, "weeklyReview");
   const review = useReview();

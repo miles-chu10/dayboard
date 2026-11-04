@@ -1,3 +1,8 @@
+# HeroSpace-inspired features — in progress
+
+Plan and checklist: `docs/superpowers/plans/2026-11-04-herospace-features.md` (its Progress list is
+the source of truth). Branch `feat/herospace-features`, local commits only.
+
 # System panels — task checklist
 
 Plan: `docs/superpowers/plans/2026-10-20-system-panels.md` (ExecPlan; its Progress and Decision

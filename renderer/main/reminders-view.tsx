@@ -12,6 +12,7 @@ import { todayISO } from "../lib/dates";
 import { useMail, useReminders } from "../lib/queries";
 import { useSettings } from "../lib/settings";
 import { buildTodos, type Todo } from "../lib/todos";
+import { usePublishViewContext } from "../components/shell";
 
 export function RemindersView() {
   const reminders = useReminders();
@@ -25,6 +26,11 @@ export function RemindersView() {
       : [];
   const open = todos.filter((todo) => !todo.completed).length;
   const selected = todos.find((todo) => todo.key === selectedKey);
+  usePublishViewContext({
+    view: "reminders",
+    title: "Reminders",
+    itemKey: selected?.key,
+  });
   const messages = mail.data?.state === "ok" ? mail.data.items : [];
   const today = todayISO();
 

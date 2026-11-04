@@ -63,6 +63,8 @@ import { SOURCE_META } from "../lib/sources";
 import { readStored, writeStored } from "../lib/storage";
 import { buildTodos, mergeLinkedTodos, type Todo } from "../lib/todos";
 import { useTriage } from "../lib/triage";
+import { contextItemKey } from "../lib/agent-context";
+import { usePublishViewContext } from "../components/shell";
 import { useAgendaClock } from "../lib/use-agenda-clock";
 
 type Layers = Record<"tasks" | "reminders" | "calendar" | "mail", boolean>;
@@ -154,8 +156,17 @@ function rangeHeading(startDate: string, days: number, now: Date): string {
       ? undefined
       : "numeric";
   return days === 1
-    ? start.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year })
-    : new Intl.DateTimeFormat([], { month: "long", day: "numeric", year }).formatRange(start, end);
+    ? start.toLocaleDateString([], {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year,
+      })
+    : new Intl.DateTimeFormat([], {
+        month: "long",
+        day: "numeric",
+        year,
+      }).formatRange(start, end);
 }
 
 export function AgendaView({
@@ -234,6 +245,15 @@ export function AgendaView({
   const selectedTodo = allTodos.find((todo) => todo.key === search.item);
   const selectedEvent = selectedTodo ? undefined : selectedCalendarEvent(events, search.item);
   const selectedMail = messages.find((message) => message.id === selectedMailId);
+  usePublishViewContext({
+    view: calendarRoute ? "calendar" : "agenda",
+    title: calendarRoute ? "Calendar" : "Agenda",
+    itemKey: contextItemKey({
+      mail: selectedMail,
+      todo: selectedTodo,
+      event: selectedEvent,
+    }),
+  });
   const detailView = settings?.general.detailView ?? "dialog";
   const allReady =
     (!on.tasks || !tasks.isPending) &&
@@ -445,7 +465,10 @@ export function AgendaView({
                   <Select
                     value={span === "week" ? "next-7-days" : span}
                     onValueChange={(value: string) =>
-                      updateSearch({ span: value as AgendaSpan, date: undefined })
+                      updateSearch({
+                        span: value as AgendaSpan,
+                        date: undefined,
+                      })
                     }
                   >
                     <SelectTrigger size="small" aria-label="Calendar range">

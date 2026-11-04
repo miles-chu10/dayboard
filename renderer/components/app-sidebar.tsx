@@ -26,6 +26,7 @@ import type { AppSettings, SourceId, SourceResult } from "@main/shared-types";
 import { assistantProvider, useAssistantModel } from "../lib/ai-models";
 import { eventDayKey, formatTimeOfDay, isEventPast, toISODate } from "../lib/dates";
 import { modelSummary } from "../lib/model-choices";
+import { NAV_ITEMS, type NavItem } from "../lib/navigation";
 import { openExternal, openSettings } from "../lib/ipc";
 import { useProfileAvatar } from "../lib/profile-avatar";
 import { useAccounts, useCalendar, useMail, useReminders, useTasks } from "../lib/queries";
@@ -87,13 +88,9 @@ function sourceSubtitle(
 
 type MainNavId = "agenda" | SourceId;
 
-const MAIN_NAV: { id: MainNavId; title: string; route: string }[] = [
-  { id: "agenda", title: "Agenda", route: "/" },
-  { id: "calendar", title: "Calendar", route: "/calendar" },
-  { id: "mail", title: "Inbox", route: "/mail" },
-  { id: "tasks", title: "Tasks", route: "/tasks" },
-  { id: "reminders", title: "Reminders", route: "/reminders" },
-];
+const MAIN_NAV = NAV_ITEMS.filter(
+  (item): item is NavItem & { id: MainNavId } => item.group === "main",
+);
 
 /** A count pill; overdue counts carry an icon so they don't rely on color alone. */
 function SidebarCount({
@@ -231,7 +228,9 @@ export function AppSidebar() {
     return (
       <SidebarSymbol
         className={COLOR_CLASS[color].text}
-        style={{ background: `color-mix(in srgb, ${sourceColorVar(color)} 12%, transparent)` }}
+        style={{
+          background: `color-mix(in srgb, ${sourceColorVar(color)} 12%, transparent)`,
+        }}
       >
         <Icon className="size-[18px]" />
       </SidebarSymbol>

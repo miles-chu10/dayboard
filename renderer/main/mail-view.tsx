@@ -1,5 +1,6 @@
 import { DetailsLayout } from "../components/details-layout";
 import { useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import {
   Button,
   Callout,
@@ -23,6 +24,8 @@ import { WindowActions } from "../components/view-actions";
 import { useMail } from "../lib/queries";
 import { featureOn, useSettings } from "../lib/settings";
 import { useTriage, type TriageCategory } from "../lib/triage";
+import { contextItemKey } from "../lib/agent-context";
+import { usePublishViewContext } from "../components/shell";
 
 type MailFilter = "all" | TriageCategory;
 
@@ -35,13 +38,25 @@ export function MailView() {
   const triage = useTriage(messages);
   const [filter, setFilter] = useState<MailFilter>("all");
   const [replyTo, setReplyTo] = useState<MailItem | null>(null);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const { item: requestedId } = useSearch({ from: "/mail" });
+  const [selectedId, setSelectedId] = useState<string | undefined>(requestedId);
+  // A message requested later (⌘K while Inbox is open) replaces the selection once.
+  const [lastRequested, setLastRequested] = useState(requestedId);
+  if (requestedId !== lastRequested) {
+    setLastRequested(requestedId);
+    if (requestedId) setSelectedId(requestedId);
+  }
 
   const unread = messages?.filter((message) => message.unread).length ?? 0;
   const countFor = (category: TriageCategory) =>
     messages?.filter((message) => triage.map[message.id]?.category === category).length ?? 0;
   const activeFilter: MailFilter = triageOn ? filter : "all";
   const selected = messages?.find((message) => message.id === selectedId);
+  usePublishViewContext({
+    view: "mail",
+    title: "Inbox",
+    itemKey: contextItemKey({ mail: selected }),
+  });
 
   function toggleOpen(message: MailItem) {
     setSelectedId((current) => (current === message.id ? undefined : message.id));

@@ -58,6 +58,10 @@ const mailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/mail",
   component: MailView,
+  // `item` opens one message (from ⌘K or Home); the view keeps its own selection after that.
+  validateSearch: (search: Record<string, unknown>): { item?: string } => ({
+    item: typeof search.item === "string" && search.item ? search.item : undefined,
+  }),
   staticData: { title: "Gmail" },
 });
 
