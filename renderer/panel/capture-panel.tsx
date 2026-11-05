@@ -31,7 +31,8 @@ const AI_LOCKED_NOTE: Record<AiLockState, string> = {
   invalid: "Your license key needs attention, so AI is off. Adding items here stays free.",
   "network-error":
     "DayBoard can’t verify your license, so AI is off. Adding items here stays free.",
-  unreadable: "DayBoard can’t read its license data on this Mac, so AI is off. Adding items here stays free.",
+  unreadable:
+    "DayBoard can’t read its license data on this Mac, so AI is off. Adding items here stays free.",
 };
 
 // Sentence case, as the app's other add buttons ("Add task").
