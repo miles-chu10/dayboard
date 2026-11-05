@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { createServer } from "node:http";
+import { createServer, type Server } from "node:http";
 
 import { ipcMain, logger } from "../platform/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -34,6 +34,7 @@ import { calendarRangeDays } from "./calendar-range.js";
 import { reconcileAgendaKeys } from "./agenda-store.js";
 import { isDemoMode } from "./demo-data.js";
 import { isValidMcpBearer } from "./mcp-access-key.js";
+import { stableMcpPort } from "./mcp-port.js";
 import { getSettings } from "./settings-store.js";
 import { MAX_MEMORY_TEXT } from "./agent-memory.js";
 import {
@@ -69,7 +70,9 @@ const ASSISTANT_MCP_TOOLS = [
   "read_email",
 ] as const;
 const assistantMcpToken = randomBytes(32).toString("base64url");
+const LISTEN_RETRY_MS = 5_000;
 let activeProjectId: string | null = null;
+let externalMcpStartError: string | null = null;
 let assistantMcpStatus: AssistantMcpStatus = {
   state: "unavailable",
   ok: false,
@@ -728,12 +731,6 @@ function logToolCalls(server: McpServer, client: string | null): McpServer {
   return server;
 }
 
-export function stableMcpPort(projectId: string): number {
-  let hash = 0;
-  for (const char of projectId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return 49152 + (hash % 16000);
-}
-
 export function getAssistantMcpServerConfig(projectId: string): McpServerConfig {
   return {
     id: ASSISTANT_MCP_ID,
@@ -752,6 +749,11 @@ export function getAssistantMcpServerConfig(projectId: string): McpServerConfig 
 export function getExternalMcpUrl(): string | null {
   if (isDemoMode()) return null;
   return activeProjectId ? `http://127.0.0.1:${stableMcpPort(activeProjectId)}/mcp` : null;
+}
+
+/** Why the endpoint isn't listening, when it tried and failed. */
+export function getExternalMcpStartError(): string | null {
+  return isDemoMode() ? null : externalMcpStartError;
 }
 
 export function getActiveAssistantMcpServerConfig(): McpServerConfig | null {
@@ -860,8 +862,9 @@ async function authorizeExternalClient(request: RequestHeaders) {
     };
   }
   if (!(await getSettings()).mcpServer.enabled) {
+    // 503, not 403: the key may be fine, so clients shouldn't report it as rejected.
     return {
-      status: 403,
+      status: 503,
       message: "Dayboard's MCP server is turned off. Turn it on in Settings → MCP Servers.",
     };
   }
@@ -983,22 +986,36 @@ export function createMcpHttpServer() {
   });
 }
 
-export function startMcpHttpServer(projectId: string): void {
+export function startMcpHttpServer(projectId: string, retryMs = LISTEN_RETRY_MS): Server | null {
   if (isDemoMode()) {
     logger.info("mcp", "MCP server disabled in demo mode");
-    return;
+    return null;
   }
   const port = stableMcpPort(projectId);
   const httpServer = createMcpHttpServer();
+  let retry: NodeJS.Timeout | undefined;
+  const listen = () => httpServer.listen(port, "127.0.0.1");
 
-  httpServer.once("error", (error) => {
-    logger.warn("mcp", "MCP HTTP server failed to start", {
-      port,
-      error: String(error),
-    });
+  httpServer.on("error", (error: NodeJS.ErrnoException) => {
+    if (httpServer.listening) {
+      logger.warn("mcp", "MCP HTTP server error", { error: String(error) });
+      return;
+    }
+    // Another app (often another copy of DayBoard) holds the port: keep trying until it's free.
+    const inUse = error.code === "EADDRINUSE";
+    const message = inUse
+      ? `Port ${port} is in use, probably by another copy of DayBoard. Quit it and DayBoard's MCP server starts on its own.`
+      : `DayBoard's MCP server couldn't start on port ${port}.`;
+    if (message !== externalMcpStartError) {
+      logger.warn("mcp", "MCP HTTP server failed to start", { port, error: String(error) });
+    }
+    externalMcpStartError = message;
+    if (inUse) retry = setTimeout(listen, retryMs).unref();
   });
-  httpServer.listen(port, "127.0.0.1", () => {
+  httpServer.on("close", () => clearTimeout(retry));
+  httpServer.on("listening", () => {
     activeProjectId = projectId;
+    externalMcpStartError = null;
     logger.info("mcp", "MCP server listening", {
       url: `http://127.0.0.1:${port}/mcp`,
       assistantUrl: `http://127.0.0.1:${port}${ASSISTANT_MCP_PATH}`,
@@ -1007,4 +1024,6 @@ export function startMcpHttpServer(projectId: string): void {
       logger.info("mcp", "Assistant MCP self-check", { ok, toolCount });
     });
   });
+  listen();
+  return httpServer;
 }

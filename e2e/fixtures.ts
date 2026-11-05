@@ -87,7 +87,9 @@ export function launchDemo(profile?: string): Promise<DemoApp> {
   return launchIsolated(profile);
 }
 
-export async function launchEmptyProfile(): Promise<DemoApp> {
+export async function createEmptyProfile(
+  mcpServer = { enabled: false, allowWrites: false },
+): Promise<string> {
   const profile = await createTestProfile("test");
   // A fresh profile alone does not isolate the system's EventKit account. Disable all
   // integrations before boot so this non-demo test can never fetch personal source data.
@@ -98,8 +100,12 @@ export async function launchEmptyProfile(): Promise<DemoApp> {
         ["tasks", "reminders", "mail", "calendar"].map((source) => [source, { enabled: false }]),
       ),
       ai: { enabled: false, providerChosen: false },
-      mcpServer: { enabled: false, allowWrites: false },
+      mcpServer,
     }),
   );
-  return launchIsolated(profile, false);
+  return profile;
+}
+
+export async function launchEmptyProfile(profile?: string): Promise<DemoApp> {
+  return launchIsolated(profile ?? (await createEmptyProfile()), false);
 }

@@ -550,7 +550,7 @@ test("demo ai:run handler returns a fixture without provider, settings, or CLI a
         ],
         [
           "../services/mcp-http-server.js",
-          `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null; export const getActiveAssistantMcpServerConfig = () => null;`,
+          `export const checkAssistantMcpConnection = async () => { throw new Error("MCP should not run"); }; export const getAssistantMcpStatus = () => ({ state: "unavailable", ok: false, toolCount: 0 }); export const getExternalMcpUrl = () => null; export const getExternalMcpStartError = () => null; export const getActiveAssistantMcpServerConfig = () => null;`,
         ],
         [
           "../services/mcp-access-key.js",

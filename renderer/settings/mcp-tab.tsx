@@ -264,7 +264,9 @@ function ExternalMcpSettings() {
   const { settings, edit } = useSettingsEditor();
   const info = useQuery({
     queryKey: ["mcp-external"],
-    queryFn: () => invoke<{ url: string | null }>("mcp:externalInfo"),
+    queryFn: () => invoke<{ url: string | null; error: string | null }>("mcp:externalInfo"),
+    // While it can't listen (another app holds its port), check again until it can.
+    refetchInterval: (query) => (query.state.data?.error ? 5_000 : false),
   });
   const copy = useMutation({
     mutationFn: (client: McpClientKind) => invoke("mcp:copyExternalSetup", { client }),
@@ -287,7 +289,11 @@ function ExternalMcpSettings() {
     >
       <Field
         label="Allow MCP clients"
-        description={enabled ? (info.data?.url ?? "Starting…") : "Off. Clients can't connect."}
+        description={
+          enabled
+            ? (info.data?.url ?? info.data?.error ?? "Starting…")
+            : "Off. Clients can't connect."
+        }
       >
         <Switch
           checked={enabled}

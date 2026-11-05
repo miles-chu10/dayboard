@@ -37,6 +37,7 @@ import {
   checkAssistantMcpConnection,
   getActiveAssistantMcpServerConfig,
   getAssistantMcpStatus,
+  getExternalMcpStartError,
   getExternalMcpUrl,
 } from "../services/mcp-http-server.js";
 import { getMcpAccessKey, regenerateMcpAccessKey } from "../services/mcp-access-key.js";
@@ -166,6 +167,7 @@ export function registerAIHandlers(): void {
   // External MCP clients (Claude Code, Codex, …)
   ipcMain.handle("mcp:externalInfo", () => ({
     url: isDemoMode() ? null : getExternalMcpUrl(),
+    error: getExternalMcpStartError(),
   }));
 
   ipcMain.handle("mcp:copyExternalSetup", async (_event, payload: unknown) => {
@@ -176,7 +178,11 @@ export function registerAIHandlers(): void {
       throw new Error(`${channel}: client must be claude, codex, or json`);
     }
     const url = getExternalMcpUrl();
-    if (!url) throw new Error("The MCP server hasn't started yet. Try again in a moment.");
+    if (!url) {
+      throw new Error(
+        getExternalMcpStartError() ?? "The MCP server hasn't started yet. Try again in a moment.",
+      );
+    }
     clipboard.writeText(externalMcpSetup(client, url, await getMcpAccessKey()));
     return { copied: true };
   });

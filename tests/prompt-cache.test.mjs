@@ -22,7 +22,7 @@ const stubs = {
   "mcp-client.js": `export const testMcpServer=async()=>({}); export const openMcpSession=async()=>{const f=globalThis.__cacheFixture; if(f.mcpDelay) await new Promise(r=>setTimeout(r,f.mcpDelay)); return {tools:f.tools,errors:f.mcpErrors??[],close:async()=>{f.closed++}}};`,
   "provider-resolution.js": `export const resolveConfiguredProvider=async p=>p;`,
   "dictation.js": `export const transcribe=async()=>{throw Error('Transcription must not run')};`,
-  "mcp-http-server.js": `export const checkAssistantMcpConnection=()=>{}; export const getActiveAssistantMcpServerConfig=()=>null; export const getAssistantMcpStatus=()=>({}); export const getExternalMcpUrl=()=>'';`,
+  "mcp-http-server.js": `export const checkAssistantMcpConnection=()=>{}; export const getActiveAssistantMcpServerConfig=()=>null; export const getAssistantMcpStatus=()=>({}); export const getExternalMcpUrl=()=>''; export const getExternalMcpStartError=()=>null;`,
   "mcp-access-key.js": `export const getMcpAccessKey=()=>''; export const regenerateMcpAccessKey=()=>'';`,
   "agent-stores.js": `export const listMemories=async()=>globalThis.__cacheFixture.memories??[];`,
 };
