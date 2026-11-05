@@ -106,7 +106,7 @@ notarized, self-updating betas. Two workflows share the signing setup:
 
 - **Signed macOS release** (`.github/workflows/macos-release.yml`) runs when a `v`-prefixed
   SemVer tag such as `v1.3.0-beta.12` is pushed for a commit on `main` whose `package.json`
-  version matches. Until DayBoard has a price it builds a free release (`DAYBOARD_RELEASE=1`
+  version matches. The current workflow builds a free release (`DAYBOARD_RELEASE=1`
   with `DAYBOARD_LICENSE=off`): Google required, in-app updates on, licensing off. It signs,
   notarizes, staples, verifies and smoke-tests like the dry run below, then publishes the DMG,
   ZIP, blockmaps, `latest-mac.yml` and `SHA256SUMS.txt` as a GitHub prerelease (never marked
@@ -137,7 +137,11 @@ to `1.3.0-beta.17` notarized only the app inside the DMG.
 Pushing a release tag publishes publicly and needs Miles's approval each time. Do not create new
 `beta-<version>` releases: the updater ignores tags that are not SemVer, so only `v`-prefixed
 releases reach installed apps. Beta.11 and earlier cannot update themselves; their users install
-beta.12 once from its DMG, and later betas arrive in the app.
+the current [beta.18 DMG](https://github.com/miles-chu10/DayBoard/releases/download/v1.3.0-beta.18/DayBoard-1.3.0-beta.18-arm64.dmg)
+once, and later betas arrive in the app. Use its matching
+[SHA256SUMS.txt](https://github.com/miles-chu10/DayBoard/releases/download/v1.3.0-beta.18/SHA256SUMS.txt)
+to check the download. Both the app and the beta.18 DMG are notarized and stapled; see the
+[published-artifact verification](release-notes-1.3.0-beta.18.md#release-verification).
 
 Both use the `macos-release` GitHub environment, which must allow the `main` branch and `v*`
 tags. That environment needs:
@@ -230,5 +234,6 @@ Keep GPL source/build instructions available with the official binary. Distribut
 
 The signed workflow runs on `v*` tag pushes and includes publication after verification.
 Do not push a tag merely to obtain a signing test or review artifact; use the manual beta
-workflow for that. It builds a free release until DayBoard has a price; removing
-`DAYBOARD_LICENSE: "off"` from the workflow makes it require live license configuration.
+workflow for that. The current release workflow keeps licensing off. Enabling paid licensing
+requires a separately approved workflow change and the corresponding release checks; removing
+`DAYBOARD_LICENSE: "off"` makes the workflow require live license configuration.

@@ -27,9 +27,10 @@ Markdown notes.
 
 > **Beta 18:** [1.3.0-beta.18](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18)
 > is a free community beta for **macOS 14+ on Apple Silicon**. The app and its disk image are
-> signed with an Apple Developer ID and notarized by Apple. Starting with beta 12, DayBoard updates itself from GitHub
-> releases. Existing beta 12 and later installations download updates in the background and
-> install on restart or quit. See [what changed in beta 18](docs/release-notes-1.3.0-beta.18.md).
+> signed with an Apple Developer ID, notarized by Apple and stapled. Starting with beta 12,
+> DayBoard updates itself from GitHub releases. Existing beta 12 and later installations download
+> updates in the background and install on restart or quit. See
+> [what changed in beta 18](docs/release-notes-1.3.0-beta.18.md).
 > Google sign-in may be limited to invited accounts. Join the
 > [waitlist](https://getdayboard.com/waitlist) for invited onboarding.
 
@@ -54,8 +55,10 @@ The current packaged app requires **an Apple Silicon Mac running macOS 14 or lat
 
 1. **Download beta 18** from its
    [GitHub release](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18) and follow
-   the [install guide](https://getdayboard.com/beta), or [build from source](#development). If you
-   have beta 11 or earlier, install the current beta over it once; your DayBoard data stays in place.
+   the [install guide](https://getdayboard.com/beta), or [build from source](#development).
+   [SHA256SUMS.txt](https://github.com/miles-chu10/DayBoard/releases/download/v1.3.0-beta.18/SHA256SUMS.txt)
+   lists the download checksums. If you have beta 11 or earlier, install the current beta over it
+   once; your DayBoard data stays in place.
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
    Calendar; connect Apple Reminders when you are ready to grant its macOS permission.
 3. **Choose your AI provider**, if you want AI features. Each AI feature can be turned off.
