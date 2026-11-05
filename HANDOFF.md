@@ -12,12 +12,17 @@ Open items, with what each waits on, are under "Remaining work".
 
 ### Releases
 
-- **Latest published beta: `1.3.0-beta.17`** (prerelease `v1.3.0-beta.17`). Signed macOS release
-  run 41936496820 published it on 2026-11-05 at 00:03 UTC from `c997997`. Notes:
-  `docs/release-notes-1.3.0-beta.17.md`. All seven assets are present, every `SHA256SUMS.txt` line
-  matches the downloaded files, `latest-mac.yml` gives its version and matching hashes, and the
-  apps in the ZIP and DMG pass `codesign`, `stapler validate` and `spctl` (Notarized Developer ID).
-  The DMG itself has no notarization ticket; beta.18 fixes that (below).
+- **Latest published beta: `1.3.0-beta.18`** (prerelease `v1.3.0-beta.18`). Signed macOS release
+  run 41977368075 published it on 2026-11-05 at 06:14 UTC from `8c3665c`. Notes:
+  `docs/release-notes-1.3.0-beta.18.md`. It is the first release whose DMG is notarized and
+  stapled. `/release-check` on the Mac: all seven assets present; every `SHA256SUMS.txt` line
+  matches the files and GitHub's asset digests; `latest-mac.yml` gives the version and the ZIP's
+  and DMG's actual SHA-512 and size; the DMG passes `stapler validate` and `spctl` (Notarized
+  Developer ID); the apps in the ZIP and DMG are `1.3.0-beta.18` and pass `codesign`,
+  `stapler validate` and `spctl`.
+- `1.3.0-beta.17` (run 41936496820, 2026-11-05 00:03 UTC, `c997997`): all seven assets present,
+  `SHA256SUMS.txt` and `latest-mac.yml` match, and both apps pass `codesign`, `stapler validate`
+  and `spctl`. Its DMG has no notarization ticket of its own.
 - Earlier signed betas: `v1.3.0-beta.15` (2026-11-04 07:07 UTC, run 41786199314, `67fc534`),
   `v1.3.0-beta.13` (2026-10-28 04:49 UTC, run 40633492619, `ca29afb`) and
   `v1.3.0-beta.12` (2026-10-22, run 39745730147, `9e32075`). Beta.12 was the first Developer ID
@@ -57,25 +62,30 @@ Open items, with what each waits on, are under "Remaining work".
     `docs/CODEX-HANDOFF.md`. Not re-verified since.
   - beta.13 to beta.15 on 2026-11-04 (see "Installed app" below).
 
-### main and the beta.18 candidate
+### main and beta.18
 
-- `main` is `606eaf5`, versioned `1.3.0-beta.17`. Merged since the beta.17 tag: #77 (website and
-  README moved to beta.17), #78 (DMG notarization), #79 (website mobile navigation and interactive
-  preview) and #81 (MCP port and toast fixes). CI run 41974459255 passed on `606eaf5`.
+- `main` is `8c3665c`, versioned `1.3.0-beta.18` and released as beta.18. Merged between the
+  beta.17 and beta.18 tags: #77 (website and README moved to beta.17), #78 (DMG notarization), #79
+  (website mobile navigation and interactive preview), #81 (MCP port and toast fixes), #75
+  (payment launch prep: billing comp licenses and Mac app license fixes, inactive while published
+  betas build with licensing off) and #83 (the beta.18 version bump and notes).
+- Checks before the tag: CI passed on main at `606eaf5` (run 41974459255), `f4f12ca` with #75
+  (41974775487) and `8c3665c` (41977302820). Signed macOS beta dry run 41974691050 passed on
+  `606eaf5`, before #75; the release run is the first signed build and smoke test with #75.
 - PR #78 (`cbd36d3`): after electron-builder, `node scripts/macos-release.mjs notarize-dmg`
   notarizes and staples the signed DMG, rebuilds its blockmap and, for releases, its
   `latest-mac.yml` entry; the verify step requires `stapler validate` and a Notarized Developer ID
   `spctl --type open` assessment for the DMG. Signed macOS beta dry run 41965111691 on `cbd36d3`
   passed, and its downloaded DMG was checked on the Mac: `stapler validate` worked, `spctl`
   accepted it as Notarized Developer ID, `hdiutil verify` reported it valid and a blockmap rebuilt
-  from it matched the shipped one. The `latest-mac.yml` rewrite runs only in tag releases; it is
-  covered by unit tests and was checked offline against beta.17's real file.
+  from it matched the shipped one. The `latest-mac.yml` rewrite runs only in tag releases; beta.18
+  is the first, and its published `latest-mac.yml` matches the stapled DMG.
 - PR #81 (`606eaf5`): a busy MCP port is retried every 5 s and Settings says why the server isn't
   listening; profiles set with `DAYBOARD_USER_DATA` get their own stable MCP port (the default
   keeps 54809); a turned-off server answers 503 instead of 403; toasts use DayBoard's color tokens
   in dark mode.
-- The beta.18 candidate is branch `release/1.3.0-beta.18`: the version bump and
-  `docs/release-notes-1.3.0-beta.18.md`. It is the first release whose DMG is notarized.
+- Miles approved the beta.18 release on 2026-11-04, merged #83 and pushed `v1.3.0-beta.18` (tag
+  object `d0e046a`, pointing at `8c3665c`) from his Mac.
 
 ### Beta.16 and beta.17
 
@@ -251,7 +261,7 @@ Lifecycle changes for release-owner review (the updater's quit/install path is u
 - Meeting alerts hold one `setTimeout` and, only while on, a refresh `setInterval`. #70 adds mail
   and follow-up timers and a Dock badge (`main/system-panels/mail-notifications.ts`).
 
-Acceptance correction (2026-10-20): the stale QA preview launched at 07:19:27 PDT (14:19:27 UTC; shell PID 81215, app PID 81216; `DAYBOARD_DEMO=1`, scratchpad `demo-profile`, built from `c316117`) was reported stopped at about 07:21 but kept running: the stop command matched an absolute path while the app had been launched with a relative one. It ran until it was stopped by PID with SIGTERM at about 07:47 PDT; its launch task exited with code 0, and a check at 14:48:08 UTC found no QA preview processes. While it ran it likely held ⌃⌥Space and showed a menu-bar icon. No canonical or user-launched DayBoard was touched. At the time (2026-10-20), acceptance used the fresh `cf890ac` preview package and a new empty demo profile; native checks now run on a current non-test build (see "Remaining work", item 4).
+Acceptance correction (2026-10-20): the stale QA preview launched at 07:19:27 PDT (14:19:27 UTC; shell PID 81215, app PID 81216; `DAYBOARD_DEMO=1`, scratchpad `demo-profile`, built from `c316117`) was reported stopped at about 07:21 but kept running: the stop command matched an absolute path while the app had been launched with a relative one. It ran until it was stopped by PID with SIGTERM at about 07:47 PDT; its launch task exited with code 0, and a check at 14:48:08 UTC found no QA preview processes. While it ran it likely held ⌃⌥Space and showed a menu-bar icon. No canonical or user-launched DayBoard was touched. At the time (2026-10-20), acceptance used the fresh `cf890ac` preview package and a new empty demo profile; native checks now run on a current non-test build (see "Remaining work", item 2).
 
 PR #42 overlap (resolved): #44 moved the `ai:run` body into `main/services/ai/completion.ts`, and
 #42 changed that body. #44 merged second. origin/main, which already contained #42, was merged
@@ -465,27 +475,16 @@ Earlier standalone observations follow; their counts and live-account results ar
 Ordered by priority. Each item says who or what it waits on. Tag pushes, merges, deploys, release
 workflows and anything outward-facing need Miles's explicit OK for that action, every time.
 
-1. **Merge the beta.18 PR and push `v1.3.0-beta.18`.** Miles approved the beta.18 release on
-   2026-11-04. Branch `release/1.3.0-beta.18` bumps the version and adds the release notes. After
-   it merges, Miles tags the merge commit on `main` and pushes the tag from his Mac, which starts
-   the public Signed macOS release run. Waits on Miles: the merge, the tag and the push.
-2. **Verify the beta.18 release.** It is the first tag release to run `notarize-dmg`, including
-   its `latest-mac.yml` rewrite, which no dry run exercises. After it publishes, run
-   `/release-check 1.3.0-beta.18` (read-only): the assets, `SHA256SUMS.txt`, `latest-mac.yml`
-   against the DMG's new hash and size, and `codesign`, `stapler` and `spctl` for both apps and
-   the DMG itself. Then fill in the notes' "Before publishing" section. Waits on item 1's run.
-   - If the run fails, `macos-release.yml` uploads no test results; only `macos-beta.yml` keeps
-     `beta-test-results`. A failed release gets a new version, not a reused tag.
-3. **Installed app on Miles's Mac.**
-   - Let `/Applications/DayBoard.app` update itself from beta.17 to beta.18 once beta.18 is
-     published and verified, and record it. Then confirm its MCP server listens on
-     `127.0.0.1:54809`. Waits on items 1 and 2.
+1. **Installed app on Miles's Mac.**
+   - Let `/Applications/DayBoard.app` update itself from beta.17 to beta.18 (published and
+     verified), and record it. Then confirm its MCP server listens on `127.0.0.1:54809`. Waits on
+     Miles opening the app or Settings → Updates.
    - Miles confirms his Google accounts visually. A session then observes the first token refresh
      under beta.17 (or beta.18) and checks the Keychain item read-only. That Keychain item check
      is still open from the follow-up to the beta.12-to-beta.13 in-app update
      (`docs/CODEX-HANDOFF.md`, pending item 10); its `codesign` and `spctl` checks are covered by
      the beta.15 install checks above. Waits on Miles.
-4. **Native by-hand checks.** Miles, on a current non-test build with an owned profile.
+2. **Native by-hand checks.** Miles, on a current non-test build with an owned profile.
    - Tray click activating DayBoard (cause unresolved): a by-hand tray click while another app is
      frontmost, before any fix.
    - First keystrokes after the hotkey, on a build that contains `ca29afb`.
@@ -504,15 +503,16 @@ workflows and anything outward-facing need Miles's explicit OK for that action, 
      account is not a requirement for fictional UI. Historical Google Tasks, Calendar and existing
      Reminders access were verified for the selected account; this does not prove public OAuth
      eligibility for every account.
-5. **Docs, site and other follow-ups.** Any PR among them needs Miles's merge OK; site changes
+3. **Docs, site and other follow-ups.** Any PR among them needs Miles's merge OK; site changes
    also need his website deploy.
    - HeroSpace plan Final step: a recorded demo-mode visual pass of the merged features, from the
      `beta-test-results` screenshots or a native demo run. Waits on an agent or Miles. The
      HANDOFF.md and TASKS.md refresh is on branch `claude/project-thread-44twxh`; merging it needs
      Miles's OK.
-   - After beta.18 is published and verified, move `website/download.html` (version text, DMG and
-     `SHA256SUMS.txt` URLs, the download size) and the README from beta.17 (PR #77) to beta.18,
-     and drop any note that the DMG isn't notarized. Not before the release exists.
+   - Beta.18 is published and verified, so move `website/download.html` (version text, DMG and
+     `SHA256SUMS.txt` URLs, the download size, now 138.3 MB) and the README from beta.17 (PR #77)
+     to beta.18, and drop any note that the DMG isn't notarized. A PR with Miles's merge OK, then
+     his website deploy.
    - Open checkout on the site by setting `buyUrl` once the payment flow is live. Waits on the
      payments project thread and Miles's approval for each deploy and Stripe write.
    - Confirm the production waitlist: D1 migrations 0001 to 0005, the suppressions table and the
@@ -552,14 +552,14 @@ workflows and anything outward-facing need Miles's explicit OK for that action, 
      - `docs/superpowers/plans/2026-11-04-herospace-features.md`: says "Local commits only" (it
        merged as PR #70, `368aebc`); its Final step is partly done (CI run 41923026422 and dry run
        41923039435 passed on `4996f9a`).
-6. **Glaze decisions.** Waits on Miles.
+4. **Glaze decisions.** Waits on Miles.
    - PR #45: close it, keep it only for reference, or un-park Glaze parity. If it is revived, rebase
      it onto `8645628` and give it a version after 1.2.6. Its 10 native acceptance checks have not
      run; they need un-parking and an approved publish into the Glaze runtime, which replaces the
      installed Glaze app.
    - Confirm that Glaze 1.2.6 is live in the Glaze Public Store as Published Version 14.0.0. Only
      PR #61's description says so, and the Store is outside this repo.
-7. **Loose signing key file.** The unprotected key file from `docs/CODEX-HANDOFF.md` pending item 9
+5. **Loose signing key file.** The unprotected key file from `docs/CODEX-HANDOFF.md` pending item 9
    is still in the local release-signing folder (checked by file existence only on 2026-11-04).
    Back it up, then delete it. Waits on Miles.
 
@@ -575,7 +575,7 @@ Parked until Miles says otherwise:
 - Mac App Store edition. PR #51 (`10fef65`) merged dormant and is in beta.13 and later. Resume
   only on Miles's word; the bundle ID question comes first.
 - MicAI.
-- Glaze feature parity (#45; see item 6).
+- Glaze feature parity (#45; see item 4).
 
 The Glaze source repository and this standalone repository are separate histories and do not synchronize automatically. Preserve the public repository's history when preparing the standalone migration; do not force-push over it.
 
