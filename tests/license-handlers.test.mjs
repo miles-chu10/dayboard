@@ -5,7 +5,7 @@ import { URL } from "node:url";
 
 import { build } from "esbuild";
 
-const state = { calls: [], broadcasts: [], release: "pending" };
+const state = { calls: [], broadcasts: [], release: "pending", changeListeners: [] };
 const handlers = new Map();
 globalThis.__licenseHandlerState = state;
 globalThis.__licenseHandlers = handlers;
@@ -18,12 +18,14 @@ export const ipcMain = {
 `;
 const servicesStub = `
 const state = () => globalThis.__licenseHandlerState;
-const payload = (status) => ({ status, checkoutUrl: "https://example.invalid/buy" });
+const payload = (status, releasePending = false) => ({ status, checkoutUrl: "https://example.invalid/buy", releasePending });
 export const getLicenseStatus = async () => payload({ state: "trial", daysLeft: 7 });
 export const refreshLicenseStatus = async () => payload({ state: "trial", daysLeft: 7 });
 export const activateLicense = async (key, name) => (state().calls.push(["activate", key, name]), payload({ state: "licensed", keyHint: "AAAA" }));
-export const deactivateLicense = async () => (state().calls.push(["deactivate"]), { ...payload({ state: "trial", daysLeft: 7 }), release: state().release });
+export const deactivateLicense = async () => (state().calls.push(["deactivate"]), { ...payload({ state: "trial", daysLeft: 7 }, state().release === "pending"), release: state().release });
+export const forgetPendingLicenseReleases = async () => (state().calls.push(["forget"]), payload({ state: "trial", daysLeft: 7 }));
 export const resetUnreadableLicense = async () => (state().calls.push(["reset"]), payload({ state: "trial", daysLeft: 7 }));
+export const onLicenseChange = (listener) => { state().changeListeners.push(listener); return () => {}; };
 `;
 
 const bundle = await build({
@@ -79,7 +81,7 @@ test("license:reset runs only with the exact confirmation", async () => {
 });
 
 test("license:deactivate returns the release outcome and broadcasts only status", async () => {
-  for (const release of ["released", "pending"]) {
+  for (const release of ["released", "pending", "none"]) {
     reset();
     state.release = release;
     const result = await handlers.get("license:deactivate")({});
@@ -87,10 +89,52 @@ test("license:deactivate returns the release outcome and broadcasts only status"
     assert.deepEqual(state.broadcasts, [
       [
         "license:changed",
-        { status: { state: "trial", daysLeft: 7 }, checkoutUrl: "https://example.invalid/buy" },
+        {
+          status: { state: "trial", daysLeft: 7 },
+          checkoutUrl: "https://example.invalid/buy",
+          releasePending: release === "pending",
+        },
       ],
     ]);
   }
+});
+
+test("license:forget-release runs only with its exact confirmation", async () => {
+  reset();
+  const handler = handlers.get("license:forget-release");
+  for (const payload of [
+    undefined,
+    true,
+    "forget",
+    "reset-license-data-on-this-mac",
+    { confirm: true },
+  ]) {
+    await assert.rejects(handler({}, payload), /Confirm deleting the saved license key/);
+  }
+  assert.deepEqual(state.calls, []);
+  assert.deepEqual(state.broadcasts, []);
+
+  const result = await handler({}, "forget-license-key-without-releasing");
+  assert.equal(result.releasePending, false);
+  assert.deepEqual(state.calls, [["forget"]]);
+  assert.deepEqual(state.broadcasts, [["license:changed", result]]);
+});
+
+test("a background release that confirms pushes fresh status to open windows", async () => {
+  reset();
+  assert.equal(state.changeListeners.length, 1);
+  state.changeListeners[0]();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(state.broadcasts, [
+    [
+      "license:changed",
+      {
+        status: { state: "trial", daysLeft: 7 },
+        checkoutUrl: "https://example.invalid/buy",
+        releasePending: false,
+      },
+    ],
+  ]);
 });
 
 test("license:activate still rejects a missing key before reaching the service", async () => {
@@ -98,4 +142,6 @@ test("license:activate still rejects a missing key before reaching the service",
   await assert.rejects(handlers.get("license:activate")({}, "  "), /Enter a license key/);
   await assert.rejects(handlers.get("license:activate")({}, 42), /Enter a license key/);
   assert.deepEqual(state.calls, []);
+  await handlers.get("license:activate")({}, ` DAYB_${"A".repeat(43)} `);
+  assert.deepEqual(state.calls, [["activate", `DAYB_${"A".repeat(43)}`, "DayBoard on macOS"]]);
 });

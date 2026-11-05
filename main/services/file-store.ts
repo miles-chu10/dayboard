@@ -34,6 +34,13 @@ export async function copyFileIfPresent(source: string, target: string): Promise
   }
 }
 
+/** Moves `source` to `target` but never replaces an existing `target`. False if `source` is missing. */
+export async function moveFileIfPresent(source: string, target: string): Promise<boolean> {
+  if (!(await copyFileIfPresent(source, target))) return false;
+  await fs.rm(source, { force: true });
+  return true;
+}
+
 /** Runs async operations one at a time so concurrent saves never interleave. */
 export function createSerialQueue() {
   let tail: Promise<unknown> = Promise.resolve();

@@ -1,16 +1,19 @@
 // Pure license state machine: AI trial countdown (starts on first paid-feature use), revalidate-at-most-daily, 30-day offline grace,
-// invalid-key detection, unconfirmed slot releases and unreadable-record recovery. No Electron
+// invalid-key detection, unconfirmed slot releases (retried in the background), reactivation of
+// a slot another account on this Mac released, and unreadable-record recovery. No Electron
 // imports, so tests/license-service.test.mjs can esbuild-bundle and unit-test it with an
 // in-memory store and a mocked verifier.
 
 import type { LicenseRelease, LicenseStatus } from "../../../shared/license.js";
-import { LICENSE_SUPPORT_EMAIL } from "../../../shared/license.js";
+import { LICENSE_INSTANCE_NAME, LICENSE_SUPPORT_EMAIL } from "../../../shared/license.js";
 import { randomUUID } from "node:crypto";
 import { INSTALLATION_ID_PATTERN, LICENSE_KEY_PATTERN } from "../../../shared/license-contract.js";
 import type {
+  ActivateResult,
   LicenseBinding,
   LicenseInfo,
   LicenseVerifier,
+  ValidateResult,
 } from "../../../shared/license-contract.js";
 import type { DesktopLicenseConfig } from "../../../shared/license-config.js";
 
@@ -50,6 +53,11 @@ export interface LicenseStore {
    * Needed only by stores whose `read` can throw `UnreadableLicenseRecordError`.
    */
   replaceUnreadable?(record: LicenseRecord): Promise<void>;
+  /**
+   * Moves the unreadable saved file to a timestamped backup and saves nothing, so `read` finds no
+   * record. Needed only by stores whose `read` can throw `UnreadableLicenseRecordError`.
+   */
+  setAsideUnreadable?(): Promise<void>;
 }
 
 export interface LicenseServiceOptions {
@@ -62,6 +70,8 @@ export interface LicenseServiceOptions {
   activationLimit?: number;
   /** Installation ID for new records (per Mac in the app). A missing or malformed one is random. */
   installationId?: () => Promise<string>;
+  /** Called after a background retry confirms a release and saves it, so callers can push status. */
+  onReleasesSettled?: () => void;
 }
 
 export interface LicenseDeactivation {
@@ -74,6 +84,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const RELEASE_RETRY_MS = 15 * 60 * 1000;
 export const MAX_PENDING_RELEASES = 8;
 const REVOKED_MESSAGE = "This license has been revoked and can't unlock DayBoard Pro.";
+const NO_LONGER_VALID_MESSAGE = "This license key is no longer valid.";
+const OTHER_PRODUCT_MESSAGE = "This license key is for another product or is no longer active.";
+const RELEASED_MESSAGE = "This Mac's activation was released.";
+const REACTIVATE_MESSAGE = `${RELEASED_MESSAGE} Enter your license key again to reactivate it.`;
 const UNREADABLE_MESSAGE =
   "DayBoard can't read the license data saved on this Mac. Open Settings → License to reset it or enter your license key again.";
 const UNREADABLE_CODE = "LICENSE_RECORD_UNREADABLE";
@@ -115,11 +129,6 @@ function activationLimitMessage(limit: number | undefined): string {
   return `${reached} To free a slot, open DayBoard on one of those Macs and choose Settings → License → Deactivate this device, then activate here again. If one of them is lost, erased or no longer works, email ${LICENSE_SUPPORT_EMAIL} to free its slot.`;
 }
 
-function withRelease(pending: PendingRelease[], release: PendingRelease): PendingRelease[] {
-  const others = pending.filter((item) => item.instanceId !== release.instanceId);
-  return [...others, release].slice(-MAX_PENDING_RELEASES);
-}
-
 function matchesProduct(meta: LicenseBinding, expected: DesktopLicenseConfig): boolean {
   return (
     meta.issuer === expected.issuer &&
@@ -153,6 +162,10 @@ export class LicenseService {
   private pending: Promise<void> = Promise.resolve();
   /** In memory, so the first refresh after each launch retries unconfirmed releases. */
   private nextReleaseRetryAt = 0;
+  /** The network phase of a background release retry; never rejects and never takes the lock. */
+  private releaseRequests: Promise<unknown> | null = null;
+  /** Every background retry, including saving its result. */
+  private backgroundReleases: Promise<void> = Promise.resolve();
 
   constructor(verifier: LicenseVerifier, store: LicenseStore, options: LicenseServiceOptions) {
     this.verifier = verifier;
@@ -222,11 +235,33 @@ export class LicenseService {
       : null;
   }
 
+  /** Pending releases this build's service can confirm. Others wait for a build bound to theirs. */
+  private ownReleases(record: LicenseRecord): PendingRelease[] {
+    return (record.pendingReleases ?? []).filter((item) =>
+      matchesProduct(item.binding, this.options.product!),
+    );
+  }
+
+  /** Adds a release; past the cap, items another build must release are dropped first. */
+  private withRelease(pending: PendingRelease[], release: PendingRelease): PendingRelease[] {
+    const kept = [...pending.filter((item) => item.instanceId !== release.instanceId), release];
+    while (kept.length > MAX_PENDING_RELEASES) {
+      const foreign = kept.findIndex(
+        (item) => !matchesProduct(item.binding, this.options.product!),
+      );
+      kept.splice(foreign >= 0 ? foreign : 0, 1);
+    }
+    return kept;
+  }
+
   /**
    * Any complete answer settles a release: the service freed the slot, or it holds none for this
    * key (revoked, or an unknown key or instance). Only an unreachable service leaves it pending.
    */
-  private async release({ licenseKey, instanceId }: PendingRelease): Promise<boolean> {
+  private async release({
+    licenseKey,
+    instanceId,
+  }: Pick<PendingRelease, "licenseKey" | "instanceId">): Promise<boolean> {
     try {
       await this.verifier.deactivate(licenseKey, instanceId);
       return true;
@@ -235,18 +270,24 @@ export class LicenseService {
     }
   }
 
-  /** Retries this build's pending releases and returns the ones still unconfirmed. */
+  /** Sends the releases at once, so a slow service costs one request timeout, not one per item. */
+  private async confirmReleases(items: PendingRelease[]): Promise<PendingRelease[]> {
+    const confirmed = await Promise.all(items.map((item) => this.release(item)));
+    return items.filter((_, index) => confirmed[index]);
+  }
+
+  /** Retries this build's pending releases now and returns how many are still unconfirmed. */
   private async settleReleases(
     record: LicenseRecord,
-  ): Promise<{ record: LicenseRecord; unconfirmed: PendingRelease[] }> {
-    const pending = record.pendingReleases ?? [];
-    const unconfirmed: PendingRelease[] = [];
-    for (const item of pending) {
-      if (!matchesProduct(item.binding, this.options.product!) || !(await this.release(item)))
-        unconfirmed.push(item);
-    }
-    if (unconfirmed.length === pending.length) return { record, unconfirmed };
-    const next: LicenseRecord = { ...record, pendingReleases: unconfirmed };
+  ): Promise<{ record: LicenseRecord; unconfirmed: number }> {
+    const own = this.ownReleases(record);
+    const confirmed = await this.confirmReleases(own);
+    const unconfirmed = own.length - confirmed.length;
+    if (!confirmed.length) return { record, unconfirmed };
+    const next: LicenseRecord = {
+      ...record,
+      pendingReleases: (record.pendingReleases ?? []).filter((item) => !confirmed.includes(item)),
+    };
     try {
       await this.store.write(next);
       return { record: next, unconfirmed };
@@ -256,10 +297,63 @@ export class LicenseService {
     }
   }
 
-  private releaseState(unconfirmed: PendingRelease[]): LicenseRelease {
-    return unconfirmed.some((item) => matchesProduct(item.binding, this.options.product!))
-      ? "pending"
-      : "released";
+  /**
+   * Retries unconfirmed releases without holding the service lock, so the refresh before an AI
+   * action or capture never waits on the license service. Only saving the result takes the lock.
+   */
+  private retryReleasesInBackground(record: LicenseRecord, now: Date): void {
+    const items = this.ownReleases(record);
+    if (!items.length || this.releaseRequests || now.getTime() < this.nextReleaseRetryAt) return;
+    const requests = this.confirmReleases(items);
+    this.releaseRequests = requests;
+    const settled = requests.then(async (confirmed) => {
+      this.releaseRequests = null;
+      this.nextReleaseRetryAt =
+        confirmed.length < items.length ? now.getTime() + RELEASE_RETRY_MS : 0;
+      if (confirmed.length && (await this.serialize(() => this.dropConfirmed(confirmed))))
+        this.options.onReleasesSettled?.();
+    });
+    this.backgroundReleases = Promise.all([this.backgroundReleases, settled]).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  /** Removes confirmed releases from the record as it is now; false when nothing changed. */
+  private async dropConfirmed(confirmed: PendingRelease[]): Promise<boolean> {
+    const record = await this.store.read();
+    const pending = record?.pendingReleases ?? [];
+    const remaining = pending.filter(
+      (item) =>
+        !confirmed.some(
+          (done) => done.instanceId === item.instanceId && done.licenseKey === item.licenseKey,
+        ),
+    );
+    if (!record || remaining.length === pending.length) return false;
+    await this.store.write({ ...record, pendingReleases: remaining });
+    return true;
+  }
+
+  /** Resolves once background release retries have finished and saved what they confirmed. */
+  whenReleasesSettled(): Promise<void> {
+    return this.backgroundReleases;
+  }
+
+  /** Records the service's rejection of the saved key, with the reason shown in Settings. */
+  private async saveRejection(
+    record: LicenseRecord,
+    now: Date,
+    message: string,
+  ): Promise<LicenseStatus> {
+    const next: LicenseRecord = {
+      ...record,
+      lastValidationAt: now.toISOString(),
+      lastValidationValid: false,
+      lastValidationMessage: message,
+      productBinding: null,
+    };
+    await this.store.write(next);
+    return this.computeStatus(next, now);
   }
 
   /** Before the first AI use nothing is stored, so the full trial is still ahead. */
@@ -284,7 +378,7 @@ export class LicenseService {
       return {
         state: "invalid",
         keyHint: hint,
-        message: record.lastValidationMessage ?? "This license key is no longer valid.",
+        message: record.lastValidationMessage ?? NO_LONGER_VALID_MESSAGE,
       };
     }
 
@@ -341,6 +435,22 @@ export class LicenseService {
     );
   }
 
+  /**
+   * Whether a key this Mac stopped using is still kept because this build's service hasn't
+   * confirmed its release. False when the record can't be read.
+   */
+  async hasPendingRelease(): Promise<boolean> {
+    if (this.options.gatingDisabled || !this.options.product) return false;
+    return this.serialize(async () => {
+      try {
+        const record = await this.store.read();
+        return record ? this.ownReleases(record).length > 0 : false;
+      } catch {
+        return false;
+      }
+    });
+  }
+
   /** Starts the trial clock on the first paid-feature use; later calls leave it unchanged. */
   async startTrial(now = new Date()): Promise<void> {
     if (this.options.gatingDisabled || !this.options.product) return;
@@ -359,7 +469,7 @@ export class LicenseService {
    * the cached status untouched. A network failure leaves the record unchanged (so the 30-day
    * offline grace keeps counting from the last time we actually reached the server) and resolves
    * with the status computed from the stale record rather than rejecting. Unconfirmed slot
-   * releases are retried first, at most once per `RELEASE_RETRY_MS` after a failure.
+   * releases are retried in the background, at most once per `RELEASE_RETRY_MS` after a failure.
    */
   async refresh(now = new Date()): Promise<LicenseStatus> {
     if (this.options.gatingDisabled) return { state: "disabled" };
@@ -368,12 +478,8 @@ export class LicenseService {
   }
 
   private async refreshLocked(now: Date): Promise<LicenseStatus> {
-    let record = await this.store.read();
-    if (record?.pendingReleases?.length && now.getTime() >= this.nextReleaseRetryAt) {
-      const settled = await this.settleReleases(record);
-      record = settled.record;
-      this.nextReleaseRetryAt = settled.unconfirmed.length ? now.getTime() + RELEASE_RETRY_MS : 0;
-    }
+    const record = await this.store.read();
+    if (record) this.retryReleasesInBackground(record, now);
     if (!record?.licenseKey) return this.computeStatus(record, now);
     if (
       !LICENSE_KEY_PATTERN.test(record.licenseKey) ||
@@ -399,6 +505,8 @@ export class LicenseService {
       // grace-period) status computed from the unchanged record.
       return this.computeStatus(record, now);
     }
+    if (!result.valid && result.error === "invalid_instance" && record.instanceId)
+      return this.reactivate(record, record.licenseKey, now);
     if (result.valid && (!result.meta || !result.license || !result.instanceId)) {
       return this.computeStatus(record, now);
     }
@@ -408,20 +516,111 @@ export class LicenseService {
       result.instanceId === record.instanceId &&
       matchesProduct(result.meta!, this.options.product!) &&
       isUsableLicense(result.license!, now);
+    if (!valid)
+      return this.saveRejection(
+        record,
+        now,
+        result.valid
+          ? OTHER_PRODUCT_MESSAGE
+          : result.error === "revoked"
+            ? REVOKED_MESSAGE
+            : NO_LONGER_VALID_MESSAGE,
+      );
     const next: LicenseRecord = {
       ...record,
       lastValidationAt: now.toISOString(),
-      lastValidationValid: valid,
-      lastValidationMessage: valid
-        ? null
-        : result.valid
-          ? "This license key is for another product or is no longer active."
-          : result.error === "revoked"
-            ? REVOKED_MESSAGE
-            : "This license key is no longer valid.",
-      productBinding: valid ? result.meta! : null,
+      lastValidationValid: true,
+      lastValidationMessage: null,
+      productBinding: result.meta!,
     };
     await this.store.write(next);
+    return this.computeStatus(next, now);
+  }
+
+  /**
+   * Every macOS account on this Mac shares its installation ID, so another account's Deactivate,
+   * key switch or release retry also frees this one's activation. If the key itself is still good,
+   * ask for this Mac's slot again with the same installation ID, which reuses the slot when one
+   * exists. A service that can't be reached leaves the record unchanged.
+   */
+  private async reactivate(
+    record: LicenseRecord,
+    licenseKey: string,
+    now: Date,
+  ): Promise<LicenseStatus> {
+    let preflight: ValidateResult;
+    try {
+      preflight = await this.verifier.validate(licenseKey);
+    } catch {
+      return this.computeStatus(record, now);
+    }
+    if (!preflight.valid) {
+      if (!preflight.error) return this.computeStatus(record, now);
+      return this.saveRejection(
+        record,
+        now,
+        preflight.error === "revoked" ? REVOKED_MESSAGE : NO_LONGER_VALID_MESSAGE,
+      );
+    }
+    if (!preflight.meta || !preflight.license) return this.computeStatus(record, now);
+    if (
+      !matchesProduct(preflight.meta, this.options.product!) ||
+      !isActivatableLicense(preflight.license, now)
+    )
+      return this.saveRejection(record, now, OTHER_PRODUCT_MESSAGE);
+
+    await this.releaseRequests;
+    let activation: ActivateResult;
+    try {
+      activation = await this.verifier.activate(
+        licenseKey,
+        record.installationId,
+        record.instanceName ?? LICENSE_INSTANCE_NAME,
+      );
+    } catch {
+      return this.computeStatus(record, now);
+    }
+    if (!activation.activated) {
+      if (!activation.error) return this.computeStatus(record, now);
+      return this.saveRejection(
+        record,
+        now,
+        activation.error === "revoked"
+          ? REVOKED_MESSAGE
+          : activation.error === "activation_limit"
+            ? `${RELEASED_MESSAGE} ${activationLimitMessage(this.options.activationLimit)}`
+            : REACTIVATE_MESSAGE,
+      );
+    }
+    const instanceId = activation.instanceId;
+    if (typeof instanceId !== "string" || !instanceId.trim())
+      return this.computeStatus(record, now);
+    if (
+      !activation.meta ||
+      !activation.license ||
+      !matchesProduct(activation.meta, this.options.product!) ||
+      !isUsableLicense(activation.license, now)
+    ) {
+      if (activation.created === true) await this.release({ licenseKey, instanceId });
+      return this.saveRejection(record, now, REACTIVATE_MESSAGE);
+    }
+    const next: LicenseRecord = {
+      ...record,
+      instanceId,
+      lastValidationAt: now.toISOString(),
+      lastValidationValid: true,
+      lastValidationMessage: null,
+      productBinding: activation.meta,
+      pendingReleases: (record.pendingReleases ?? []).filter(
+        (item) => item.instanceId !== instanceId,
+      ),
+    };
+    try {
+      await this.store.write(next);
+    } catch (error) {
+      if (activation.created === true) await this.release({ licenseKey, instanceId });
+      throw error;
+    }
     return this.computeStatus(next, now);
   }
 
@@ -483,6 +682,8 @@ export class LicenseService {
       await this.store.write(record);
     }
 
+    // A release still in flight could otherwise free the very activation this request reuses.
+    await this.releaseRequests;
     const result = await this.verifier.activate(trimmed, record.installationId, instanceName);
     if (!result.activated) {
       if (result.error === "revoked") throw new Error(REVOKED_MESSAGE);
@@ -517,7 +718,7 @@ export class LicenseService {
       (item) => item.instanceId !== result.instanceId,
     );
     if (previous && (previous.licenseKey !== trimmed || previous.instanceId !== result.instanceId))
-      pendingReleases = withRelease(pendingReleases, previous);
+      pendingReleases = this.withRelease(pendingReleases, previous);
     const next: LicenseRecord = {
       ...record,
       licenseKey: trimmed,
@@ -539,7 +740,7 @@ export class LicenseService {
         "DayBoard could not save the license activation",
       );
     }
-    const settled = pendingReleases.length ? (await this.settleReleases(next)).record : next;
+    const settled = this.ownReleases(next).length ? (await this.settleReleases(next)).record : next;
     return this.computeStatus(settled, now);
   }
 
@@ -569,7 +770,7 @@ export class LicenseService {
    * Removes the key from this Mac, then asks the service to free its slot. The local clear (with
    * the release recorded for retry) is committed first, so a failed save keeps a valid license and
    * never releases its remote instance. `release` says whether the service confirmed the slot is
-   * free; also used to retry releases the service hasn't confirmed yet.
+   * free, or that nothing here could be released; also used to retry unconfirmed releases.
    */
   async deactivate(now = new Date()): Promise<LicenseDeactivation> {
     if (this.options.gatingDisabled)
@@ -598,20 +799,47 @@ export class LicenseService {
       lastValidationValid: null,
       lastValidationMessage: null,
       productBinding: null,
-      pendingReleases: current ? withRelease(pending, current) : pending,
+      pendingReleases: current ? this.withRelease(pending, current) : pending,
     };
     await this.store.write(next);
+    if (!this.ownReleases(next).length)
+      return { status: this.computeStatus(next, now), release: "none" };
     const settled = await this.settleReleases(next);
-    this.nextReleaseRetryAt = settled.unconfirmed.length ? now.getTime() + RELEASE_RETRY_MS : 0;
+    this.nextReleaseRetryAt = settled.unconfirmed ? now.getTime() + RELEASE_RETRY_MS : 0;
     return {
       status: this.computeStatus(settled.record, now),
-      release: this.releaseState(settled.unconfirmed),
+      release: settled.unconfirmed ? "pending" : "released",
     };
   }
 
   /**
-   * Recovery for a license file that can't be decrypted or parsed: keeps it as a backup and starts
-   * a fresh record with this Mac's installation ID. A readable record is left untouched.
+   * Drops every unconfirmed release, and with it the last copy of those keys on this Mac, without
+   * telling the service. Their slots may stay in use until support frees them.
+   */
+  async forgetPendingReleases(now = new Date()): Promise<LicenseStatus> {
+    if (this.options.gatingDisabled) throw new Error("License data is disabled for this build.");
+    if (!this.options.product) throw new Error("License data is not configured for this build.");
+    return this.serialize(async () => {
+      let record: LicenseRecord | null;
+      try {
+        record = await this.store.read();
+      } catch (error) {
+        if (isUnreadableLicenseRecord(error)) throw new Error(UNREADABLE_MESSAGE);
+        throw error;
+      }
+      if (record?.pendingReleases?.length) {
+        record = { ...record, pendingReleases: [] };
+        await this.store.write(record);
+      }
+      this.nextReleaseRetryAt = 0;
+      return this.computeStatus(record, now);
+    });
+  }
+
+  /**
+   * Recovery for a license file that can't be decrypted or parsed: moves it to a backup and saves
+   * nothing, so the AI trial starts on the next AI use as on a new Mac, and this Mac's
+   * installation ID is derived again then. A readable record is left untouched.
    */
   async resetUnreadable(now = new Date()): Promise<LicenseStatus> {
     if (this.options.gatingDisabled) throw new Error("License data is disabled for this build.");
@@ -622,9 +850,9 @@ export class LicenseService {
       } catch (error) {
         if (!isUnreadableLicenseRecord(error)) throw error;
       }
-      const fresh = await this.newRecord(now);
-      await this.replaceUnreadable(fresh);
-      return this.computeStatus(fresh, now);
+      if (!this.store.setAsideUnreadable) throw new Error(UNREADABLE_MESSAGE);
+      await this.store.setAsideUnreadable();
+      return this.unlessUnreadable(async () => this.computeStatus(await this.store.read(), now));
     });
   }
 }

@@ -24,6 +24,17 @@ export type {
 export { isLicenseBlocking } from "./license-service.js";
 
 let servicePromise: Promise<LicenseService> | undefined;
+const changeListeners = new Set<() => void>();
+
+/** Called when the service changes license data on its own, e.g. a background release confirms. */
+export function onLicenseChange(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function notifyChange(): void {
+  for (const listener of changeListeners) listener();
+}
 
 function getService(): Promise<LicenseService> {
   const product = configuredLicenseProduct();
@@ -40,6 +51,7 @@ function getService(): Promise<LicenseService> {
         offlineGraceDays: OFFLINE_GRACE_DAYS,
         activationLimit: ACTIVATION_LIMIT,
         installationId,
+        onReleasesSettled: notifyChange,
         product,
       },
     );
@@ -64,5 +76,6 @@ export const getLicenseStatus = operations.getStatus;
 export const refreshLicenseStatus = operations.refresh;
 export const activateLicense = operations.activate;
 export const deactivateLicense = operations.deactivate;
+export const forgetPendingLicenseReleases = operations.forgetPendingReleases;
 export const resetUnreadableLicense = operations.resetUnreadable;
 export const assertLicenseAccess = operations.assertLicenseAccess;

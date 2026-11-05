@@ -2,11 +2,13 @@ import { useState } from "react";
 
 import { AlertDialog, Button, Callout, Field, FieldSet, Input, Status } from "../ui";
 import {
+  LICENSE_FORGET_COPY,
   LICENSE_RELEASE_PENDING_COPY,
   LICENSE_RESET_COPY,
   LICENSE_STATUS_COPY,
   useActivateLicense,
   useDeactivateLicense,
+  useForgetPendingRelease,
   useLicenseStatus,
   useResetLicenseData,
 } from "../lib/license";
@@ -57,7 +59,9 @@ export function LicenseTab() {
   const activate = useActivateLicense();
   const deactivate = useDeactivateLicense();
   const reset = useResetLicenseData();
+  const forget = useForgetPendingRelease();
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmingForget, setConfirmingForget] = useState(false);
 
   if (isError)
     return (
@@ -81,10 +85,11 @@ export function LicenseTab() {
   const { status, checkoutUrl } = data;
   const copy = LICENSE_STATUS_COPY[status.state];
   const canBuy = checkoutUrl.trim().length > 0;
+  // From the saved record, so it survives reopening Settings and clears once a retry confirms.
   // Only while no key is saved, so "Try again" can never remove a newly entered key.
   const releasePending =
-    deactivate.data?.release === "pending" &&
-    (status.state === "trial" || status.state === "expired");
+    data.releasePending === true && (status.state === "trial" || status.state === "expired");
+  const releaseBusy = deactivate.isPending || forget.isPending;
 
   return (
     <FieldSet title="License" description={copy.description}>
@@ -111,13 +116,19 @@ export function LicenseTab() {
           <Callout
             color="orange"
             actions={
-              <Button
-                size="small"
-                onClick={() => deactivate.mutate()}
-                disabled={deactivate.isPending}
-              >
-                {deactivate.isPending ? "Trying…" : LICENSE_RELEASE_PENDING_COPY.retry}
-              </Button>
+              <>
+                <Button size="small" onClick={() => deactivate.mutate()} disabled={releaseBusy}>
+                  {deactivate.isPending ? "Trying…" : LICENSE_RELEASE_PENDING_COPY.retry}
+                </Button>
+                <Button
+                  size="small"
+                  variant="transparent"
+                  onClick={() => setConfirmingForget(true)}
+                  disabled={releaseBusy}
+                >
+                  {LICENSE_FORGET_COPY.action}
+                </Button>
+              </>
             }
           >
             {LICENSE_RELEASE_PENDING_COPY.callout}
@@ -181,6 +192,15 @@ export function LicenseTab() {
         confirmLabel={LICENSE_RESET_COPY.confirm}
         confirmVariant="destructive"
         onConfirm={() => reset.mutate()}
+      />
+      <AlertDialog
+        open={confirmingForget}
+        onOpenChange={setConfirmingForget}
+        title={LICENSE_FORGET_COPY.title}
+        description={LICENSE_FORGET_COPY.description}
+        confirmLabel={LICENSE_FORGET_COPY.confirm}
+        confirmVariant="destructive"
+        onConfirm={() => forget.mutate()}
       />
     </FieldSet>
   );

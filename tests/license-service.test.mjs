@@ -40,9 +40,11 @@ function store(initial = null) {
   let current = initial;
   const calls = { read: 0, write: 0 };
   const replaced = [];
+  const setAside = [];
   return {
     calls,
     replaced,
+    setAside,
     async read() {
       calls.read++;
       return current;
@@ -55,11 +57,15 @@ function store(initial = null) {
       replaced.push(structuredClone(next));
       current = structuredClone(next);
     },
+    async setAsideUnreadable() {
+      setAside.push(current);
+      current = null;
+    },
     current: () => current,
   };
 }
 
-/** A store whose saved file can't be decrypted until replaceUnreadable saves a fresh record. */
+/** A store whose saved file can't be decrypted until it is replaced or set aside. */
 function unreadableStore(UnreadableLicenseRecordError) {
   const s = store();
   let unreadable = true;
@@ -76,7 +82,51 @@ function unreadableStore(UnreadableLicenseRecordError) {
     unreadable = false;
     return replace(next);
   };
+  const setAside = s.setAsideUnreadable;
+  s.setAsideUnreadable = async () => {
+    unreadable = false;
+    return setAside();
+  };
   return s;
+}
+
+/**
+ * Models the license service: one activation per key and installation, at most `limit` per key,
+ * and validation that names a deleted instance answers invalid_instance.
+ */
+function licenseServer({ limit = 3 } = {}) {
+  const activations = new Map();
+  const calls = { validate: [], activate: [], deactivate: [] };
+  let created = 0;
+  return {
+    calls,
+    activations,
+    async validate(licenseKey, instanceId) {
+      calls.validate.push({ licenseKey, instanceId });
+      if (instanceId && activations.get(instanceId)?.licenseKey !== licenseKey)
+        return { valid: false, error: "invalid_instance" };
+      return { valid: true, ...(instanceId ? { instanceId } : {}), license: LICENSE, meta: META };
+    },
+    async activate(licenseKey, installationId, instanceName) {
+      calls.activate.push({ licenseKey, installationId, instanceName });
+      for (const [instanceId, item] of activations) {
+        if (item.licenseKey === licenseKey && item.installationId === installationId)
+          return { activated: true, created: false, instanceId, license: LICENSE, meta: META };
+      }
+      if (
+        [...activations.values()].filter((item) => item.licenseKey === licenseKey).length >= limit
+      )
+        return { activated: false, error: "activation_limit" };
+      const instanceId = `inst-${++created}`;
+      activations.set(instanceId, { licenseKey, installationId });
+      return { activated: true, created: true, instanceId, license: LICENSE, meta: META };
+    },
+    async deactivate(licenseKey, instanceId) {
+      calls.deactivate.push({ licenseKey, instanceId });
+      if (activations.get(instanceId)?.licenseKey === licenseKey) activations.delete(instanceId);
+      return { deactivated: true };
+    },
+  };
 }
 
 function verifier(overrides = {}) {
@@ -435,9 +485,12 @@ test("disabled and unconfigured service paths have zero store and network touche
     assert.deepEqual(await service.refresh(new Date(+NOW - DAY)), expected);
     await assert.rejects(service.activate(A, "Mac"));
     await assert.rejects(service.deactivate());
+    await assert.rejects(service.forgetPendingReleases());
     await assert.rejects(service.resetUnreadable());
+    assert.equal(await service.hasPendingRelease(), false);
     assert.deepEqual(s.calls, { read: 0, write: 0 });
     assert.deepEqual(s.replaced, []);
+    assert.deepEqual(s.setAside, []);
     assert.deepEqual(v.calls, { validate: [], activate: [], deactivate: [] });
   }
 });
@@ -558,6 +611,7 @@ test("pending releases retry on the next launch and on refresh, throttled after 
   });
   assert.equal(v.calls.deactivate.length, 3);
   assert.deepEqual(v.calls.deactivate.at(-1), { licenseKey: A, instanceId: "inst-A" });
+  await relaunched.whenReleasesSettled();
   assert.deepEqual(s.current().pendingReleases, []);
   assert.equal(JSON.stringify(s.current()).includes(A), false);
   await relaunched.refresh(new Date(+LATER + 60 * MINUTE));
@@ -616,6 +670,7 @@ test("an unconfirmed release of a replaced key is kept and retried", async () =>
     { licenseKey: A, instanceId: "inst-A" },
     { licenseKey: A, instanceId: "inst-A" },
   ]);
+  await service.whenReleasesSettled();
   assert.deepEqual(s.current().pendingReleases, []);
   assert.equal(s.current().licenseKey, B);
 });
@@ -629,9 +684,216 @@ test("a pending release bound to another service is never sent to this one", asy
     product: { ...OPTIONS.product, environment: "live" },
   });
   await live.refresh(new Date(+LATER + DAY));
-  assert.equal((await live.deactivate(new Date(+LATER + DAY))).release, "released");
+  await live.whenReleasesSettled();
+  assert.equal(await live.hasPendingRelease(), false);
+  assert.equal((await live.deactivate(new Date(+LATER + DAY))).release, "none");
   assert.equal(v.calls.deactivate.length, 1);
   assert.equal(s.current().pendingReleases.length, 1);
+});
+
+test("removing a key this service never verified reports that nothing was released", async () => {
+  let revoked = false;
+  const { service, s, v } = await setup(OPTIONS, null, {
+    validate: (_key, instanceId) =>
+      revoked && instanceId
+        ? { valid: false, error: "revoked" }
+        : { valid: true, instanceId, license: LICENSE, meta: META },
+  });
+  await service.activate(A, "Mac", NOW);
+  revoked = true;
+  assert.equal((await service.refresh(LATER)).state, "invalid");
+  assert.equal(s.current().productBinding, null);
+  assert.deepEqual(await service.deactivate(LATER), {
+    status: { state: "trial", daysLeft: 13 },
+    release: "none",
+  });
+  assert.equal(v.calls.deactivate.length, 0);
+  assert.equal(s.current().licenseKey, null);
+});
+
+test("past the cap, releases another build must send are dropped before this build's", async () => {
+  const { service, s } = await setup(OPTIONS, null, { deactivate: offline });
+  await service.activate(A, "Mac", NOW);
+  const foreign = Array.from({ length: 8 }, (_, index) => ({
+    licenseKey: B,
+    instanceId: `live-${index}`,
+    binding: { ...META, environment: "live" },
+  }));
+  await s.write({ ...s.current(), pendingReleases: foreign });
+  assert.equal((await service.deactivate(LATER)).release, "pending");
+  const kept = s.current().pendingReleases;
+  assert.equal(kept.length, 8);
+  assert.deepEqual(kept.at(-1), { licenseKey: A, instanceId: "inst-A", binding: META });
+  assert.deepEqual(
+    kept.slice(0, -1).map((item) => item.instanceId),
+    foreign.slice(1).map((item) => item.instanceId),
+  );
+});
+
+test("refresh never waits for a slow release, and the result is saved once it confirms", async () => {
+  let online = false;
+  let answer;
+  const slow = new Promise((resolve) => {
+    answer = resolve;
+  });
+  const { LicenseService } = await load();
+  const s = store();
+  const v = verifier({ deactivate: () => (online ? slow : offline()) });
+  let notified = 0;
+  const options = { ...OPTIONS, onReleasesSettled: () => notified++ };
+  const service = new LicenseService(v, s, options);
+  await service.activate(A, "Mac", NOW);
+  assert.equal((await service.deactivate(LATER)).release, "pending");
+
+  online = true;
+  const relaunched = new LicenseService(v, s, options);
+  const soon = new Date(+LATER + MINUTE);
+  assert.deepEqual(await relaunched.refresh(soon), { state: "trial", daysLeft: 13 });
+  assert.deepEqual(await relaunched.getStatus(soon), { state: "trial", daysLeft: 13 });
+  await relaunched.startTrial(soon);
+  assert.equal(v.calls.deactivate.length, 2);
+  assert.equal(await relaunched.hasPendingRelease(), true);
+  // A second refresh while the first retry is in flight doesn't send another one.
+  await relaunched.refresh(new Date(+LATER + 20 * MINUTE));
+  assert.equal(v.calls.deactivate.length, 2);
+  assert.equal(notified, 0);
+
+  answer({ deactivated: true });
+  await relaunched.whenReleasesSettled();
+  assert.deepEqual(s.current().pendingReleases, []);
+  assert.equal(await relaunched.hasPendingRelease(), false);
+  assert.equal(notified, 1);
+});
+
+test("activation waits for a release in flight, so it never reuses an instance being freed", async () => {
+  const api = licenseServer();
+  let reachable = false;
+  let open;
+  let gate = Promise.resolve();
+  const gated = {
+    ...api,
+    async deactivate(licenseKey, instanceId) {
+      await gate;
+      if (!reachable) throw new Error("offline");
+      return api.deactivate(licenseKey, instanceId);
+    },
+  };
+  const { LicenseService } = await load();
+  const s = store();
+  const service = new LicenseService(gated, s, PER_MAC);
+  await service.activate(A, "Mac", NOW);
+  assert.equal((await service.deactivate(LATER)).release, "pending");
+  assert.deepEqual([...api.activations.keys()], ["inst-1"]);
+
+  reachable = true;
+  gate = new Promise((resolve) => {
+    open = resolve;
+  });
+  await service.refresh(new Date(+LATER + 15 * MINUTE));
+  const activation = service.activate(A, "Mac", new Date(+LATER + 16 * MINUTE));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(api.calls.activate.length, 1);
+  open();
+  assert.equal((await activation).state, "licensed");
+  await service.whenReleasesSettled();
+  assert.deepEqual([...api.activations.keys()], ["inst-2"]);
+  assert.equal(s.current().instanceId, "inst-2");
+  assert.deepEqual(s.current().pendingReleases, []);
+});
+
+test("forgetting a release deletes the kept key and stops retrying it", async () => {
+  const { service, s, v } = await setup(OPTIONS, null, { deactivate: offline });
+  await service.activate(A, "Mac", NOW);
+  assert.equal((await service.deactivate(LATER)).release, "pending");
+  assert.equal(await service.hasPendingRelease(), true);
+  assert.deepEqual(await service.forgetPendingReleases(LATER), { state: "trial", daysLeft: 13 });
+  assert.deepEqual(s.current().pendingReleases, []);
+  assert.equal(JSON.stringify(s.current()).includes(A), false);
+  assert.equal(await service.hasPendingRelease(), false);
+  await service.refresh(new Date(+LATER + DAY));
+  await service.whenReleasesSettled();
+  assert.equal(v.calls.deactivate.length, 1);
+
+  const { LicenseService, UnreadableLicenseRecordError } = await load();
+  const locked = unreadableStore(UnreadableLicenseRecordError);
+  await assert.rejects(
+    new LicenseService(verifier(), locked, OPTIONS).forgetPendingReleases(NOW),
+    /can't read the license data/,
+  );
+  assert.equal(locked.calls.write, 0);
+});
+
+test("two macOS accounts on one Mac share a slot; one deactivating doesn't break the other", async () => {
+  const api = licenseServer();
+  const { LicenseService } = await load();
+  const first = store();
+  const second = store();
+  const mine = new LicenseService(api, first, PER_MAC);
+  const theirs = new LicenseService(api, second, PER_MAC);
+  assert.equal((await mine.activate(A, "DayBoard on macOS", NOW)).state, "licensed");
+  assert.equal((await theirs.activate(A, "DayBoard on macOS", NOW)).state, "licensed");
+  assert.equal(first.current().instanceId, second.current().instanceId);
+  assert.equal(api.activations.size, 1);
+
+  assert.equal((await mine.deactivate(LATER)).release, "released");
+  assert.equal(api.activations.size, 0);
+
+  // At its next daily check the other account asks for this Mac's slot again instead of
+  // reporting the key as no longer valid.
+  const nextDay = new Date(+LATER + DAY);
+  assert.deepEqual(await theirs.refresh(nextDay), { state: "licensed", keyHint: "AAAA" });
+  const [[instanceId, activation]] = api.activations;
+  assert.equal(activation.installationId, MAC_ID);
+  assert.equal(second.current().instanceId, instanceId);
+  assert.equal(second.current().lastValidationAt, nextDay.toISOString());
+  assert.deepEqual(api.calls.activate.at(-1), {
+    licenseKey: A,
+    installationId: MAC_ID,
+    instanceName: "DayBoard on macOS",
+  });
+
+  // Activating again on the first account reuses that slot.
+  assert.equal((await mine.activate(A, "DayBoard on macOS", nextDay)).state, "licensed");
+  assert.equal(first.current().instanceId, instanceId);
+  assert.equal(api.activations.size, 1);
+});
+
+test("a released slot that can't be taken back says why, and an outage changes nothing", async () => {
+  const api = licenseServer({ limit: 1 });
+  const { LicenseService } = await load();
+  const first = store();
+  const second = store();
+  const options = { ...PER_MAC, activationLimit: 1 };
+  const mine = new LicenseService(api, first, options);
+  const theirs = new LicenseService(api, second, options);
+  await mine.activate(A, "Mac", NOW);
+  await theirs.activate(A, "Mac", NOW);
+  await mine.deactivate(LATER);
+
+  // The activation call fails: the record and the offline grace stay as they were.
+  const saved = structuredClone(second.current());
+  const outage = new LicenseService(
+    {
+      ...api,
+      activate: async () => {
+        throw new Error("offline");
+      },
+    },
+    second,
+    options,
+  );
+  assert.equal((await outage.refresh(new Date(+LATER + DAY))).state, "licensed");
+  assert.deepEqual(second.current(), saved);
+
+  // Another Mac takes the freed slot first.
+  await api.activate(A, "1d2c3b4a-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "Mac");
+  const status = await theirs.refresh(new Date(+LATER + 2 * DAY));
+  assert.equal(status.state, "invalid");
+  assert.equal(
+    status.message,
+    "This Mac's activation was released. This license key is already active on 1 Mac, the most one key allows. To free a slot, open DayBoard on one of those Macs and choose Settings → License → Deactivate this device, then activate here again. If one of them is lost, erased or no longer works, email support@getdayboard.com to free its slot.",
+  );
+  assert.doesNotMatch(status.message, /no longer valid/);
 });
 
 test("new records take this Mac's installation ID and saved IDs never change", async () => {
@@ -706,6 +968,7 @@ test("a store that can't replace an unreadable record refuses recovery before ac
   const { LicenseService, UnreadableLicenseRecordError } = await load();
   const s = unreadableStore(UnreadableLicenseRecordError);
   delete s.replaceUnreadable;
+  delete s.setAsideUnreadable;
   const v = verifier();
   const service = new LicenseService(v, s, PER_MAC);
   await assert.rejects(service.activate(A, "Mac", NOW), /can't read the license data/);
@@ -714,16 +977,28 @@ test("a store that can't replace an unreadable record refuses recovery before ac
   assert.equal(s.calls.write, 0);
 });
 
-test("reset replaces only an unreadable record and leaves transient errors to Retry", async () => {
+test("reset sets only an unreadable record aside and leaves transient errors to Retry", async () => {
   const { LicenseService, UnreadableLicenseRecordError } = await load();
   const s = unreadableStore(UnreadableLicenseRecordError);
   const service = new LicenseService(verifier(), s, PER_MAC);
   assert.deepEqual(await service.resetUnreadable(NOW), { state: "trial", daysLeft: 14 });
-  assert.equal(s.replaced.length, 1);
-  assert.equal(s.replaced[0].installationId, MAC_ID);
-  assert.equal(s.replaced[0].firstLaunchAt, NOW.toISOString());
-  assert.deepEqual(await service.resetUnreadable(LATER), { state: "trial", daysLeft: 13 });
-  assert.equal(s.replaced.length, 1);
+  assert.equal(s.setAside.length, 1);
+  assert.deepEqual(s.replaced, []);
+  assert.equal(s.calls.write, 0);
+  assert.equal(s.current(), null);
+
+  // Reset doesn't start the trial: a week without AI later, all of it is still ahead, and it
+  // starts on the first AI use with this Mac's installation ID.
+  const weekLater = new Date(+NOW + 7 * DAY);
+  assert.deepEqual(await service.getStatus(weekLater), { state: "trial", daysLeft: 14 });
+  await service.startTrial(weekLater);
+  assert.equal(s.current().firstLaunchAt, weekLater.toISOString());
+  assert.equal(s.current().installationId, MAC_ID);
+  assert.deepEqual(await service.resetUnreadable(new Date(+weekLater + DAY)), {
+    state: "trial",
+    daysLeft: 13,
+  });
+  assert.equal(s.setAside.length, 1);
 
   const flaky = store();
   flaky.read = async () => {

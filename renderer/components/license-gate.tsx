@@ -38,10 +38,10 @@ function upsellCopy(status: LicenseStatus): {
           "Everything else in DayBoard stays free. Get DayBoard Pro for $5, once, to keep using AI.",
       };
     case "invalid":
+      // The reason varies (revoked, released by another account on this Mac, not verified yet).
       return {
-        title: "License key not valid",
-        description:
-          "This license key isn't valid anymore. Enter a different one or get DayBoard Pro.",
+        title: "License key needs attention",
+        description: `${status.message} Open Settings → License to enter your key again or get DayBoard Pro.`,
       };
     case "network-error":
       return {

@@ -9,6 +9,7 @@ import { app, safeStorage } from "../../platform/index.js";
 import {
   copyFileIfPresent,
   createSerialQueue,
+  moveFileIfPresent,
   readFileIfExists,
   writeFileAtomic,
 } from "../file-store.js";
@@ -29,9 +30,9 @@ function legacyPath(): string {
 }
 
 /** Next to the license file, e.g. license-stripe-v2.unreadable-2026-11-04T09-30-00-000Z.bin. */
-function backupPath(now: Date): string {
+function backupPath(now: Date, name = "license-stripe-v2"): string {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
-  return path.join(app.getPath("userData"), `license-stripe-v2.unreadable-${stamp}.bin`);
+  return path.join(app.getPath("userData"), `${name}.unreadable-${stamp}.bin`);
 }
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -168,6 +169,36 @@ class FileLicenseStore implements LicenseStore {
       await copyFileIfPresent(licensePath(), backupPath(new Date()));
       await writeFileAtomic(licensePath(), encrypted);
     });
+  }
+
+  /**
+   * Moves each file `read` can't decrypt or parse to a timestamped backup (never replacing
+   * another file) and saves nothing, so `read` then finds no record. A readable legacy file stays,
+   * and its trial date carries over as on any first launch. A missing Keychain moves nothing.
+   */
+  async setAsideUnreadable(): Promise<void> {
+    return this.queue(async () => {
+      const now = new Date();
+      const current = await readFileIfExists(licensePath());
+      if (current?.length) {
+        if (await decodes(current, parseCurrent)) return;
+        await moveFileIfPresent(licensePath(), backupPath(now));
+      }
+      const legacy = await readFileIfExists(legacyPath());
+      if (legacy?.length && !(await decodes(legacy, (value) => value)))
+        await moveFileIfPresent(legacyPath(), backupPath(now, "license"));
+    });
+  }
+}
+
+/** False when the bytes are unreadable; other errors, such as a missing Keychain, propagate. */
+async function decodes(bytes: Buffer, parse: (value: unknown) => unknown): Promise<boolean> {
+  try {
+    await decode(bytes, parse);
+    return true;
+  } catch (error) {
+    if (error instanceof UnreadableLicenseRecordError) return false;
+    throw error;
   }
 }
 

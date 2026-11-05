@@ -39,6 +39,7 @@ async function load(files, keychain = {}) {
     reads: [],
     writes: [],
     copies: [],
+    moves: [],
     keychain: { available: true, encrypts: true, ...keychain },
   };
   return bundle("main/services/license/license-store.ts", [
@@ -85,6 +86,14 @@ async function load(files, keychain = {}) {
                  if (state().files.has(target)) throw Object.assign(new Error("EEXIST"), { code: "EEXIST" });
                  state().copies.push([source, target]);
                  state().files.set(target, state().files.get(source));
+                 return true;
+               };
+               export const moveFileIfPresent = async (source, target) => {
+                 if (!state().files.has(source)) return false;
+                 if (state().files.has(target)) throw Object.assign(new Error("EEXIST"), { code: "EEXIST" });
+                 state().moves.push([source, target]);
+                 state().files.set(target, state().files.get(source));
+                 state().files.delete(source);
                  return true;
                };`,
           loader: "js",
@@ -246,6 +255,73 @@ test("replacement with only an unreadable legacy file leaves that file untouched
   assert.deepEqual(await store.read(), record());
 });
 
+const BACKUP = /^license-stripe-v2\.unreadable-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.bin$/;
+const LEGACY_BACKUP = /^license\.unreadable-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.bin$/;
+
+test("setting an unreadable file aside moves it to a backup and saves no record", async () => {
+  const locked = Buffer.from("LOCKED ciphertext");
+  const files = new Map([[newPath, locked]]);
+  const { createDefaultLicenseStore } = await load(files);
+  const store = createDefaultLicenseStore();
+  await assert.rejects(store.read(), unreadable);
+  await store.setAsideUnreadable();
+
+  const [[source, backup]] = globalThis.__licenseStoreTest.moves;
+  assert.equal(source, newPath);
+  assert.equal(path.dirname(backup), profile);
+  assert.match(path.basename(backup), BACKUP);
+  assert.equal(files.get(backup), locked);
+  assert.deepEqual([...files.keys()], [backup]);
+  assert.deepEqual(globalThis.__licenseStoreTest.writes, []);
+  assert.equal(await store.read(), null);
+});
+
+test("an unreadable legacy file is set aside too; a readable one or record stays", async () => {
+  const lockedLegacy = Buffer.from("LOCKED legacy");
+  const files = new Map([
+    [newPath, Buffer.from("LOCKED ciphertext")],
+    [oldPath, lockedLegacy],
+  ]);
+  const { createDefaultLicenseStore } = await load(files);
+  const store = createDefaultLicenseStore();
+  await store.setAsideUnreadable();
+  const moved = globalThis.__licenseStoreTest.moves.map(([from, to]) => [from, path.basename(to)]);
+  assert.equal(moved.length, 2);
+  assert.equal(moved[0][0], newPath);
+  assert.match(moved[0][1], BACKUP);
+  assert.equal(moved[1][0], oldPath);
+  assert.match(moved[1][1], LEGACY_BACKUP);
+  assert.ok([...files.values()].includes(lockedLegacy));
+  assert.equal(await store.read(), null);
+
+  // A readable legacy file keeps its trial date once the unreadable record is out of the way.
+  const legacy = Buffer.from(JSON.stringify({ firstLaunchAt: "2025-12-01T00:00:00Z" }));
+  const kept = new Map([
+    [newPath, Buffer.from("LOCKED ciphertext")],
+    [oldPath, legacy],
+  ]);
+  const { createDefaultLicenseStore: second } = await load(kept);
+  const legacyStore = second({ installationId: async () => MAC_ID });
+  await legacyStore.setAsideUnreadable();
+  assert.equal(globalThis.__licenseStoreTest.moves.length, 1);
+  assert.equal(kept.get(oldPath), legacy);
+  assert.equal((await legacyStore.read()).firstLaunchAt, "2025-12-01T00:00:00Z");
+
+  // A record that reads fine, or a missing Keychain, moves nothing.
+  const readable = Buffer.from(JSON.stringify(record()));
+  const intact = new Map([[newPath, readable]]);
+  const { createDefaultLicenseStore: third } = await load(intact);
+  await third().setAsideUnreadable();
+  assert.deepEqual(globalThis.__licenseStoreTest.moves, []);
+  assert.deepEqual([...intact.entries()], [[newPath, readable]]);
+
+  const noKeychain = new Map([[newPath, Buffer.from("LOCKED ciphertext")]]);
+  const { createDefaultLicenseStore: fourth } = await load(noKeychain, { available: false });
+  await assert.rejects(fourth().setAsideUnreadable(), /Keychain/);
+  assert.deepEqual(globalThis.__licenseStoreTest.moves, []);
+  assert.equal(noKeychain.size, 1);
+});
+
 test("pending releases round-trip and malformed ones are rejected", async () => {
   const files = new Map();
   const { createDefaultLicenseStore } = await load(files);
@@ -273,8 +349,8 @@ test("pending releases round-trip and malformed ones are rejected", async () => 
   }
 });
 
-test("backup copies never replace an existing file", async () => {
-  const { copyFileIfPresent } = await bundle("main/services/file-store.ts");
+test("backup copies and moves never replace an existing file", async () => {
+  const { copyFileIfPresent, moveFileIfPresent } = await bundle("main/services/file-store.ts");
   const dir = await mkdtemp(path.join(tmpdir(), "dayboard-license-backup-"));
   try {
     const source = path.join(dir, "license-stripe-v2.bin");
@@ -287,6 +363,14 @@ test("backup copies never replace an existing file", async () => {
     await assert.rejects(copyFileIfPresent(source, backup), { code: "EEXIST" });
     assert.equal(await readFile(backup, "utf8"), "original");
     assert.equal(await readFile(source, "utf8"), "changed");
+
+    await assert.rejects(moveFileIfPresent(source, backup), { code: "EEXIST" });
+    assert.equal(await readFile(source, "utf8"), "changed");
+    const moved = path.join(dir, "license-stripe-v2.unreadable-2.bin");
+    assert.equal(await moveFileIfPresent(source, moved), true);
+    assert.equal(await readFile(moved, "utf8"), "changed");
+    await assert.rejects(readFile(source), { code: "ENOENT" });
+    assert.equal(await moveFileIfPresent(source, moved), false);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

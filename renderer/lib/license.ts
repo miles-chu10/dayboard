@@ -5,6 +5,7 @@ import { toast } from "../ui";
 import { errorMessage } from "./ipc";
 import {
   LICENSE_ACTIVATION_LIMIT,
+  LICENSE_FORGET_CONFIRMATION,
   LICENSE_RESET_CONFIRMATION,
   LICENSE_SUPPORT_EMAIL,
   type LicenseDeactivationPayload,
@@ -47,8 +48,9 @@ export const LICENSE_STATUS_COPY: Record<
       "Everything else in DayBoard stays free. Get DayBoard Pro for $5, once, to keep using AI.",
   },
   invalid: {
-    label: "Invalid key",
-    description: "This license key isn't valid. Check it or get DayBoard Pro.",
+    label: "Key needs attention",
+    description:
+      "DayBoard Pro isn't unlocked on this Mac right now; the reason is below. Enter your key again or get DayBoard Pro.",
   },
   licensed: {
     label: "DayBoard Pro",
@@ -73,11 +75,27 @@ export const LICENSE_RESET_COPY = {
   confirm: "Reset",
 };
 
-/** Shown after "Deactivate this device" when the license service didn't confirm the release. */
+/** Shown while the license service hasn't confirmed that a removed key's slot is free. */
 export const LICENSE_RELEASE_PENDING_COPY = {
-  toast: "Removed the license from this Mac, but its activation slot may still be in use.",
-  callout: `DayBoard couldn't reach the license service, so this Mac may still count toward the key's ${LICENSE_ACTIVATION_LIMIT}-Mac limit. DayBoard tries again automatically whenever it's open and online, or choose Try again now. If another Mac still can't activate the key, email ${LICENSE_SUPPORT_EMAIL}.`,
+  toast:
+    "DayBoard stopped using the license on this Mac, but couldn't confirm its activation slot is free.",
+  callout: `DayBoard couldn't confirm with the license service that this Mac's slot is free, so it may still count toward the key's ${LICENSE_ACTIVATION_LIMIT}-Mac limit. DayBoard keeps the key encrypted on this Mac only until the license service confirms the slot is free. It tries again automatically whenever it's open and online, or choose Try again now. If another Mac still can't activate the key, email ${LICENSE_SUPPORT_EMAIL}.`,
   retry: "Try again",
+};
+
+/** "Forget without releasing": deletes the kept key and gives up on freeing its slot. */
+export const LICENSE_FORGET_COPY = {
+  action: "Forget without releasing",
+  title: "Delete the key without freeing its slot?",
+  description: `DayBoard deletes the license key it kept on this Mac and stops trying to free its activation slot. The slot may stay in use, counting toward the key's ${LICENSE_ACTIVATION_LIMIT}-Mac limit, until you email ${LICENSE_SUPPORT_EMAIL} to free it.`,
+  confirm: "Delete key",
+  toast: `Deleted the license key from this Mac. Its activation slot may still be in use; email ${LICENSE_SUPPORT_EMAIL} to free it.`,
+};
+
+/** Toasts after "Deactivate this device" or "Remove saved key", by release outcome. */
+export const LICENSE_REMOVED_COPY = {
+  released: "Removed the license from this Mac. Its activation slot is free.",
+  none: "Removed the license key from this Mac.",
 };
 
 function license<T = LicenseStatusPayload>(channel: string, ...args: unknown[]): Promise<T> {
@@ -145,10 +163,22 @@ export function useDeactivateLicense() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => license<LicenseDeactivationPayload>("license:deactivate"),
-    onSuccess: ({ status, checkoutUrl, release }) => {
-      queryClient.setQueryData(licenseQueryKey, { status, checkoutUrl });
+    onSuccess: ({ status, checkoutUrl, releasePending, release }) => {
+      queryClient.setQueryData(licenseQueryKey, { status, checkoutUrl, releasePending });
       if (release === "pending") toast.warning(LICENSE_RELEASE_PENDING_COPY.toast);
-      else toast.success("Removed the license from this Mac. Its activation slot is free.");
+      else toast.success(LICENSE_REMOVED_COPY[release]);
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+export function useForgetPendingRelease() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => license("license:forget-release", LICENSE_FORGET_CONFIRMATION),
+    onSuccess: (payload) => {
+      queryClient.setQueryData(licenseQueryKey, payload);
+      toast.success(LICENSE_FORGET_COPY.toast);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });

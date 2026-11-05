@@ -605,7 +605,7 @@ test("a licensed AI-parsed capture is allowed", async () => {
 for (const [lock, copy] of [
   [
     "invalid",
-    /^Your license key isn't valid, so DayBoard can't read this for you\. .*check your key/,
+    /^Your license key needs attention, so DayBoard can't read this for you\. .*check your key/,
   ],
   ["network-error", /^DayBoard can't verify your license, so it can't read this for you\./],
 ]) {
