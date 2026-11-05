@@ -12,10 +12,14 @@ Open items, with what each waits on, are under "Remaining work".
 
 ### Releases
 
-- **Latest published beta: `1.3.0-beta.15`** (prerelease `v1.3.0-beta.15`). Signed macOS release
-  run 41786199314 published it on 2026-11-04 at 07:07 UTC from `67fc534`. Notes:
-  `docs/release-notes-1.3.0-beta.15.md`.
-- Earlier signed betas: `v1.3.0-beta.13` (2026-10-28 04:49 UTC, run 40633492619, `ca29afb`) and
+- **Latest published beta: `1.3.0-beta.17`** (prerelease `v1.3.0-beta.17`). Signed macOS release
+  run 41936496820 published it on 2026-11-05 at 00:03 UTC from `c997997`. Notes:
+  `docs/release-notes-1.3.0-beta.17.md`. All seven assets are present, every `SHA256SUMS.txt` line
+  matches the downloaded files, `latest-mac.yml` gives its version and matching hashes, and the
+  apps in the ZIP and DMG pass `codesign`, `stapler validate` and `spctl` (Notarized Developer ID).
+  The DMG itself has no notarization ticket; beta.18 fixes that (below).
+- Earlier signed betas: `v1.3.0-beta.15` (2026-11-04 07:07 UTC, run 41786199314, `67fc534`),
+  `v1.3.0-beta.13` (2026-10-28 04:49 UTC, run 40633492619, `ca29afb`) and
   `v1.3.0-beta.12` (2026-10-22, run 39745730147, `9e32075`). Beta.12 was the first Developer ID
   signed, notarized and self-updating release. For beta.12, beta.13 and beta.15, every
   `SHA256SUMS.txt` line matches GitHub's asset digest, and each `latest-mac.yml` gives its version
@@ -46,20 +50,40 @@ Open items, with what each waits on, are under "Remaining work".
   variables `APPLE_TEAM_ID`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`. Miles requires approval at
   the time of each credential creation, storage or import step.
 - Users on beta.11 or earlier install once by hand from the first-install DMG.
-  `website/download.html` and the live getdayboard.com/download link the beta.15 DMG. Later betas
-  arrive in the app.
+  `website/download.html` on main links the beta.17 DMG (PR #77); the live getdayboard.com/download
+  was last checked linking beta.15. Later betas arrive in the app.
 - In-app updates on record, both on Miles's own installed app, not in isolated QA state:
   - beta.12 to beta.13 (A10): reported passed at 05:06 UTC on 2026-10-28 in
     `docs/CODEX-HANDOFF.md`. Not re-verified since.
   - beta.13 to beta.15 on 2026-11-04 (see "Installed app" below).
 
-### main and the beta.16 candidate
+### main and the beta.18 candidate
 
-- `main` is `4996f9a`, versioned `1.3.0-beta.16`, and **not released** (beta.17 fix below). Merged since beta.15: #60
+- `main` is `606eaf5`, versioned `1.3.0-beta.17`. Merged since the beta.17 tag: #77 (website and
+  README moved to beta.17), #78 (DMG notarization), #79 (website mobile navigation and interactive
+  preview) and #81 (MCP port and toast fixes). CI run 41974459255 passed on `606eaf5`.
+- PR #78 (`cbd36d3`): after electron-builder, `node scripts/macos-release.mjs notarize-dmg`
+  notarizes and staples the signed DMG, rebuilds its blockmap and, for releases, its
+  `latest-mac.yml` entry; the verify step requires `stapler validate` and a Notarized Developer ID
+  `spctl --type open` assessment for the DMG. Signed macOS beta dry run 41965111691 on `cbd36d3`
+  passed, and its downloaded DMG was checked on the Mac: `stapler validate` worked, `spctl`
+  accepted it as Notarized Developer ID, `hdiutil verify` reported it valid and a blockmap rebuilt
+  from it matched the shipped one. The `latest-mac.yml` rewrite runs only in tag releases; it is
+  covered by unit tests and was checked offline against beta.17's real file.
+- PR #81 (`606eaf5`): a busy MCP port is retried every 5 s and Settings says why the server isn't
+  listening; profiles set with `DAYBOARD_USER_DATA` get their own stable MCP port (the default
+  keeps 54809); a turned-off server answers 503 instead of 403; toasts use DayBoard's color tokens
+  in dark mode.
+- The beta.18 candidate is branch `release/1.3.0-beta.18`: the version bump and
+  `docs/release-notes-1.3.0-beta.18.md`. It is the first release whose DMG is notarized.
+
+### Beta.16 and beta.17
+
+- Beta.17 shipped what was planned for beta.16. Merged between beta.15 and beta.17: #60
   (standalone layout matched to the Glaze app), #66 (Codex handoff doc), #67 (DayBoard Pro as a $5
   AI-only unlock with Stripe Managed Payments), #68 (MCP source writes no longer license-gated),
-  #70 with #71 (HeroSpace features), #72 (release fixes after the repository rename), and the
-  website PRs #69 and #73.
+  #70 with #71 (HeroSpace features), #72 (release fixes after the repository rename), the
+  website PRs #69 and #73, #74 (HANDOFF and TASKS refresh) and #76 (the beta.16 fix, below).
 - PR #70 (`368aebc`, 2026-11-04) adds the 16 HeroSpace-inspired features Miles chose: ⌘K, a docked
   Ask Assistant panel with context chips, a calendar peek, a Home ("Up next") page, mail triage
   chips and summaries, send with undo, snooze and "remind me if no reply", a subscriptions manager,
@@ -80,13 +104,17 @@ Open items, with what each waits on, are under "Remaining work".
   before loading release credentials": in `e2e/ui-audit.spec.ts`, the Assistant's @ menu showed
   item dates squeezed to 25–27px. The menu is as wide as the composer, the audit ran at whatever
   window size the runner's display allowed, and the dry run's runner had passed it. Nothing was
-  signed or published. The tag stays, and the fix ships as `1.3.0-beta.17` from branch
-  `fix/beta16-release-audit`: the @ menu uses ⌘K's row layout, and the audit checks the composer
-  menus at 800 and 1440 px windows.
+  signed or published. The tag stays, and the fix shipped as `1.3.0-beta.17` through PR #76
+  (`c997997`): the @ menu uses ⌘K's row layout, and the audit checks the composer menus at 800 and
+  1440 px windows.
 
 ### Installed app on Miles's Mac
 
-- `/Applications/DayBoard.app` updated itself from `1.3.0-beta.13` to `1.3.0-beta.15` through its
+- `/Applications/DayBoard.app` is `1.3.0-beta.17` since the evening of 2026-11-04 (Pacific).
+  Checked read-only then: team `LGJS5APK9X`, `spctl` accepted it as Notarized Developer ID, its
+  `app.asar` contains #70's features and #76's @ menu fix, and a screenshot showed Home, the Ask
+  button and Notes. How it moved from beta.15 to beta.17 is not recorded here.
+- Earlier, it updated itself from `1.3.0-beta.13` to `1.3.0-beta.15` through its
   own in-app updater on 2026-11-04. It was launched, the updater staged beta.15 about 30 s later,
   the app quit normally, and ShipIt logged "Installation completed successfully" at 22:33:17 UTC.
 - The staged bundle (before install) and the installed app (after) both passed
@@ -102,10 +130,13 @@ Open items, with what each waits on, are under "Remaining work".
   confirmed his accounts visually.
 - On that launch the installed app's MCP server could not bind `127.0.0.1:54809` (`EADDRINUSE`). A
   separate electron-vite dev instance from `~/code/dayboard-license-test` (profile "DayBoard
-  License Test", started at 13:14 local time by another session) held the port.
+  License Test", started at 13:14 local time by another session) held the port. PR #81 (in
+  beta.18) retries a busy port and gives such profiles their own port.
 
 ### Website
 
+- Website PRs #77 and #79 merged after the 2026-11-04 audit; whether they are deployed was not
+  checked. The audit's state follows.
 - getdayboard.com matches `website/` on main at `4996f9a`. The last website change is `df36586`
   (PR #73, merged 2026-11-04 21:55 UTC), so the `dayboard-website` Worker was deployed after it.
   That is inferred from the live content. The deploy time and Worker version were not checked
@@ -434,30 +465,26 @@ Earlier standalone observations follow; their counts and live-account results ar
 Ordered by priority. Each item says who or what it waits on. Tag pushes, merges, deploys, release
 workflows and anything outward-facing need Miles's explicit OK for that action, every time.
 
-1. **Merge the beta.17 PR and push `v1.3.0-beta.17`.** Branch `fix/beta16-release-audit` fixes the
-   test that stopped beta.16's release run and bumps the version. After it merges, Miles tags the
-   merge commit on `main` and pushes the tag from his Mac, which starts the public Signed macOS
-   release run. Waits on Miles: the merge, the tag and the push.
-2. **Verify the beta.17 release.** It will be the first tag release since the rename to
-   `miles-chu10/DayBoard`, and only unit tests cover the letter-case fix on the release and publish
-   path. After it publishes, check the assets, `SHA256SUMS.txt` against GitHub's digests and
-   `latest-mac.yml`, and run `codesign`, `stapler` and `spctl` on the Mac (read-only, for example
-   `/release-check 1.3.0-beta.17`). Waits on the release run that follows item 1.
+1. **Merge the beta.18 PR and push `v1.3.0-beta.18`.** Miles approved the beta.18 release on
+   2026-11-04. Branch `release/1.3.0-beta.18` bumps the version and adds the release notes. After
+   it merges, Miles tags the merge commit on `main` and pushes the tag from his Mac, which starts
+   the public Signed macOS release run. Waits on Miles: the merge, the tag and the push.
+2. **Verify the beta.18 release.** It is the first tag release to run `notarize-dmg`, including
+   its `latest-mac.yml` rewrite, which no dry run exercises. After it publishes, run
+   `/release-check 1.3.0-beta.18` (read-only): the assets, `SHA256SUMS.txt`, `latest-mac.yml`
+   against the DMG's new hash and size, and `codesign`, `stapler` and `spctl` for both apps and
+   the DMG itself. Then fill in the notes' "Before publishing" section. Waits on item 1's run.
    - If the run fails, `macos-release.yml` uploads no test results; only `macos-beta.yml` keeps
-     `beta-test-results`. Adding that is a workflow PR with Miles's merge OK. It is not required
-     for beta.17.
+     `beta-test-results`. A failed release gets a new version, not a reused tag.
 3. **Installed app on Miles's Mac.**
-   - Update `/Applications/DayBoard.app` from beta.15 to beta.17 in the app once beta.17 is
-     published and verified, and record it. Miles asked for this on 2026-11-04; waits on items 1
-     and 2.
+   - Let `/Applications/DayBoard.app` update itself from beta.17 to beta.18 once beta.18 is
+     published and verified, and record it. Then confirm its MCP server listens on
+     `127.0.0.1:54809`. Waits on items 1 and 2.
    - Miles confirms his Google accounts visually. A session then observes the first token refresh
-     under beta.15 (or beta.17) and checks the Keychain item read-only. That Keychain item check
+     under beta.17 (or beta.18) and checks the Keychain item read-only. That Keychain item check
      is still open from the follow-up to the beta.12-to-beta.13 in-app update
      (`docs/CODEX-HANDOFF.md`, pending item 10); its `codesign` and `spctl` checks are covered by
      the beta.15 install checks above. Waits on Miles.
-   - Re-check the installed app's MCP server on `127.0.0.1:54809` after the
-     `~/code/dayboard-license-test` dev instance stops and the installed app relaunches. Waits on
-     the session that owns that dev instance, then Miles.
 4. **Native by-hand checks.** Miles, on a current non-test build with an owned profile.
    - Tray click activating DayBoard (cause unresolved): a by-hand tray click while another app is
      frontmost, before any fix.
@@ -483,9 +510,9 @@ workflows and anything outward-facing need Miles's explicit OK for that action, 
      `beta-test-results` screenshots or a native demo run. Waits on an agent or Miles. The
      HANDOFF.md and TASKS.md refresh is on branch `claude/project-thread-44twxh`; merging it needs
      Miles's OK.
-   - After beta.17 is published and verified, move `website/download.html` (version text, DMG and
-     `SHA256SUMS.txt` URLs, the 138 MB size) and the README to beta.17. Not before the release
-     exists.
+   - After beta.18 is published and verified, move `website/download.html` (version text, DMG and
+     `SHA256SUMS.txt` URLs, the download size) and the README from beta.17 (PR #77) to beta.18,
+     and drop any note that the DMG isn't notarized. Not before the release exists.
    - Open checkout on the site by setting `buyUrl` once the payment flow is live. Waits on the
      payments project thread and Miles's approval for each deploy and Stripe write.
    - Confirm the production waitlist: D1 migrations 0001 to 0005, the suppressions table and the
