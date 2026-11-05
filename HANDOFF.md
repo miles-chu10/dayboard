@@ -57,10 +57,11 @@ Open items, with what each waits on, are under "Remaining work".
 - Users on beta.11 or earlier install once by hand from the first-install DMG.
   `website/download.html` on main links the beta.17 DMG (PR #77); the live getdayboard.com/download
   was last checked linking beta.15. Later betas arrive in the app.
-- In-app updates on record, both on Miles's own installed app, not in isolated QA state:
+- In-app updates on record, all on Miles's own installed app, not in isolated QA state:
   - beta.12 to beta.13 (A10): reported passed at 05:06 UTC on 2026-10-28 in
     `docs/CODEX-HANDOFF.md`. Not re-verified since.
-  - beta.13 to beta.15 on 2026-11-04 (see "Installed app" below).
+  - beta.13 to beta.15, beta.15 to beta.17 and beta.17 to beta.18, all on 2026-11-04 Pacific (see
+    "Installed app" below).
 
 ### main and beta.18
 
@@ -120,10 +121,17 @@ Open items, with what each waits on, are under "Remaining work".
 
 ### Installed app on Miles's Mac
 
-- `/Applications/DayBoard.app` is `1.3.0-beta.17` since the evening of 2026-11-04 (Pacific).
-  Checked read-only then: team `LGJS5APK9X`, `spctl` accepted it as Notarized Developer ID, its
-  `app.asar` contains #70's features and #76's @ menu fix, and a screenshot showed Home, the Ask
-  button and Notes. How it moved from beta.15 to beta.17 is not recorded here.
+- `/Applications/DayBoard.app` is `1.3.0-beta.18`. Its in-app updater installed it two minutes
+  after the release was published: ShipIt logged "Installation completed successfully" at
+  2026-11-04 22:16:01 PST (06:16 UTC on 2026-11-05), and the app relaunched at 22:16:02. Checked
+  read-only at 22:36 PST: `codesign --verify --deep --strict`, `stapler validate` and `spctl`
+  (Notarized Developer ID, team `LGJS5APK9X`) pass. `/Applications/DayBoard.app` itself (not a dev
+  copy) listens on `127.0.0.1:54809`; a request without the access key gets 401, and Claude Code
+  sessions connect to its `dayboard` MCP server again.
+- Beta.17 arrived the same way: ShipIt logged its install at 16:14:00 PST on 2026-11-04, about ten
+  minutes after beta.17 was published. Checked read-only then: team `LGJS5APK9X`, `spctl` accepted
+  it as Notarized Developer ID, its `app.asar` contains #70's features and #76's @ menu fix, and a
+  screenshot showed Home, the Ask button and Notes.
 - Earlier, it updated itself from `1.3.0-beta.13` to `1.3.0-beta.15` through its
   own in-app updater on 2026-11-04. It was launched, the updater staged beta.15 about 30 s later,
   the app quit normally, and ShipIt logged "Installation completed successfully" at 22:33:17 UTC.
@@ -141,7 +149,8 @@ Open items, with what each waits on, are under "Remaining work".
 - On that launch the installed app's MCP server could not bind `127.0.0.1:54809` (`EADDRINUSE`). A
   separate electron-vite dev instance from `~/code/dayboard-license-test` (profile "DayBoard
   License Test", started at 13:14 local time by another session) held the port. PR #81 (in
-  beta.18) retries a busy port and gives such profiles their own port.
+  beta.18) retries a busy port and gives such profiles their own port; under beta.18 the installed
+  app holds 54809 (above).
 
 ### Website
 
@@ -169,7 +178,11 @@ Open items, with what each waits on, are under "Remaining work".
   Managed Payments, 3 devices and 14-day refunds. Stripe account setup, deploy and public launch
   remain gated.
 - On main, PR #67 (`a48d205`) made DayBoard Pro a $5 AI-only unlock with Stripe Managed Payments,
-  and `main/services/license/config.ts` sets `TRIAL_DAYS = 7`. No published build contains #67.
+  and `main/services/license/config.ts` sets `TRIAL_DAYS = 7`. #67 shipped in beta.17 and #75 (comp
+  licenses, Quick Capture, deactivation and installation-ID fixes) in beta.18, both inactive:
+  published betas build with `DAYBOARD_LICENSE: "off"` (`.github/workflows/macos-release.yml:59`),
+  so every feature, AI included, is free. Payment code merged to main reaches users unchanged only
+  while that stays off; turning it on is a release-workflow change.
 - A separate project thread, "Get DayBoard ready to take payments", owns the payment flow.
 
 ### Glaze
@@ -476,11 +489,8 @@ Ordered by priority. Each item says who or what it waits on. Tag pushes, merges,
 workflows and anything outward-facing need Miles's explicit OK for that action, every time.
 
 1. **Installed app on Miles's Mac.**
-   - Let `/Applications/DayBoard.app` update itself from beta.17 to beta.18 (published and
-     verified), and record it. Then confirm its MCP server listens on `127.0.0.1:54809`. Waits on
-     Miles opening the app or Settings → Updates.
    - Miles confirms his Google accounts visually. A session then observes the first token refresh
-     under beta.17 (or beta.18) and checks the Keychain item read-only. That Keychain item check
+     under beta.18 and checks the Keychain item read-only. That Keychain item check
      is still open from the follow-up to the beta.12-to-beta.13 in-app update
      (`docs/CODEX-HANDOFF.md`, pending item 10); its `codesign` and `spctl` checks are covered by
      the beta.15 install checks above. Waits on Miles.
