@@ -276,6 +276,7 @@ function startDemo(root) {
         "",
         () => {
           view = "Inbox";
+          folder = "inbox";
           selectedMail = mail.id;
           render();
           content.focus({ preventScroll: true });
