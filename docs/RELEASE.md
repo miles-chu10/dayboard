@@ -115,14 +115,24 @@ notarized, self-updating betas. Two workflows share the signing setup:
   `main` for an `x.y.z-beta.n` version. It builds with `npm run build:beta` (licensing and
   in-app updates off), signs with Developer ID, notarizes and staples. It then verifies the
   Developer ID team, hardened runtime, stapled ticket and Gatekeeper assessment of the app, the
-  ZIP's app and the mounted DMG's app, checks the beta build proof in all three and smoke-tests
-  the signed app with fictional data. The DMG, ZIP, blockmaps, `SHA256SUMS.txt` and
+  ZIP's app and the mounted DMG's app, and the DMG's own signature, stapled ticket and
+  Gatekeeper assessment as a notarized disk image. It checks the beta build proof in all three
+  and smoke-tests the signed app with fictional data. The DMG, ZIP, blockmaps, `SHA256SUMS.txt` and
   `release-manifest.json` are uploaded as a workflow artifact. Nothing is published, and the
   release publisher refuses a beta manifest.
 
-Both notarize through `scripts/notarize.mjs`, an electron-builder `afterSign` hook. Apple accepts
-the submission first; if stapling then loses its connection to Apple's ticket service, the hook
-retries stapling instead of failing the run.
+Both notarize the app through `scripts/notarize.mjs`, an electron-builder `afterSign` hook. Apple
+accepts the submission first; if stapling then loses its connection to Apple's ticket service, the
+hook retries stapling instead of failing the run.
+
+electron-builder signs the DMG after the app, so the same signing step then runs
+`node scripts/macos-release.mjs notarize-dmg`: it submits the signed DMG with the same key, staples
+its ticket with the same retry, and rebuilds the DMG's blockmap and its `latest-mac.yml` entry,
+because stapling changes the file electron-builder already hashed. The verify step fails the run
+unless `xcrun stapler validate` passes for the DMG and
+`spctl --assess --type open --context context:primary-signature` reports it as notarized
+Developer ID software, so Gatekeeper's check of a downloaded DMG matches the app's. Releases up
+to `1.3.0-beta.17` notarized only the app inside the DMG.
 
 Pushing a release tag publishes publicly and needs Miles's approval each time. Do not create new
 `beta-<version>` releases: the updater ignores tags that are not SemVer, so only `v`-prefixed

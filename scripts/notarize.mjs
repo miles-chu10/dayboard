@@ -26,20 +26,18 @@ export async function stapleWithRetries(
   }
 }
 
-/** electron-builder afterSign hook for the signed workflows, in place of built-in notarization. */
-export default async function notarizeApp(
-  context,
-  { env = process.env, submit = notarize, stapleApp = stapleWithRetries } = {},
+/** Submits an app or DMG with the App Store Connect key, waits for Apple, then staples it. */
+export async function notarizeAndStaple(
+  path,
+  { env = process.env, submit = notarize, staple = stapleWithRetries } = {},
 ) {
-  if (context.electronPlatformName !== "darwin") return;
   const { APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER } = env;
   if (!APPLE_API_KEY || !APPLE_API_KEY_ID || !APPLE_API_ISSUER)
     throw new Error("Notarization requires APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER.");
-  const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   try {
     await submit({
       tool: "notarytool",
-      appPath,
+      appPath: path,
       appleApiKey: APPLE_API_KEY,
       appleApiKeyId: APPLE_API_KEY_ID,
       appleApiIssuer: APPLE_API_ISSUER,
@@ -47,6 +45,16 @@ export default async function notarizeApp(
   } catch (error) {
     // notarize() staples only after Apple accepts the submission, so only stapling is retried.
     if (!(error instanceof Error) || !error.message.startsWith("Failed to staple")) throw error;
-    await stapleApp(appPath);
+    await staple(path);
   }
+}
+
+/** electron-builder afterSign hook for the signed workflows, in place of built-in notarization. */
+export default async function notarizeApp(
+  context,
+  { env = process.env, submit = notarize, stapleApp = stapleWithRetries } = {},
+) {
+  if (context.electronPlatformName !== "darwin") return;
+  const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+  await notarizeAndStaple(appPath, { env, submit, staple: stapleApp });
 }

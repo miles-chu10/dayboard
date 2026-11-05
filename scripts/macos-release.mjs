@@ -155,6 +155,64 @@ export function verifyApp(appPath, team, version, execute = run, label = "app") 
   execute("spctl", ["--assess", "--type", "execute", "--verbose=2", appPath], artifact);
 }
 
+// The DMG itself must carry a stapled ticket, so a first install from it passes Gatekeeper offline.
+export function verifyDmg(dmgPath, team, execute = run) {
+  const image = { label: "DMG", path: dmgPath };
+  execute("hdiutil", ["verify", dmgPath], image);
+  execute("codesign", ["--verify", "--strict", dmgPath], image);
+  assertDeveloperIdentity(execute("codesign", ["--display", "--verbose=4", dmgPath], image), team);
+  execute("xcrun", ["stapler", "validate", dmgPath], image);
+  const assessment = execute(
+    "spctl",
+    [
+      "--assess",
+      "--type",
+      "open",
+      "--context",
+      "context:primary-signature",
+      "--verbose=2",
+      dmgPath,
+    ],
+    image,
+  );
+  if (!/^source=Notarized Developer ID$/m.test(assessment))
+    throw new Error("Gatekeeper did not assess the DMG as notarized Developer ID software.");
+}
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function refreshUpdateEntry(metadata, name, { sha512, size }) {
+  const entry = new RegExp(
+    `^(  - url: ${escapeRegExp(name)}\\n    sha512: )\\S+(\\n    size: )\\d+$`,
+    "gm",
+  );
+  if (metadata.match(entry)?.length !== 1)
+    throw new Error("latest-mac.yml does not list the DMG as electron-builder writes it.");
+  return metadata.replace(entry, (_, head, tail) => `${head}${sha512}${tail}${size}`);
+}
+
+// electron-builder signs, hashes and blockmaps the DMG before it can be notarized, and stapling the
+// ticket changes its bytes, so the blockmap and the DMG's latest-mac.yml entry are rebuilt after.
+// Both imports are lazy: the publish job loads this module without installed dependencies.
+export async function notarizeDmg(
+  plan,
+  directory,
+  {
+    notarizeFile = async (path) => (await import("./notarize.mjs")).notarizeAndStaple(path),
+    blockMap = async (...args) =>
+      (await import("app-builder-lib/out/targets/blockmap/blockmap.js")).buildBlockMap(...args),
+  } = {},
+) {
+  const [name] = plan.files;
+  // @electron/notarize resolves a DMG path against its own temporary directory.
+  const dmg = resolve(directory, name);
+  await notarizeFile(dmg);
+  const info = await blockMap(dmg, "gzip", `${dmg}.blockmap`);
+  if (!plan.files.includes("latest-mac.yml")) return;
+  const metadata = resolve(directory, "latest-mac.yml");
+  await writeFile(metadata, refreshUpdateEntry(await readFile(metadata, "utf8"), name, info));
+}
+
 // Detaching runs either way; when both fail, the verification failure leads the report.
 export function verifyThenDetach(verify, detach) {
   try {
@@ -406,6 +464,7 @@ async function main(command) {
   }
   if (command === "credentials") return writeCredentials(process.env, credentials);
   const plan = JSON.parse(await readFile(planFile, "utf8"));
+  if (command === "notarize-dmg") return notarizeDmg(plan, "release");
   if (command === "stage")
     return stageAssets(plan, "release", join(temp, "dayboard-release-assets"));
   if (command !== "verify") throw new Error("Unknown release command.");
@@ -420,11 +479,11 @@ async function main(command) {
   const mount = join(temp, "dayboard-release-dmg");
   await mkdir(mount);
   const dmg = resolve("release", plan.files[0]);
-  const image = { label: "DMG", path: dmg };
-  run("hdiutil", ["verify", dmg], image);
-  run("codesign", ["--verify", "--strict", dmg], image);
-  assertDeveloperIdentity(run("codesign", ["--display", "--verbose=4", dmg], image), team);
-  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg], image);
+  verifyDmg(dmg, team);
+  run("hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount, dmg], {
+    label: "DMG",
+    path: dmg,
+  });
   verifyThenDetach(
     () => verifyApp(join(mount, "DayBoard.app"), team, plan.version, run, "DMG app"),
     () => run("hdiutil", ["detach", mount], { label: "mounted DMG", path: mount }),
