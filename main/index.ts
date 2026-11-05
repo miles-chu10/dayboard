@@ -10,6 +10,7 @@ import {
 import { startSystemPanels, stopSystemPanels } from "./system-panels/index.js";
 import { isPanelWindow, showPanel } from "./system-panels/panel-window.js";
 import { startMcpHttpServer } from "./services/mcp-http-server.js";
+import { mcpProjectIdForProfile } from "./services/mcp-port.js";
 import { drainAgendaStore } from "./services/agenda-store.js";
 import { drainProductivityWrites } from "./handlers/productivity.js";
 import { drainMailOutbox } from "./handlers/mail.js";
@@ -21,9 +22,6 @@ import { clearReminderIdentities } from "./services/apple-reminders.js";
 import { drainNativeThemeWrites, loadNativeTheme } from "./platform/native-theme.js";
 import { registerUpdateHandlers } from "./handlers/updates.js";
 import { pauseAndDrainAppOperations, resumeAppOperations } from "./services/runtime-activity.js";
-
-// The standalone package has no Glaze project id. Keep the local MCP port stable across builds.
-const MCP_PROJECT_ID = "com.mileschu.dayboard";
 
 let updates: ReturnType<typeof registerUpdateHandlers> | undefined;
 async function drainAppWrites(): Promise<void> {
@@ -115,7 +113,11 @@ if (acquireSingleInstanceLock()) {
         openQuickCapture: () => void showPanel("capture"),
         openMenuBarAgenda: () => void showPanel("menubar"),
       });
-      startMcpHttpServer(MCP_PROJECT_ID);
+      startMcpHttpServer(
+        mcpProjectIdForProfile(
+          process.env.DAYBOARD_USER_DATA === undefined ? undefined : app.getPath("userData"),
+        ),
+      );
       startSystemPanels();
       await createMainWindow();
       updates.startAutomatic();

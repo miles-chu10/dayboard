@@ -1,7 +1,7 @@
 import { fixtureImport } from "./fixture-imports.mjs";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { request } from "node:http";
+import { createServer, request } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import test from "node:test";
@@ -121,7 +121,7 @@ export async function putNote(input) {
 async function loadMcpHarness() {
   const result = await build({
     stdin: {
-      contents: `export * from "./main/services/mcp-http-server.ts"; export * from "./main/services/runtime-activity.ts";`,
+      contents: `export * from "./main/services/mcp-http-server.ts"; export * from "./main/services/mcp-port.ts"; export * from "./main/services/runtime-activity.ts";`,
       resolveDir: root,
       loader: "ts",
     },
@@ -441,6 +441,90 @@ test("Assistant MCP resolver honors the global switch and replaces same-app writ
   assert.deepEqual(saved, before);
 });
 
+test("the installed app keeps port 54809 and every other profile gets its own stable port", async () => {
+  const module = await loadMcpHarness();
+  const installed = module.stableMcpPort(module.mcpProjectIdForProfile(undefined));
+  assert.equal(installed, 54809, "clients set up from Settings point at this port");
+  const dev = module.stableMcpPort(module.mcpProjectIdForProfile("/tmp/DayBoard License Test"));
+  const other = module.stableMcpPort(module.mcpProjectIdForProfile("/tmp/DayBoard License Test 2"));
+  assert.notEqual(dev, installed);
+  assert.notEqual(other, dev);
+  assert.equal(
+    module.stableMcpPort(module.mcpProjectIdForProfile("/tmp/DayBoard License Test")),
+    dev,
+    "a profile keeps its port across launches",
+  );
+  for (const port of [installed, dev, other]) {
+    assert.ok(port >= 49152 && port < 65152, `${port} is a dynamic port`);
+  }
+});
+
+function listenOn(server, port) {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+}
+
+async function eventually(read) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const value = read();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Timed out waiting for the MCP server state to change");
+}
+
+test("a busy MCP port says why instead of 'starting', and the server starts once it's free", async () => {
+  const module = await loadMcpHarness();
+  const blocker = createServer();
+  let projectId;
+  let port;
+  for (let attempt = 0; port === undefined; attempt++) {
+    projectId = `busy-port-${process.pid}-${attempt}`;
+    try {
+      await listenOn(blocker, module.stableMcpPort(projectId));
+      port = module.stableMcpPort(projectId);
+    } catch {
+      // Something else already holds that port; try another project id.
+    }
+  }
+  const server = module.startMcpHttpServer(projectId, 20);
+  try {
+    const error = await eventually(() => module.getExternalMcpStartError());
+    assert.equal(
+      error,
+      `Port ${port} is in use, probably by another copy of DayBoard. Quit it and DayBoard's MCP server starts on its own.`,
+    );
+    assert.equal(module.getExternalMcpUrl(), null);
+
+    await close(blocker);
+    assert.equal(
+      await eventually(() => module.getExternalMcpUrl()),
+      `http://127.0.0.1:${port}/mcp`,
+    );
+    assert.equal(module.getExternalMcpStartError(), null);
+    const client = new Client({ name: "after-retry", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(new URL(module.getExternalMcpUrl()), {
+      requestInit: { headers: EXTERNAL_AUTH },
+    });
+    try {
+      await client.connect(transport);
+      assert.ok((await client.listTools()).tools.length > 0);
+    } finally {
+      await transport.terminateSession().catch(() => undefined);
+      await client.close();
+    }
+  } finally {
+    if (blocker.listening) await close(blocker);
+    await module.checkAssistantMcpConnection();
+    await close(server);
+  }
+});
+
 test("External MCP is keyed, can be turned off, and hides or blocks writes when changes are off", async () => {
   const module = await loadMcpHarness();
   const server = module.createMcpHttpServer();
@@ -448,9 +532,18 @@ test("External MCP is keyed, can be turned off, and hides or blocks writes when 
   const url = new URL(`http://127.0.0.1:${port}/mcp`);
   try {
     globalThis.__mcpServerSettings = { enabled: false, allowWrites: true };
-    assert.equal(
-      await rawRequest(port, EXTERNAL_AUTH, "/mcp"),
-      403,
+    // 503, not 403: clients would otherwise report the (valid) key as rejected.
+    assert.deepEqual(
+      await rawMcpRequest(
+        port,
+        EXTERNAL_AUTH,
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+        "/mcp",
+      ),
+      {
+        status: 503,
+        body: "Dayboard's MCP server is turned off. Turn it on in Settings → MCP Servers.",
+      },
       "off refuses even a valid key",
     );
 
