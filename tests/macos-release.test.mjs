@@ -1,22 +1,36 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 import {
   assertDeveloperIdentity,
   betaPlan,
   describeFailure,
+  notarizeDmg,
   publishRelease,
+  refreshUpdateEntry,
   releasePlan,
   repository,
   run,
   sanitizeOutput,
   stageAssets,
   verifyApp,
+  verifyDmg,
   verifyThenDetach,
   writeCredentials,
 } from "../scripts/macos-release.mjs";
@@ -283,6 +297,194 @@ test("the DMG is detached after its app is checked, and the check's failure is k
   assert.throws(() => verifyThenDetach(pass("verify"), fail("detach")), {
     message: "detach failed",
   });
+});
+
+const dmgName = "DayBoard-1.3.0-arm64.dmg";
+const dmgPath = `/fixture/${dmgName}`;
+const notarizedDmg = `${dmgPath}: accepted\nsource=Notarized Developer ID\n`;
+
+function dmgTools({ fail, identity = signature, assessment = notarizedDmg } = {}) {
+  return (command, args) => {
+    if (command === fail) throw new Error(`Synthetic ${command} failure`);
+    if (command === "codesign" && args[0] === "--display") return identity;
+    if (command === "spctl") return assessment;
+    return "";
+  };
+}
+
+test("the DMG itself must be Developer ID signed, stapled and assessed as notarized", () => {
+  const calls = [];
+  const tools = dmgTools();
+  verifyDmg(dmgPath, team, (command, args, artifact) => {
+    calls.push([command, ...args]);
+    assert.deepEqual(artifact, { label: "DMG", path: dmgPath });
+    return tools(command, args);
+  });
+  assert.deepEqual(calls, [
+    ["hdiutil", "verify", dmgPath],
+    ["codesign", "--verify", "--strict", dmgPath],
+    ["codesign", "--display", "--verbose=4", dmgPath],
+    ["xcrun", "stapler", "validate", dmgPath],
+    [
+      "spctl",
+      "--assess",
+      "--type",
+      "open",
+      "--context",
+      "context:primary-signature",
+      "--verbose=2",
+      dmgPath,
+    ],
+  ]);
+});
+
+for (const [name, options, message] of [
+  ["fails image verification", { fail: "hdiutil" }, /Synthetic hdiutil failure/],
+  [
+    "is signed by another team",
+    { identity: signature.replace(`TeamIdentifier=${team}`, "TeamIdentifier=WRONG12345") },
+    /configured Developer ID team/,
+  ],
+  ["has no stapled ticket", { fail: "xcrun" }, /Synthetic xcrun failure/],
+  ["is rejected by Gatekeeper", { fail: "spctl" }, /Synthetic spctl failure/],
+  [
+    "is a Developer ID image Apple never notarized",
+    { assessment: `${dmgPath}: accepted\nsource=Unnotarized Developer ID\n` },
+    /notarized Developer ID software/,
+  ],
+  [
+    "is accepted only because assessments are disabled",
+    { assessment: `${dmgPath}: accepted\noverride=security disabled\n` },
+    /notarized Developer ID software/,
+  ],
+])
+  test(`DMG verification fails when the image ${name}`, () =>
+    assert.throws(() => verifyDmg(dmgPath, team, dmgTools(options)), message));
+
+function updateMetadata({ dmg = dmgName, dmgSha = "unstapled+/sha512==", dmgSize = 20 } = {}) {
+  return [
+    "version: 1.3.0",
+    "files:",
+    "  - url: DayBoard-1.3.0-arm64-mac.zip",
+    "    sha512: zip+/sha512==",
+    "    size: 10",
+    `  - url: ${dmg}`,
+    `    sha512: ${dmgSha}`,
+    `    size: ${dmgSize}`,
+    "path: DayBoard-1.3.0-arm64-mac.zip",
+    "sha512: zip+/sha512==",
+    "releaseDate: '2026-11-05T00:01:26.584Z'",
+    "",
+  ].join("\n");
+}
+
+test("only the DMG's update entry takes the stapled hash and size", () => {
+  assert.equal(
+    refreshUpdateEntry(updateMetadata(), dmgName, { sha512: "stapled+/sha512==", size: 21 }),
+    updateMetadata({ dmgSha: "stapled+/sha512==", dmgSize: 21 }),
+  );
+});
+
+for (const [name, metadata] of [
+  ["no DMG entry", updateMetadata().split("\n").slice(0, 5).concat("").join("\n")],
+  [
+    "two DMG entries",
+    `${updateMetadata()}${updateMetadata().split("\n").slice(5, 8).join("\n")}\n`,
+  ],
+  [
+    "an entry whose name only matches as a pattern",
+    updateMetadata({ dmg: "DayBoard-1x3x0-arm64xdmg" }),
+  ],
+])
+  test(`refreshing update metadata with ${name} fails`, () =>
+    assert.throws(
+      () => refreshUpdateEntry(metadata, dmgName, { sha512: "stapled==", size: 21 }),
+      /latest-mac\.yml does not list the DMG/,
+    ));
+
+async function unstapledDownloads(t, plan, metadata = updateMetadata()) {
+  const directory = await temp(t);
+  const dmg = join(directory, plan.files[0]);
+  // Several content-defined chunks, so the rebuilt blockmap is checked across chunk boundaries.
+  await writeFile(dmg, Buffer.from(Array.from({ length: 200_000 }, (_, i) => (i * 7919) % 251)));
+  await writeFile(`${dmg}.blockmap`, "Synthetic blockmap of the unstapled DMG");
+  if (plan.files.includes("latest-mac.yml"))
+    await writeFile(join(directory, "latest-mac.yml"), metadata);
+  return { directory, dmg };
+}
+
+const stapleSynthetic = (notarized) => async (path) => {
+  notarized.push(path);
+  await appendFile(path, "Synthetic stapled ticket");
+};
+
+test("notarizing the DMG rebuilds its blockmap and update entry from the stapled file", async (t) => {
+  const plan = releasePlan(input);
+  const { directory, dmg } = await unstapledDownloads(t, plan);
+  const notarized = [];
+  await notarizeDmg(plan, directory, { notarizeFile: stapleSynthetic(notarized) });
+  assert.deepEqual(notarized, [dmg]);
+  const stapled = await readFile(dmg);
+  const blockmap = JSON.parse(gunzipSync(await readFile(`${dmg}.blockmap`)));
+  assert.ok(blockmap.files[0].sizes.length > 1);
+  assert.equal(
+    blockmap.files[0].sizes.reduce((total, size) => total + size, 0),
+    stapled.length,
+  );
+  assert.equal(
+    await readFile(join(directory, "latest-mac.yml"), "utf8"),
+    updateMetadata({
+      dmgSha: createHash("sha512").update(stapled).digest("base64"),
+      dmgSize: stapled.length,
+    }),
+  );
+});
+
+test("a beta DMG is notarized by absolute path and its blockmap rebuilt without update metadata", async (t) => {
+  const plan = betaPlan(betaInput);
+  const { directory, dmg } = await unstapledDownloads(t, plan);
+  const notarized = [];
+  await notarizeDmg(plan, relative(process.cwd(), directory), {
+    notarizeFile: stapleSynthetic(notarized),
+  });
+  assert.deepEqual(notarized, [dmg]);
+  const blockmap = JSON.parse(gunzipSync(await readFile(`${dmg}.blockmap`)));
+  assert.equal(
+    blockmap.files[0].sizes.reduce((total, size) => total + size, 0),
+    (await stat(dmg)).size,
+  );
+  assert.deepEqual((await readdir(directory)).sort(), [plan.files[0], plan.files[2]].sort());
+});
+
+test("a rejected DMG notarization leaves the blockmap and update metadata untouched", async (t) => {
+  const plan = releasePlan(input);
+  const { directory, dmg } = await unstapledDownloads(t, plan);
+  await assert.rejects(
+    notarizeDmg(plan, directory, {
+      notarizeFile: async () => {
+        throw new Error("Synthetic notarization rejected");
+      },
+    }),
+    /Synthetic notarization rejected/,
+  );
+  assert.equal(
+    await readFile(`${dmg}.blockmap`, "utf8"),
+    "Synthetic blockmap of the unstapled DMG",
+  );
+  assert.equal(await readFile(join(directory, "latest-mac.yml"), "utf8"), updateMetadata());
+});
+
+test("update metadata without the DMG fails the notarization step", async (t) => {
+  const plan = releasePlan(input);
+  const { directory } = await unstapledDownloads(
+    t,
+    plan,
+    updateMetadata({ dmg: "DayBoard-1.2.0-arm64.dmg" }),
+  );
+  await assert.rejects(
+    notarizeDmg(plan, directory, { notarizeFile: stapleSynthetic([]) }),
+    /latest-mac\.yml does not list the DMG/,
+  );
 });
 
 test("a failed check reports the artifact, command, exit status and sanitized output", () => {
