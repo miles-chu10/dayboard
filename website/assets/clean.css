@@ -162,17 +162,15 @@ h2 em {
   margin-top: 0;
 }
 
-/* Hero: centered copy and signup, then the launch video's stage. Until the video is published the
-   stage shows the Agenda capture with the source notes pinned around it. */
 .c-hero {
-  padding: 72px 0 40px;
+  padding: 36px 0 40px;
   overflow: clip;
 }
 
 .c-hero-copy {
   display: grid;
   justify-items: center;
-  gap: 22px;
+  gap: 16px;
   max-width: 860px;
   text-align: center;
 }
@@ -193,15 +191,15 @@ h2 em {
 
 .c-hero h1 {
   max-width: 14ch;
-  font-size: clamp(2.6rem, 1.3rem + 5.4vw, 4.75rem);
-  letter-spacing: -0.04em;
-  line-height: 1.02;
+  font-size: 3.5rem;
+  letter-spacing: 0;
+  line-height: 1.05;
 }
 
 .c-lead {
-  max-width: 34rem;
+  max-width: 42rem;
   color: var(--ink-soft);
-  font-size: clamp(1.1rem, 1rem + 0.5vw, 1.3rem);
+  font-size: 1.125rem;
   line-height: 1.5;
 }
 
@@ -291,7 +289,10 @@ h2 em {
     padding: 72px 0;
   }
   .c-hero {
-    padding-top: 44px;
+    padding-top: 28px;
+  }
+  .c-hero h1 {
+    font-size: 2.5rem;
   }
 }
 

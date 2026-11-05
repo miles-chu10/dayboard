@@ -2,8 +2,9 @@
 
 This beta adds a Home page, mail you can send, snooze and clean up, an Assistant you can dock
 beside any view, and Notes. It carries everything planned for beta.16, which was tagged but never
-published: its release build stopped at a test before signing. It is a draft until the build is
-made and verified on an Apple Silicon Mac.
+published: its release build stopped at a test before signing. Beta.17 was
+[published on November 5, 2026 (UTC)](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.17)
+from `c9979977d065c41fac164aecb2cb9bc48fd8c718`.
 
 ## New
 
@@ -67,10 +68,15 @@ Dragging it out of Applications and back in Finder once fixes this.
 Apple Silicon, macOS 14+. Google may restrict accounts outside the project's test audience. AI
 and MCP remain optional.
 
-## Before publishing
+## Release verification
 
-Fill in from the actual build: release source commit, tests run, and SHA-256 hashes in
-SHA256SUMS.txt. If Google's consent screen is in production by then, drop the test-audience
-sentence. Publish by pushing tag `v1.3.0-beta.17` from Miles's Mac after he approves. Then
-confirm the release carries the DMG, ZIP, both blockmaps and `latest-mac.yml`, and that a
-beta.13 or beta.15 install updates to it.
+The [signed release run](https://github.com/miles-chu10/DayBoard/actions/runs/41936496820)
+passed its tests, build, Developer ID signing, app notarization, package verification and
+fictional-data smoke checks. The release contains the DMG, ZIP, both blockmaps,
+`latest-mac.yml`, `release-manifest.json` and `SHA256SUMS.txt`.
+
+The app inside the DMG is signed and notarized. The DMG container itself does not yet have a
+notarization ticket; that is separate follow-up work. Do not bypass a macOS security warning.
+
+DMG: `DayBoard-1.3.0-beta.17-arm64.dmg` (138,257,272 bytes). Its published SHA-256 is
+`b13dee1574847351861b609b7e9eac58b82e61de52380f4f00bfe2bd29dc2fed`.

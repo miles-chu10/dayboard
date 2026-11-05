@@ -103,6 +103,23 @@ for (const theme of ["light", "dark"]) {
 
     const sidebar = sidebarMarkers(page);
 
+    await navigate(page, "Home");
+    await capture(page, `${theme}-home`, [
+      ...sidebar,
+      page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Alex$/ }),
+      page.getByRole("region", { name: "Needs you" }),
+      page
+        .getByRole("region", { name: "Suggested" })
+        .getByText("Review launch copy", { exact: true }),
+    ]);
+
+    await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
+    await capture(page, `${theme}-ask`, [
+      ...sidebar,
+      page.getByRole("complementary", { name: "Assistant" }),
+    ]);
+    await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
+
     await navigate(page, "Agenda");
     // Agenda hides past events and moves overdue reminders, so use items that stay put all day.
     await capture(page, `${theme}-agenda`, [
