@@ -23,4 +23,6 @@ billing/.wrangler/
 billing/.dev.vars*
 billing/*.sqlite*
 billing/wrangler.jsonc
+# Complimentary license keys written by billing/scripts/comp-license.mjs. Never commit them.
+*.local.jsonl
 website-worker/.wrangler/

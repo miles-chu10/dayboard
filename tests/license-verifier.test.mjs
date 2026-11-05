@@ -125,10 +125,14 @@ test("well-formed invalid and revoked responses are explicit, with redacted text
   }
 });
 
-test("only the service's own revoked and activation-limit codes pass through", async () => {
+test("only the service's own revoked, activation-limit and invalid-instance codes pass through", async () => {
   const { DayBoardLicenseVerifier } = await load();
   const reply = (body) => new DayBoardLicenseVerifier(API, () => response(200, body));
   assert.equal((await reply({ valid: false, error: "revoked" }).validate(KEY)).error, "revoked");
+  assert.equal(
+    (await reply({ valid: false, error: "invalid_instance" }).validate(KEY, "instance-1")).error,
+    "invalid_instance",
+  );
   assert.equal(
     (
       await reply({ activated: false, error: "activation_limit" }).activate(

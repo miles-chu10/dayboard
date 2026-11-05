@@ -5,14 +5,22 @@ import { loadTs } from "./helpers/load-ts.mjs";
 // Quick Capture must parse through the same runner as `ai:run`, so provider options added there
 // (effort, the explicit Codex default) also reach Quick Capture. Everything but the wiring is
 // stubbed; prompt-cache.test.mjs covers what runCompletion sends.
-const fixture = { completions: [], deps: null, accountListeners: [], cleared: 0, closed: 0 };
+const fixture = {
+  completions: [],
+  deps: null,
+  accountListeners: [],
+  cleared: 0,
+  closed: 0,
+  licenseChecks: 0,
+};
 globalThis.__quickCaptureWiring = fixture;
 
 const STUBS = {
   electron: `export class Notification { static isSupported() { return true; } on() { return this; } show() {} close() { globalThis.__quickCaptureWiring.closed += 1; } }`,
   "productivity.js": `export const getAccountsStatus = async () => ({}); export const requireAgendaScope = async () => "scope"; export const onAccountsChanged = (listener) => globalThis.__quickCaptureWiring.accountListeners.push(listener);`,
   "platform/index.js": `export const ipcMain = { handle() {}, broadcast() {} }; export const logger = { error() {}, warn() {} };`,
-  "ipc.js": `export const runGuardedCommand = (_channel, run) => run();`,
+  "ipc.js": `export const runGuardedCommand = (_channel, run) => run();
+    export const assertAiAccess = async () => { globalThis.__quickCaptureWiring.licenseChecks += 1; };`,
   "completion.js": `export const runCompletion = async (input) => {
     globalThis.__quickCaptureWiring.completions.push(input);
     return { text: "parsed", usage: undefined };
@@ -59,6 +67,12 @@ test("Quick Capture's AI parse runs through runCompletion, like ai:run", async (
   assert.equal(call.system, "capture system");
   assert.equal(call.prompt, "Call dentist Thursday 3pm");
   assert.ok(call.signal instanceof AbortSignal);
+});
+
+test("Quick Capture's AI parse asks the license guard every AI channel uses", async () => {
+  assert.ok(fixture.deps, "the capture service was created");
+  await fixture.deps.assertAiAccess();
+  assert.equal(fixture.licenseChecks, 1);
 });
 
 test("an account change clears recent captures, so the previous account's items never show", () => {

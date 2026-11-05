@@ -1,8 +1,16 @@
 import type Stripe from "stripe";
-import type { Config, Env } from "./config.ts";
+import { ORDER_ACCESS_DAYS, siteOrigin, type Config, type Env } from "./config.ts";
 import { decrypt, hash, randomToken } from "./crypto.ts";
 import { error, json, limit, readJson, sameOrigin, securityHeaders } from "./http.ts";
-import { buyPage, receiptPage, buyScript, receiptScript } from "./pages.ts";
+import {
+  DEFAULT_SITE_ORIGIN,
+  busyPage,
+  buyPage,
+  receiptPage,
+  buyScript,
+  receiptScript,
+  type PageContext,
+} from "./pages.ts";
 
 interface Order {
   id: string;
@@ -12,7 +20,7 @@ interface Order {
 }
 const orderIdPattern = /^[A-Za-z0-9_-]{32}$/;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
-const capabilityAge = 7 * 86400;
+const capabilityAge = ORDER_ACCESS_DAYS * 86400;
 function cookieName(orderId: string): string {
   return `__Host-dayboard-order-${orderId}`;
 }
@@ -37,8 +45,9 @@ async function currentOrder(request: Request, env: Env, orderId: string): Promis
     .bind(orderId, await hash(token, env.HASH_SECRET), Date.now())
     .first<Order>();
 }
-function html(markup: string, headers: HeadersInit = {}): Response {
+function html(markup: string, headers: HeadersInit = {}, status = 200): Response {
   return new Response(markup, {
+    status,
     headers: {
       ...securityHeaders,
       "Content-Type": "text/html; charset=utf-8",
@@ -66,6 +75,9 @@ function orderIdFromBody(value: unknown): string | null {
     ? fields.orderId
     : null;
 }
+function pageContext(env: Env, cfg: Config): PageContext {
+  return { site: siteOrigin(env) ?? DEFAULT_SITE_ORIGIN, activationLimit: cfg.activationLimit };
+}
 function receiptUrl(cfg: Config, orderId: string): string {
   return `${cfg.origin}/receipt?order=${orderId}`;
 }
@@ -78,12 +90,15 @@ export async function checkout(
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === "GET" && url.pathname === "/buy") {
-    if (!(await limit(request, env, "checkout:buy", 30))) return error(429, "rate_limited");
+    if (!(await limit(request, env, "checkout:buy", 30))) return html(busyPage, {}, 429);
     const orderId = randomToken(24);
     const token = randomToken();
-    return html(buyPage(orderId), { "Set-Cookie": setCookie(orderId, token) });
+    return html(buyPage(orderId, pageContext(env, cfg)), {
+      "Set-Cookie": setCookie(orderId, token),
+    });
   }
-  if (request.method === "GET" && url.pathname === "/receipt") return html(receiptPage);
+  if (request.method === "GET" && url.pathname === "/receipt")
+    return html(receiptPage(pageContext(env, cfg)));
   if (request.method === "GET" && url.pathname === "/buy.js") return script(buyScript);
   if (request.method === "GET" && url.pathname === "/receipt.js") return script(receiptScript);
   if (url.pathname === "/v1/checkout" && request.method === "POST") {

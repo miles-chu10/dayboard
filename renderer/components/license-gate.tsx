@@ -38,16 +38,22 @@ function upsellCopy(status: LicenseStatus): {
           "Everything else in DayBoard stays free. Get DayBoard Pro for $5, once, to keep using AI.",
       };
     case "invalid":
+      // The reason varies (revoked, released by another account on this Mac, not verified yet).
       return {
-        title: "License key not valid",
-        description:
-          "This license key isn't valid anymore. Enter a different one or get DayBoard Pro.",
+        title: "License key needs attention",
+        description: `${status.message} Open Settings → License to enter your key again or get DayBoard Pro.`,
       };
     case "network-error":
       return {
         title: "Can't verify your license",
         description:
           "The DayBoard license service hasn't been reachable for a while. Check your connection, then open Settings → License.",
+      };
+    case "unreadable":
+      return {
+        title: "Can't read license data",
+        description:
+          "DayBoard can't read the license data saved on this Mac. Open Settings → License to retry, enter your license key again, or reset license data on this Mac.",
       };
     default:
       return {
@@ -90,17 +96,30 @@ export function LicenseGate({
       placement={placement}
       title={copy.title}
       description={copy.description}
-      actions={
-        <>
-          {checkoutUrl ? (
-            <Button variant="accent" onClick={() => void openExternal(checkoutUrl)}>
-              Get DayBoard Pro · $5
-            </Button>
-          ) : null}
-          <Button onClick={() => void openSettings("license")}>Open License Settings</Button>
-        </>
-      }
+      actions={<LicenseUpsellActions checkoutUrl={checkoutUrl} />}
     />
+  );
+}
+
+/** The buy and License buttons of every AI upsell. */
+export function LicenseUpsellActions({
+  checkoutUrl,
+  size,
+}: {
+  checkoutUrl: string;
+  size?: "small";
+}) {
+  return (
+    <>
+      {checkoutUrl ? (
+        <Button variant="accent" size={size} onClick={() => void openExternal(checkoutUrl)}>
+          Get DayBoard Pro · $5
+        </Button>
+      ) : null}
+      <Button size={size} onClick={() => void openSettings("license")}>
+        Open License Settings
+      </Button>
+    </>
   );
 }
 
@@ -140,7 +159,9 @@ export function LicenseStatusControl() {
       ? `${data.status.daysLeft} day${data.status.daysLeft === 1 ? "" : "s"} left in your AI trial`
       : data?.status.state === "unconfigured"
         ? "Preview build"
-        : "Unlock AI · DayBoard Pro";
+        : data?.status.state === "unreadable"
+          ? "License data needs attention"
+          : "Unlock AI · DayBoard Pro";
   return (
     <Button
       size="small"

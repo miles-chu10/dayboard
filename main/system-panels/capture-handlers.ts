@@ -10,7 +10,7 @@ import {
   requireAgendaScope,
 } from "../handlers/productivity.js";
 import { ipcMain, logger } from "../platform/index.js";
-import { runGuardedCommand } from "../platform/ipc.js";
+import { assertAiAccess, runGuardedCommand } from "../platform/ipc.js";
 import { runCompletion } from "../services/ai/completion.js";
 import { createReminder, deleteReminder } from "../services/apple-reminders.js";
 import { completeCapture } from "../services/capture/capture-completion.js";
@@ -48,6 +48,7 @@ const service = createCaptureService({
     }),
   getSettings,
   getAccounts: getAccountsStatus,
+  assertAiAccess,
   complete: (system, prompt) =>
     completeCapture((signal) => runCompletion({ system, prompt, signal })),
   create: {
@@ -87,7 +88,7 @@ const service = createCaptureService({
   newId: randomUUID,
 });
 
-/** One Undo command for IPC and notification buttons: admission, license and receipt checks. */
+/** One Undo command for IPC and notification buttons: admission and receipt checks. */
 function undo(id: string): Promise<CaptureRecord> {
   return service.undo(id).then((record) => {
     if (record.draft) ipcMain.broadcast("data:changed", { source: SOURCE[record.draft.kind] });

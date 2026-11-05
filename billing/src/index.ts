@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { admin } from "./admin.ts";
 import { waitlistSignup, type WaitUntil } from "./beta.ts";
 import { checkout } from "./checkout.ts";
 import { config, type Env } from "./config.ts";
@@ -40,6 +41,7 @@ export function createWorker(
         if (path === "/v1/stripe/webhook")
           return await webhook(request, env, cfg, stripeFactory(env));
         if (path.startsWith("/v1/licenses/")) return await licenses(request, env, cfg);
+        if (path.startsWith("/v1/admin/")) return await admin(request, env, cfg);
         if (
           [
             "/buy",

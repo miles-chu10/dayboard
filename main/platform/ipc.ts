@@ -28,7 +28,6 @@ import { runAppOperation } from "../services/runtime-activity.js";
 
 const registry = new StreamRegistry();
 let bridgeRegistered = false;
-let accountGeneration = 0;
 interface TrustedWindow {
   contents: WebContents;
   entryUrl: string;
@@ -54,6 +53,14 @@ export function runGuardedCommand<T>(channel: string, run: () => Promise<T>): Pr
     if (requiresLicenseAccess(channel)) await licenseAccess();
     return run();
   });
+}
+
+/**
+ * The license check paid channels run, for an AI step inside a free command (Quick Capture's
+ * parse). Starts the AI trial on first use and throws while AI is locked.
+ */
+export function assertAiAccess(): Promise<void> {
+  return licenseAccess();
 }
 
 export function registerTrustedWindow(
@@ -177,12 +184,8 @@ export const ipcMain = {
   handle(channel: string, listener: Parameters<typeof electronIpcMain.handle>[1]): void {
     electronIpcMain.handle(channel, async (event, ...args) => {
       assertChannelAllowed(assertTrustedSender(event), channel);
-      const submittedAccount = accountGeneration;
       const operation = async () => {
         if (requiresLicenseAccess(channel)) await licenseAccess();
-        // Capture's own fence starts inside the listener; cover time spent awaiting admission too.
-        if (channel === "capture:submit" && submittedAccount !== accountGeneration)
-          throw new Error("Your account changed. Add the item again.");
         return listener(event, ...args);
       };
       // Updater control/status must remain callable while the app is frozen for installation.
@@ -198,7 +201,6 @@ export const ipcMain = {
     registry.registerHandler(channel, handler);
   },
   broadcast(channel: string, params: unknown): void {
-    if (channel === "accounts:changed") accountGeneration += 1;
     for (const window of BrowserWindow.getAllWindows()) {
       const trusted = trustedWindows.get(window.webContents.id);
       if (

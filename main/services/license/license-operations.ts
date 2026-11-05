@@ -1,4 +1,9 @@
-import type { LicenseStatus, LicenseStatusPayload } from "../../../shared/license.js";
+import { LicenseRequiredError } from "../../../shared/license-policy.js";
+import type {
+  LicenseDeactivationPayload,
+  LicenseStatus,
+  LicenseStatusPayload,
+} from "../../../shared/license.js";
 import { isLicenseBlocking, type LicenseService } from "./license-service.js";
 
 export type LicenseMode = "demo" | "disabled" | "unconfigured" | "configured";
@@ -15,39 +20,81 @@ export function createLicenseOperations(deps: {
     return { status: { state: mode }, checkoutUrl: "" };
   }
 
-  function payload(status: LicenseStatus): LicenseStatusPayload {
-    return { status, checkoutUrl: deps.checkoutUrl };
+  async function payload(
+    service: LicenseService,
+    status: LicenseStatus,
+  ): Promise<LicenseStatusPayload> {
+    return {
+      status,
+      checkoutUrl: deps.checkoutUrl,
+      releasePending: await service.hasPendingRelease(),
+    };
+  }
+
+  function requireConfigured(action: string): void {
+    const mode = deps.mode();
+    if (mode !== "configured") throw new Error(`License ${action} is unavailable in ${mode} mode.`);
   }
 
   async function getStatus(): Promise<LicenseStatusPayload> {
-    return immediateStatus() ?? payload(await (await deps.getService()).getStatus());
+    const immediate = immediateStatus();
+    if (immediate) return immediate;
+    const service = await deps.getService();
+    return payload(service, await service.getStatus());
   }
 
   async function refresh(): Promise<LicenseStatusPayload> {
-    return immediateStatus() ?? payload(await (await deps.getService()).refresh());
+    const immediate = immediateStatus();
+    if (immediate) return immediate;
+    const service = await deps.getService();
+    return payload(service, await service.refresh());
   }
 
   async function activate(licenseKey: string, instanceName: string): Promise<LicenseStatusPayload> {
-    const mode = deps.mode();
-    if (mode !== "configured")
-      throw new Error(`License activation is unavailable in ${mode} mode.`);
-    return payload(await (await deps.getService()).activate(licenseKey, instanceName));
+    requireConfigured("activation");
+    const service = await deps.getService();
+    return payload(service, await service.activate(licenseKey, instanceName));
   }
 
-  async function deactivate(): Promise<LicenseStatusPayload> {
-    const mode = deps.mode();
-    if (mode !== "configured")
-      throw new Error(`License deactivation is unavailable in ${mode} mode.`);
-    return payload(await (await deps.getService()).deactivate());
+  async function deactivate(): Promise<LicenseDeactivationPayload> {
+    requireConfigured("deactivation");
+    const service = await deps.getService();
+    const { status, release } = await service.deactivate();
+    return { ...(await payload(service, status)), release };
   }
 
+  /** Deletes keys kept only for an unconfirmed release; their slots may stay in use. */
+  async function forgetPendingReleases(): Promise<LicenseStatusPayload> {
+    requireConfigured("data");
+    const service = await deps.getService();
+    return payload(service, await service.forgetPendingReleases());
+  }
+
+  /** Recovery for an unreadable license file; a readable one is left as is. */
+  async function resetUnreadable(): Promise<LicenseStatusPayload> {
+    requireConfigured("reset");
+    const service = await deps.getService();
+    return payload(service, await service.resetUnreadable());
+  }
+
+  /** Runs before every AI action and capture, so it reads only the status it needs. */
   async function assertLicenseAccess(): Promise<void> {
-    if (deps.mode() === "configured") await (await deps.getService()).startTrial();
-    const { status } = await refresh();
-    if (isLicenseBlocking(status)) {
-      throw new Error("License required for this action. Open Settings → License to continue.");
+    let status = immediateStatus()?.status;
+    if (!status) {
+      const service = await deps.getService();
+      await service.startTrial();
+      status = await service.refresh();
     }
+    if (isLicenseBlocking(status)) throw new LicenseRequiredError(status.state);
   }
 
-  return { getStatus, refresh, activate, deactivate, assertLicenseAccess };
+  return {
+    getStatus,
+    refresh,
+    activate,
+    deactivate,
+    forgetPendingReleases,
+    resetUnreadable,
+    assertLicenseAccess,
+  };
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { initialCaptureState, reduceCapturePanel } from "./capture-panel-state";
+import { initialCaptureState, panelAiCapture, reduceCapturePanel } from "./capture-panel-state";
 
 const available = { reminder: true, task: true, event: true };
 
@@ -12,6 +12,7 @@ const failedRecord = {
   partial: { kind: "reminder" as const, title: "Call dentist", date: "2026-10-22" },
   state: "failed" as const,
   error: "The time wasn't clear. Check the details, then add it.",
+  reason: null,
   createdAt: "2026-10-20T16:00:00.000Z",
   canUndo: false,
 };
@@ -31,7 +32,13 @@ test("queues a wrapper-level rejection without losing the text", () => {
   });
   assert.equal(state.text, "Buy milk");
   assert.deepEqual(state.failures, [
-    { key: "local-1", text: "Call dentist Thursday 3pm", error: "License required", partial: null },
+    {
+      key: "local-1",
+      text: "Call dentist Thursday 3pm",
+      error: "License required",
+      partial: null,
+      reason: null,
+    },
   ]);
 });
 
@@ -203,4 +210,87 @@ test("text typed before settings load carries into the manual form", () => {
     available,
   });
   assert.equal(withAi.text, "Buy milk");
+});
+
+const aiSettings = (capture: boolean) => ({
+  ai: { enabled: true, providerChosen: true, features: { capture } },
+});
+
+test("a license that locks AI turns off AI capture in the panels, naming the lock", () => {
+  for (const status of [
+    { state: "expired" as const },
+    { state: "invalid" as const, message: "Revoked", keyHint: "ABCD" },
+    { state: "network-error" as const, keyHint: "ABCD", lastValidatedAt: "2026-09-01T00:00:00Z" },
+  ])
+    assert.deepEqual(panelAiCapture(aiSettings(true), status), {
+      available: false,
+      lock: status.state,
+    });
+  for (const status of [
+    undefined,
+    { state: "trial" as const, daysLeft: 3 },
+    { state: "licensed" as const, keyHint: "ABCD" },
+    { state: "unconfigured" as const },
+    { state: "disabled" as const },
+    { state: "demo" as const },
+  ])
+    assert.deepEqual(
+      panelAiCapture(aiSettings(true), status),
+      { available: true, lock: null },
+      status?.state ?? "status still loading",
+    );
+  assert.deepEqual(panelAiCapture(aiSettings(false), { state: "expired" }), {
+    available: false,
+    lock: null,
+  });
+  assert.deepEqual(panelAiCapture(undefined, { state: "trial", daysLeft: 3 }), {
+    available: false,
+    lock: null,
+  });
+});
+
+test("a locked AI license opens on the free manual form, every time it is shown", () => {
+  const { available: aiAvailable } = panelAiCapture(aiSettings(true), { state: "expired" });
+  const typed = reduceCapturePanel(initialCaptureState, { type: "typed", text: "Buy milk" });
+  const shown = reduceCapturePanel(typed, {
+    type: "shown",
+    aiAvailable,
+    defaultKind: "task",
+    available,
+  });
+  assert.equal(shown.mode, "form");
+  assert.equal(shown.form?.title, "Buy milk", "text typed before the status loaded is kept");
+  const submitted = reduceCapturePanel(shown, { type: "submitted" });
+  assert.equal(submitted.form, null);
+  const again = reduceCapturePanel(submitted, {
+    type: "shown",
+    aiAvailable,
+    defaultKind: "task",
+    available,
+  });
+  assert.equal(again.mode, "form", "after a manual add, the next show is the form again");
+  assert.equal(again.form?.title, "");
+});
+
+test("a parse the license refused is marked, so the panel can refresh the license", () => {
+  const state = reduceCapturePanel(initialCaptureState, {
+    type: "recordsChanged",
+    records: [
+      {
+        ...failedRecord,
+        partial: { title: failedRecord.text },
+        error: "Your AI trial has ended, so DayBoard can't read this for you.",
+        reason: "license",
+      },
+    ],
+  });
+  assert.equal(state.failures[0]?.reason, "license");
+  const edited = reduceCapturePanel(state, {
+    type: "editFailure",
+    key: failedRecord.id,
+    available,
+    defaultKind: "task",
+  });
+  assert.equal(edited.mode, "form");
+  assert.equal(edited.form?.title, failedRecord.text);
 });

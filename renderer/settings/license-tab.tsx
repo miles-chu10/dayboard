@@ -1,11 +1,16 @@
 import { useState } from "react";
 
-import { Button, Callout, Field, FieldSet, Input, Status } from "../ui";
+import { AlertDialog, Button, Callout, Field, FieldSet, Input, Status } from "../ui";
 import {
+  LICENSE_FORGET_COPY,
+  LICENSE_RELEASE_PENDING_COPY,
+  LICENSE_RESET_COPY,
   LICENSE_STATUS_COPY,
   useActivateLicense,
   useDeactivateLicense,
+  useForgetPendingRelease,
   useLicenseStatus,
+  useResetLicenseData,
 } from "../lib/license";
 import { openExternal } from "../lib/ipc";
 
@@ -18,6 +23,7 @@ const STATUS_VARIANT = {
   invalid: "warning",
   licensed: "success",
   "network-error": "warning",
+  unreadable: "warning",
 } as const;
 
 function KeyEntry({ busy, onSubmit }: { busy: boolean; onSubmit: (key: string) => void }) {
@@ -52,6 +58,10 @@ export function LicenseTab() {
   const { data, isLoading, isError, refetch } = useLicenseStatus();
   const activate = useActivateLicense();
   const deactivate = useDeactivateLicense();
+  const reset = useResetLicenseData();
+  const forget = useForgetPendingRelease();
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmingForget, setConfirmingForget] = useState(false);
 
   if (isError)
     return (
@@ -75,6 +85,11 @@ export function LicenseTab() {
   const { status, checkoutUrl } = data;
   const copy = LICENSE_STATUS_COPY[status.state];
   const canBuy = checkoutUrl.trim().length > 0;
+  // From the saved record, so it survives reopening Settings and clears once a retry confirms.
+  // Only while no key is saved, so "Try again" can never remove a newly entered key.
+  const releasePending =
+    data.releasePending === true && (status.state === "trial" || status.state === "expired");
+  const releaseBusy = deactivate.isPending || forget.isPending;
 
   return (
     <FieldSet title="License" description={copy.description}>
@@ -93,6 +108,31 @@ export function LicenseTab() {
       {status.state === "invalid" ? (
         <Field>
           <Callout color="orange">{status.message}</Callout>
+        </Field>
+      ) : null}
+
+      {releasePending ? (
+        <Field>
+          <Callout
+            color="orange"
+            actions={
+              <>
+                <Button size="small" onClick={() => deactivate.mutate()} disabled={releaseBusy}>
+                  {deactivate.isPending ? "Trying…" : LICENSE_RELEASE_PENDING_COPY.retry}
+                </Button>
+                <Button
+                  size="small"
+                  variant="transparent"
+                  onClick={() => setConfirmingForget(true)}
+                  disabled={releaseBusy}
+                >
+                  {LICENSE_FORGET_COPY.action}
+                </Button>
+              </>
+            }
+          >
+            {LICENSE_RELEASE_PENDING_COPY.callout}
+          </Callout>
         </Field>
       ) : null}
 
@@ -120,6 +160,20 @@ export function LicenseTab() {
               </Button>
             </Field>
           ) : null}
+          {status.state === "unreadable" ? (
+            <Field>
+              <div className="flex gap-2">
+                <Button onClick={() => void refetch()}>Retry</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirmingReset(true)}
+                  disabled={reset.isPending}
+                >
+                  {reset.isPending ? "Resetting…" : LICENSE_RESET_COPY.action}
+                </Button>
+              </div>
+            </Field>
+          ) : null}
           {canBuy ? (
             <Field>
               <Button variant="accent" onClick={() => openExternal(checkoutUrl)}>
@@ -129,6 +183,25 @@ export function LicenseTab() {
           ) : null}
         </>
       )}
+
+      <AlertDialog
+        open={confirmingReset}
+        onOpenChange={setConfirmingReset}
+        title={LICENSE_RESET_COPY.title}
+        description={LICENSE_RESET_COPY.description}
+        confirmLabel={LICENSE_RESET_COPY.confirm}
+        confirmVariant="destructive"
+        onConfirm={() => reset.mutate()}
+      />
+      <AlertDialog
+        open={confirmingForget}
+        onOpenChange={setConfirmingForget}
+        title={LICENSE_FORGET_COPY.title}
+        description={LICENSE_FORGET_COPY.description}
+        confirmLabel={LICENSE_FORGET_COPY.confirm}
+        confirmVariant="destructive"
+        onConfirm={() => forget.mutate()}
+      />
     </FieldSet>
   );
 }

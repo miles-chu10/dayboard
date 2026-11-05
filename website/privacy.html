@@ -113,7 +113,7 @@
           <h1>Privacy, <em>plainly.</em></h1>
           <p>
             DayBoard keeps your calendar, tasks, reminders and mail between your Mac and the
-            services you connect. This page explains what goes where. Last updated November 4, 2026.
+            services you connect. This page explains what goes where. Last updated November 5, 2026.
           </p>
         </div>
       </header>
@@ -166,9 +166,13 @@
             </li>
             <li>
               <strong>Licenses (paid versions only):</strong> activating a license sends your
-              license key, a random installation ID and the label "DayBoard on macOS" to DayBoard's
-              license service, which checks it again about once a day. Beta builds have no license
-              and never contact that service. See <a href="#purchases">Purchases</a>.
+              license key, an installation ID and the label "DayBoard on macOS" to DayBoard's
+              license service, which checks it again about once a day. DayBoard computes the
+              installation ID one-way from your Mac's hardware UUID, so it stays the same if you
+              reinstall DayBoard or delete its data, and every macOS account on that Mac sends the
+              same one. The hardware UUID itself is never sent or stored. If DayBoard can't read it,
+              the installation ID is random. Beta builds have no license and never contact that
+              service. See <a href="#purchases">Purchases</a>.
             </li>
           </ul>
 
@@ -224,11 +228,12 @@
             <li>
               <strong>What DayBoard keeps:</strong> DayBoard's license service stores an order
               record with Stripe's IDs for the checkout and payment, its status (paid, refunded or
-              disputed), your license key (encrypted) and, for each Mac you activate, its random
-              installation ID and the label "DayBoard on macOS". It doesn't store your name, email
-              address or payment details. To limit abuse, it briefly keeps a keyed hash of your IP
-              address, not the address itself. We can see your purchase in our Stripe account when
-              you ask for help or a refund.
+              disputed), your license key (encrypted) and, for each Mac you activate, its
+              installation ID (computed one-way from that Mac's hardware UUID, never the UUID
+              itself, or random if DayBoard couldn't read it) and the label "DayBoard on macOS". It
+              doesn't store your name, email address or payment details. To limit abuse, it briefly
+              keeps a keyed hash of your IP address, not the address itself. We can see your
+              purchase in our Stripe account when you ask for help or a refund.
             </li>
             <li>
               <strong>Checkout cookie:</strong> the checkout page on api.getdayboard.com sets one

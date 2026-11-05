@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import type { Config, Env } from "./config.ts";
-import { encrypt, hash, randomToken } from "./crypto.ts";
+import { mintLicense } from "./crypto.ts";
 import { error, json, readBoundedText } from "./http.ts";
 
 function id(value: string | { id: string } | null | undefined): string | null {
@@ -63,10 +63,7 @@ async function paid(
     .bind(session.client_reference_id, session.id)
     .first<{ id: string }>();
   if (!order) throw new Error("order_not_found");
-  const key = `DAYB_${randomToken()}`;
-  const sealed = await encrypt(key, env.ENCRYPTION_KEY);
-  const keyHash = await hash(key, env.HASH_SECRET);
-  const licenseId = randomToken(24);
+  const { licenseId, keyHash, sealed } = await mintLicense(env.ENCRYPTION_KEY, env.HASH_SECRET);
   // D1 batch is one SQLite transaction. Revocation and issuance serialize at this boundary.
   await env.DB.batch([
     env.DB.prepare(

@@ -91,6 +91,8 @@ Install with `npm install --include=dev` (the shell may export `NODE_ENV=product
 - New HTML entries must be in `ENTRIES` and `rollupOptions.input`; every window goes through `hardenWindow` → `registerTrustedWindow`.
 - Panel windows get the allow-list in `main/system-panels/panel-channels.ts`; main and Settings windows pass none.
 - `capture:submit` and `capture:undo` are added to `PAID_CHANNELS`; all create/delete paths refuse demo mode.
+  (Superseded by the 2026-11-04 AI-only Pro model in `docs/EXECPLAN.md`: neither is paid;
+  only Quick Capture's AI parse checks the license, inside `capture-service.ts`.)
 - New settings keys must round-trip through `normalizeSettings`; defaults: `system.quickCapture = { enabled: true, hotkey: "Control+Alt+Space" }`, `system.menuBar = { enabled: true }`, `system.meetings = { upNext: true, notify: false, notifyMinutesBefore: 2, notesImport: true }`.
 - Runtime `dependencies` only for main-process runtime needs; no new dependencies are planned.
 - No reverse engineering of Claude.app or Granola; Granola fixtures are synthetic and contain no real notes.

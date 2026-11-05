@@ -64,14 +64,24 @@ export function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export async function limit(
-  request: Request,
-  env: Env,
-  route: string,
-  threshold: number,
-): Promise<boolean> {
+function rateBucket(request: Request, env: Env, route: string): Promise<string> {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const bucket = await hash(`${route}:${ip}`, env.HASH_SECRET);
+  return hash(`${route}:${ip}`, env.HASH_SECRET);
+}
+
+export interface RateHit {
+  bucket: string;
+  windowStart: number;
+  /** This minute's count for the route and caller, this hit included. */
+  hits: number;
+}
+
+/**
+ * Adds one hit to this minute's count for the route and caller. The add and the read are one
+ * statement, so requests running in parallel each see a different count.
+ */
+export async function count(request: Request, env: Env, route: string): Promise<RateHit> {
+  const bucket = await rateBucket(request, env, route);
   const windowStart = Math.floor(Date.now() / 60000);
   const row =
     await env.DB.prepare(`INSERT INTO rate_limits (bucket,window_start,hits) VALUES (?,?,1)
@@ -84,5 +94,23 @@ export async function limit(
   // starts a new minute keeps the table from growing with every new client address.
   if (row?.hits === 1)
     await env.DB.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(windowStart).run();
-  return (row?.hits ?? 9999) <= threshold;
+  return { bucket, windowStart, hits: row?.hits ?? Number.MAX_SAFE_INTEGER };
+}
+
+/** Takes back a hit added by count(), unless its minute has already ended. */
+export async function uncount(env: Env, hit: RateHit): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE rate_limits SET hits=hits-1 WHERE bucket=? AND window_start=? AND hits>0",
+  )
+    .bind(hit.bucket, hit.windowStart)
+    .run();
+}
+
+export async function limit(
+  request: Request,
+  env: Env,
+  route: string,
+  threshold: number,
+): Promise<boolean> {
+  return (await count(request, env, route)).hits <= threshold;
 }

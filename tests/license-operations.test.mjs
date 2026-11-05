@@ -48,6 +48,18 @@ test("demo and unconfigured wrappers never open personal license storage or use 
             networkCalls++;
             return seededPersonalRecord;
           },
+          resetUnreadable: async () => {
+            storeReads++;
+            return seededPersonalRecord;
+          },
+          forgetPendingReleases: async () => {
+            storeReads++;
+            return seededPersonalRecord;
+          },
+          hasPendingRelease: async () => {
+            storeReads++;
+            return true;
+          },
         };
       },
     });
@@ -57,6 +69,8 @@ test("demo and unconfigured wrappers never open personal license storage or use 
     await operations.assertLicenseAccess();
     await assert.rejects(operations.activate("PERSONAL-KEY", "Device"), /unavailable/);
     await assert.rejects(operations.deactivate(), /unavailable/);
+    await assert.rejects(operations.forgetPendingReleases(), /unavailable/);
+    await assert.rejects(operations.resetUnreadable(), /unavailable/);
     assert.equal(serviceOpens, 0);
     assert.equal(storeReads, 0);
     assert.equal(networkCalls, 0);
@@ -72,7 +86,12 @@ test("server-side access assertion blocks an expired configured trial", async ()
       refresh: async () => ({ state: "expired" }),
     }),
   });
-  await assert.rejects(operations.assertLicenseAccess(), /License required/);
+  await assert.rejects(operations.assertLicenseAccess(), (error) => {
+    assert.match(error.message, /License required/);
+    assert.equal(error.code, "license-required");
+    assert.equal(error.state, "expired", "Quick Capture words its message by the lock state");
+    return true;
+  });
 });
 
 test("the first guarded (AI) action starts the trial before checking access", async () => {
@@ -85,6 +104,74 @@ test("the first guarded (AI) action starts the trial before checking access", as
       refresh: async () => (calls.push("refresh"), { state: "trial", daysLeft: 7 }),
     }),
   });
+  await operations.assertLicenseAccess();
+  assert.deepEqual(calls, ["startTrial", "refresh"]);
+});
+
+test("deactivation passes the release outcome through and unreadable data blocks AI", async () => {
+  const checkoutUrl = "https://example.invalid/buy";
+  for (const release of ["released", "pending", "none"]) {
+    const operations = createLicenseOperations({
+      mode: () => "configured",
+      checkoutUrl,
+      getService: async () => ({
+        deactivate: async () => ({ status: { state: "trial", daysLeft: 3 }, release }),
+        hasPendingRelease: async () => release === "pending",
+      }),
+    });
+    assert.deepEqual(await operations.deactivate(), {
+      status: { state: "trial", daysLeft: 3 },
+      checkoutUrl,
+      releasePending: release === "pending",
+      release,
+    });
+  }
+
+  let resets = 0;
+  const operations = createLicenseOperations({
+    mode: () => "configured",
+    checkoutUrl,
+    getService: async () => ({
+      startTrial: async () => {},
+      refresh: async () => ({ state: "unreadable" }),
+      resetUnreadable: async () => (resets++, { state: "trial", daysLeft: 7 }),
+      hasPendingRelease: async () => false,
+    }),
+  });
+  await assert.rejects(operations.assertLicenseAccess(), /License required/);
+  assert.deepEqual(await operations.resetUnreadable(), {
+    status: { state: "trial", daysLeft: 7 },
+    checkoutUrl,
+    releasePending: false,
+  });
+  assert.equal(resets, 1);
+});
+
+test("status payloads carry the saved pending release, and forgetting it clears the flag", async () => {
+  const checkoutUrl = "https://example.invalid/buy";
+  let pending = true;
+  const calls = [];
+  const operations = createLicenseOperations({
+    mode: () => "configured",
+    checkoutUrl,
+    getService: async () => ({
+      getStatus: async () => ({ state: "trial", daysLeft: 3 }),
+      refresh: async () => (calls.push("refresh"), { state: "trial", daysLeft: 3 }),
+      startTrial: async () => calls.push("startTrial"),
+      forgetPendingReleases: async () => ((pending = false), { state: "trial", daysLeft: 3 }),
+      hasPendingRelease: async () => (calls.push("pending"), pending),
+    }),
+  });
+  const status = { state: "trial", daysLeft: 3 };
+  assert.deepEqual(await operations.getStatus(), { status, checkoutUrl, releasePending: true });
+  assert.deepEqual(await operations.refresh(), { status, checkoutUrl, releasePending: true });
+  assert.deepEqual(await operations.forgetPendingReleases(), {
+    status,
+    checkoutUrl,
+    releasePending: false,
+  });
+  // The access check before each AI action reads only the status.
+  calls.length = 0;
   await operations.assertLicenseAccess();
   assert.deepEqual(calls, ["startTrial", "refresh"]);
 });

@@ -4,6 +4,9 @@ import { loadTs } from "./helpers/load-ts.mjs";
 
 const { createCaptureService } = await loadTs("main/services/capture/capture-service.ts");
 const { completeCapture } = await loadTs("main/services/capture/capture-completion.ts");
+const { createLicenseOperations } = await loadTs("main/services/license/license-operations.ts");
+const { LicenseService } = await loadTs("main/services/license/license-service.ts");
+const { LicenseRequiredError } = await loadTs("shared/license-policy.ts");
 
 const ACCOUNT_CHANGED = "Your account changed. Check the details and add it again.";
 
@@ -19,7 +22,15 @@ function settings({ ai = true, capture = true } = {}) {
 }
 
 function harness(options = {}) {
-  const calls = { complete: 0, create: [], remove: [], created: [], failed: [], changes: 0 };
+  const calls = {
+    license: 0,
+    complete: 0,
+    create: [],
+    remove: [],
+    created: [],
+    failed: [],
+    changes: 0,
+  };
   const state = { scope: "account-a", clock: new Date(2026, 9, 20, 9, 0), ids: 0 };
   const output =
     options.output ??
@@ -39,7 +50,13 @@ function harness(options = {}) {
       await options.duringSettings?.(state);
       return options.settings ?? settings();
     },
-    getAccounts: async () => ({ google: { connected: true }, reminders: "full-access" }),
+    getAccounts: async () =>
+      options.accounts ?? { google: { connected: true }, reminders: "full-access" },
+    assertAiAccess: async () => {
+      calls.license += 1;
+      await options.duringLicense?.(state);
+      await options.assertAiAccess?.();
+    },
     complete: async () => {
       calls.complete += 1;
       if (options.complete) return options.complete();
@@ -111,6 +128,7 @@ test("uses the manual draft without calling AI", async () => {
     },
   });
   assert.equal(record.state, "created");
+  assert.equal(calls.license, 0);
   assert.equal(calls.complete, 0);
   assert.deepEqual(
     calls.create.map(([kind]) => kind),
@@ -124,6 +142,7 @@ test("rejects text when AI capture is off", async () => {
   assert.equal(record.state, "failed");
   assert.equal(record.error, "Fill in the details, then add it.");
   assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+  assert.equal(calls.license, 0, "no AI runs, so no license check");
   assert.equal(calls.complete, 0);
   assert.equal(calls.create.length, 0);
 });
@@ -279,7 +298,13 @@ test("two concurrent submits both complete", async () => {
   assert.equal(calls.create.length, 2);
 });
 
-for (const phase of ["duringScope", "duringSettings", "duringComplete", "duringCreate"]) {
+for (const phase of [
+  "duringScope",
+  "duringSettings",
+  "duringLicense",
+  "duringComplete",
+  "duringCreate",
+]) {
   test(`account changes during ${phase} cannot publish old capture data`, async () => {
     const entered = Promise.withResolvers();
     const released = Promise.withResolvers();
@@ -301,6 +326,37 @@ for (const phase of ["duringScope", "duringSettings", "duringComplete", "duringC
     assert.deepEqual(calls.created, [], "no old-account notification");
     assert.deepEqual(calls.failed, [], "no old-account failure or panel reopen");
     if (phase !== "duringCreate") assert.deepEqual(calls.create, []);
+  });
+}
+
+for (const [label, guardError] of [
+  ["a license block", () => new LicenseRequiredError("expired")],
+  ["any other license failure", () => new Error("License status is not ready. Try again shortly.")],
+]) {
+  test(`${label} after an account change cannot publish old capture data`, async () => {
+    const entered = Promise.withResolvers();
+    const released = Promise.withResolvers();
+    const { service, calls, state } = harness({
+      duringLicense: async () => {
+        entered.resolve();
+        await released.promise;
+      },
+      assertAiAccess: async () => {
+        throw guardError();
+      },
+    });
+    const pending = service.submit({ text: "Private account A capture" });
+    await entered.promise;
+    state.scope = "account-b";
+    service.clear();
+    const changesAtClear = calls.changes;
+    released.resolve();
+    await assert.rejects(pending, /account changed/i);
+    assert.deepEqual(service.recent(), []);
+    assert.equal(calls.changes, changesAtClear, "no stale records broadcast after clear");
+    assert.deepEqual(calls.failed, [], "no old-account failure or panel reopen");
+    assert.equal(calls.complete, 0);
+    assert.deepEqual(calls.create, []);
   });
 }
 
@@ -394,4 +450,208 @@ test("a timed-out capture preserves its text for manual recovery and ignores lat
   await Promise.resolve();
   assert.equal(calls.create.length, 0);
   assert.equal(service.recent()[0].state, "failed");
+});
+
+// Quick Capture against the real license operations and trial clock, with an in-memory store and a
+// stub license service: only an AI parse is paid, and a locked parse keeps the text for the form.
+const DAY_MS = 86_400_000;
+const LICENSE_META = {
+  issuer: "https://license.example",
+  productId: "prod_capture",
+  environment: "test",
+};
+const LICENSE_TERMS = { status: "active", expiresAt: null };
+const LICENSE_KEY = `DAYB_${"C".repeat(43)}`;
+
+async function licenseStack(stage) {
+  let stored = null;
+  const store = {
+    read: async () => stored,
+    write: async (record) => void (stored = structuredClone(record)),
+  };
+  const verifier = {
+    validate: async (_key, instanceId) => ({
+      valid: true,
+      instanceId,
+      license: LICENSE_TERMS,
+      meta: LICENSE_META,
+    }),
+    activate: async () => ({
+      activated: true,
+      created: true,
+      instanceId: "capture-mac",
+      license: LICENSE_TERMS,
+      meta: LICENSE_META,
+    }),
+  };
+  const service = new LicenseService(verifier, store, {
+    trialDays: 7,
+    revalidateIntervalMs: DAY_MS,
+    offlineGraceDays: 30,
+    product: { ...LICENSE_META, apiUrl: LICENSE_META.issuer },
+  });
+  if (stage === "expired") await service.startTrial(new Date(Date.now() - 8 * DAY_MS));
+  if (stage === "licensed") await service.activate(LICENSE_KEY, "Capture Mac");
+  const operations = createLicenseOperations({
+    mode: () => "configured",
+    checkoutUrl: "",
+    getService: async () => service,
+  });
+  return {
+    assertAiAccess: operations.assertLicenseAccess,
+    trialStartedAt: () => stored?.firstLaunchAt ?? null,
+    status: () => service.getStatus(),
+  };
+}
+
+const MANUAL_DRAFT = {
+  kind: "task",
+  title: "Pay rent",
+  notes: "",
+  date: "2026-11-01",
+  time: "",
+  endTime: "",
+};
+
+for (const aiCapture of [true, false]) {
+  test(`a manual capture is free and never starts the AI trial (AI capture ${aiCapture ? "on" : "off"})`, async () => {
+    const license = await licenseStack("fresh");
+    const { service, calls } = harness({
+      settings: settings({ capture: aiCapture }),
+      assertAiAccess: license.assertAiAccess,
+    });
+    const record = await service.submit({ draft: MANUAL_DRAFT });
+    assert.equal(record.state, "created");
+    assert.equal(calls.license, 0);
+    assert.equal(calls.complete, 0);
+    assert.equal(license.trialStartedAt(), null);
+    assert.deepEqual(await license.status(), { state: "trial", daysLeft: 7 });
+  });
+}
+
+test("a manual capture still works after the AI trial ends without a license", async () => {
+  const license = await licenseStack("expired");
+  const { service, calls } = harness({ assertAiAccess: license.assertAiAccess });
+  const record = await service.submit({ draft: MANUAL_DRAFT });
+  assert.equal(record.state, "created");
+  assert.equal(calls.license, 0);
+  assert.equal(calls.complete, 0);
+  assert.deepEqual(await license.status(), { state: "expired" });
+});
+
+test("text with AI capture off goes to the form without starting the AI trial", async () => {
+  const license = await licenseStack("fresh");
+  const { service, calls } = harness({
+    settings: settings({ capture: false }),
+    assertAiAccess: license.assertAiAccess,
+  });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(calls.license, 0);
+  assert.equal(license.trialStartedAt(), null);
+});
+
+test("the first AI-parsed capture starts the AI trial before calling AI", async () => {
+  const license = await licenseStack("fresh");
+  let trialAtParse = null;
+  const { service, calls } = harness({
+    assertAiAccess: license.assertAiAccess,
+    duringComplete: () => {
+      trialAtParse = license.trialStartedAt();
+    },
+  });
+  const before = Date.now();
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "created");
+  assert.equal(calls.license, 1);
+  assert.equal(calls.complete, 1);
+  assert.ok(trialAtParse, "the trial started before the AI call");
+  assert.ok(Date.parse(license.trialStartedAt()) >= before);
+  assert.deepEqual(await license.status(), { state: "trial", daysLeft: 7 });
+});
+
+test("an AI-parsed capture is blocked after the trial without a license and keeps the text", async () => {
+  const license = await licenseStack("expired");
+  const { service, calls } = harness({ assertAiAccess: license.assertAiAccess });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(
+    record.error,
+    "Your AI trial has ended, so DayBoard can't read this for you. " +
+      "Fill in the details to add it without AI, or get DayBoard Pro in Settings → License.",
+  );
+  assert.equal(record.reason, "license", "the panels can offer DayBoard Pro");
+  assert.equal(record.text, "Call dentist Thursday 3pm");
+  assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+  assert.equal(calls.complete, 0, "no AI call");
+  assert.equal(calls.create.length, 0);
+  assert.equal(calls.failed.length, 1, "the panel reopens with the text for the manual form");
+
+  const manual = await service.submit({ draft: { ...MANUAL_DRAFT, title: record.text } });
+  assert.equal(manual.state, "created", "the manual form still adds it");
+  assert.equal(calls.license, 1);
+});
+
+test("a licensed AI-parsed capture is allowed", async () => {
+  const license = await licenseStack("licensed");
+  const { service, calls } = harness({ assertAiAccess: license.assertAiAccess });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "created");
+  assert.equal(calls.license, 1);
+  assert.equal(calls.complete, 1);
+  assert.deepEqual(await license.status(), { state: "licensed", keyHint: "CCCC" });
+});
+
+for (const [lock, copy] of [
+  [
+    "invalid",
+    /^Your license key needs attention, so DayBoard can't read this for you\. .*check your key/,
+  ],
+  ["network-error", /^DayBoard can't verify your license, so it can't read this for you\./],
+]) {
+  test(`a parse locked by a license that is ${lock} names why and keeps the text`, async () => {
+    const { service, calls } = harness({
+      assertAiAccess: async () => {
+        throw new LicenseRequiredError(lock);
+      },
+    });
+    const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+    assert.equal(record.state, "failed");
+    assert.match(record.error, copy);
+    assert.match(record.error, /Fill in the details to add it without AI/);
+    assert.equal(record.reason, "license");
+    assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+    assert.equal(calls.complete, 0);
+  });
+}
+
+test("a license check that fails for another reason keeps its own message", async () => {
+  const { service, calls } = harness({
+    assertAiAccess: async () => {
+      throw new Error("License status is not ready. Try again shortly.");
+    },
+  });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(
+    record.error,
+    "License status is not ready. Try again shortly. Fill in the details to add it without AI.",
+  );
+  assert.equal(record.reason, null);
+  assert.equal(calls.complete, 0);
+});
+
+test("text with nowhere to add it neither starts the AI trial nor calls AI", async () => {
+  const license = await licenseStack("fresh");
+  const { service, calls } = harness({
+    accounts: { google: { connected: false }, reminders: "denied" },
+    assertAiAccess: license.assertAiAccess,
+  });
+  const record = await service.submit({ text: "Call dentist Thursday 3pm" });
+  assert.equal(record.state, "failed");
+  assert.equal(record.error, "Connect Google or allow Reminders access to add items.");
+  assert.deepEqual(record.partial, { title: "Call dentist Thursday 3pm" });
+  assert.equal(calls.license, 0);
+  assert.equal(calls.complete, 0);
+  assert.equal(license.trialStartedAt(), null);
 });

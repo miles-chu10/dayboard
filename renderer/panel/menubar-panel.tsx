@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Callout, Input, Text } from "@renderer/ui";
 
-import { aiCaptureEnabled } from "@shared/capture";
 import { MeetingCard } from "../components/meeting-card";
 import { SourceDot } from "../components/source-dot";
 import { buildAgenda } from "../lib/agenda";
 import { identifyCalendarEvents } from "../lib/calendar-identity";
 import { longToday, todayISO } from "../lib/dates";
 import { ageLabel, isStale, needsYou } from "../lib/home";
-import { errorMessage, invoke } from "../lib/ipc";
+import { errorMessage, invoke, openSettings } from "../lib/ipc";
+import { useLicenseSnapshot } from "../lib/license";
 import { dueFollowUps, useMailSchedule } from "../lib/mail-schedule";
 import { useAgendaState, useCalendarRange, useMail, useReminders, useTasks } from "../lib/queries";
 import { featureOn, sourceOn, useSettings } from "../lib/settings";
 import { buildTodos, mergeLinkedTodos } from "../lib/todos";
 import { readTriageMap } from "../lib/triage";
 import { useAgendaClock } from "../lib/use-agenda-clock";
-import type { CaptureRecordView } from "./capture-panel-state";
+import { panelAiCapture, type CaptureRecordView } from "./capture-panel-state";
 import { afterRejection } from "./menubar-capture";
 import {
   hidePanel,
@@ -112,6 +112,7 @@ export function MenuBarPanel() {
   const reminders = useReminders();
   const planning = useAgendaState();
   const records = useRecentCaptures();
+  const { data: license, refetch: refetchLicense } = useLicenseSnapshot();
   const [text, setText] = useState("");
   // The rejection arrives later; it must see what is typed by then, not when it was submitted.
   const latestText = useRef(text);
@@ -132,7 +133,10 @@ export function MenuBarPanel() {
     [],
   );
 
-  usePanelShown(() => setError(null));
+  usePanelShown(() => {
+    setError(null);
+    void refetchLicense();
+  });
   usePanelEscape("menubar");
 
   const on = {
@@ -150,7 +154,8 @@ export function MenuBarPanel() {
     buildAgenda({ events, todos, startDate: today, days: 1, now, sources: on }),
     now,
   );
-  const aiCapture = settings ? aiCaptureEnabled(settings) : false;
+  // The AI-only box would only fail while the license locks AI; the manual form stays free.
+  const ai = panelAiCapture(settings, license?.status);
   const canAsk = featureOn(settings, "assistant");
   const shown = records.filter((record) => record.state !== "processing").slice(0, 3);
 
@@ -248,7 +253,7 @@ export function MenuBarPanel() {
       ) : null}
 
       {error ? <Callout color="red">{error}</Callout> : null}
-      {aiCapture ? (
+      {ai.available ? (
         <div className="flex gap-2">
           <Input
             aria-label="Add or ask"
@@ -273,14 +278,22 @@ export function MenuBarPanel() {
           ) : null}
         </div>
       ) : (
-        <Button
-          onClick={() => {
-            void hidePanel("menubar");
-            void showPanel("capture");
-          }}
-        >
-          Add an item…
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            className="flex-1"
+            onClick={() => {
+              void hidePanel("menubar");
+              void showPanel("capture");
+            }}
+          >
+            Add an item…
+          </Button>
+          {ai.lock ? (
+            <Button variant="transparent" onClick={() => void openSettings("license")}>
+              Unlock AI
+            </Button>
+          ) : null}
+        </div>
       )}
     </div>
   );

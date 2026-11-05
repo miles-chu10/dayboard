@@ -94,7 +94,7 @@ async function readLimited(response: Response, signal: AbortSignal): Promise<unk
 }
 
 /** Reason codes the license service sends that the app explains to the user. */
-const KNOWN_FAILURES = new Set(["revoked", "activation_limit"]);
+const KNOWN_FAILURES = new Set(["revoked", "activation_limit", "invalid_instance"]);
 
 /** Only complete, explicit domain failures are authoritative; everything else is transient. */
 function parseResult(

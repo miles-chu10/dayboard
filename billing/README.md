@@ -1,6 +1,6 @@
 # DayBoard billing service
 
-This is a separate TypeScript Cloudflare Worker with D1 storage. It issues one-time DayBoard licenses after verified Stripe Checkout payments. It shares only the version 1 license request/response contract in `../shared/license-contract.ts` with the desktop app. The service runs no analytics, and its only email is the optional owner notification about new waitlist signups.
+This is a separate TypeScript Cloudflare Worker with D1 storage. It issues one-time DayBoard licenses after verified Stripe Checkout payments, and complimentary licenses the owner issues through an admin route ([below](#complimentary-licenses)). It shares only the version 1 license request/response contract in `../shared/license-contract.ts` with the desktop app. The service runs no analytics, and its only email is the optional owner notification about new waitlist signups.
 
 ## Local verification
 
@@ -78,6 +78,8 @@ Copy `wrangler.example.jsonc` to `wrangler.jsonc` (git-ignored) in the intended 
 | `ACTIVATION_LIMIT` | Merchant-chosen decimal device cap, 1–99                                  |
 | `SITE_ORIGIN`      | Exact HTTPS origin of the website allowed to post waitlist signups        |
 
+The buy and receipt pages link to `/pricing` and `/refund` on `SITE_ORIGIN` (on `https://getdayboard.com` when it isn't set) and show `ACTIVATION_LIMIT` as the Mac cap. The price and refund copy ($5 once, 14 days) and the support address `support@getdayboard.com` are fixed text in `src/pages.ts`; change them there if the policy changes.
+
 These are **server secrets**, never public Worker variables, build constants, repository files, or `.env` files:
 
 | Secret                  | Meaning                                                                                                                                                          |
@@ -86,6 +88,7 @@ These are **server secrets**, never public Worker variables, build constants, re
 | `STRIPE_WEBHOOK_SECRET` | Signing secret for this endpoint, beginning with `whsec_`                                                                                                        |
 | `ENCRYPTION_KEY`        | 32 random bytes encoded as unpadded base64url; retain for the life of issued licenses                                                                            |
 | `HASH_SECRET`           | At least 32 characters of independent random secret material; retain for key and order lookups                                                                   |
+| `ADMIN_TOKEN`           | Optional. At least 32 random characters, unique to this Worker; enables the complimentary-license admin routes. Unset, they answer `503`                         |
 
 The service fails closed with `503 service_unconfigured` if the required binding, price, mode, cap, database, or secrets are missing. A public desktop build must use this **same** origin, product ID, and test/live environment. There are no merchant IDs in the repository.
 
@@ -113,6 +116,51 @@ Exact checkout HTTP shapes:
 | `POST /v1/checkout/claim`                 | JSON `{ "orderId": "<32 base64url chars>" }` | Exact Origin plus matching per-order cookie; only a paid, unrevoked order returns `{ "licenseKey": "DAYB_..." }`                                        |
 
 The ID selects an order but grants no authority by itself. Failed or expired receipts offer `/buy` to create a new order while retaining access to the older receipt until its cookie expires. Public license requests and checkout routes are size- and rate-limited using HMAC-hashed IP buckets, without raw IP or key logging. Configure Cloudflare's edge abuse controls for launch traffic.
+
+## Complimentary licenses
+
+Complimentary ("comp") keys unlock DayBoard Pro without a payment, for example for beta testers. They're minted, hashed and encrypted like paid keys and bound to the same `SERVICE_ORIGIN`, `PRODUCT_ID` and `ENVIRONMENT`. The app's validate, activate and deactivate calls treat them exactly like paid keys, `ACTIVATION_LIMIT` included. Issuing and revoking make no Stripe call.
+
+**Issue beta testers' keys from the production (live) Worker.** A key exists only in the D1 database of the Worker that issued it and works only with that Worker's origin, product and environment. Shipped builds use the live environment and the production origin, so a key from the test Worker answers `invalid_license` there: test-Worker keys are for testing only. The production Worker's admin routes work only once production has the full live licensing configuration (live Stripe secrets, product and price), which is also what opens `/buy` and checkout on the production origin. Until then they answer `503 service_unconfigured`.
+
+Setup, from Miles's Mac (not performed here):
+
+1. Back up D1, then apply `migrations/0006_comp_licenses.sql` with `npx wrangler d1 migrations apply <database> --remote`. It only adds the `comp_licenses` table and changes no existing row. Apply it before deploying this code: until then, issuing fails with `503` and nothing is written.
+2. Generate a token of at least 32 characters (for example `openssl rand -base64 48`), save it in 1Password, and set it with `npx wrangler secret put ADMIN_TOKEN`. Use a different token for the test and production Workers.
+
+Without `ADMIN_TOKEN`, or with a shorter one, every `/v1/admin/` request answers `503 admin_unconfigured`, so a deployment stays closed until the secret is set. The routes also need the full licensing configuration: a waitlist-only deployment answers `503 service_unconfigured`.
+
+Every admin request needs `Authorization: Bearer <ADMIN_TOKEN>`, compared in constant time. A wrong or missing token gets `401 unauthorized`. Two per-minute limits apply to each client address, both counted before the token is compared, each in one atomic D1 statement, so they hold for parallel requests too:
+
+- At most 120 admin requests a minute, enough for a 50-key run plus `list`. Further requests get `429 rate_limited`.
+- At most five failed attempts a minute. Each request reserves one of five failure slots and gives it back only if its token matches. Once all five are taken, every admin request from that address, even a correct one, gets `429 rate_limited` until the next minute. A burst of parallel wrong tokens therefore gets at most five `401`s. More than five correct requests in flight at once can also get `429`; the script sends one request at a time.
+
+Nothing logs the token, a key or a request body.
+
+| Request                               | Body                           | Result                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/admin/comp-licenses`        | `{ "label": "beta tester 7" }` | `201 { licenseId, licenseKey, label, createdAt, meta }`. The key appears only in this response                                                                                                      |
+| `GET /v1/admin/comp-licenses`         | none                           | `{ licenses: [{ licenseId, label, environment, createdAt, revokedAt, activations }], truncated }`, newest first, without keys. At most 1,000 rows; `truncated: true` means older ones were left out |
+| `POST /v1/admin/comp-licenses/revoke` | `{ "licenseId": "..." }`       | `200 { licenseId, revoked: true, revokedAt }`. Repeating it changes nothing. Unknown IDs and paid licenses get `404 not_found`                                                                      |
+
+A label is 1–64 characters without `@`: a note such as `beta tester 7`, never an email address. Keep who received which key in 1Password, not in D1.
+
+`scripts/comp-license.mjs` calls these routes. It reads the token from `DAYBOARD_ADMIN_TOKEN` and the service origin from `--origin` or `DAYBOARD_BILLING_ORIGIN`. Run it through 1Password so the token stays out of shell history and files; without `op run`, the script refuses an `op://` reference instead of sending it. `issue` requires `--environment test` or `--environment live`, naming the environment of the Worker at the origin. For beta testers that is the production Worker:
+
+```sh
+export DAYBOARD_ADMIN_TOKEN="op://<vault>/<item>/credential" # a 1Password reference, not the token
+export DAYBOARD_BILLING_ORIGIN="https://api.getdayboard.com" # production; the test Worker is for trying it out
+op run -- node billing/scripts/comp-license.mjs issue --environment live --count 5 "beta tester" # beta tester 1 to 5
+op run -- node billing/scripts/comp-license.mjs issue --environment live "beta tester 6" "beta tester 7"
+op run -- node billing/scripts/comp-license.mjs list
+op run -- node billing/scripts/comp-license.mjs revoke <licenseId>
+```
+
+`issue` appends each key as a JSON line (license ID, label, key, time, issuer, product, environment) to `billing/comp-licenses.local.jsonl`, created with mode 600, and prints only license IDs and labels. `--out` picks another file, which must end in `.local.jsonl`; git ignores `*.local.jsonl`. A run issues at most 50 keys. If the Worker answers with a key from another environment than `--environment`, the script doesn't save it, revokes it and stops. Send each key to its tester privately, keep it in 1Password if you'll need it again, and delete the file. If a run stops on a network error, a `5xx`, or a success response the script can't read, a key may have been issued without being saved: run `list` and revoke any ID that isn't in the file. `list` shows the newest keys first and warns when it stops at 1,000.
+
+Revoking sets the comp license's payment tombstone, the same flag a full refund sets, so the app's next validation reports the key as revoked and it can't activate another Mac. Revocation is permanent: issue a new key to restore access. Paid licenses can't be revoked through this route; refunds and disputes in Stripe do that.
+
+What is stored: each comp license is an ordinary `licenses` row (the key's HMAC and AES-GCM ciphertext, never the plaintext), and a `comp_licenses` row with the label and the issue and revocation times. No email address or other tester identity is stored. Because `licenses.order_id` and `licenses.payment_intent_id` are `NOT NULL` foreign keys, and rebuilding `licenses` would risk issued keys, each comp license also gets a placeholder `orders` row and `payments` row with the ID `comp_<licenseId>`. The placeholder order expired at time zero and can't be claimed, its ID doesn't fit the checkout routes, and no Stripe ID starts with `comp_`. Leave comp licenses out of sales counts, for example `SELECT COUNT(*) FROM licenses WHERE id NOT IN (SELECT license_id FROM comp_licenses)`.
 
 ## Durable states and recovery
 

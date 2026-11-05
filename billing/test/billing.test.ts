@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { afterEach, test } from "node:test";
 import Stripe from "stripe";
 import { createWorker } from "../src/index.ts";
@@ -9,6 +10,7 @@ import { buyScript, receiptScript } from "../src/pages.ts";
 
 const origin = "https://billing.example.test";
 const secret = "whsec_disposable_only";
+const adminToken = randomToken();
 const realStripe = new Stripe("sk_test_disposable_only", {
   httpClient: Stripe.createFetchHttpClient(),
 });
@@ -32,6 +34,7 @@ function setup() {
     STRIPE_WEBHOOK_SECRET: secret,
     ENCRYPTION_KEY: randomToken(),
     HASH_SECRET: randomToken(),
+    ADMIN_TOKEN: adminToken,
   };
   const state = {
     priceOk: true,
@@ -665,7 +668,179 @@ test("failed and expired receipts link to a fresh checkout while old orders rema
   assert.equal(f.creates, 3);
 });
 
+test("paid and comp licenses share the cap but keep separate revocation", async () => {
+  const f = await fulfilled();
+  const admin = (path: string, body: unknown) =>
+    f.call(path, "POST", "", body, { Authorization: `Bearer ${adminToken}` });
+  const issued = await admin("/v1/admin/comp-licenses", { label: "beta tester 1" });
+  assert.equal(issued.status, 201);
+  const comp = (await issued.json()) as { licenseId: string; licenseKey: string };
+  const paidId = String(
+    f.db.sql
+      .prepare("SELECT id FROM licenses WHERE id NOT IN (SELECT license_id FROM comp_licenses)")
+      .get()!.id,
+  );
+  // The admin route revokes only comp licenses. Paid ones follow Stripe refunds and disputes.
+  assert.equal((await admin("/v1/admin/comp-licenses/revoke", { licenseId: paidId })).status, 404);
+  const outcomes = async (licenseKey: string) => {
+    const results = [];
+    for (let i = 0; i < 3; i++) {
+      const response = await f.call("/v1/licenses/activate", "POST", "", {
+        licenseKey,
+        installationId: crypto.randomUUID(),
+        instanceName: "Test Mac",
+      });
+      results.push(((await response.json()) as { error?: string }).error ?? "activated");
+    }
+    return results;
+  };
+  assert.deepEqual(await outcomes(f.licenseKey), ["activated", "activated", "activation_limit"]);
+  assert.deepEqual(await outcomes(comp.licenseKey), ["activated", "activated", "activation_limit"]);
+  const validate = async (licenseKey: string) =>
+    (await (await f.call("/v1/licenses/validate", "POST", "", { licenseKey })).json()) as {
+      valid: boolean;
+      error?: string;
+    };
+  // A refund revokes the paid key only.
+  f.state.refund = 3000;
+  assert.equal(
+    (await f.signed("charge.refunded", "evt_mixed_refund", "ch_test_disposable")).status,
+    200,
+  );
+  assert.deepEqual(await validate(f.licenseKey), { valid: false, error: "revoked" });
+  assert.equal((await validate(comp.licenseKey)).valid, true);
+  // Revoking the comp key gives the same answer and leaves the paid tombstone's reason alone.
+  assert.equal(
+    (await admin("/v1/admin/comp-licenses/revoke", { licenseId: comp.licenseId })).status,
+    200,
+  );
+  assert.deepEqual(await validate(comp.licenseKey), { valid: false, error: "revoked" });
+  assert.deepEqual(
+    f.db.sql
+      .prepare("SELECT payment_intent_id, reason FROM payments ORDER BY payment_intent_id")
+      .all()
+      .map((row) => [row.payment_intent_id, row.reason]),
+    [
+      [`comp_${comp.licenseId}`, "comp_revoked"],
+      ["pi_test_disposable", "full_refund"],
+    ],
+  );
+});
+
 test("served browser scripts parse as JavaScript", () => {
   assert.doesNotThrow(() => new Function(buyScript));
   assert.doesNotThrow(() => new Function(receiptScript));
+});
+
+const supportLink = /<a href="mailto:support@getdayboard\.com">support@getdayboard\.com<\/a>/;
+
+test("buy page states the offer, terms and support before checkout", async () => {
+  const f = setup();
+  f.env.ACTIVATION_LIMIT = "3";
+  f.env.SITE_ORIGIN = "https://site.example.test";
+  const buy = await f.call("/buy");
+  assert.equal(buy.status, 200);
+  const html = await buy.text();
+  const beforeCheckout = html.slice(0, html.indexOf('id="buy"'));
+  for (const copy of [
+    /\$5 once \(launch price\)/,
+    /Unlocks DayBoard's AI features\./,
+    /Use on up to 3 Macs/,
+    /14-day refunds\./,
+    /href="https:\/\/site\.example\.test\/pricing"/,
+    /href="https:\/\/site\.example\.test\/refund"/,
+    supportLink,
+  ])
+    assert.match(beforeCheckout, copy);
+  assert.match(
+    buy.headers.get("Content-Security-Policy")!,
+    /default-src 'none'; script-src 'self';/,
+  );
+  assert.doesNotMatch(html, /\son[a-z]+=|<script>|https?:\/\/(?!site\.example\.test\/)/);
+});
+
+test("page links use the configured website, fall back to the public one, and stay escaped", async () => {
+  const f = setup();
+  for (const [site, expected] of [
+    [undefined, "https://getdayboard.com"],
+    ["http://site.example.test", "https://getdayboard.com"],
+    ["https://site.example.test/", "https://getdayboard.com"],
+    ['https://a"b.example.test', "https://a&#34;b.example.test"],
+  ] as const) {
+    f.env.SITE_ORIGIN = site;
+    const buy = await (await f.call("/buy")).text();
+    assert.ok(buy.includes(`href="${expected}/pricing"`), site);
+    assert.ok(buy.includes(`href="${expected}/refund"`), site);
+    assert.ok((await (await f.call("/receipt")).text()).includes(`href="${expected}/refund"`));
+  }
+  f.env.ACTIVATION_LIMIT = "1";
+  assert.match(await (await f.call("/buy")).text(), /Use on up to 1 Mac<\/strong>/);
+});
+
+test("receipt page gives the app's activation steps, the 7-day browser limit and support", async () => {
+  const f = setup();
+  f.env.ACTIVATION_LIMIT = "3";
+  const buy = await f.call("/buy");
+  // The page's 7 days is the order cookie's lifetime.
+  assert.match(buy.headers.get("Set-Cookie")!, /; Max-Age=604800;/);
+  const receipt = await f.call("/receipt");
+  const html = await receipt.text();
+  for (const copy of [
+    /<strong>Copy or download your license key now\.<\/strong> This page works only in this browser, and only for 7 days after you started checkout\./,
+    /<button id="copy" type="button">Copy license<\/button>/,
+    /<button id="download" class="secondary" type="button">Download license<\/button>/,
+    /choose <strong>DayBoard → Settings…<\/strong> \(or press <kbd>⌘,<\/kbd>\)/,
+    /Click the <strong>License<\/strong> tab\./,
+    /Paste your key into <strong>License key<\/strong>, then click <strong>Activate<\/strong>\./,
+    /Use the same key on up to 3 Macs\./,
+    /click <strong>Deactivate this device<\/strong>/,
+    supportLink,
+    /href="https:\/\/getdayboard\.com\/refund"/,
+  ])
+    assert.match(html, copy);
+  assert.match(
+    receipt.headers.get("Content-Security-Policy")!,
+    /default-src 'none'; script-src 'self';/,
+  );
+  assert.doesNotMatch(html, /\son[a-z]+=|<script>/);
+
+  // Those labels are the desktop app's own: its menu, Settings tab, field and buttons.
+  const app = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
+  const [menu, tabs, tab] = await Promise.all([
+    app("main/window.ts"),
+    app("renderer/settings/settings-view.tsx"),
+    app("renderer/settings/license-tab.tsx"),
+  ]);
+  assert.match(
+    menu,
+    /label: "DayBoard",\s*submenu:[\s\S]*?label: "Settings…",\s*accelerator: "Command\+,"/,
+  );
+  assert.match(tabs, /<TabsTrigger value="license">License<\/TabsTrigger>/);
+  assert.match(tab, /<Field label="License key">/);
+  assert.match(tab, /"Activating…" : "Activate"/);
+  assert.match(tab, /"Deactivate this device"/);
+});
+
+test("every receipt dead end, buy error and rate-limited buy page points to support", async () => {
+  const shown = [...receiptScript.matchAll(/show\('([^']+)','([^']+)'\)/g)];
+  for (const heading of ["Order access unavailable", "License unavailable", "Payment incomplete"]) {
+    const messages = shown.filter((match) => match[1] === heading).map((match) => match[2]);
+    assert.ok(messages.length > 0, heading);
+    for (const message of messages) assert.match(message, /email support/i, heading);
+  }
+  assert.match(receiptScript, /for 7 days\. Email support/);
+  assert.match(
+    buyScript,
+    /Checkout could not open\. Reload this page and try again, or email support\./,
+  );
+
+  const f = setup();
+  let response = await f.call("/buy");
+  for (let attempt = 1; attempt <= 30; attempt++) response = await f.call("/buy");
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Content-Type"), "text/html; charset=utf-8");
+  assert.equal(response.headers.get("Set-Cookie"), null);
+  const busy = await response.text();
+  assert.match(busy, /Too many checkout attempts/);
+  assert.match(busy, supportLink);
 });
