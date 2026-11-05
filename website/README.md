@@ -33,9 +33,9 @@ Browsers accept the endpoint only when the service's `SITE_ORIGIN` setting match
 
 ## Pricing, refunds and download
 
-`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. It currently links published `v1.3.0-beta.17`, including its release notes and `SHA256SUMS.txt`. The DMG is 138,257,272 bytes (138.3 MB). When a new beta ships, verify the published assets, then update the version, links and size in `download.html`.
+`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. It currently links published `v1.3.0-beta.18`, including its release notes and `SHA256SUMS.txt`. The DMG is 138,284,646 bytes (138.3 MB). When a new beta ships, verify the published assets, then update the version, links and size in `download.html`.
 
-The beta 17 app is Developer ID signed and notarized; its DMG container itself is not yet notarized. Keep the first-install limitation on the download and install pages until the container is verified. Google access may still be restricted to invited accounts. Published betas keep every feature free, and checkout remains closed.
+From beta 18 on, both the app and its DMG are Developer ID signed, notarized and stapled (the DMG passes `stapler validate` and `spctl` as Notarized Developer ID). Releases up to beta 17 notarized only the app. Google access may still be restricted to invited accounts. Published betas keep every feature free, and checkout remains closed.
 
 Buy buttons (`a[data-buy]`) ship hidden, and `[data-buy-pending]` notes say checkout isn't open yet. Set `buyUrl` in `assets/site.js` to the live billing service's checkout page (`https://api.getdayboard.com/buy`) only after the live Worker is deployed and tested; the script then shows the buttons and hides the notes. Only an HTTPS address is accepted. `tests/website-buy.test.mjs` checks both states.
 
