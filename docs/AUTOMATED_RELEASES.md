@@ -1,6 +1,6 @@
 # Automatic signed macOS downloads
 
-The `Signed macOS release` workflow is scoped to `miles-chu10/dayboard`. After this workflow and the standalone app reach `main`, pushing a matching version tag (for example, `v1.3.0`) builds and publishes a GitHub Release containing the macOS DMG, update ZIP, blockmaps, update metadata, SHA-256 checksums and a source manifest.
+The `Signed macOS release` workflow is scoped to `miles-chu10/DayBoard`. Pushing an approved matching version tag (for example, `v1.3.0-beta.18`) builds and publishes a GitHub Release containing the macOS DMG, update ZIP, blockmaps, update metadata, SHA-256 checksums and a source manifest. Each tag push requires Miles's explicit approval.
 
 Only commits already on `main` can release. The tag must exactly match `package.json`. Tags containing a prerelease suffix publish a GitHub prerelease; stable tags use GitHub's normal latest-release selection. The target is Apple Silicon, macOS 14+.
 
@@ -27,16 +27,16 @@ Variables:
 | `DAYBOARD_LICENSE_API_URL`   | Deployed HTTPS license-service origin   |
 | `DAYBOARD_STRIPE_PRODUCT_ID` | Approved live Stripe product ID         |
 
-The workflow fixes the license environment to `live`. Complete the account, checkout, support and signing checks in `RELEASE.md` before pushing a release tag. Pricing remains a separate product decision; this automation does not create Stripe products, deploy the billing backend, merge the app PR or upload existing unsigned previews.
+The workflow fixes the license environment to `live` but builds published betas with `DAYBOARD_LICENSE=off`, so every feature stays free. Checkout and Google waitlist restrictions are unchanged. Enabling paid licensing requires a separately approved workflow change and the account, checkout and support checks in `RELEASE.md`; signing and release approvals still apply to every beta. This automation does not create Stripe products, deploy the billing backend or website, merge the app PR or upload existing unsigned previews.
 
 ## Release process
 
 1. Merge and review the app version on `main`; update `package.json` and its lockfile version together.
 2. Push a matching `v…` tag on that commit. The tag is the explicit release trigger.
 3. CI runs typecheck, formatting, lint, app/native/billing tests and credential-free Electron E2E.
-4. CI builds with the approved app configuration, forces Developer ID signing, notarizes and staples the app, then verifies the app and the copies inside both download formats. The DMG is signed; its contained app is notarized/stapled. Packaged demo tests run before upload.
+4. CI builds with the approved app configuration, forces Developer ID signing, and notarizes and staples both the app and the signed DMG. Because stapling changes the DMG, it regenerates the DMG blockmap and update metadata before checksumming the final assets. It verifies the app, the copies inside both download formats, and the DMG's signature, stapled ticket and Gatekeeper assessment. Packaged demo tests run before upload.
 5. A separate publishing job without Apple/Google credentials verifies file hashes, uploads all downloads into a draft release, and publishes it only after uploads finish. Missing configuration, signing/notarization failures or failing checks produce **no public release**. There is no unsigned fallback.
 
 Published releases are immutable to this workflow: reruns refuse to replace them. A failed upload can resume only the workflow-created draft with the same source SHA; unrelated/manual drafts are preserved. Keep older assets available for installed users' updates.
 
-The signing and notarization run cannot be proven until real credentials are configured and the first approved tag runs. Local helper tests and workflow lint verify guards and publication behavior, not Apple's actual signing/notarization service.
+The [beta.18 release](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18) is published with all seven assets. Its [signed release run](https://github.com/miles-chu10/DayBoard/actions/runs/41977368075) succeeded, and [subsequent Mac verification](release-notes-1.3.0-beta.18.md#release-verification) checked the published downloads' hashes, code signatures, notarization and stapled tickets. Beta.18 is the first published release with the DMG itself notarized and stapled; earlier Developer ID-signed betas, through beta.17, notarized only the contained app. Local helper tests and workflow lint verify guards and publication behavior; they do not replace Apple's signing/notarization checks on each new release.
