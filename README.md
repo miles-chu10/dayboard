@@ -25,11 +25,11 @@ what needs your attention, suggested tasks, meetings and your to-dos for today o
 the optional Assistant beside any page, keep your work in tabs, and save useful conversations as
 Markdown notes.
 
-> **Beta 17:** [1.3.0-beta.17](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.17)
-> is a free community beta for **macOS 14+ on Apple Silicon**. The app is signed with an Apple
-> Developer ID and notarized by Apple. Starting with beta 12, DayBoard updates itself from GitHub
+> **Beta 18:** [1.3.0-beta.18](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18)
+> is a free community beta for **macOS 14+ on Apple Silicon**. The app and its disk image are
+> signed with an Apple Developer ID and notarized by Apple. Starting with beta 12, DayBoard updates itself from GitHub
 > releases. Existing beta 12 and later installations download updates in the background and
-> install on restart or quit. See [what changed in beta 17](docs/release-notes-1.3.0-beta.17.md).
+> install on restart or quit. See [what changed in beta 18](docs/release-notes-1.3.0-beta.18.md).
 > Google sign-in may be limited to invited accounts. Join the
 > [waitlist](https://getdayboard.com/waitlist) for invited onboarding.
 
@@ -52,8 +52,8 @@ Markdown notes.
 
 The current packaged app requires **an Apple Silicon Mac running macOS 14 or later**.
 
-1. **Download beta 17** from its
-   [GitHub release](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.17) and follow
+1. **Download beta 18** from its
+   [GitHub release](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18) and follow
    the [install guide](https://getdayboard.com/beta), or [build from source](#development). If you
    have beta 11 or earlier, install the current beta over it once; your DayBoard data stays in place.
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
