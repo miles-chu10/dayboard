@@ -6,7 +6,7 @@
     <title>DayBoard — Your whole day, on one board</title>
     <meta
       name="description"
-      content="DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail into one calm Mac app. Join the waitlist for early access."
+      content="Your day starts here: meetings, tasks, mail and notes in one Mac app, with an optional Assistant beside every view. Explore the limited DayBoard beta."
     />
     <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
@@ -14,17 +14,14 @@
     <meta property="og:title" content="DayBoard — Your whole day, on one board" />
     <meta
       property="og:description"
-      content="Google Calendar, Google Tasks, Apple Reminders and Gmail in one calm Mac app. Join the waitlist for early access."
+      content="Home, smarter mail, Notes and an optional Assistant beside every view. Explore the limited DayBoard beta for Mac."
     />
-    <meta
-      property="og:image"
-      content="https://getdayboard.com/assets/screens/light-agenda-preview.png"
-    />
+    <meta property="og:image" content="https://getdayboard.com/assets/screens/light-home.png" />
     <meta property="og:image:width" content="2560" />
     <meta property="og:image:height" content="1640" />
     <meta
       property="og:image:alt"
-      content="Native DayBoard Agenda preview with fictional demo events, tasks and reminders"
+      content="DayBoard beta 17 Home with fictional demo mail, tasks and meetings"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://getdayboard.com/" />
@@ -44,7 +41,6 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
-    <script src="assets/hero-video.js" defer></script>
   </head>
   <body class="c-home">
     <a class="skip" href="#main">Skip to content</a>
@@ -108,14 +104,15 @@
             <span class="dots" aria-hidden="true"
               ><span class="dot c-calendar"></span><span class="dot c-tasks"></span
               ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
-            >Limited beta · Apple silicon · macOS 14+
+            >Beta 17 · Limited access · Apple silicon · macOS 14+
           </p>
           <h1 id="hero-title" class="rise" style="--i: 1">
             Your whole day, <em>on one board.</em>
           </h1>
           <p class="c-lead rise" style="--i: 2">
-            DayBoard brings Google Calendar, Google Tasks, Apple Reminders and Gmail together in one
-            calm Mac app — with an optional AI assistant that already knows your schedule.
+            Start with what needs you, what's due and your next meeting. DayBoard brings Google
+            Calendar, Google Tasks, Apple Reminders and Gmail together, with Notes and an optional
+            Assistant beside any view.
           </p>
           <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
             <div class="signup-row">
@@ -143,62 +140,37 @@
           <p class="c-access rise" style="--i: 4">
             A limited
             <a href="download.html">beta community download</a>
-            is available. It's notarized by Apple and updates itself, and Google sign-in may be
-            limited to invited accounts. <a href="beta.html#install">Read the install guide</a>.
+            is available. The app is signed, notarized by Apple and updates itself. Google sign-in
+            may be limited to invited accounts.
+            <a href="beta.html#install">Read the install guide</a>.
           </p>
         </div>
         <figure class="wrap c-video">
           <div class="board rise" style="--i: 4">
             <div class="window">
-              <video
-                class="c-player"
-                controls
-                playsinline
-                preload="none"
-                poster="assets/video/dayboard-launch-poster.jpg"
-                width="1920"
-                height="1080"
-                aria-label="DayBoard in 45 seconds"
-              >
-                <source src="assets/video/dayboard-launch-45s.mp4" type="video/mp4" />
-                <track
-                  kind="captions"
-                  src="assets/video/dayboard-launch-45s.en.vtt"
-                  srclang="en"
-                  label="English"
+              <div class="theme-picture">
+                <img
+                  class="theme-light"
+                  src="assets/screens/light-home.png"
+                  alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
+                  width="2560"
+                  height="1640"
+                  fetchpriority="high"
                 />
-                <a href="assets/video/dayboard-launch-45s.mp4"
-                  >Watch DayBoard in 45 seconds (MP4)</a
-                >
-              </video>
-              <button class="c-unmute" type="button" hidden>
-                <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-                  <path d="M3 7.5h3l4-3.5v12l-4-3.5H3z" fill="currentColor" />
-                  <path
-                    d="M13.5 7.5 17 11m0-3.5L13.5 11"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                    stroke-linecap="round"
-                  />
-                </svg>
-                Turn on sound
-              </button>
-            </div>
-            <div class="note note-1 c-calendar" style="--i: 0" aria-hidden="true">
-              <small><span class="dot"></span>Calendar · 3:00 PM</small><b>Q4 roadmap sync</b>
-            </div>
-            <div class="note note-2 c-tasks" style="--i: 1" aria-hidden="true">
-              <small><span class="dot"></span>Google Tasks · Today</small
-              ><b>Finalize launch announcement</b>
-            </div>
-            <div class="note note-3 c-reminders" style="--i: 2" aria-hidden="true">
-              <small><span class="dot"></span>Reminders · 5:30 PM</small><b>Pick up dry cleaning</b>
-            </div>
-            <div class="note note-4 c-mail" style="--i: 3" aria-hidden="true">
-              <small><span class="dot"></span>Gmail · Priya Shah</small
-              ><b>Launch announcement — final copy?</b>
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-home.png"
+                  alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
+                  width="2560"
+                  height="1640"
+                />
+              </div>
             </div>
           </div>
+          <figcaption class="fine">
+            Home in DayBoard 1.3.0 beta 17. All names, messages and plans shown are fictional demo
+            data.
+          </figcaption>
         </figure>
       </section>
 
@@ -208,8 +180,8 @@
             <span class="eyebrow">Four apps, one board</span>
             <h2 id="how-title">Stop opening <em>four apps</em> to plan one day.</h2>
             <p>
-              DayBoard gathers what's scheduled, due and waiting from the services you already use,
-              then lays it out as a single agenda in time order.
+              Home brings together mail and follow-ups that need you, your tasks and your meetings.
+              Switch between today and this week, or open Agenda for everything in time order.
             </p>
           </div>
           <div class="merge" aria-label="How DayBoard combines four sources into one agenda">
@@ -261,6 +233,7 @@
               </ol>
             </div>
           </div>
+          <p class="fine">Illustration with fictional events, tasks and messages.</p>
         </div>
       </section>
 
@@ -277,7 +250,7 @@
               <ul class="ticks">
                 <li>Month, week and schedule layouts</li>
                 <li>Tasks and reminders on their due dates</li>
-                <li>Open any item in a pop-up, inline, or a side panel</li>
+                <li>Peek at your calendar beside any page with <kbd class="kbd">⌥⌘K</kbd></li>
               </ul>
               <div class="tabs" role="tablist" aria-label="Calendar layout">
                 <button
@@ -307,16 +280,16 @@
                     class="theme-light"
                     src="assets/screens/light-calendar-week.png"
                     alt="Calendar week view with timed events color-coded by calendar (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                     loading="lazy"
                   />
                   <img
                     class="theme-dark"
                     src="assets/screens/dark-calendar-week.png"
                     alt="Calendar week view with timed events color-coded by calendar (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                     loading="lazy"
                   />
                 </div>
@@ -327,15 +300,15 @@
                     class="theme-light"
                     src="assets/screens/light-calendar-month.png"
                     alt="Calendar month grid with events, tasks and reminders, and today's schedule beside it (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                   />
                   <img
                     class="theme-dark"
                     src="assets/screens/dark-calendar-month.png"
                     alt="Calendar month grid with events, tasks and reminders, and today's schedule beside it (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                   />
                 </div>
               </div>
@@ -388,16 +361,16 @@
                     class="theme-light"
                     src="assets/screens/light-tasks.png"
                     alt="Google Tasks grouped into Work and Personal lists with due dates (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                     loading="lazy"
                   />
                   <img
                     class="theme-dark"
                     src="assets/screens/dark-tasks.png"
                     alt="Google Tasks grouped into Work and Personal lists with due dates (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                     loading="lazy"
                   />
                 </div>
@@ -414,15 +387,15 @@
                     class="theme-light"
                     src="assets/screens/light-reminders.png"
                     alt="Apple Reminders grouped by list, with times and dates (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                   />
                   <img
                     class="theme-dark"
                     src="assets/screens/dark-reminders.png"
                     alt="Apple Reminders grouped by list, with times and dates (fictional sample data)"
-                    width="1600"
-                    height="1025"
+                    width="2560"
+                    height="1640"
                   />
                 </div>
               </div>
@@ -435,13 +408,14 @@
               <span class="eyebrow"><span class="dot"></span>Inbox</span>
               <h2 id="mail-title">Mail that sits <em>next to your plans.</em></h2>
               <p>
-                Your recent Gmail is one click from your agenda. Open a message beside the list, and
-                if you turn on AI, let it sort what actually needs a reply.
+                Read, reply and send without leaving your day. Snooze a message until later, or
+                bring a thread back to Home if nobody replies. Optional AI highlights what needs
+                your attention.
               </p>
               <ul class="ticks">
-                <li>Recent Gmail with unread messages at a glance</li>
-                <li>Optional AI sorting: Needs reply, FYI and Ignorable</li>
-                <li>Reply drafts saved straight to Gmail</li>
+                <li>Write and send mail, with a configurable Undo send window</li>
+                <li>Optional Needs reply, FYI and Ignorable chips with one-line summaries</li>
+                <li>Snooze, follow-up reminders and a subscriptions manager</li>
               </ul>
             </div>
             <div class="window">
@@ -450,16 +424,16 @@
                   class="theme-light"
                   src="assets/screens/light-mail.png"
                   alt="Inbox with a message open in the side panel (fictional sample data)"
-                  width="1600"
-                  height="1025"
+                  width="2560"
+                  height="1640"
                   loading="lazy"
                 />
                 <img
                   class="theme-dark"
                   src="assets/screens/dark-mail.png"
                   alt="Inbox with a message open in the side panel (fictional sample data)"
-                  width="1600"
-                  height="1025"
+                  width="2560"
+                  height="1640"
                   loading="lazy"
                 />
               </div>
@@ -470,39 +444,75 @@
           <section class="feature flip" aria-labelledby="assistant-title" data-reveal>
             <div class="feature-copy">
               <span class="eyebrow">Assistant · optional</span>
-              <h2 id="assistant-title">An assistant that <em>knows your day.</em></h2>
+              <h2 id="assistant-title">An assistant <em>beside your day.</em></h2>
               <p>
-                Ask what to focus on, prep for a meeting, or turn a sentence into a task. Use the
-                Claude or ChatGPT account you already have through Claude Code or Codex, or bring
-                your own API key.
+                Open Ask Assistant beside any view with <kbd class="kbd">⌥⌘J</kbd>. The email, event
+                or to-do you have open becomes a context chip, so you can ask about it without
+                copying it into a new chat. Keep or remove context before sending.
               </p>
               <ul class="ticks">
-                <li>Off until you choose a provider</li>
-                <li>Suggested changes wait for your confirmation</li>
-                <li>A built-in MCP server lets your own AI tools read your day (off by default)</li>
+                <li>Choose a provider; AI stays off until you do</li>
+                <li>Claude Code, Codex or your own API key, including xAI Grok</li>
+                <li>Review proposed items before adding them in Ask first mode</li>
+                <li>Manage memories and see recorded AI usage in Settings</li>
+                <li>Optional local MCP for your own AI tools, with a tool activity log</li>
               </ul>
             </div>
             <div class="window">
               <div class="theme-picture">
                 <img
                   class="theme-light"
-                  src="assets/screens/light-assistant.png"
-                  alt="The Assistant answering what to focus on for a launch announcement (fictional sample answer)"
-                  width="1600"
-                  height="1025"
+                  src="assets/screens/light-ask.png"
+                  alt="Ask Assistant docked beside Home with a sample conversation (fictional demo data and response)"
+                  width="2560"
+                  height="1640"
                   loading="lazy"
                 />
                 <img
                   class="theme-dark"
-                  src="assets/screens/dark-assistant.png"
-                  alt="The Assistant answering what to focus on for a launch announcement (fictional sample answer)"
-                  width="1600"
-                  height="1025"
+                  src="assets/screens/dark-ask.png"
+                  alt="Ask Assistant docked beside Home with a sample conversation (fictional demo data and response)"
+                  width="2560"
+                  height="1640"
                   loading="lazy"
                 />
               </div>
               <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
+          </section>
+          <p class="fine">
+            Screenshots show DayBoard beta 17 with fictional demo data and sample AI responses.
+          </p>
+
+          <section class="section" aria-labelledby="workspace-title" data-reveal>
+            <div class="section-head">
+              <span class="eyebrow">Make room for your work</span>
+              <h2 id="workspace-title">Keep your place. <em>Move at your pace.</em></h2>
+            </div>
+            <div class="grid-3">
+              <div>
+                <h3>Notes that stay close</h3>
+                <p>
+                  Write Markdown with a live preview, find notes from the command menu, and save an
+                  Assistant conversation as a note.
+                </p>
+              </div>
+              <div>
+                <h3>Find it with ⌘K</h3>
+                <p>
+                  Jump to a view or item, run an action, or hand a question to the Assistant. Open
+                  tabs, reorder the sidebar and press <kbd class="kbd">?</kbd> for the shortcuts.
+                </p>
+              </div>
+              <div>
+                <h3>A glance from the menu bar</h3>
+                <p>
+                  See today's items, your next meeting and mail waiting on you. Quick Capture adds a
+                  task, reminder or event from another app using your chosen AI provider.
+                </p>
+              </div>
+            </div>
+            <p><a href="docs.html">Explore the beta 17 guide →</a></p>
           </section>
         </div>
       </div>
@@ -556,7 +566,7 @@
               </div>
               <div>
                 <dt>Signing</dt>
-                <dd>Signed with an Apple Developer ID and notarized by Apple.</dd>
+                <dd>The app is signed with an Apple Developer ID and notarized by Apple.</dd>
               </div>
               <div>
                 <dt>Updates</dt>
@@ -596,8 +606,8 @@
             <span class="eyebrow">Where DayBoard stands</span>
             <h2 id="roadmap-title">Road Map</h2>
             <p>
-              What the current community beta includes, what we're working on now, and what we plan
-              next. Google access may be limited to invited accounts.
+              What's available in beta 17 and what's still ahead. Google access may be limited to
+              invited accounts.
             </p>
           </div>
           <div class="roadmap-grid" data-reveal>
@@ -605,27 +615,31 @@
               <h3 class="roadmap-status">
                 <span class="status-mark" aria-hidden="true"></span>Available in the beta
               </h3>
-              <p class="roadmap-lead">In the current limited community beta.</p>
+              <p class="roadmap-lead">Shipped in the current limited beta.</p>
               <ul class="roadmap-list" role="list">
                 <li>
-                  <strong>The standalone Mac app.</strong> For Macs with Apple silicon running macOS
-                  14 Sonoma or later.
+                  <strong>Home and Agenda.</strong> Mail that needs you, tasks and meetings for
+                  today or this week, with all four sources together in Agenda.
                 </li>
                 <li>
-                  <strong>Signed, notarized builds that update themselves.</strong> Signed with an
-                  Apple Developer ID and notarized by Apple. New betas install when you restart.
+                  <strong>Mail you can act on.</strong> Send with Undo, snooze, follow-up reminders,
+                  subscriptions and optional AI triage.
                 </li>
                 <li>
-                  <strong>Your four sources on one board.</strong> Google Calendar, Google Tasks,
-                  Apple Reminders and Gmail in one agenda, in time order.
+                  <strong>Ask beside any view.</strong> Context chips, model and effort controls,
+                  optional memory, and providers including xAI Grok with your own API key.
                 </li>
                 <li>
-                  <strong>Edits that sync back.</strong> Change tasks and reminders, link
-                  duplicates, and save reply drafts to Gmail.
+                  <strong>Notes, tabs and keyboard navigation.</strong> Markdown notes, ⌘K, calendar
+                  peek, mail shortcuts and a sidebar you can arrange.
                 </li>
                 <li>
-                  <strong>An optional assistant.</strong> Off until you choose a provider: Claude or
-                  ChatGPT through Claude Code or Codex, or your own API key.
+                  <strong>Quick Capture and the menu bar.</strong> Add items from another app, see
+                  your next meeting and check what's waiting on you.
+                </li>
+                <li>
+                  <strong>A signed, notarized Mac app.</strong> For Apple silicon and macOS 14+,
+                  with new betas installed when you restart.
                 </li>
               </ul>
               <p class="roadmap-aside">
@@ -642,17 +656,17 @@
               <p class="roadmap-lead">Work underway now.</p>
               <ul class="roadmap-list" role="list">
                 <li>
-                  <strong>A more native Mac design.</strong> Refining the window, sidebar,
-                  navigation and controls so DayBoard feels at home on macOS.
+                  <strong>Mac refinements.</strong> Continuing to check window behavior, system
+                  panels and notifications alongside the new views.
                 </li>
                 <li>
-                  <strong>More reliable Google connections.</strong> Making Google sign-in and
-                  syncing more dependable.
+                  <strong>Google connection reliability.</strong> Improving sign-in and syncing;
+                  access outside the invited test audience is not yet promised.
                 </li>
                 <li>
                   <strong>Sign in with ChatGPT.</strong> Signing in with a ChatGPT account directly
-                  is being built and isn't in the beta. Today the assistant reaches ChatGPT through
-                  Codex or an API key.
+                  is being built and isn't in the beta. Today you can use a ChatGPT account through
+                  Codex, or use a separate OpenAI API key.
                 </li>
               </ul>
             </div>
@@ -663,7 +677,9 @@
               <p class="roadmap-lead">Next on the list, with no dates yet.</p>
               <ul class="roadmap-list" role="list">
                 <li>
-                  <strong>Grok in the assistant.</strong> Planned for one of the next updates.
+                  <strong>DayBoard Pro checkout.</strong> The planned $5 AI-only unlock is described
+                  on the <a href="pricing.html">pricing page</a>. Checkout will open after the
+                  payment flow is verified; every feature stays free during the beta.
                 </li>
               </ul>
             </div>
@@ -707,18 +723,17 @@
                 doesn't guarantee an invite. If you're invited, you'll get a download link and
                 onboarding steps. A limited
                 <a href="download.html">beta community download</a>
-                is also available. It's notarized and updates itself; Google sign-in may be limited
-                to invited accounts.
+                is also available. The app is notarized and updates itself; Google sign-in may be
+                limited to invited accounts.
               </p>
             </details>
             <details>
               <summary>Will macOS let me open it?</summary>
               <p>
-                Yes. The beta is signed with an Apple Developer ID and notarized by Apple, so it
-                opens like other apps you download. Beta 11 and earlier weren't notarized and can't
-                update themselves: install the latest beta over them once, and later betas arrive in
-                the app. The
-                <a href="beta.html#install">beta guide</a> has the steps.
+                The current DayBoard app is signed with an Apple Developer ID and notarized by
+                Apple. See the <a href="download.html">download page</a> for the current
+                first-install limitation and steps. Beta 11 and earlier can't update themselves:
+                install the latest beta over them once, and later betas arrive in the app.
               </p>
             </details>
             <details>

@@ -11,44 +11,51 @@
 </p>
 
 <p align="center">
-  <a href="https://getdayboard.com">Website &amp; waitlist</a> ·
+  <a href="https://getdayboard.com">Website</a> ·
+  <a href="https://getdayboard.com/download">Download</a> ·
   <a href="#getting-started">Getting started</a> ·
   <a href="#development">Development</a> ·
   <a href="LICENSE">GPL-3.0-only</a>
 </p>
 
-[![DayBoard in 12 seconds: tasks, reminders, calendar events and email from four apps merge into one Today list (fictional demo data)](docs/media/dayboard-readme-loop.gif)](https://getdayboard.com)
+[![DayBoard beta 17 Home: Needs you, Suggested, Meetings and Your tasks, using fictional demo data](docs/screenshots/light-home.png)](https://getdayboard.com)
 
-DayBoard brings your tasks, reminders, calendar, and inbox into a standalone macOS app. Plan today,
-see the week ahead, and act on your work from one dashboard. An optional AI assistant helps with
-briefings, prioritization, capture, and meeting preparation using a provider you choose.
+DayBoard brings your tasks, reminders, calendar, and inbox into a standalone macOS app. Home shows
+what needs your attention, suggested tasks, meetings and your to-dos for today or this week. Open
+the optional Assistant beside any page, keep your work in tabs, and save useful conversations as
+Markdown notes.
 
-> **Beta 12:** [1.3.0-beta.12](https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12)
+> **Beta 17:** [1.3.0-beta.17](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.17)
 > is a free community beta for **macOS 14+ on Apple Silicon**. The app is signed with an Apple
 > Developer ID and notarized by Apple. Starting with beta 12, DayBoard updates itself from GitHub
-> releases. No newer beta has shipped yet, so updating in place stays unproven until beta 13.
+> releases. Existing beta 12 and later installations download updates in the background and
+> install on restart or quit. See [what changed in beta 17](docs/release-notes-1.3.0-beta.17.md).
 > Google sign-in may be limited to invited accounts. Join the
 > [waitlist](https://getdayboard.com/waitlist) for invited onboarding.
 
 ## What you can do
 
-| View or feature              | What it brings together                                                                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agenda**                   | Today or the next 7 days of tasks, reminders, and events, with overdue items, search, source filters, and a daily brief.                 |
-| **Calendar**                 | Week and month views, plus editing for event titles, descriptions, times, and locations.                                                 |
-| **Tasks & Reminders**        | Create, complete, edit, and delete items in their original source. Link duplicates to show them once in the Agenda.                      |
-| **Inbox**                    | Recent Gmail, email details, optional AI triage, and reply drafts saved to Gmail.                                                        |
-| **Assistant**                | Briefings, prioritization, natural-language capture, meeting prep, and weekly reviews. Search, reopen, and continue saved conversations. |
-| **Appearance & preferences** | Light and dark themes, accent and source colors, compact density, three detail layouts, launch view, auto-refresh, and Start at login.   |
+| View or feature               | What it brings together                                                                                                                |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**                      | Needs you, tasks suggested from mail, meetings and your tasks for today or this week.                                                  |
+| **Agenda**                    | Today or the next 7 days of tasks, reminders, and events, with overdue items, search, source filters, and a daily brief.               |
+| **Calendar**                  | Week and month views, plus editing for event titles, descriptions, times, and locations.                                               |
+| **Tasks & Reminders**         | Create, complete, edit, and delete items in their original source. Link duplicates to show them once in the Agenda.                    |
+| **Inbox & Subscriptions**     | Triage, compose and send with an undo window, snooze, follow-up reminders and newsletter management.                                   |
+| **Assistant beside any page** | Open with ⌥⌘J for help with the current item; ⌥⌘K opens a calendar peek in the same pane. Search and continue saved conversations.     |
+| **Notes**                     | Local Markdown notes with live preview, searchable with ⌘K. Save an Assistant chat as a note.                                          |
+| **Navigation**                | ⌘K searches items and runs actions; tabs remember separate views. Reorder or hide sidebar entries, and press ? for shortcuts.          |
+| **Memory & activity**         | Manage optional preferences, confirm suggested memories, and inspect local AI usage and MCP tool activity.                             |
+| **Appearance & preferences**  | Light and dark themes, accent and source colors, compact density, three detail layouts, launch view, auto-refresh, and Start at login. |
 
 ## Getting started
 
 The current packaged app requires **an Apple Silicon Mac running macOS 14 or later**.
 
-1. **Download beta 12** from its
-   [GitHub release](https://github.com/miles-chu10/dayboard/releases/tag/v1.3.0-beta.12) and follow
+1. **Download beta 17** from its
+   [GitHub release](https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.17) and follow
    the [install guide](https://getdayboard.com/beta), or [build from source](#development). If you
-   have beta 11 or earlier, install beta 12 over it once; your DayBoard data stays in place.
+   have beta 11 or earlier, install the current beta over it once; your DayBoard data stays in place.
 2. **Connect your sources** in **Settings → Sources**. Sign in with Google for Tasks, Gmail, and
    Calendar; connect Apple Reminders when you are ready to grant its macOS permission.
 3. **Choose your AI provider**, if you want AI features. Each AI feature can be turned off.
@@ -89,6 +96,11 @@ Assistant conversations are saved locally per account, with separate demo histor
 the previous conversation; **Import Previous Chat** preserves the conversation retained by an older
 version.
 
+Memory preferences stay on your Mac and are included in Assistant requests and reply drafts when
+memory is enabled. A preference suggested from an edited reply is saved only after you choose
+**Remember**. The activity log records tool names and outcomes, not tool contents. Usage shows
+DayBoard's recorded requests and tokens; it does not show your provider's subscription limits.
+
 DayBoard also includes an optional local **MCP server** so compatible clients can use its sources
 while the app runs. Enable it in **Settings → MCP Servers**. It is off by default, requires an access
 key, and stays read-only unless you explicitly enable changes.
@@ -98,9 +110,10 @@ key, and stays read-only unless you explicitly enable changes.
 Every screenshot uses built-in **fictional demo data**. Expand either gallery to explore the views.
 
 <details>
-<summary>Light theme — Agenda, Calendar, Tasks, Reminders, Inbox, Assistant, and Settings</summary>
+<summary>Light theme — Home, Ask, Agenda, Calendar, Tasks, Reminders, Inbox, Assistant, and Settings</summary>
 
 <table>
+<tr><td width="50%"><img src="docs/screenshots/light-home.png" alt="Home with Needs you, Suggested, Meetings and Your tasks (light theme)"><br><sub>Home</sub></td><td width="50%"><img src="docs/screenshots/light-ask.png" alt="Home with the docked Assistant (light theme)"><br><sub>Ask beside any page</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/light-agenda.png" alt="Agenda (light theme)"><br><sub>Agenda</sub></td><td width="50%"><img src="docs/screenshots/light-calendar-week.png" alt="Calendar — week (light theme)"><br><sub>Calendar — week</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/light-calendar-month.png" alt="Calendar — month (light theme)"><br><sub>Calendar — month</sub></td><td width="50%"><img src="docs/screenshots/light-tasks.png" alt="Tasks (light theme)"><br><sub>Tasks</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/light-reminders.png" alt="Reminders (light theme)"><br><sub>Reminders</sub></td><td width="50%"><img src="docs/screenshots/light-mail.png" alt="Inbox with email details (light theme)"><br><sub>Inbox with email details</sub></td></tr>
@@ -110,9 +123,10 @@ Every screenshot uses built-in **fictional demo data**. Expand either gallery to
 </details>
 
 <details>
-<summary>Dark theme — Agenda, Calendar, Tasks, Reminders, Inbox, Assistant, and Settings</summary>
+<summary>Dark theme — Home, Ask, Agenda, Calendar, Tasks, Reminders, Inbox, Assistant, and Settings</summary>
 
 <table>
+<tr><td width="50%"><img src="docs/screenshots/dark-home.png" alt="Home with Needs you, Suggested, Meetings and Your tasks (dark theme)"><br><sub>Home</sub></td><td width="50%"><img src="docs/screenshots/dark-ask.png" alt="Home with the docked Assistant (dark theme)"><br><sub>Ask beside any page</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/dark-agenda.png" alt="Agenda (dark theme)"><br><sub>Agenda</sub></td><td width="50%"><img src="docs/screenshots/dark-calendar-week.png" alt="Calendar — week (dark theme)"><br><sub>Calendar — week</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/dark-calendar-month.png" alt="Calendar — month (dark theme)"><br><sub>Calendar — month</sub></td><td width="50%"><img src="docs/screenshots/dark-tasks.png" alt="Tasks (dark theme)"><br><sub>Tasks</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/dark-reminders.png" alt="Reminders (dark theme)"><br><sub>Reminders</sub></td><td width="50%"><img src="docs/screenshots/dark-mail.png" alt="Inbox with email details (dark theme)"><br><sub>Inbox with email details</sub></td></tr>

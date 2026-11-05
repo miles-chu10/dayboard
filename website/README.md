@@ -33,7 +33,9 @@ Browsers accept the endpoint only when the service's `SITE_ORIGIN` setting match
 
 ## Pricing, refunds and download
 
-`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. When a new beta ships, update the version, DMG link and size in `download.html`.
+`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. It currently links published `v1.3.0-beta.17`, including its release notes and `SHA256SUMS.txt`. The DMG is 138,257,272 bytes (138.3 MB). When a new beta ships, verify the published assets, then update the version, links and size in `download.html`.
+
+The beta 17 app is Developer ID signed and notarized; its DMG container itself is not yet notarized. Keep the first-install limitation on the download and install pages until the container is verified. Google access may still be restricted to invited accounts. Published betas keep every feature free, and checkout remains closed.
 
 Buy buttons (`a[data-buy]`) ship hidden, and `[data-buy-pending]` notes say checkout isn't open yet. Set `buyUrl` in `assets/site.js` to the live billing service's checkout page (`https://api.getdayboard.com/buy`) only after the live Worker is deployed and tested; the script then shows the buttons and hides the notes. Only an HTTPS address is accepted. `tests/website-buy.test.mjs` checks both states.
 
@@ -57,8 +59,14 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
 
 ## Assets
 
-- `assets/screens/` is a copy of `docs/screenshots/`, captured by `npm run screenshots` from the fictional demo. After recapturing, recompress and copy the images here.
-- The homepage hero and homepage link preview use `assets/screens/light-agenda-preview.png` and `dark-agenda-preview.png` (2560×1640). These are unaltered native Agenda E2E captures from 2026-10-09, with fictional demo data, captured from a 1280×820 app window at 2× scale. The visible caption identifies the UI as in development; it does not promise an available download.
-- Other pages keep their existing `assets/screens/light-agenda.png` (1600×1025) link preview, which contains fictional demo data and no access promise. The older `assets/og-image.png` says "Free public beta" and must not be referenced by waitlist pages.
+- `assets/screens/` contains copies of `docs/screenshots/`, captured by `npm run screenshots` from the isolated fictional demo. The beta 17 refresh captures a 1280×820 content window at 2× scale, producing 2560×1640 images. Copy matching light and dark images after recapturing, and keep the HTML image dimensions and social preview metadata in sync.
+- The homepage hero uses `light-home.png` and `dark-home.png`; its social preview uses the light Home image. The Assistant feature uses `light-ask.png` and `dark-ask.png` to show the docked panel beside Home. The calendar, task, reminder and mail gallery images come from the same capture. Visible captions and alt text identify fictional demo data and sample AI responses.
+- The beta and waitlist pages use the current `assets/screens/light-agenda.png` for their social previews. The older Agenda previews and launch video are retained as historical assets but are no longer the homepage hero. The older `assets/og-image.png` says "Free public beta" and must not be referenced by waitlist pages.
 - `assets/icon-32.png` and `assets/icon-96.png` are the small-size logo, and `assets/icon-180.png` (Apple touch icon) is the full-bleed square logo. Sources and regeneration steps are in `brand/README.md`.
 - `assets/fonts/` holds self-hosted Fraunces and Hanken Grotesk under the SIL Open Font License; their license texts sit beside them. No page loads third-party resources.
+
+## Local checks
+
+Run `node --test tests/website-signup.test.mjs tests/website-buy.test.mjs` for the existing signup and checkout gates. Preview the homepage, gallery tabs, theme switch, guide and download page at desktop and mobile widths. The guide's shortcuts follow `renderer/lib/shortcuts.ts`, `renderer/components/shell.tsx`, `renderer/components/tab-strip.tsx`, the mail handlers and `main/window.ts`; Quick Capture's default comes from `main/services/settings-store.ts`.
+
+`scripts/verify-website.mjs` is a post-deploy check that writes a synthetic signup to the supplied API. Do not use it as a read-only local page check or point it at production without authorization.

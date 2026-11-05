@@ -201,7 +201,14 @@ The separate `billing/` service creates hosted Checkout Sessions, verifies signe
 
 ## Website and source distribution
 
-The static site is in `website/`. From `1.3.0-beta.12`, signed betas are public GitHub prereleases. Once the release is published and Google sign-in is verified for production, getdayboard.com/download redirects to the first-install DMG named by `DOWNLOAD_URL` in `website-worker/worker.js`. Installed copies update themselves, so change that URL only when a later release should be the first install. Its screenshots contain fictional demo data. Add checkout destinations only for the approved release, with the current privacy, support and refund information.
+The static site is in `website/`, served by the assets binding in `website-worker/worker.js`.
+From `1.3.0-beta.12`, signed betas are public GitHub prereleases. The `/download` page is
+`website/download.html`; it links to the first-install DMG and release notes on GitHub. Update
+those links, the version and the download size only after verifying the intended release and
+its installation limitations. Installed copies update themselves through GitHub release metadata.
+The worker does not contain a `DOWNLOAD_URL` redirect. Site screenshots use fictional demo data;
+see `docs/screenshots/README.md` for their source and capture procedure. Add checkout destinations
+only for the approved release, with the current privacy, support and refund information.
 
 The standalone repository originated as a separate copy. Preserve the public repository's history when preparing the migration branch; do not force-push the standalone history over it. The Glaze implementation remains a separate reference until a deliberate transition is accepted.
 
