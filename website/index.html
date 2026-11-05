@@ -40,7 +40,10 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
+    <link rel="stylesheet" href="assets/demo.css" />
+    <script type="module" src="assets/demo.js"></script>
     <script src="assets/site.js" defer></script>
+    <script src="/assets/navigation.js" defer></script>
   </head>
   <body class="c-home">
     <a class="skip" href="#main">Skip to content</a>
@@ -94,6 +97,27 @@
           <span class="theme-label">Light</span>
         </button>
         <a class="button" href="#join">Join the waitlist</a>
+        <details class="mobile-menu">
+          <summary aria-label="Open navigation">
+            <span class="menu-icon" aria-hidden="true"
+              ><span></span><span></span><span></span
+            ></span>
+          </summary>
+          <div class="menu-panel">
+            <span class="menu-caption">Explore DayBoard</span>
+            <div class="menu-sections">
+              <a href="/#demo">Try the demo</a><a href="/#how">How it works</a>
+              <a href="/#features">Features</a><a href="/#privacy">Privacy</a>
+              <a href="/#roadmap">Road Map</a><a href="/#faq">FAQ</a>
+              <a href="/pricing.html">Pricing</a><a href="/download.html">Download</a>
+              <a href="/docs.html">Guide</a><a href="/support.html">Support</a>
+              <a href="https://github.com/miles-chu10/dayboard">GitHub</a>
+            </div>
+            <a class="menu-join" href="/waitlist.html"
+              >Join the waitlist <span aria-hidden="true">→</span></a
+            >
+          </div>
+        </details>
       </nav>
     </header>
 
@@ -114,7 +138,54 @@
             Calendar, Google Tasks, Apple Reminders and Gmail together, with Notes and an optional
             Assistant beside any view.
           </p>
-          <form class="signup rise" style="--i: 3" id="join" data-signup method="post" novalidate>
+        </div>
+        <section class="wrap product-demo" id="demo" aria-labelledby="demo-title" tabindex="-1">
+          <div class="demo-intro">
+            <div>
+              <span class="eyebrow">Try DayBoard</span>
+              <h2 id="demo-title">Try a day in DayBoard.</h2>
+            </div>
+            <p>A hands-on sample of the Mac app. Fictional data; changes stay in this tab.</p>
+          </div>
+          <div class="demo-app" data-demo hidden></div>
+          <noscript
+            ><p class="fine">
+              Enable JavaScript for the interactive demo. You can still explore this screenshot.
+            </p></noscript
+          >
+          <details class="demo-original" data-demo-static open>
+            <summary>See the actual beta 17 Mac app</summary>
+            <figure>
+              <div class="board">
+                <div class="window">
+                  <div class="theme-picture">
+                    <img
+                      class="theme-light"
+                      src="assets/screens/light-home.png"
+                      alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
+                      width="2560"
+                      height="1640"
+                      loading="lazy"
+                    />
+                    <img
+                      class="theme-dark"
+                      src="assets/screens/dark-home.png"
+                      alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
+                      width="2560"
+                      height="1640"
+                    />
+                  </div>
+                </div>
+              </div>
+              <figcaption class="fine">
+                Home in DayBoard 1.3.0 beta 17. All names, messages and plans shown are fictional
+                demo data.
+              </figcaption>
+            </figure>
+          </details>
+        </section>
+        <div class="wrap demo-signup">
+          <form class="signup" id="join" data-signup method="post" novalidate>
             <div class="signup-row">
               <label class="visually-hidden" for="email-hero">Email address</label>
               <input
@@ -137,7 +208,7 @@
             <p class="signup-status" role="status" aria-live="polite"></p>
             <noscript><p class="signup-note">Turn on JavaScript to join the list.</p></noscript>
           </form>
-          <p class="c-access rise" style="--i: 4">
+          <p class="c-access">
             A limited
             <a href="download.html">beta community download</a>
             is available. The app is signed, notarized by Apple and updates itself. Google sign-in
@@ -145,33 +216,6 @@
             <a href="beta.html#install">Read the install guide</a>.
           </p>
         </div>
-        <figure class="wrap c-video">
-          <div class="board rise" style="--i: 4">
-            <div class="window">
-              <div class="theme-picture">
-                <img
-                  class="theme-light"
-                  src="assets/screens/light-home.png"
-                  alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
-                  width="2560"
-                  height="1640"
-                  fetchpriority="high"
-                />
-                <img
-                  class="theme-dark"
-                  src="assets/screens/dark-home.png"
-                  alt="DayBoard Home with Needs you, suggested tasks, your tasks and meetings (fictional demo data)"
-                  width="2560"
-                  height="1640"
-                />
-              </div>
-            </div>
-          </div>
-          <figcaption class="fine">
-            Home in DayBoard 1.3.0 beta 17. All names, messages and plans shown are fictional demo
-            data.
-          </figcaption>
-        </figure>
       </section>
 
       <section class="section" id="how" aria-labelledby="how-title">
