@@ -33,7 +33,7 @@ Browsers accept the endpoint only when the service's `SITE_ORIGIN` setting match
 
 ## Pricing, refunds and download
 
-`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. It currently links published `v1.3.0-beta.18`, including its release notes and `SHA256SUMS.txt`. The DMG is 138,284,646 bytes (138.3 MB). When a new beta ships, verify the published assets, then update the version, links and size in `download.html`.
+`pricing.html` describes DayBoard Pro ($5 once, AI only, up to 3 Macs, 7-day AI trial, beta testers free), `refund.html` the 14-day refund policy, and `download.html` links the current beta's DMG on GitHub. It currently links published `v1.3.0-beta.18`, including its release notes and `SHA256SUMS.txt`. The DMG is 138,284,646 bytes (138.3 MB). When a new beta ships, verify the published assets, then update the version, links and size in `download.html`, and the beta named in the homepage badge, guide link and Road Map (`index.html`) and the guide's intro and description (`docs.html`). `tests/website-beta-version.test.mjs` fails until those match the linked beta. Screenshot captions name the beta they were captured on; change them only after recapturing.
 
 From beta 18 on, both the app and its DMG are Developer ID signed, notarized and stapled (the DMG passes `stapler validate` and `spctl` as Notarized Developer ID). Releases up to beta 17 notarized only the app. Google access may still be restricted to invited accounts. Published betas keep every feature free, and checkout remains closed.
 
