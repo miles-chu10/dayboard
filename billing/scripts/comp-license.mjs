@@ -243,9 +243,20 @@ async function list(origin, token, log) {
   return 0;
 }
 
+// License IDs are base64url, so 1 in 64 starts with "-", and parseArgs would read it as an option.
+// No option looks like a license ID, so such arguments are passed after "--" as positionals.
+function idsAsPositionals(argv) {
+  const end = argv.indexOf("--");
+  const head = end === -1 ? argv : argv.slice(0, end);
+  const tail = end === -1 ? [] : argv.slice(end + 1);
+  const isDashId = (arg) => arg.startsWith("-") && LICENSE_ID.test(arg);
+  if (!head.some(isDashId)) return argv;
+  return [...head.filter((arg) => !isDashId(arg)), "--", ...head.filter(isDashId), ...tail];
+}
+
 async function main(argv, env, log) {
   const { values, positionals } = parseArgs({
-    args: argv,
+    args: idsAsPositionals(argv),
     allowPositionals: true,
     options: {
       origin: { type: "string" },

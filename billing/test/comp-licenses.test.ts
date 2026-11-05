@@ -562,7 +562,20 @@ test("the CLI issues keys into a private git-ignored file, lists and revokes the
       (await f.license("validate", { licenseKey: records[0].licenseKey })).error,
       "revoked",
     );
-    assert.equal((await runCli(["revoke", randomToken(24)], env)).code, 1);
+    // An unknown ID fails as not found. IDs that start with "-" are IDs, not options, wherever
+    // they sit among the arguments.
+    const plain = `x${randomToken(24).slice(1)}`;
+    const dashed = `-${randomToken(24).slice(1)}`;
+    for (const [id, args] of [
+      [plain, ["revoke", plain]],
+      [dashed, ["revoke", dashed]],
+      [dashed, ["revoke", "--", dashed]],
+      [dashed, ["revoke", dashed, "--origin", url]],
+    ] as [string, string[]][]) {
+      const result = await runCli(args, env);
+      assert.equal(result.code, 1, result.stderr);
+      assert.ok(result.stderr.includes(`Could not revoke ${id}`), result.stderr);
+    }
 
     // A second run appends instead of replacing earlier keys.
     const fourth = await runCli(
