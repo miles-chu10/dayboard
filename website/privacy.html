@@ -8,8 +8,8 @@
       name="description"
       content="What DayBoard and this website collect, where your calendar, tasks, reminders and mail go, and how Google user data is handled."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/privacy" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-privacy">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -117,138 +120,174 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap">
-        <article class="prose">
-          <h2>The DayBoard app</h2>
-          <ul>
-            <li>
-              <strong>No tracking.</strong> The app has no analytics, advertising or tracking, and
-              DayBoard has no server that receives your calendar, tasks, reminders or mail.
-            </li>
-            <li>
-              <strong>On your Mac:</strong> settings, linked items and Assistant history are stored
-              locally. Google sign-in tokens are encrypted with macOS's built-in protection.
-            </li>
-            <li>
-              <strong>Google:</strong> when you sign in, DayBoard asks for access to Google
-              Calendar, Google Tasks and, in the beta, Gmail. It talks to Google's APIs directly
-              from your Mac to show and change those items for you. Signing out deletes your Google
-              sign-in tokens from your Mac and asks Google to revoke DayBoard's access.
-            </li>
-            <li>
-              <strong>Apple Reminders:</strong> read and changed on your Mac through macOS, with
-              your permission.
-            </li>
-            <li>
-              <strong>AI (optional):</strong> nothing goes to an AI provider until you choose one.
-              AI features send data to the provider you chose, through its app on your Mac (such as
-              Claude Code or Codex) or with your API key. With each message, the Assistant sends a
-              snapshot of up to 60 events, 80 open tasks and reminders, and your 30 latest emails
-              (sender, subject and a short preview), and it can look up more as it answers. Other
-              features, such as the daily briefing, send the items they cover. If you turn on the
-              automatic briefing, it runs the first time you open DayBoard each day, without a
-              click. That provider handles the data under its own terms. Dictation sends your
-              recording to OpenAI for transcription, only when you use it.
-            </li>
-            <li>
-              <strong>MCP server (optional):</strong> off by default. When you turn it on, it runs
-              only on your Mac, and clients need the access key shown in Settings. Apps you connect
-              to it can read your calendar, tasks, reminders and mail, make changes if you allow
-              them, and may send what they read to their own AI providers.
-            </li>
-            <li>
-              <strong>Updates:</strong> beta 11 and earlier never check for updates. Starting with
-              beta 12, DayBoard checks GitHub, where its releases are published, for a newer version
-              shortly after it opens and every few hours, and downloads updates from there. GitHub
-              receives those requests, including your IP address, under its own terms; they carry
-              none of your calendar, tasks, reminders or mail.
-            </li>
-            <li>
-              <strong>Licenses (paid versions only):</strong> activating a license sends your
-              license key, an installation ID and the label "DayBoard on macOS" to DayBoard's
-              license service, which checks it again about once a day. DayBoard computes the
-              installation ID one-way from your Mac's hardware UUID, so it stays the same if you
-              reinstall DayBoard or delete its data, and every macOS account on that Mac sends the
-              same one. The hardware UUID itself is never sent or stored. If DayBoard can't read it,
-              the installation ID is random. Beta builds have no license and never contact that
-              service. See <a href="#purchases">Purchases</a>.
-            </li>
-          </ul>
-
-          <h2 id="google">Google user data</h2>
-          <p>
-            DayBoard's use and transfer of information received from Google APIs to any other app
-            will adhere to the
-            <a href="https://developers.google.com/terms/api-services-user-data-policy"
-              >Google API Services User Data Policy</a
-            >, including the Limited Use requirements.
-          </p>
-          <p>
-            DayBoard uses Google data only to show and change your calendar, tasks and mail inside
-            the app, and, when you ask, to send the relevant items to the AI provider you chose. It
-            doesn't sell Google data, use it for advertising, or use it to develop or train AI
-            models.
-          </p>
-
-          <h2 id="website">This website</h2>
-          <ul>
-            <li>
-              <strong>Waitlist:</strong> if you join the waitlist, we store your email address, the
-              time you joined and internal review labels in DayBoard's signup database, and the
-              DayBoard team gets an email with your address. Joining doesn't guarantee an
-              invitation. We use your address only to contact you about early access and major
-              DayBoard news, and we never sell or share it. We keep it until the waitlist closes or
-              you ask us to delete it.
-            </li>
-            <li>
-              <strong>Abuse protection:</strong> to limit repeated signup attempts, the signup
-              service keeps a keyed hash of your IP address, not the address itself.
-            </li>
-            <li>
-              <strong>No cookies or trackers:</strong> this site sets no cookies and runs no
-              analytics (checkout, on a separate page, sets one; see
-              <a href="#purchases">Purchases</a>). Fonts and images are served from this site. Our
-              hosting provider processes basic request data, such as IP addresses, to deliver the
-              site and block abuse.
-            </li>
-          </ul>
-
-          <h2 id="purchases">Purchases</h2>
-          <ul>
-            <li>
-              <strong>Payment:</strong> DayBoard Pro is sold through Link, Stripe's checkout
-              service, which is the seller of record. Stripe and Link collect your payment details,
-              email address and billing location to take the payment, calculate tax, send your
-              receipt and prevent fraud, under the
-              <a href="https://stripe.com/privacy">Stripe privacy policy</a> and
-              <a href="https://link.com/privacy">Link privacy policy</a>. DayBoard never receives
-              your card number.
-            </li>
-            <li>
-              <strong>What DayBoard keeps:</strong> DayBoard's license service stores an order
-              record with Stripe's IDs for the checkout and payment, its status (paid, refunded or
-              disputed), your license key (encrypted) and, for each Mac you activate, its
-              installation ID (computed one-way from that Mac's hardware UUID, never the UUID
-              itself, or random if DayBoard couldn't read it) and the label "DayBoard on macOS". It
-              doesn't store your name, email address or payment details. To limit abuse, it briefly
-              keeps a keyed hash of your IP address, not the address itself. We can see your
-              purchase in our Stripe account when you ask for help or a refund.
-            </li>
-            <li>
-              <strong>Checkout cookie:</strong> the checkout page on api.getdayboard.com sets one
-              cookie that lets the receipt page show your license key on the same browser. It
-              expires after seven days and isn't used for tracking.
-            </li>
-          </ul>
-
-          <h2 id="contact">Removal and questions</h2>
-          <p>
-            To have your email removed, or to ask about this policy, email
-            <a data-contact>the DayBoard team</a>. For purchases and refunds, email
-            <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>. If this policy
-            changes, we'll update this page and the date above.
-          </p>
+      <div class="wrap policy-layout">
+        <nav class="contents policy-contents" aria-label="On this page">
+          <span class="eyebrow">On this page</span><a href="#app">The DayBoard app</a
+          ><a href="#google">Google user data</a><a href="#website">This website</a
+          ><a href="#purchases">Purchases</a><a href="#contact">Removal & questions</a>
+        </nav>
+        <details class="mobile-contents">
+          <summary>On this page</summary>
+          <nav class="contents" aria-label="On this page">
+            <span class="eyebrow">On this page</span><a href="#app">The DayBoard app</a
+            ><a href="#google">Google user data</a><a href="#website">This website</a
+            ><a href="#purchases">Purchases</a><a href="#contact">Removal & questions</a>
+          </nav>
+        </details>
+        <article class="prose policy-article">
+          <div class="data-overview">
+            <dl>
+              <div>
+                <dt>On your Mac</dt>
+                <dd>Settings, linked items and Assistant history.</dd>
+              </div>
+              <div>
+                <dt>Connected services</dt>
+                <dd>DayBoard talks directly to Google and Apple Reminders.</dd>
+              </div>
+              <div>
+                <dt>Optional AI</dt>
+                <dd>Requests go to the provider you choose.</dd>
+              </div>
+            </dl>
+            <p class="fine">Overview only. The complete policy follows.</p>
+          </div>
+          <section class="reading-section">
+            <h2 id="app">The DayBoard app</h2>
+            <ul>
+              <li>
+                <strong>No tracking.</strong> The app has no analytics, advertising or tracking, and
+                DayBoard has no server that receives your calendar, tasks, reminders or mail.
+              </li>
+              <li>
+                <strong>On your Mac:</strong> settings, linked items and Assistant history are
+                stored locally. Google sign-in tokens are encrypted with macOS's built-in
+                protection.
+              </li>
+              <li>
+                <strong>Google:</strong> when you sign in, DayBoard asks for access to Google
+                Calendar, Google Tasks and, in the beta, Gmail. It talks to Google's APIs directly
+                from your Mac to show and change those items for you. Signing out deletes your
+                Google sign-in tokens from your Mac and asks Google to revoke DayBoard's access.
+              </li>
+              <li>
+                <strong>Apple Reminders:</strong> read and changed on your Mac through macOS, with
+                your permission.
+              </li>
+              <li>
+                <strong>AI (optional):</strong> nothing goes to an AI provider until you choose one.
+                AI features send data to the provider you chose, through its app on your Mac (such
+                as Claude Code or Codex) or with your API key. With each message, the Assistant
+                sends a snapshot of up to 60 events, 80 open tasks and reminders, and your 30 latest
+                emails (sender, subject and a short preview), and it can look up more as it answers.
+                Other features, such as the daily briefing, send the items they cover. If you turn
+                on the automatic briefing, it runs the first time you open DayBoard each day,
+                without a click. That provider handles the data under its own terms. Dictation sends
+                your recording to OpenAI for transcription, only when you use it.
+              </li>
+              <li>
+                <strong>MCP server (optional):</strong> off by default. When you turn it on, it runs
+                only on your Mac, and clients need the access key shown in Settings. Apps you
+                connect to it can read your calendar, tasks, reminders and mail, make changes if you
+                allow them, and may send what they read to their own AI providers.
+              </li>
+              <li>
+                <strong>Updates:</strong> beta 11 and earlier never check for updates. Starting with
+                beta 12, DayBoard checks GitHub, where its releases are published, for a newer
+                version shortly after it opens and every few hours, and downloads updates from
+                there. GitHub receives those requests, including your IP address, under its own
+                terms; they carry none of your calendar, tasks, reminders or mail.
+              </li>
+              <li>
+                <strong>Licenses (paid versions only):</strong> activating a license sends your
+                license key, an installation ID and the label "DayBoard on macOS" to DayBoard's
+                license service, which checks it again about once a day. DayBoard computes the
+                installation ID one-way from your Mac's hardware UUID, so it stays the same if you
+                reinstall DayBoard or delete its data, and every macOS account on that Mac sends the
+                same one. The hardware UUID itself is never sent or stored. If DayBoard can't read
+                it, the installation ID is random. Beta builds have no license and never contact
+                that service. See <a href="#purchases">Purchases</a>.
+              </li>
+            </ul>
+          </section>
+          <section class="reading-section">
+            <h2 id="google">Google user data</h2>
+            <p>
+              DayBoard's use and transfer of information received from Google APIs to any other app
+              will adhere to the
+              <a href="https://developers.google.com/terms/api-services-user-data-policy"
+                >Google API Services User Data Policy</a
+              >, including the Limited Use requirements.
+            </p>
+            <p>
+              DayBoard uses Google data only to show and change your calendar, tasks and mail inside
+              the app, and, when you ask, to send the relevant items to the AI provider you chose.
+              It doesn't sell Google data, use it for advertising, or use it to develop or train AI
+              models.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="website">This website</h2>
+            <ul>
+              <li>
+                <strong>Waitlist:</strong> if you join the waitlist, we store your email address,
+                the time you joined and internal review labels in DayBoard's signup database, and
+                the DayBoard team gets an email with your address. Joining doesn't guarantee an
+                invitation. We use your address only to contact you about early access and major
+                DayBoard news, and we never sell or share it. We keep it until the waitlist closes
+                or you ask us to delete it.
+              </li>
+              <li>
+                <strong>Abuse protection:</strong> to limit repeated signup attempts, the signup
+                service keeps a keyed hash of your IP address, not the address itself.
+              </li>
+              <li>
+                <strong>No cookies or trackers:</strong> this site sets no cookies and runs no
+                analytics (checkout, on a separate page, sets one; see
+                <a href="#purchases">Purchases</a>). Fonts and images are served from this site. Our
+                hosting provider processes basic request data, such as IP addresses, to deliver the
+                site and block abuse.
+              </li>
+            </ul>
+          </section>
+          <section class="reading-section">
+            <h2 id="purchases">Purchases</h2>
+            <ul>
+              <li>
+                <strong>Payment:</strong> DayBoard Pro is sold through Link, Stripe's checkout
+                service, which is the seller of record. Stripe and Link collect your payment
+                details, email address and billing location to take the payment, calculate tax, send
+                your receipt and prevent fraud, under the
+                <a href="https://stripe.com/privacy">Stripe privacy policy</a> and
+                <a href="https://link.com/privacy">Link privacy policy</a>. DayBoard never receives
+                your card number.
+              </li>
+              <li>
+                <strong>What DayBoard keeps:</strong> DayBoard's license service stores an order
+                record with Stripe's IDs for the checkout and payment, its status (paid, refunded or
+                disputed), your license key (encrypted) and, for each Mac you activate, its
+                installation ID (computed one-way from that Mac's hardware UUID, never the UUID
+                itself, or random if DayBoard couldn't read it) and the label "DayBoard on macOS".
+                It doesn't store your name, email address or payment details. To limit abuse, it
+                briefly keeps a keyed hash of your IP address, not the address itself. We can see
+                your purchase in our Stripe account when you ask for help or a refund.
+              </li>
+              <li>
+                <strong>Checkout cookie:</strong> the checkout page on api.getdayboard.com sets one
+                cookie that lets the receipt page show your license key on the same browser. It
+                expires after seven days and isn't used for tracking.
+              </li>
+            </ul>
+          </section>
+          <section class="reading-section">
+            <h2 id="contact">Removal and questions</h2>
+            <p>
+              To have your email removed, or to ask about this policy, email
+              <a data-contact>the DayBoard team</a>. For purchases and refunds, email
+              <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>. If this policy
+              changes, we'll update this page and the date above.
+            </p>
+          </section>
         </article>
       </div>
     </main>

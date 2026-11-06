@@ -8,8 +8,8 @@
       name="description"
       content="Your day starts here: meetings, tasks, mail and notes in one Mac app, with an optional Assistant beside every view. Explore the limited DayBoard beta."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="DayBoard — Your whole day, on one board" />
     <meta
@@ -34,9 +34,16 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
@@ -45,7 +52,7 @@
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body class="c-home">
+  <body class="c-home page-index">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -53,11 +60,9 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="#how">How it works</a><a href="#features">Features</a
-          ><a class="nav-tertiary" href="#privacy">Privacy</a
-          ><a class="nav-tertiary" href="#roadmap">Road Map</a><a href="#faq">FAQ</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features" aria-current="page">Product</a
+          ><a href="pricing.html">Pricing</a><a href="docs.html">Guide</a
+          ><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -134,10 +139,15 @@
             Your whole day, <em>on one board.</em>
           </h1>
           <p class="c-lead rise" style="--i: 2">
-            Start with what needs you, what's due and your next meeting. DayBoard brings Google
-            Calendar, Google Tasks, Apple Reminders and Gmail together, with Notes and an optional
-            Assistant beside any view.
+            Calendar, tasks, reminders and mail. Together on your Mac, with room to focus.
           </p>
+          <div class="hero-actions rise" style="--i: 3">
+            <a class="button" href="#join">Join the waitlist</a
+            ><a class="button button-quiet" href="#demo"
+              >Try the demo <span aria-hidden="true">↓</span></a
+            >
+          </div>
+          <p class="hero-note">Free during beta. Google access may require an invite.</p>
         </div>
         <section class="wrap product-demo" id="demo" aria-labelledby="demo-title" tabindex="-1">
           <div class="demo-intro">
@@ -218,15 +228,59 @@
         </div>
       </section>
 
+      <div class="wrap integration-strip" aria-label="Works with your services">
+        <span
+          ><img src="assets/app-logos/google-calendar.svg" width="24" height="24" alt="" />Google
+          Calendar</span
+        >
+        <span
+          ><img src="assets/app-logos/google-tasks.svg" width="24" height="24" alt="" />Google
+          Tasks</span
+        >
+        <span
+          ><img src="assets/app-logos/apple-reminders.webp" width="24" height="24" alt="" />Apple
+          Reminders</span
+        >
+        <span><img src="assets/app-logos/gmail.svg" width="24" height="24" alt="" />Gmail</span>
+      </div>
       <section class="section" id="how" aria-labelledby="how-title">
         <div class="wrap">
           <div class="section-head" data-reveal>
             <span class="eyebrow">Four apps, one board</span>
-            <h2 id="how-title">Stop opening <em>four apps</em> to plan one day.</h2>
+            <h2 id="how-title">Four apps. <em>One clear day.</em></h2>
             <p>
               Home brings together mail and follow-ups that need you, your tasks and your meetings.
               Switch between today and this week, or open Agenda for everything in time order.
             </p>
+          </div>
+          <div class="benefit-grid">
+            <article>
+              <span class="section-number">01</span>
+              <h3>See what needs you</h3>
+              <p>
+                Mail and follow-ups, your tasks and your next meeting. Home makes it clear where to
+                start.
+              </p>
+              <a href="#mail-title">Explore your inbox <span aria-hidden="true">→</span></a>
+            </article>
+            <article>
+              <span class="section-number">02</span>
+              <h3>Keep plans together</h3>
+              <p>
+                Google Calendar, Google Tasks, Apple Reminders and Gmail come together, with Notes
+                close by.
+              </p>
+              <a href="#calendar-title">See your calendar <span aria-hidden="true">→</span></a>
+            </article>
+            <article>
+              <span class="section-number">03</span>
+              <h3>Ask when you need to</h3>
+              <p>
+                An optional Assistant beside any view. Choose your provider and the context you want
+                to share.
+              </p>
+              <a href="#assistant-title">Meet the Assistant <span aria-hidden="true">→</span></a>
+            </article>
           </div>
           <div class="merge" aria-label="How DayBoard combines four sources into one agenda">
             <div class="sources">

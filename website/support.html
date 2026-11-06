@@ -8,8 +8,8 @@
       name="description"
       content="Answers about the DayBoard waitlist and beta, installing, sources, AI and privacy, and how to report a problem."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/support" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-support">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html" aria-current="page">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html" aria-current="page">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -116,79 +119,127 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap two-col">
-        <div class="faq-list">
-          <details open>
-            <summary>How do I get early access?</summary>
-            <p>
-              <a href="waitlist.html">Join the waitlist</a>. We invite people in small groups, with
-              no set dates, and joining doesn't guarantee an invite. If you're invited, you'll get
-              an email with onboarding steps. The limited
-              <a href="download.html">beta community download</a>
-              is also available. The app is notarized by Apple and updates itself; Google sign-in
-              may be limited to invited accounts.
-            </p>
-          </details>
-          <details>
-            <summary>macOS won't open DayBoard. What do I do?</summary>
-            <p>
-              The current app and its disk image are signed and notarized. The
-              <a href="download.html">download page</a> has the install steps. If macOS asks whether
-              to open an app downloaded from the internet, click <b>Open</b>. If it blocks the
-              download or app, <a data-contact>contact the DayBoard team</a> with the warning text
-              and your macOS version. On beta 11 or earlier, install the current beta using the
-              <a href="beta.html#install">install steps</a>.
-            </p>
-          </details>
-          <details>
-            <summary>Which Macs are supported?</summary>
-            <p>
-              Macs with Apple silicon (M1 or later) running macOS 14 Sonoma or later. Intel Macs
-              aren't supported yet.
-            </p>
-          </details>
-          <details>
-            <summary>Do I need all four services?</summary>
-            <p>
-              No. Turn on only the sources you use in Settings → Sources. Google services need a
-              Google sign-in, and Apple Reminders asks for macOS permission.
-            </p>
-          </details>
-          <details>
-            <summary>Does DayBoard require an AI account?</summary>
-            <p>
-              No. AI is optional and off until you choose a provider. If you turn it on, only the
-              context each request needs is sent to that provider.
-            </p>
-          </details>
-          <details>
-            <summary>Is my data sent to DayBoard?</summary>
-            <p>
-              No. DayBoard talks directly to Google and to Apple Reminders on your Mac. There's no
-              DayBoard server that sees your calendar, tasks, reminders or mail. See
-              <a href="docs.html#data">where your data goes</a>.
-            </p>
-          </details>
-          <details>
-            <summary>Will DayBoard stay free?</summary>
-            <p>
-              Yes. DayBoard is free, and during the beta so is AI. When paid builds ship, the AI
-              features need DayBoard Pro: $5 once, with a 7-day AI trial and a
-              <a href="refund.html">14-day refund</a>. See <a href="pricing.html">pricing</a>. The
-              source stays open under GPL-3.0, so you can always build it yourself.
-            </p>
-          </details>
-          <details>
-            <summary>How do I leave the waitlist?</summary>
-            <p>
-              Email <a data-contact>the DayBoard team</a> and we'll delete your address. See the
-              <a href="privacy.html">privacy policy</a> for what we store.
-            </p>
-          </details>
+      <div class="wrap">
+        <div class="help-routes">
+          <a class="help-route" href="docs.html"
+            ><span class="section-number">01</span>
+            <h2>Getting started</h2>
+            <p>Set up DayBoard and connect your sources.</p>
+            <span class="text-link">Open the guide →</span></a
+          ><a class="help-route" href="beta.html#install"
+            ><span class="section-number">02</span>
+            <h2>Installing the beta</h2>
+            <p>Requirements, downloads and Google access.</p>
+            <span class="text-link">View install steps →</span></a
+          ><a class="help-route" href="https://github.com/miles-chu10/dayboard/issues/new"
+            ><span class="section-number">03</span>
+            <h2>Report a problem</h2>
+            <p>Tell us what happened on GitHub.</p>
+            <span class="text-link">Open an issue →</span></a
+          >
         </div>
-
-        <aside class="aside-card" aria-labelledby="report-title">
+        <section class="support-questions" aria-labelledby="questions-title">
+          <h2 id="questions-title">Frequently asked questions</h2>
+          <div class="support-layout">
+            <nav class="contents" aria-label="Topics">
+              <span class="eyebrow">Topics</span><a href="#access">Early access</a
+              ><a href="#mac">Your Mac</a><a href="#accounts">Accounts & AI</a
+              ><a href="#data">Privacy & pricing</a>
+            </nav>
+            <div>
+              <section class="faq-group" id="access">
+                <h3>Early access</h3>
+                <div class="faq-list">
+                  <details open>
+                    <summary>How do I get early access?</summary>
+                    <p>
+                      <a href="waitlist.html">Join the waitlist</a>. We invite people in small
+                      groups, with no set dates, and joining doesn't guarantee an invite. If you're
+                      invited, you'll get an email with onboarding steps. The limited
+                      <a href="download.html">beta community download</a>
+                      is also available. The app is notarized by Apple and updates itself; Google
+                      sign-in may be limited to invited accounts.
+                    </p>
+                  </details>
+                  <details>
+                    <summary>How do I leave the waitlist?</summary>
+                    <p>
+                      Email <a data-contact>the DayBoard team</a> and we'll delete your address. See
+                      the <a href="privacy.html">privacy policy</a> for what we store.
+                    </p>
+                  </details>
+                </div>
+              </section>
+              <section class="faq-group" id="mac">
+                <h3>Your Mac</h3>
+                <div class="faq-list">
+                  <details>
+                    <summary>macOS won't open DayBoard. What do I do?</summary>
+                    <p>
+                      The current app and its disk image are signed and notarized. The
+                      <a href="download.html">download page</a> has the install steps. If macOS asks
+                      whether to open an app downloaded from the internet, click <b>Open</b>. If it
+                      blocks the download or app, <a data-contact>contact the DayBoard team</a> with
+                      the warning text and your macOS version. On beta 11 or earlier, install the
+                      current beta using the <a href="beta.html#install">install steps</a>.
+                    </p>
+                  </details>
+                  <details>
+                    <summary>Which Macs are supported?</summary>
+                    <p>
+                      Macs with Apple silicon (M1 or later) running macOS 14 Sonoma or later. Intel
+                      Macs aren't supported yet.
+                    </p>
+                  </details>
+                </div>
+              </section>
+              <section class="faq-group" id="accounts">
+                <h3>Accounts & AI</h3>
+                <div class="faq-list">
+                  <details>
+                    <summary>Do I need all four services?</summary>
+                    <p>
+                      No. Turn on only the sources you use in Settings → Sources. Google services
+                      need a Google sign-in, and Apple Reminders asks for macOS permission.
+                    </p>
+                  </details>
+                  <details>
+                    <summary>Does DayBoard require an AI account?</summary>
+                    <p>
+                      No. AI is optional and off until you choose a provider. If you turn it on,
+                      only the context each request needs is sent to that provider.
+                    </p>
+                  </details>
+                </div>
+              </section>
+              <section class="faq-group" id="data">
+                <h3>Privacy & pricing</h3>
+                <div class="faq-list">
+                  <details>
+                    <summary>Is my data sent to DayBoard?</summary>
+                    <p>
+                      No. DayBoard talks directly to Google and to Apple Reminders on your Mac.
+                      There's no DayBoard server that sees your calendar, tasks, reminders or mail.
+                      See
+                      <a href="docs.html#data">where your data goes</a>.
+                    </p>
+                  </details>
+                  <details>
+                    <summary>Will DayBoard stay free?</summary>
+                    <p>
+                      Yes. DayBoard is free, and during the beta so is AI. When paid builds ship,
+                      the AI features need DayBoard Pro: $5 once, with a 7-day AI trial and a
+                      <a href="refund.html">14-day refund</a>. See
+                      <a href="pricing.html">pricing</a>. The source stays open under GPL-3.0, so
+                      you can always build it yourself.
+                    </p>
+                  </details>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+        <aside class="help-band" aria-labelledby="report-title">
           <span class="eyebrow">Report a problem</span>
           <h2 id="report-title">Tell us what broke.</h2>
           <p>

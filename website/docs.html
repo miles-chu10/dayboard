@@ -8,8 +8,8 @@
       name="description"
       content="Get started with DayBoard beta 18: Home, mail, Ask Assistant, Notes, keyboard shortcuts, source connections and optional MCP."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/docs" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-docs">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html" aria-current="page">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html" aria-current="page">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -107,264 +110,338 @@
     </header>
 
     <main id="main">
-      <header class="page-head">
-        <div class="wrap">
-          <span class="eyebrow">Guide</span>
-          <h1>Getting started with <em>DayBoard.</em></h1>
-          <p>
-            Set up your sources, find your way around Home, and make beta 18 work the way you do.
+      <div class="wrap breadcrumb">
+        <a href="docs.html">Guide</a><span aria-hidden="true">/</span><span>Getting started</span>
+      </div>
+      <div class="wrap doc-layout">
+        <nav class="contents guide-contents" aria-label="DayBoard guide">
+          <span class="eyebrow">DayBoard guide</span><a href="#home">Start at Home</a
+          ><a href="#agenda">Home & Agenda</a><a href="#sources">Connect your sources</a
+          ><a href="#views">Calendar & item details</a><a href="#mail">Inbox & follow-ups</a
+          ><a href="#ai">Optional AI</a><a href="#notes">Notes & workspace</a
+          ><a href="#panels">Capture & menu bar</a><a href="#shortcuts">Keyboard shortcuts</a
+          ><a href="#mcp">Your AI tools</a><a href="#data">Data & privacy</a
+          ><a href="#updates">Updates</a>
+        </nav>
+        <details class="mobile-contents">
+          <summary>DayBoard guide</summary>
+          <nav class="contents" aria-label="DayBoard guide">
+            <span class="eyebrow">DayBoard guide</span><a href="#home">Start at Home</a
+            ><a href="#agenda">Home & Agenda</a><a href="#sources">Connect your sources</a
+            ><a href="#views">Calendar & item details</a><a href="#mail">Inbox & follow-ups</a
+            ><a href="#ai">Optional AI</a><a href="#notes">Notes & workspace</a
+            ><a href="#panels">Capture & menu bar</a><a href="#shortcuts">Keyboard shortcuts</a
+            ><a href="#mcp">Your AI tools</a><a href="#data">Data & privacy</a
+            ><a href="#updates">Updates</a>
+          </nav>
+        </details>
+        <article class="prose guide-article">
+          <header class="article-head">
+            <div class="article-intro">
+              <span class="eyebrow">Guide</span>
+              <h1>Make room for <em>your day.</em></h1>
+              <p>
+                Set up your sources, find your way around Home, and make beta 18 work the way you
+                do.
+              </p>
+            </div>
+          </header>
+          <p class="notice">
+            Google access may require an invite.
+            <a href="beta.html#install">View the beta install guide →</a>
           </p>
-        </div>
-      </header>
-
-      <div class="wrap two-col">
-        <article class="prose">
-          <h2 id="home">Start at Home</h2>
-          <p>
-            DayBoard opens on <strong>Home</strong>: mail and follow-ups under
-            <strong>Needs you</strong>, your tasks and your meetings. Switch between
-            <strong>Today</strong> and <strong>This week</strong>. With AI triage enabled,
-            <strong>Suggested</strong> surfaces tasks from your mail for you to add or dismiss.
-          </p>
-          <h2 id="agenda">See everything in Agenda</h2>
-          <p>
-            <strong>Agenda</strong> has its own sidebar row. It combines calendar events, Google
-            Tasks and Apple Reminders in time order, with unread Gmail underneath. Switch between
-            <strong>Today</strong> and <strong>Next 7 days</strong>, search across the list, and use
-            the source checkboxes to focus the view.
-          </p>
-          <p>
-            Overdue items collect in their own row so they don't crowd your day. Items without a
-            date wait under <strong>No date</strong>.
-          </p>
-
-          <h2 id="sources">Connect your sources</h2>
-          <p>Open Settings (<span class="kbd">⌘ ,</span>) and choose <strong>Sources</strong>.</p>
-          <ul>
-            <li>
-              <strong>Google Calendar, Google Tasks and Gmail:</strong> click
-              <strong>Sign in with Google</strong> and approve access in your browser.
-            </li>
-            <li><strong>Apple Reminders:</strong> turn it on and allow access when macOS asks.</li>
-            <li>Turn any source off at any time, and pick the color each one uses.</li>
-          </ul>
-          <p>
-            Google sign-in may be limited to invited accounts during the beta. See the
-            <a href="beta.html#install">beta install guide</a> for the current access limits.
-          </p>
-          <p>
-            Changes you make in DayBoard sync back to Google and Apple. If the same to-do lives in
-            both Google Tasks and Apple Reminders, open its details and <strong>Link</strong> the
-            pair. It then shows up once, and checking it off completes both.
-          </p>
-
-          <h2 id="views">Calendar and item details</h2>
-          <p>
-            The Calendar has <strong>Month</strong>, <strong>Week</strong> and
-            <strong>Schedule</strong> layouts, with tasks and reminders on their due dates. The
-            calendar peek (<kbd class="kbd">⌥⌘K</kbd>) opens beside the page you're on. Under
-            <strong>Settings → General</strong>, choose whether item details open in a pop-up,
-            inline, or in a side panel.
-          </p>
-
-          <h2 id="mail">Read, send and follow up on mail</h2>
-          <p>
-            <strong>Inbox</strong> shows your recent Gmail. Write a new email, reply to a message,
-            or save a reply to Gmail drafts. Sending gives you an <strong>Undo</strong> window of
-            five seconds by default; change it in <strong>Settings → General → Mail</strong>.
-          </p>
-          <ul>
-            <li>
-              <strong>Snooze:</strong> remove an email from the inbox until the time you choose. It
-              returns unread.
-            </li>
-            <li>
-              <strong>Remind me if no reply:</strong> bring a thread back to Home when the wait you
-              chose is over and nobody has replied. Manage snoozes and follow-ups under
-              <strong>Later</strong> in Inbox.
-            </li>
-            <li>
-              <strong>Subscriptions:</strong> review newsletters by sender, see how many you opened,
-              and unsubscribe. One-click unsubscribe is available where the sender supports it;
-              other senders may open a browser or use an email request.
-            </li>
-            <li>
-              <strong>Optional AI triage:</strong> Needs reply, FYI and Ignorable chips, with a
-              one-line summary on the open email. Enable automatic triage in
-              <strong>Settings → General → Mail</strong> after choosing an AI provider.
-            </li>
-          </ul>
-          <p>
-            Mail notifications start off. In <strong>Settings → General → Mail</strong>, choose
-            notifications for snoozes and follow-ups or all new mail, and set the Dock badge to
-            waiting items, unread mail or nothing.
-          </p>
-
-          <h2 id="ai">Turn on AI (optional)</h2>
-          <p>
-            AI is off until you choose a provider in <strong>Settings → AI</strong>. You can use the
-            Claude or ChatGPT account you already have through Claude Code or Codex, or add an API
-            key, including an xAI key for Grok. Then pick the model and turn individual features on
-            or off. ChatGPT currently connects through Codex; direct ChatGPT sign-in is not in this
-            beta.
-          </p>
-          <ul>
-            <li>
-              <strong>Ask Assistant:</strong> press <kbd class="kbd">⌥⌘J</kbd> to dock it beside any
-              view, or open the full Assistant page. The open email, event or to-do appears as a
-              removable context chip. Use <kbd class="kbd">@</kbd> to attach another item and
-              <kbd class="kbd">/</kbd> for commands.
-            </li>
-            <li>
-              <strong>Brief me, Suggest focus and Weekly Review:</strong> summaries of what matters.
-            </li>
-            <li>
-              <strong>Reply drafts:</strong> generate a starting point, edit it, then send it or
-              save it to Gmail drafts.
-            </li>
-          </ul>
-          <p>
-            The composer's model menu lets you choose a provider, model and supported effort level.
-            Its permission menu starts in <strong>Ask first</strong>, where you confirm each
-            proposed item. <strong>Read only</strong> gives answers without proposing changes;
-            <strong>Auto</strong> adds proposed tasks, reminders and events for you.
-          </p>
-          <p>
-            Under <strong>Settings → AI → Memory</strong>, add or forget preferences and turn memory
-            off. A preference suggested from a reply edit is saved only if you choose
-            <strong>Remember</strong>. The <strong>Usage</strong> section shows requests and tokens
-            recorded by DayBoard, not your provider's remaining plan allowance.
-          </p>
-
-          <h2 id="notes">Keep Notes and arrange your workspace</h2>
-          <p>
-            <strong>Notes</strong> supports Markdown with a live preview and saves as you write.
-            Search notes by title with <kbd class="kbd">⌘K</kbd>, or save an Assistant conversation
-            as a note. Open a new tab with <kbd class="kbd">⌘T</kbd>; each keeps its own view and
-            your tabs return next time.
-          </p>
-          <p>
-            Under <strong>Settings → General → Sidebar</strong>, reorder your views, hide any except
-            Home and show or hide counts. Hidden views stay available in the command menu.
-          </p>
-
-          <h2 id="panels">Capture from anywhere and glance at your day</h2>
-          <p>
-            <strong>Quick Capture</strong> turns a sentence into a task, reminder or event using
-            your chosen AI provider. Its default global shortcut is <kbd class="kbd">⌃⌥⇧Space</kbd>;
-            view or change it under <strong>Settings → General → Menu Bar &amp; Shortcuts</strong>.
-          </p>
-          <p>
-            The menu-bar panel shows today's items, your next meeting, recent captures and the first
-            three emails waiting on you. The <strong>Up Next</strong> meeting card offers a quick
-            way into the next meeting. Meeting alerts are optional.
-          </p>
-
-          <h2 id="shortcuts">Keyboard shortcuts</h2>
-          <p>
-            Press <kbd class="kbd">?</kbd> outside a text field, or <kbd class="kbd">⌘/</kbd>, to
-            see the app's shortcut sheet. ⌘ is Command, ⌥ is Option, ⌃ is Control and ⇧ is Shift.
-          </p>
-          <h3>Move around DayBoard</h3>
-          <ul>
-            <li><kbd class="kbd">⌘K</kbd> — search, jump to a view or item, or run an action.</li>
-            <li>
-              <kbd class="kbd">Tab</kbd> in the command menu — ask the Assistant what you've typed,
-              when the Assistant is enabled.
-            </li>
-            <li><kbd class="kbd">⌥⌘J</kbd> — show or hide Ask Assistant beside the page.</li>
-            <li><kbd class="kbd">⌥⌘K</kbd> — show or hide the calendar peek.</li>
-            <li><kbd class="kbd">⌘N</kbd> — new item. <kbd class="kbd">⌘,</kbd> — Settings.</li>
-            <li><kbd class="kbd">⌃1–9</kbd> — open a visible sidebar view in its current order.</li>
-          </ul>
-          <h3>Tabs</h3>
-          <ul>
-            <li><kbd class="kbd">⌘T</kbd> — new tab. <kbd class="kbd">⌘W</kbd> — close the tab.</li>
-            <li>
-              <kbd class="kbd">⌃Tab</kbd> — next tab. <kbd class="kbd">⌃⇧Tab</kbd> — previous tab.
-            </li>
-            <li>
-              <kbd class="kbd">⌘1–8</kbd> — choose a tab. <kbd class="kbd">⌘9</kbd> — last tab.
-            </li>
-          </ul>
-          <h3>Inbox</h3>
-          <p>These single-key shortcuts work when you're not typing in a text field.</p>
-          <ul>
-            <li><kbd class="kbd">J</kbd> / <kbd class="kbd">K</kbd> — next / previous email.</li>
-            <li><kbd class="kbd">Return</kbd> — open the focused email.</li>
-            <li>
-              With an email open: <kbd class="kbd">E</kbd> — archive, <kbd class="kbd">R</kbd> —
-              reply, <kbd class="kbd">S</kbd> — snooze.
-            </li>
-            <li><kbd class="kbd">C</kbd> — new email.</li>
-          </ul>
-
-          <h2 id="mcp">Connect your own AI tools (optional)</h2>
-          <p>
-            DayBoard can run a local MCP server while it's open, so tools like Claude Code and Codex
-            can read your day. It's off by default. Turn it on in
-            <strong>Settings → MCP Servers</strong>. Clients need the access key shown there, and
-            the server stays read-only unless you also allow changes.
-          </p>
-          <p>
-            MCP clients can also read Notes and, with <strong>Allow changes</strong> on, write them.
-            The <strong>Activity</strong> section lists DayBoard tool calls by the Assistant or an
-            outside agent over the last 30 days, with tool names and outcomes rather than the
-            contents they read or wrote.
-          </p>
-
-          <h2 id="data">Where your data goes</h2>
-          <ul>
-            <li>
-              <strong>On your Mac:</strong> settings, linked items, Notes, memories, Assistant
-              history, usage records and the tool activity log. Sign-in tokens are encrypted with
-              macOS's built-in protection.
-            </li>
-            <li>
-              <strong>Google:</strong> DayBoard talks directly to Google's APIs for Calendar, Tasks
-              and Gmail. Google stores that data under its own terms.
-            </li>
-            <li><strong>Apple Reminders:</strong> read and changed on your Mac through macOS.</li>
-            <li>
-              <strong>Your AI provider:</strong> when you use an AI feature, only the context that
-              request needs is sent to the provider you chose.
-            </li>
-            <li>
-              <strong>DayBoard's services:</strong> none of your calendar, tasks, reminders or mail.
-              The waitlist stores your email address, the time you joined and internal review
-              labels, plus a keyed hash of your IP address (not the address itself) to limit
-              repeated attempts.
-            </li>
-          </ul>
-          <p>The <a href="privacy.html">privacy policy</a> has the full details.</p>
-
-          <h2 id="updates">Getting new beta builds</h2>
-          <p>
-            Beta 11 and earlier don't update themselves. Install the latest beta over them once from
-            the <a href="download.html">download page</a>: quit DayBoard, then replace the app in
-            Applications. Your DayBoard data stays in place.
-          </p>
-          <p>
-            Starting with beta 12, DayBoard updates itself. It checks GitHub for a newer beta
-            shortly after it opens and every few hours, downloads it in the background and shows
-            <strong>Restart to update</strong> in the toolbar when it's ready. If you don't restart,
-            the update installs the next time you quit. To check right away, choose
-            <strong>DayBoard › Check for Updates…</strong>.
-          </p>
+          <section class="reading-section">
+            <h2 id="home">Start at Home</h2>
+            <p>
+              DayBoard opens on <strong>Home</strong>: mail and follow-ups under
+              <strong>Needs you</strong>, your tasks and your meetings. Switch between
+              <strong>Today</strong> and <strong>This week</strong>. With AI triage enabled,
+              <strong>Suggested</strong> surfaces tasks from your mail for you to add or dismiss.
+            </p>
+            <figure class="product-figure">
+              <div class="theme-picture">
+                <img
+                  class="theme-light"
+                  src="assets/screens/light-home.png"
+                  alt="DayBoard Home with mail, tasks and meetings, using fictional demo data"
+                  width="2560"
+                  height="1640"
+                  loading="lazy"
+                />
+                <img
+                  class="theme-dark"
+                  src="assets/screens/dark-home.png"
+                  alt="DayBoard Home with mail, tasks and meetings, using fictional demo data"
+                  width="2560"
+                  height="1640"
+                  loading="lazy"
+                />
+              </div>
+              <figcaption class="fine">DayBoard beta 17 · Fictional demo data.</figcaption>
+            </figure>
+          </section>
+          <section class="reading-section">
+            <h2 id="agenda">See everything in Agenda</h2>
+            <p>
+              <strong>Agenda</strong> has its own sidebar row. It combines calendar events, Google
+              Tasks and Apple Reminders in time order, with unread Gmail underneath. Switch between
+              <strong>Today</strong> and <strong>Next 7 days</strong>, search across the list, and
+              use the source checkboxes to focus the view.
+            </p>
+            <p>
+              Overdue items collect in their own row so they don't crowd your day. Items without a
+              date wait under <strong>No date</strong>.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="sources">Connect your sources</h2>
+            <p>Open Settings (<span class="kbd">⌘ ,</span>) and choose <strong>Sources</strong>.</p>
+            <ul>
+              <li>
+                <strong>Google Calendar, Google Tasks and Gmail:</strong> click
+                <strong>Sign in with Google</strong> and approve access in your browser.
+              </li>
+              <li>
+                <strong>Apple Reminders:</strong> turn it on and allow access when macOS asks.
+              </li>
+              <li>Turn any source off at any time, and pick the color each one uses.</li>
+            </ul>
+            <p>
+              Google sign-in may be limited to invited accounts during the beta. See the
+              <a href="beta.html#install">beta install guide</a> for the current access limits.
+            </p>
+            <p>
+              Changes you make in DayBoard sync back to Google and Apple. If the same to-do lives in
+              both Google Tasks and Apple Reminders, open its details and <strong>Link</strong> the
+              pair. It then shows up once, and checking it off completes both.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="views">Calendar and item details</h2>
+            <p>
+              The Calendar has <strong>Month</strong>, <strong>Week</strong> and
+              <strong>Schedule</strong> layouts, with tasks and reminders on their due dates. The
+              calendar peek (<kbd class="kbd">⌥⌘K</kbd>) opens beside the page you're on. Under
+              <strong>Settings → General</strong>, choose whether item details open in a pop-up,
+              inline, or in a side panel.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="mail">Read, send and follow up on mail</h2>
+            <p>
+              <strong>Inbox</strong> shows your recent Gmail. Write a new email, reply to a message,
+              or save a reply to Gmail drafts. Sending gives you an <strong>Undo</strong> window of
+              five seconds by default; change it in <strong>Settings → General → Mail</strong>.
+            </p>
+            <ul>
+              <li>
+                <strong>Snooze:</strong> remove an email from the inbox until the time you choose.
+                It returns unread.
+              </li>
+              <li>
+                <strong>Remind me if no reply:</strong> bring a thread back to Home when the wait
+                you chose is over and nobody has replied. Manage snoozes and follow-ups under
+                <strong>Later</strong> in Inbox.
+              </li>
+              <li>
+                <strong>Subscriptions:</strong> review newsletters by sender, see how many you
+                opened, and unsubscribe. One-click unsubscribe is available where the sender
+                supports it; other senders may open a browser or use an email request.
+              </li>
+              <li>
+                <strong>Optional AI triage:</strong> Needs reply, FYI and Ignorable chips, with a
+                one-line summary on the open email. Enable automatic triage in
+                <strong>Settings → General → Mail</strong> after choosing an AI provider.
+              </li>
+            </ul>
+            <p>
+              Mail notifications start off. In <strong>Settings → General → Mail</strong>, choose
+              notifications for snoozes and follow-ups or all new mail, and set the Dock badge to
+              waiting items, unread mail or nothing.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="ai">Turn on AI (optional)</h2>
+            <p>
+              AI is off until you choose a provider in <strong>Settings → AI</strong>. You can use
+              the Claude or ChatGPT account you already have through Claude Code or Codex, or add an
+              API key, including an xAI key for Grok. Then pick the model and turn individual
+              features on or off. ChatGPT currently connects through Codex; direct ChatGPT sign-in
+              is not in this beta.
+            </p>
+            <ul>
+              <li>
+                <strong>Ask Assistant:</strong> press <kbd class="kbd">⌥⌘J</kbd> to dock it beside
+                any view, or open the full Assistant page. The open email, event or to-do appears as
+                a removable context chip. Use <kbd class="kbd">@</kbd> to attach another item and
+                <kbd class="kbd">/</kbd> for commands.
+              </li>
+              <li>
+                <strong>Brief me, Suggest focus and Weekly Review:</strong> summaries of what
+                matters.
+              </li>
+              <li>
+                <strong>Reply drafts:</strong> generate a starting point, edit it, then send it or
+                save it to Gmail drafts.
+              </li>
+            </ul>
+            <p>
+              The composer's model menu lets you choose a provider, model and supported effort
+              level. Its permission menu starts in <strong>Ask first</strong>, where you confirm
+              each proposed item. <strong>Read only</strong> gives answers without proposing
+              changes; <strong>Auto</strong> adds proposed tasks, reminders and events for you.
+            </p>
+            <p>
+              Under <strong>Settings → AI → Memory</strong>, add or forget preferences and turn
+              memory off. A preference suggested from a reply edit is saved only if you choose
+              <strong>Remember</strong>. The <strong>Usage</strong> section shows requests and
+              tokens recorded by DayBoard, not your provider's remaining plan allowance.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="notes">Keep Notes and arrange your workspace</h2>
+            <p>
+              <strong>Notes</strong> supports Markdown with a live preview and saves as you write.
+              Search notes by title with <kbd class="kbd">⌘K</kbd>, or save an Assistant
+              conversation as a note. Open a new tab with <kbd class="kbd">⌘T</kbd>; each keeps its
+              own view and your tabs return next time.
+            </p>
+            <p>
+              Under <strong>Settings → General → Sidebar</strong>, reorder your views, hide any
+              except Home and show or hide counts. Hidden views stay available in the command menu.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="panels">Capture from anywhere and glance at your day</h2>
+            <p>
+              <strong>Quick Capture</strong> turns a sentence into a task, reminder or event using
+              your chosen AI provider. Its default global shortcut is
+              <kbd class="kbd">⌃⌥⇧Space</kbd>; view or change it under
+              <strong>Settings → General → Menu Bar &amp; Shortcuts</strong>.
+            </p>
+            <p>
+              The menu-bar panel shows today's items, your next meeting, recent captures and the
+              first three emails waiting on you. The <strong>Up Next</strong> meeting card offers a
+              quick way into the next meeting. Meeting alerts are optional.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="shortcuts">Keyboard shortcuts</h2>
+            <p>
+              Press <kbd class="kbd">?</kbd> outside a text field, or <kbd class="kbd">⌘/</kbd>, to
+              see the app's shortcut sheet. ⌘ is Command, ⌥ is Option, ⌃ is Control and ⇧ is Shift.
+            </p>
+            <h3>Move around DayBoard</h3>
+            <ul>
+              <li><kbd class="kbd">⌘K</kbd> — search, jump to a view or item, or run an action.</li>
+              <li>
+                <kbd class="kbd">Tab</kbd> in the command menu — ask the Assistant what you've
+                typed, when the Assistant is enabled.
+              </li>
+              <li><kbd class="kbd">⌥⌘J</kbd> — show or hide Ask Assistant beside the page.</li>
+              <li><kbd class="kbd">⌥⌘K</kbd> — show or hide the calendar peek.</li>
+              <li><kbd class="kbd">⌘N</kbd> — new item. <kbd class="kbd">⌘,</kbd> — Settings.</li>
+              <li>
+                <kbd class="kbd">⌃1–9</kbd> — open a visible sidebar view in its current order.
+              </li>
+            </ul>
+            <h3>Tabs</h3>
+            <ul>
+              <li>
+                <kbd class="kbd">⌘T</kbd> — new tab. <kbd class="kbd">⌘W</kbd> — close the tab.
+              </li>
+              <li>
+                <kbd class="kbd">⌃Tab</kbd> — next tab. <kbd class="kbd">⌃⇧Tab</kbd> — previous tab.
+              </li>
+              <li>
+                <kbd class="kbd">⌘1–8</kbd> — choose a tab. <kbd class="kbd">⌘9</kbd> — last tab.
+              </li>
+            </ul>
+            <h3>Inbox</h3>
+            <p>These single-key shortcuts work when you're not typing in a text field.</p>
+            <ul>
+              <li><kbd class="kbd">J</kbd> / <kbd class="kbd">K</kbd> — next / previous email.</li>
+              <li><kbd class="kbd">Return</kbd> — open the focused email.</li>
+              <li>
+                With an email open: <kbd class="kbd">E</kbd> — archive, <kbd class="kbd">R</kbd> —
+                reply, <kbd class="kbd">S</kbd> — snooze.
+              </li>
+              <li><kbd class="kbd">C</kbd> — new email.</li>
+            </ul>
+          </section>
+          <section class="reading-section">
+            <h2 id="mcp">Connect your own AI tools (optional)</h2>
+            <p>
+              DayBoard can run a local MCP server while it's open, so tools like Claude Code and
+              Codex can read your day. It's off by default. Turn it on in
+              <strong>Settings → MCP Servers</strong>. Clients need the access key shown there, and
+              the server stays read-only unless you also allow changes.
+            </p>
+            <p>
+              MCP clients can also read Notes and, with <strong>Allow changes</strong> on, write
+              them. The <strong>Activity</strong> section lists DayBoard tool calls by the Assistant
+              or an outside agent over the last 30 days, with tool names and outcomes rather than
+              the contents they read or wrote.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2 id="data">Where your data goes</h2>
+            <ul>
+              <li>
+                <strong>On your Mac:</strong> settings, linked items, Notes, memories, Assistant
+                history, usage records and the tool activity log. Sign-in tokens are encrypted with
+                macOS's built-in protection.
+              </li>
+              <li>
+                <strong>Google:</strong> DayBoard talks directly to Google's APIs for Calendar,
+                Tasks and Gmail. Google stores that data under its own terms.
+              </li>
+              <li><strong>Apple Reminders:</strong> read and changed on your Mac through macOS.</li>
+              <li>
+                <strong>Your AI provider:</strong> when you use an AI feature, only the context that
+                request needs is sent to the provider you chose.
+              </li>
+              <li>
+                <strong>DayBoard's services:</strong> none of your calendar, tasks, reminders or
+                mail. The waitlist stores your email address, the time you joined and internal
+                review labels, plus a keyed hash of your IP address (not the address itself) to
+                limit repeated attempts.
+              </li>
+            </ul>
+            <p>The <a href="privacy.html">privacy policy</a> has the full details.</p>
+          </section>
+          <section class="reading-section">
+            <h2 id="updates">Getting new beta builds</h2>
+            <p>
+              Beta 11 and earlier don't update themselves. Install the latest beta over them once
+              from the <a href="download.html">download page</a>: quit DayBoard, then replace the
+              app in Applications. Your DayBoard data stays in place.
+            </p>
+            <p>
+              Starting with beta 12, DayBoard updates itself. It checks GitHub for a newer beta
+              shortly after it opens and every few hours, downloads it in the background and shows
+              <strong>Restart to update</strong> in the toolbar when it's ready. If you don't
+              restart, the update installs the next time you quit. To check right away, choose
+              <strong>DayBoard › Check for Updates…</strong>.
+            </p>
+          </section>
+          <aside class="help-band" aria-labelledby="help-title">
+            <span class="eyebrow">Need a hand?</span>
+            <h2 id="help-title">We're listening.</h2>
+            <p>
+              Found a bug or have an idea? Open an issue on GitHub. Leave out personal details,
+              account tokens and private mail.
+            </p>
+            <a class="button" href="https://github.com/miles-chu10/dayboard/issues"
+              >Open GitHub Issues</a
+            >
+            <a class="button button-quiet" href="support.html">Support & FAQ</a>
+          </aside>
         </article>
-
-        <aside class="aside-card" aria-labelledby="help-title">
-          <span class="eyebrow">Need a hand?</span>
-          <h2 id="help-title">We're listening.</h2>
-          <p>
-            Found a bug or have an idea? Open an issue on GitHub. Leave out personal details,
-            account tokens and private mail.
-          </p>
-          <a class="button" href="https://github.com/miles-chu10/dayboard/issues"
-            >Open GitHub Issues</a
-          >
-          <a class="button button-quiet" href="support.html">Support & FAQ</a>
-        </aside>
+        <nav class="contents page-contents" aria-label="On this page">
+          <span class="eyebrow">On this page</span><a href="#home">Start at Home</a
+          ><a href="#sources">Connect your sources</a><a href="#shortcuts">Keyboard shortcuts</a>
+        </nav>
       </div>
     </main>
 

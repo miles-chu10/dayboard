@@ -8,8 +8,8 @@
       name="description"
       content="DayBoard is free. DayBoard Pro is a one-time $5 purchase that unlocks its AI features, on up to 3 Macs, with a 14-day refund."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/pricing" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-pricing">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,9 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html" aria-current="page">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a
+          ><a href="pricing.html" aria-current="page">Pricing</a><a href="docs.html">Guide</a
+          ><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -117,84 +121,98 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap two-col">
-        <div class="prose">
-          <h2>Free, for good</h2>
-          <p>Everything that isn't AI stays free, with no time limit and no account to create:</p>
-          <ul>
-            <li>
-              The agenda with Google Calendar, Google Tasks, Apple Reminders and Gmail in one place.
-            </li>
-            <li>Adding and changing events, tasks and reminders, and Gmail actions.</li>
-            <li>Linking duplicates so a reminder and a task show up once.</li>
-            <li>The menu bar, the local MCP server, settings and updates.</li>
-          </ul>
-
-          <h2>What DayBoard Pro adds</h2>
-          <ul>
-            <li>The Assistant, which answers questions and makes changes across your sources.</li>
-            <li>AI features such as the daily briefing and dictation.</li>
-            <li>Quick Capture, which uses AI to turn what you type into a task or reminder.</li>
-          </ul>
+      <div class="wrap pricing-content">
+        <p class="notice" data-buy-pending>
+          Every feature is free during beta. Checkout isn't open yet.
+        </p>
+        <div class="plans">
+          <section class="plan" aria-labelledby="free-title">
+            <span class="eyebrow">Your everyday essentials</span>
+            <h2 id="free-title">DayBoard</h2>
+            <p class="plan-price">$0 <span>Free, for good</span></p>
+            <p>Everything that isn't AI stays free, with no time limit and no account to create.</p>
+            <ul>
+              <li>
+                The agenda with Google Calendar, Google Tasks, Apple Reminders and Gmail in one
+                place.
+              </li>
+              <li>Adding and changing events, tasks and reminders, and Gmail actions.</li>
+              <li>Linking duplicates so a reminder and a task show up once.</li>
+              <li>The menu bar, the local MCP server, settings and updates.</li>
+            </ul>
+            <a class="button" href="download.html">Download the beta</a>
+          </section>
+          <section class="plan plan-pro" id="buy" aria-labelledby="buy-title">
+            <span class="eyebrow">Optional AI</span>
+            <h2 id="buy-title">DayBoard Pro</h2>
+            <p class="plan-price">$5 <span>once · launch price</span></p>
+            <p>Launch price. Unlocks AI on up to 3 Macs, with future updates included.</p>
+            <ul>
+              <li>The Assistant, which answers questions and makes changes across your sources.</li>
+              <li>AI features such as the daily briefing and dictation.</li>
+              <li>Quick Capture, which uses AI to turn what you type into a task or reminder.</li>
+            </ul>
+            <a class="button" data-buy hidden>Get DayBoard Pro</a>
+            <p data-buy-pending>
+              Checkout isn't open yet. During the beta, every feature is free, including AI.
+              <a href="download.html">Download the beta</a>.
+            </p>
+            <p class="fine">
+              Questions about buying? Email
+              <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>.
+            </p>
+          </section>
+        </div>
+        <section class="ai-note" aria-labelledby="own-ai-title">
+          <h2 id="own-ai-title">Bring your own AI.</h2>
           <p>
             You still bring your own AI: Claude Code, Codex, or an API key from your provider.
             DayBoard Pro doesn't include AI usage. Your provider handles that under its own terms.
           </p>
-
-          <h2>How it works</h2>
-          <ul>
-            <li><strong>One payment.</strong> $5 once, with no subscription.</li>
-            <li>
+        </section>
+        <section class="pricing-details" aria-labelledby="terms-title">
+          <h2 id="terms-title">A few good things to know.</h2>
+          <div class="term-grid">
+            <div><strong>One payment.</strong> $5 once, with no subscription.</div>
+            <div>
               <strong>Future updates included.</strong> Pro keeps working as DayBoard updates.
-            </li>
-            <li>
+            </div>
+            <div>
               <strong>Up to 3 Macs.</strong> To move your license, open
               <strong>Settings → License</strong> on the old Mac and choose
               <strong>Deactivate this device</strong>.
-            </li>
-            <li>
+            </div>
+            <div>
               <strong>Try AI first.</strong> You get 7 days of AI free, starting the first time you
               use an AI feature. When the trial ends, only AI locks; everything else keeps working.
-            </li>
-            <li><strong>Beta testers get Pro free.</strong> Thank you for testing DayBoard.</li>
-            <li>
+            </div>
+            <div><strong>Beta testers get Pro free.</strong> Thank you for testing DayBoard.</div>
+            <div>
               <strong>14-day refunds.</strong> Not for you? Get a full refund within 14 days. See
               the <a href="refund.html">refund policy</a>.
-            </li>
-          </ul>
-
-          <h2>Paying</h2>
-          <p>
-            Checkout is run by Stripe. Link, Stripe's checkout service, is the seller of record: it
-            processes your payment, calculates any sales tax or VAT, and emails your receipt. Your
-            statement shows <strong>LINK.COM* DAYBOARD</strong>. DayBoard never sees your card
-            number. Your license key appears on the receipt page after you pay. See the
-            <a href="privacy.html#purchases">privacy policy</a> for what each side keeps.
-          </p>
-
-          <h2>Open source</h2>
-          <p>
-            DayBoard's source is licensed under GPL-3.0, so you can always build it yourself. Buying
-            Pro funds development and doesn't change your rights under the
-            <a href="license.html">license</a>.
-          </p>
+            </div>
+          </div>
+        </section>
+        <div class="policy-columns">
+          <section class="prose">
+            <h2>Paying</h2>
+            <p>
+              Checkout is run by Stripe. Link, Stripe's checkout service, is the seller of record:
+              it processes your payment, calculates any sales tax or VAT, and emails your receipt.
+              Your statement shows <strong>LINK.COM* DAYBOARD</strong>. DayBoard never sees your
+              card number. Your license key appears on the receipt page after you pay. See the
+              <a href="privacy.html#purchases">privacy policy</a> for what each side keeps.
+            </p>
+          </section>
+          <section class="prose">
+            <h2>Open source</h2>
+            <p>
+              DayBoard's source is licensed under GPL-3.0, so you can always build it yourself.
+              Buying Pro funds development and doesn't change your rights under the
+              <a href="license.html">license</a>.
+            </p>
+          </section>
         </div>
-
-        <aside class="aside-card" id="buy" aria-labelledby="buy-title">
-          <span class="eyebrow">DayBoard Pro</span>
-          <h2 id="buy-title">$5, once.</h2>
-          <p>Launch price. Unlocks AI on up to 3 Macs, with future updates included.</p>
-          <a class="button" data-buy hidden>Get DayBoard Pro</a>
-          <p data-buy-pending>
-            Checkout isn't open yet. During the beta, every feature is free, including AI.
-            <a href="download.html">Download the beta</a>.
-          </p>
-          <p class="fine">
-            Questions about buying? Email
-            <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>.
-          </p>
-        </aside>
       </div>
     </main>
 

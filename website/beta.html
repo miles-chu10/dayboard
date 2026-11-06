@@ -8,8 +8,8 @@
       name="description"
       content="How to install the DayBoard beta on an Apple Silicon Mac. The app is notarized by Apple and free to download. Want invited onboarding? Join the waitlist."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="DayBoard beta install guide" />
     <meta
@@ -31,16 +31,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-beta">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -48,12 +55,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -126,7 +129,7 @@
               ><span class="dot c-reminders"></span><span class="dot c-mail"></span></span
             ><span><strong>Free beta</strong> · macOS 14 or later</span></span
           >
-          <h1 class="rise" style="--i: 1">Install the DayBoard <em>beta.</em></h1>
+          <h1 class="rise" style="--i: 1">Your first day <em>with DayBoard.</em></h1>
           <p class="rise" style="--i: 2">
             These steps cover the limited beta community download and invited onboarding.
             <a href="download.html">Download the latest beta</a>. Google sign-in may be limited to
@@ -136,20 +139,48 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap two-col">
-        <div class="prose">
-          <h2>What beta testers get</h2>
-          <ul>
-            <li><strong>Every feature, free</strong> for the whole beta.</li>
-            <li><strong>New builds as they're ready,</strong> published on GitHub.</li>
+      <div class="wrap setup-layout">
+        <section class="prose">
+          <h2 id="install">Installing a beta build</h2>
+          <p>
+            The current DayBoard app and its disk image are signed with an Apple Developer ID and
+            notarized by Apple. Starting with beta 12, DayBoard updates itself. On beta 11 or
+            earlier, install the latest beta over it once.
+          </p>
+          <ol class="steps beta-steps">
             <li>
-              <strong>A say in what's next.</strong> Report bugs and ideas on
-              <a href="https://github.com/miles-chu10/dayboard/issues">GitHub Issues</a>.
+              <h3>Download and install</h3>
+              Quit DayBoard if it's running. Download the <strong>.dmg</strong> from the
+              <a href="download.html">download page</a>, open it and drag DayBoard into your
+              <strong>Applications</strong> folder. If an older beta is there, replace it. Your
+              DayBoard data stays in place.
             </li>
-          </ul>
-
-          <h2>What you need</h2>
+            <li>
+              <h3>Open DayBoard</h3>
+              Open DayBoard from Applications. If macOS asks whether to open an app downloaded from
+              the internet, click <strong>Open</strong>.
+            </li>
+            <li>
+              <h3>Connect your sources</h3>
+              To connect Google, go to <strong>Settings → Sources</strong> and click
+              <strong>Sign in with Google</strong>. DayBoard isn't verified by Google yet, so Google
+              shows <strong>"Google hasn't verified this app"</strong>. Click
+              <strong>Continue</strong> to allow access.
+            </li>
+          </ol>
+          <p class="notice">
+            While DayBoard is in Google's testing stage, only invited Google accounts can sign in,
+            so connect the account you signed up with. During that stage Google also ends the
+            sign-in after 7 days, so you'll sign in again every week.
+          </p>
+          <p>
+            Only install DayBoard from the official GitHub release. If macOS ever says it can't
+            check DayBoard for malicious software, don't open that copy; download it again from
+            GitHub.
+          </p>
+        </section>
+        <aside class="setup-checklist prose">
+          <h2>Before you begin</h2>
           <ul>
             <li>A Mac with Apple silicon (M1 or later) running macOS 14 Sonoma or later.</li>
             <li>A Google account for Google Calendar, Google Tasks and Gmail, if you use them.</li>
@@ -160,51 +191,35 @@
             </li>
           </ul>
 
-          <h2 id="install">Installing a beta build</h2>
-          <p>
-            The current DayBoard app and its disk image are signed with an Apple Developer ID and
-            notarized by Apple. Starting with beta 12, DayBoard updates itself. On beta 11 or
-            earlier, install the latest beta over it once.
-          </p>
-          <ol class="steps">
-            <li>
-              Quit DayBoard if it's running. Download the <strong>.dmg</strong> from the
-              <a href="download.html">download page</a>, open it and drag DayBoard into your
-              <strong>Applications</strong> folder. If an older beta is there, replace it. Your
-              DayBoard data stays in place.
-            </li>
-            <li>
-              Open DayBoard from Applications. If macOS asks whether to open an app downloaded from
-              the internet, click <strong>Open</strong>.
-            </li>
-            <li>
-              To connect Google, go to <strong>Settings → Sources</strong> and click
-              <strong>Sign in with Google</strong>. DayBoard isn't verified by Google yet, so Google
-              shows <strong>"Google hasn't verified this app"</strong>. Click
-              <strong>Continue</strong> to allow access.
-            </li>
-          </ol>
-          <p>
-            While DayBoard is in Google's testing stage, only invited Google accounts can sign in,
-            so connect the account you signed up with. During that stage Google also ends the
-            sign-in after 7 days, so you'll sign in again every week.
-          </p>
-          <p>
-            Only install DayBoard from the official GitHub release. If macOS ever says it can't
-            check DayBoard for malicious software, don't open that copy; download it again from
-            GitHub.
-          </p>
-
-          <h2>Your email</h2>
-          <p>
-            We use your email only for early access and major DayBoard news. It's stored by
-            DayBoard's own signup service and never sold or shared. To be removed at any time, email
-            <a data-contact>the DayBoard team</a>. Details are in the
-            <a href="privacy.html">privacy policy</a>.
-          </p>
+          <a class="button" href="download.html">Get the latest beta ↓</a>
+          <p class="fine">Every feature is free during beta.</p>
+        </aside>
+      </div>
+      <div class="wrap">
+        <div class="policy-columns">
+          <section class="prose">
+            <h2>What beta testers get</h2>
+            <ul>
+              <li><strong>Every feature, free</strong> for the whole beta.</li>
+              <li><strong>New builds as they're ready,</strong> published on GitHub.</li>
+              <li>
+                <strong>A say in what's next.</strong> Report bugs and ideas on
+                <a href="https://github.com/miles-chu10/dayboard/issues">GitHub Issues</a>.
+              </li>
+            </ul>
+          </section>
+          <section class="prose">
+            <h2>Your email</h2>
+            <p>
+              We use your email only for early access and major DayBoard news. It's stored by
+              DayBoard's own signup service and never sold or shared. To be removed at any time,
+              email
+              <a data-contact>the DayBoard team</a>. Details are in the
+              <a href="privacy.html">privacy policy</a>.
+            </p>
+          </section>
         </div>
-
-        <aside class="aside-card" id="join" aria-labelledby="join-title">
+        <aside class="help-band" id="join" aria-labelledby="join-title">
           <span class="eyebrow">Not invited yet?</span>
           <h2 id="join-title">Join the waitlist.</h2>
           <p>

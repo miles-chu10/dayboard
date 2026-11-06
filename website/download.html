@@ -8,8 +8,8 @@
       name="description"
       content="Download the latest DayBoard beta for Macs with Apple silicon running macOS 14 Sonoma or later."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/download" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-download">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html" aria-current="page">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -107,81 +110,25 @@
     </header>
 
     <main id="main">
-      <header class="page-head">
-        <div class="wrap">
-          <span class="eyebrow">Download</span>
+      <header class="wrap download-hero">
+        <div class="page-head">
+          <span class="eyebrow">DayBoard for Mac</span>
           <h1>Get the DayBoard <em>beta.</em></h1>
           <p>
             The latest beta is DayBoard 1.3.0 beta 18. Every feature is free during the beta. The
             app and its disk image are signed with an Apple Developer ID and notarized by Apple, and
             the app updates itself.
           </p>
+          <p class="compatibility">Apple silicon (M1 or later) · macOS 14+</p>
         </div>
-      </header>
-
-      <div class="wrap two-col">
-        <div class="prose">
-          <h2>What you need</h2>
-          <ul>
-            <li>A Mac with Apple silicon (M1 or later) running macOS 14 Sonoma or later.</li>
-            <li>
-              A Google account for Google Calendar, Google Tasks and Gmail, if you use them. Google
-              sign-in may be limited to invited accounts.
-            </li>
-            <li>
-              For the optional AI features: Claude Code, the Codex app or CLI, or an API key from
-              your AI provider.
-            </li>
-          </ul>
-
-          <h2>Install</h2>
-          <ol class="steps">
-            <li>
-              Download the <strong>.dmg</strong>, open it and drag DayBoard into your
-              <strong>Applications</strong> folder. If an older beta is there, replace it. Your
-              DayBoard data stays in place.
-            </li>
-            <li>
-              Open DayBoard from Applications. If macOS asks whether to open an app downloaded from
-              the internet, click <strong>Open</strong>.
-            </li>
-            <li>
-              Turn on your sources in <strong>Settings → Sources</strong>. The
-              <a href="beta.html#install">install guide</a> covers Google sign-in.
-            </li>
-          </ol>
-          <p>
-            Already on beta 12 or later? DayBoard installs new betas when you restart, so you don't
-            need to download it again.
-          </p>
-
-          <h2>New in beta 18</h2>
-          <p>
-            If another app holds DayBoard's MCP port, DayBoard now starts its MCP server as soon as
-            the port is free, without a relaunch. Messages at the bottom of the window are readable
-            in dark mode, and the disk image is notarized too.
-          </p>
-          <p>
-            Beta 17 brought Home, sending and snoozing mail, the Assistant beside any view, and
-            Notes. <a href="docs.html">Read the guide</a> for the controls and shortcuts.
-          </p>
-
-          <h2>Check the download</h2>
-          <p>
-            Only install DayBoard from this page or the official
-            <a href="https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18"
-              >GitHub release</a
-            >. The SHA-256 checksums for the DMG, ZIP, blockmaps and update metadata are in
-            <a
-              href="https://github.com/miles-chu10/DayBoard/releases/download/v1.3.0-beta.18/SHA256SUMS.txt"
-              >SHA256SUMS.txt</a
-            >. If macOS ever says it can't check DayBoard for malicious software, don't open that
-            copy.
-          </p>
-        </div>
-
-        <aside class="aside-card" aria-labelledby="dl-title">
-          <span class="eyebrow">Beta 18 · Apple silicon</span>
+        <aside class="download-panel" aria-labelledby="dl-title">
+          <img
+            class="download-icon"
+            src="assets/icon-180.png"
+            width="100"
+            height="100"
+            alt="DayBoard app icon"
+          /><span class="eyebrow">Beta 18 · Apple silicon</span>
           <h2 id="dl-title">DayBoard 1.3.0 beta 18</h2>
           <p>macOS 14 Sonoma or later. 138.3 MB disk image.</p>
           <a
@@ -196,6 +143,83 @@
             · <a href="pricing.html">Pricing</a> · Free during the beta.
           </p>
         </aside>
+      </header>
+      <div class="wrap">
+        <div class="notice notice-split">
+          <p>Google sign-in may be limited to invited accounts.</p>
+          <a href="waitlist.html">Join the waitlist</a
+          ><a href="beta.html#install">Read the beta guide</a>
+        </div>
+        <section class="download-install prose">
+          <h2 id="install">From download to your day.</h2>
+          <ol class="steps install-steps">
+            <li>
+              <h3>Move to Applications</h3>
+              Download the <strong>.dmg</strong>, open it and drag DayBoard into your
+              <strong>Applications</strong> folder. If an older beta is there, replace it. Your
+              DayBoard data stays in place.
+            </li>
+            <li>
+              <h3>Open DayBoard</h3>
+              Open DayBoard from Applications. If macOS asks whether to open an app downloaded from
+              the internet, click <strong>Open</strong>.
+            </li>
+            <li>
+              <h3>Connect your sources</h3>
+              Turn on your sources in <strong>Settings → Sources</strong>. The
+              <a href="beta.html#install">install guide</a> covers Google sign-in.
+            </li>
+          </ol>
+          <p>
+            Already on beta 12 or later? DayBoard installs new betas when you restart, so you don't
+            need to download it again.
+          </p>
+        </section>
+        <div class="trust-strip">
+          <span>Signed with Apple Developer ID</span><span>Notarized by Apple</span
+          ><span>Automatic beta updates</span>
+        </div>
+        <div class="download-details">
+          <section class="prose">
+            <h2>What you need</h2>
+            <ul>
+              <li>A Mac with Apple silicon (M1 or later) running macOS 14 Sonoma or later.</li>
+              <li>
+                A Google account for Google Calendar, Google Tasks and Gmail, if you use them.
+                Google sign-in may be limited to invited accounts.
+              </li>
+              <li>
+                For the optional AI features: Claude Code, the Codex app or CLI, or an API key from
+                your AI provider.
+              </li>
+            </ul>
+          </section>
+          <section class="prose">
+            <h2>New in beta 18</h2>
+            <p>
+              If another app holds DayBoard's MCP port, DayBoard now starts its MCP server as soon
+              as the port is free, without a relaunch. Messages at the bottom of the window are
+              readable in dark mode, and the disk image is notarized too.
+            </p>
+            <p>
+              Beta 17 brought Home, sending and snoozing mail, the Assistant beside any view, and
+              Notes. <a href="docs.html">Read the guide</a> for the controls and shortcuts.
+            </p>
+
+            <h2>Check the download</h2>
+            <p>
+              Only install DayBoard from this page or the official
+              <a href="https://github.com/miles-chu10/DayBoard/releases/tag/v1.3.0-beta.18"
+                >GitHub release</a
+              >. The SHA-256 checksums for the DMG, ZIP, blockmaps and update metadata are in
+              <a
+                href="https://github.com/miles-chu10/DayBoard/releases/download/v1.3.0-beta.18/SHA256SUMS.txt"
+                >SHA256SUMS.txt</a
+              >. If macOS ever says it can't check DayBoard for malicious software, don't open that
+              copy.
+            </p>
+          </section>
+        </div>
       </div>
     </main>
 

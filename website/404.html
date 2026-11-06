@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Page not found — DayBoard</title>
     <meta name="robots" content="noindex" />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png" />
     <link rel="apple-touch-icon" href="/assets/icon-180.png" />
     <link
@@ -16,16 +16,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="/assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="/assets/theme.js"></script>
     <link rel="stylesheet" href="/assets/site.css" />
-    <link rel="stylesheet" href="/assets/clean.css" />
+    <link rel="stylesheet" href="/assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="/assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-404">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -33,12 +40,8 @@
           ><img src="/assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="/index.html#features">Features</a
-          ><a class="nav-tertiary" href="/index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="/index.html#roadmap">Road Map</a
-          ><a href="/pricing.html">Pricing</a><a href="/download.html">Download</a
-          ><a href="/docs.html">Guide</a><a href="/support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="/index.html#features">Product</a><a href="/pricing.html">Pricing</a
+          ><a href="/docs.html">Guide</a><a href="/support.html">Support</a>
         </div>
         <button
           class="theme-toggle"

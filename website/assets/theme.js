@@ -15,7 +15,7 @@
     root.dataset.theme = theme;
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
       meta.removeAttribute("media");
-      meta.content = theme === "dark" ? "#151412" : "#f6f2ea";
+      meta.content = theme === "dark" ? "#171b16" : "#faf8f2";
     }
     for (const button of document.querySelectorAll("[data-theme-toggle]")) {
       button.title = `Switch to ${theme === "dark" ? "light" : "dark"} theme`;

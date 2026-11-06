@@ -24,7 +24,8 @@ test("the homepage and guide name the beta the download page links", async () =>
   const [beta] = linked;
 
   for (const [page, patterns] of Object.entries(currentBetaCopy)) {
-    const html = await read(page);
+    // Line wrapping in HTML must not change which beta its visible copy names.
+    const html = (await read(page)).replace(/\s+/g, " ");
     for (const pattern of patterns) {
       const found = [...html.matchAll(pattern)].map((m) => m[1]);
       assert.deepEqual(found, [beta], `${page} ${pattern} names beta ${beta}`);

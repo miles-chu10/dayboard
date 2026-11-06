@@ -8,8 +8,8 @@
       name="description"
       content="Get a full refund for DayBoard Pro within 14 days of buying, no questions asked."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/refund" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-refund">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -117,51 +120,65 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap">
+      <div class="wrap policy-split">
         <article class="prose">
-          <h2>How to ask</h2>
-          <p>
-            Email <a href="mailto:support@getdayboard.com">support@getdayboard.com</a> within 14
-            days of your purchase, from the address on your receipt, or include your receipt number.
-            You don't need to give a reason. Please don't send your card number or license key.
-          </p>
-          <p>
-            You can also ask Link, Stripe's checkout service and the seller of record for DayBoard
-            purchases, through
-            <a href="https://support.link.com/topics/sold-through-link">Link support</a>.
-          </p>
-
-          <h2>What happens next</h2>
-          <ul>
-            <li>
-              The refund goes back to the way you paid, including any sales tax or VAT you paid.
-              Link emails you when it's issued. Your bank may take several days to show it.
-            </li>
-            <li>
-              A full refund turns off the license, so DayBoard Pro's AI features lock on every Mac
-              that used it. Everything that's free keeps working.
-            </li>
-          </ul>
-
-          <h2>After 14 days</h2>
-          <p>
-            If something went wrong, such as a duplicate purchase or a license that never arrived,
-            email us anyway and we'll sort it out.
-          </p>
-
-          <h2>Chargebacks</h2>
-          <p>
-            Please email us before disputing a charge with your bank; a refund is faster. A dispute
-            also turns off the license.
-          </p>
-
-          <h2>Questions</h2>
-          <p>
-            Email <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>. See
-            <a href="pricing.html">pricing</a> for what DayBoard Pro includes.
-          </p>
+          <section class="reading-section">
+            <h2>How to ask</h2>
+            <p>
+              Email <a href="mailto:support@getdayboard.com">support@getdayboard.com</a> within 14
+              days of your purchase, from the address on your receipt, or include your receipt
+              number. You don't need to give a reason. Please don't send your card number or license
+              key.
+            </p>
+            <p>
+              You can also ask Link, Stripe's checkout service and the seller of record for DayBoard
+              purchases, through
+              <a href="https://support.link.com/topics/sold-through-link">Link support</a>.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>What happens next</h2>
+            <ul>
+              <li>
+                The refund goes back to the way you paid, including any sales tax or VAT you paid.
+                Link emails you when it's issued. Your bank may take several days to show it.
+              </li>
+              <li>
+                A full refund turns off the license, so DayBoard Pro's AI features lock on every Mac
+                that used it. Everything that's free keeps working.
+              </li>
+            </ul>
+          </section>
+          <section class="reading-section">
+            <h2>After 14 days</h2>
+            <p>
+              If something went wrong, such as a duplicate purchase or a license that never arrived,
+              email us anyway and we'll sort it out.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>Chargebacks</h2>
+            <p>
+              Please email us before disputing a charge with your bank; a refund is faster. A
+              dispute also turns off the license.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>Questions</h2>
+            <p>
+              Email <a href="mailto:support@getdayboard.com">support@getdayboard.com</a>. See
+              <a href="pricing.html">pricing</a> for what DayBoard Pro includes.
+            </p>
+          </section>
         </article>
+        <aside class="contact-panel">
+          <span class="eyebrow">Request a refund</span>
+          <h2>We're here to help.</h2>
+          <p>Use the address on your receipt, or include your receipt number.</p>
+          <a class="button" href="mailto:support@getdayboard.com">Email support ↗</a
+          ><a href="mailto:support@getdayboard.com">support@getdayboard.com</a>
+          <p class="fine">Please don't send your card number or license key.</p>
+        </aside>
       </div>
     </main>
 

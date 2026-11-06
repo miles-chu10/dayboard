@@ -8,8 +8,8 @@
       name="description"
       content="DayBoard's source is licensed under GPL-3.0. How the open-source license and the official build fit together."
     />
-    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171b16" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://getdayboard.com/license" />
     <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,16 +20,23 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="assets/fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script src="assets/theme.js"></script>
     <link rel="stylesheet" href="assets/site.css" />
-    <link rel="stylesheet" href="assets/clean.css" />
+    <link rel="stylesheet" href="assets/reimagined.css" />
     <script>
       document.documentElement.classList.add("js");
     </script>
     <script src="assets/site.js" defer></script>
     <script src="/assets/navigation.js" defer></script>
   </head>
-  <body>
+  <body class="page-license">
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <nav class="nav wrap" aria-label="Main">
@@ -37,12 +44,8 @@
           ><img src="assets/icon-96.png" alt="" width="34" height="34" />DayBoard</a
         >
         <div class="nav-links">
-          <a href="index.html#features">Features</a
-          ><a class="nav-tertiary" href="index.html#privacy">Privacy</a
-          ><a class="nav-tertiary" href="index.html#roadmap">Road Map</a
-          ><a href="pricing.html">Pricing</a><a href="download.html">Download</a
-          ><a href="docs.html">Guide</a><a href="support.html">Support</a
-          ><a class="nav-secondary" href="https://github.com/miles-chu10/dayboard">GitHub</a>
+          <a href="index.html#features">Product</a><a href="pricing.html">Pricing</a
+          ><a href="docs.html">Guide</a><a href="support.html">Support</a>
         </div>
         <button
           class="theme-toggle"
@@ -116,43 +119,54 @@
           </p>
         </div>
       </header>
-
-      <div class="wrap">
+      <div class="wrap policy-split">
         <article class="prose">
-          <h2>The source is GPL-3.0</h2>
-          <p>
-            DayBoard's source code is licensed under the
-            <a href="LICENSE.txt">GNU General Public License, version 3</a>, with no later-version
-            option. You can read it, change it, and build it yourself from the
-            <a href="https://github.com/miles-chu10/dayboard">GitHub repository</a>, as long as you
-            share your changes under the same license.
-          </p>
-
-          <h2>The official build</h2>
-          <p>
-            The signed official DayBoard build is free to download. Its AI features need DayBoard
-            Pro, a one-time $5 purchase (launch price) that funds ongoing work; during the beta,
-            they're free too. See <a href="pricing.html">pricing</a>. Buying Pro doesn't change your
-            rights under the GPL, and AI provider usage is never part of the purchase.
-          </p>
-
-          <h2>Third-party components</h2>
-          <p>
-            DayBoard's dependencies keep their own licenses, listed in the app under
-            <strong>Help → Open Source Licenses…</strong>. This site uses the Fraunces and Hanken
-            Grotesk typefaces under the SIL Open Font License (<a
-              href="assets/fonts/OFL-Fraunces.txt"
-              >Fraunces</a
-            >, <a href="assets/fonts/OFL-Hanken-Grotesk.txt">Hanken Grotesk</a>).
-          </p>
-
-          <h2>Trademarks</h2>
-          <p>
-            Google Calendar, Google Tasks and Gmail are trademarks of Google LLC. Apple Reminders
-            and macOS are trademarks of Apple Inc. DayBoard isn't affiliated with or endorsed by
-            Google or Apple.
-          </p>
+          <section class="reading-section">
+            <h2>The source is GPL-3.0</h2>
+            <p>
+              DayBoard's source code is licensed under the
+              <a href="LICENSE.txt">GNU General Public License, version 3</a>, with no later-version
+              option. You can read it, change it, and build it yourself from the
+              <a href="https://github.com/miles-chu10/dayboard">GitHub repository</a>, as long as
+              you share your changes under the same license.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>The official build</h2>
+            <p>
+              The signed official DayBoard build is free to download. Its AI features need DayBoard
+              Pro, a one-time $5 purchase (launch price) that funds ongoing work; during the beta,
+              they're free too. See <a href="pricing.html">pricing</a>. Buying Pro doesn't change
+              your rights under the GPL, and AI provider usage is never part of the purchase.
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>Third-party components</h2>
+            <p>
+              DayBoard's dependencies keep their own licenses, listed in the app under
+              <strong>Help → Open Source Licenses…</strong>. This site uses the Fraunces and Hanken
+              Grotesk typefaces under the SIL Open Font License (<a
+                href="assets/fonts/OFL-Fraunces.txt"
+                >Fraunces</a
+              >, <a href="assets/fonts/OFL-Hanken-Grotesk.txt">Hanken Grotesk</a>).
+            </p>
+          </section>
+          <section class="reading-section">
+            <h2>Trademarks</h2>
+            <p>
+              Google Calendar, Google Tasks and Gmail are trademarks of Google LLC. Apple Reminders
+              and macOS are trademarks of Apple Inc. DayBoard isn't affiliated with or endorsed by
+              Google or Apple.
+            </p>
+          </section>
         </article>
+        <aside class="contact-panel source-panel">
+          <span class="eyebrow">Free software</span>
+          <h2>GPL-3.0</h2>
+          <p>Read it. Change it. Build it.</p>
+          <a class="button" href="https://github.com/miles-chu10/dayboard">View on GitHub ↗</a
+          ><a href="LICENSE.txt">Read the full license →</a>
+        </aside>
       </div>
     </main>
 

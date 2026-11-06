@@ -67,6 +67,14 @@ Follow `docs/launch/website-deploy.md`. It deploys the signup endpoint, sets `SI
 
 ## Local checks
 
-Run `node --test tests/website-signup.test.mjs tests/website-buy.test.mjs` for the existing signup and checkout gates. Preview the homepage, gallery tabs, theme switch, guide and download page at desktop and mobile widths. The guide's shortcuts follow `renderer/lib/shortcuts.ts`, `renderer/components/shell.tsx`, `renderer/components/tab-strip.tsx`, the mail handlers and `main/window.ts`; Quick Capture's default comes from `main/services/settings-store.ts`.
+Run `node --test tests/website*.test.mjs` for the signup and checkout gates, fictional demo behavior, beta-version consistency, local links, public anchors, and inline-script CSP hashes. Preview the homepage, gallery tabs, theme switch, guide and download page at desktop and mobile widths. The guide's shortcuts follow `renderer/lib/shortcuts.ts`, `renderer/components/shell.tsx`, `renderer/components/tab-strip.tsx`, the mail handlers and `main/window.ts`; Quick Capture's default comes from `main/services/settings-store.ts`.
 
 `scripts/verify-website.mjs` is a post-deploy check that writes a synthetic signup to the supplied API. Do not use it as a read-only local page check or point it at production without authorization.
+
+## Visual system and page layouts
+
+Every HTML page, including the not-found page, loads `assets/reimagined.css` after the shared components in `assets/site.css`. It supplies the ivory/olive light theme, the corresponding dark theme, self-hosted Fraunces headings, responsive navigation, and the page layouts. `theme.js` keeps the browser theme color aligned with those surfaces. The earlier `clean.css` is no longer loaded.
+
+The homepage retains the interactive demo and the complete product, roadmap, FAQ, and signup sections. Pricing compares the free app and optional Pro features while retaining the checkout gate. Download and beta pages put installation steps beside requirements. The guide and privacy policy have persistent desktop contents navigation and native disclosure controls on mobile. Support groups the complete FAQ answers by topic. The waitlist uses the existing signup form and server-response handling. Policy pages retain the complete existing text.
+
+Use the real app screenshots and icons in `assets/`; generated design concepts are review references, not production assets or replacement policy text. For local browser signup tests, intercept requests with disposable responses and block external traffic rather than submitting to the configured production endpoint.
